@@ -50,33 +50,15 @@ class EchoSectionHeader extends StatelessWidget {
 
     return Padding(
       padding: padding,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final scale = MediaQuery.textScalerOf(context).scale(1);
-          final stack =
-              action != null && (constraints.maxWidth < 360 || scale > 1.3);
-          if (stack) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                text,
-                SizedBox(height: context.echoSpacing.xs),
-                action,
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Expanded(child: text),
-              if (action != null) ...<Widget>[
-                SizedBox(width: context.echoSpacing.sm),
-                action,
-              ],
-            ],
-          );
-        },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Expanded(child: text),
+          if (action != null) ...<Widget>[
+            SizedBox(width: context.echoSpacing.sm),
+            action,
+          ],
+        ],
       ),
     );
   }

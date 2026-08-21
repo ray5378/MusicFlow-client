@@ -32,7 +32,6 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
   Widget build(BuildContext context) {
     final playlistsAsync = ref.watch(playlistsProvider);
     final loadFailed = ref.watch(playlistsLoadFailedProvider);
-    final playlistCount = playlistsAsync.valueOrNull?.length;
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
@@ -43,11 +42,9 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
         topBar: EchoTopBar.back(
           context: context,
           title: '所有歌单',
-          subtitle: _searchQuery.isEmpty
-              ? (playlistCount == null ? null : '$playlistCount 个歌单')
-              : '搜索：$_searchQuery',
         ),
         body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
               kind: SearchEntityKind.playlist,

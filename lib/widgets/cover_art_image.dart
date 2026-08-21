@@ -33,7 +33,15 @@ class CoverArtImage extends ConsumerWidget {
 
     final trustedCoverUrl = extractTrustedCoverUrl(raw);
     if (trustedCoverUrl != null) {
-      return _buildNetworkImage(context, trustedCoverUrl);
+      final apiClient = ref.watch(subsonicApiClientProvider);
+      final proxiedUrl = apiClient.getCoverArtUrl(
+        trustedCoverUrl,
+        size: _resolveCoverSize(context),
+      );
+      if (proxiedUrl.isNotEmpty) {
+        return _buildNetworkImage(context, proxiedUrl);
+      }
+      return _buildPlaceholder(context);
     }
 
     final safeCoverArtId = sanitizeServerCoverArtId(raw);

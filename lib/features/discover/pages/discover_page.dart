@@ -241,7 +241,6 @@ class RandomSongsSection extends ConsumerStatefulWidget {
 
 class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   bool _autoContinue = false;
-  bool _expanded = false;
   int _roundToken = 0;
 
   Future<void> _playRound() async {
@@ -299,57 +298,48 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
           );
         }
 
-        final displayCount = _expanded ? songs.length : (songs.length > 5 ? 5 : songs.length);
-        final visibleSongs = songs.take(displayCount).toList(growable: false);
+        final itemWidth =
+            (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final textScale = MediaQuery.textScalerOf(context).scale(1);
-            final columns = textScale > 1.3 || constraints.maxWidth < 720
-                ? 1
-                : 2;
-            final gap = context.echoSpacing.md;
-            final itemWidth =
-                (constraints.maxWidth - gap * (columns - 1)) / columns;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Wrap(
-                  spacing: gap,
-                  runSpacing: context.echoSpacing.xxs,
-                  children: <Widget>[
-                    for (var index = 0; index < visibleSongs.length; index++)
-                      SizedBox(
-                        width: itemWidth,
-                        child: DiscoverSongTile(
-                          song: visibleSongs[index],
-                          onPressed: () {
-                            ref
-                                .read(playerProvider.notifier)
-                                .playQueue(songs, startIndex: index);
-                          },
-                          onOpenActions: () => showSongOptionsSheet(
-                            context: context,
-                            song: visibleSongs[index],
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.symmetric(
+            horizontal: context.echoPageHorizontalPadding,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              for (var col = 0; col < (songs.length / 3).ceil(); col++)
+                Padding(
+                  padding: EdgeInsets.only(right: context.echoSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      for (var row = 0;
+                          row < 3 && col * 3 + row < songs.length;
+                          row++) ...<Widget>[
+                        SizedBox(
+                          width: itemWidth,
+                          child: DiscoverSongTile(
+                            song: songs[col * 3 + row],
+                            onPressed: () {
+                              ref
+                                  .read(playerProvider.notifier)
+                                  .playQueue(songs, startIndex: col * 3 + row);
+                            },
+                            onOpenActions: () => showSongOptionsSheet(
+                              context: context,
+                              song: songs[col * 3 + row],
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                if (songs.length > 5) ...<Widget>[
-                  SizedBox(height: context.echoSpacing.xs),
-                  EchoButton.ghost(
-                    label: _expanded ? '收起' : '更多歌曲',
-                    leadingIcon: _expanded
-                        ? AppIcons.chevronUp
-                        : AppIcons.chevronDown,
-                    onPressed: () => setState(() => _expanded = !_expanded),
+                        if (row < 2) SizedBox(height: context.echoSpacing.xxs),
+                      ],
+                    ],
                   ),
-                ],
-              ],
-            );
-          },
+                ),
+            ],
+          ),
         );
       },
       loading: () => const DiscoverSongLoading(count: 5),
@@ -375,7 +365,6 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
           children: <Widget>[
             EchoSectionHeader(
               title: '随机歌曲',
-              description: '从音乐库随机挑选，点一首即可开始。',
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -416,7 +405,6 @@ class RecentPlaylistsSection extends ConsumerWidget {
       children: <Widget>[
         EchoSectionHeader(
           title: '最近更新的歌单',
-          description: '按更新时间排序',
           trailing: EchoIconButton(
             icon: AppIcons.refresh,
             label: '刷新最近更新歌单',
@@ -511,7 +499,6 @@ class FixedRecommendSection extends ConsumerWidget {
       children: <Widget>[
         EchoSectionHeader(
           title: '固定推荐',
-          description: '来自音乐推荐插件的精选歌单',
         ),
         SizedBox(height: context.echoSpacing.xs),
         cardsAsync.when(
@@ -653,7 +640,6 @@ class PlatformRecommendSection extends ConsumerWidget {
       children: <Widget>[
         EchoSectionHeader(
           title: '平台推荐',
-          description: '来自不同音乐平台的推荐歌单',
         ),
         SizedBox(height: context.echoSpacing.xs),
         channelsAsync.when(

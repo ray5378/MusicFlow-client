@@ -170,7 +170,6 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(allSongsProvider);
     final loadFailed = ref.watch(allSongsLoadFailedProvider);
-    final songCount = songsAsync.valueOrNull?.length;
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
@@ -181,11 +180,6 @@ class _SongListPageState extends ConsumerState<SongListPage> {
         topBar: EchoTopBar.back(
           context: context,
           title: '所有歌曲',
-          subtitle: _searchQuery.isEmpty
-              ? (songCount == null
-                  ? _sortOption.label
-                  : '$songCount 首 · ${_sortOption.label}')
-              : '搜索：$_searchQuery',
           actions: <Widget>[
             if (_searchQuery.isEmpty)
               EchoIconButton(
@@ -196,6 +190,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
           ],
         ),
         body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
               kind: SearchEntityKind.song,

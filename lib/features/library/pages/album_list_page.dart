@@ -93,7 +93,6 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
   Widget build(BuildContext context) {
     final albumsAsync = ref.watch(allAlbumsProvider);
     final loadFailed = ref.watch(allAlbumsLoadFailedProvider);
-    final albumCount = albumsAsync.valueOrNull?.length;
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
@@ -104,11 +103,9 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
         topBar: EchoTopBar.back(
           context: context,
           title: '所有专辑',
-          subtitle: _searchQuery.isEmpty
-              ? (albumCount == null ? null : '$albumCount 张专辑')
-              : '搜索：$_searchQuery',
         ),
         body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
               kind: SearchEntityKind.album,

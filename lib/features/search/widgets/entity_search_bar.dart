@@ -84,48 +84,52 @@ class _EntitySearchBarState extends ConsumerState<EntitySearchBar> {
       padding: EdgeInsets.symmetric(
         horizontal: context.echoPageHorizontalPadding,
       ),
-      child: Column(
+      child: Row(
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focus,
-                  onChanged: _onQueryChanged,
-                  decoration: InputDecoration(
-                    hintText: '搜索${_kindLabel(widget.kind)}',
-                    prefixIcon: const Icon(AppIcons.search, size: 20),
-                    suffixIcon: _controller.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(AppIcons.close, size: 18),
-                            onPressed: () {
-                              _controller.clear();
-                              widget.onQueryChanged('');
-                            },
-                          )
-                        : null,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
+          _buildSourceButton(context, providersAsync),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _focus,
+              onChanged: _onQueryChanged,
+              decoration: InputDecoration(
+                hintText: '搜索${_kindLabel(widget.kind)}',
+                prefixIcon: const Icon(AppIcons.search, size: 20),
+                suffixIcon: _controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(AppIcons.close, size: 18),
+                        onPressed: () {
+                          _controller.clear();
+                          widget.onQueryChanged('');
+                        },
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildSourceDropdown(context, providersAsync),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSourceDropdown(
+  Widget _buildSourceButton(
     BuildContext context,
     AsyncValue<List<SearchProvider>> providersAsync,
   ) {
+    return providersAsync.when(
+      data: (providers) => _sourceDropdown(providers),
+      loading: () => _sourceDropdown(const []),
+      error: (error, stackTrace) => _sourceDropdown(const []),
+    );
+  }
+
+  DropdownButton<String> _sourceDropdown(List<SearchProvider> providers) {
     final items = <DropdownMenuItem<String>>[
       const DropdownMenuItem(
         value: 'aggregate',
@@ -136,20 +140,21 @@ class _EntitySearchBarState extends ConsumerState<EntitySearchBar> {
         child: Text('本地'),
       ),
     ];
-    providersAsync.whenData((providers) {
-      for (final p in providers) {
-        items.add(DropdownMenuItem(
-          value: p.id,
-          child: Text(p.name),
-        ));
-      }
-    });
+    for (final p in providers) {
+      items.add(DropdownMenuItem(
+        value: p.id,
+        child: Text(p.name),
+      ));
+    }
 
     return DropdownButton<String>(
       value: items.any((i) => i.value == _currentValue)
           ? _currentValue
           : 'aggregate',
       items: items,
+      selectedItemBuilder: (context) => items
+          .map((item) => Text(_truncatedLabel(providers)))
+          .toList(),
       onChanged: (value) {
         if (value == null) return;
         if (value == 'aggregate') {
@@ -161,6 +166,19 @@ class _EntitySearchBarState extends ConsumerState<EntitySearchBar> {
         }
       },
     );
+  }
+
+  String _truncatedLabel(List<SearchProvider> providers) {
+    if (widget.mode == SearchMode.aggregate) return '聚合';
+    if (widget.mode == SearchMode.local) return '本地';
+    var name = widget.providerId;
+    for (final p in providers) {
+      if (p.id == widget.providerId) {
+        name = p.name;
+        break;
+      }
+    }
+    return name.length > 2 ? name.substring(0, 2) : name;
   }
 }
 

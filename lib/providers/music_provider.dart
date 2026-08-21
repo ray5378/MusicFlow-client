@@ -106,7 +106,7 @@ final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
   return _fetchWithCacheFallback(
     ref: ref,
     label: 'randomSongs',
-    fetch: () => repository.getRandomSongs(size: 20),
+    fetch: () => repository.getRandomSongs(size: 30),
     cacheWrite: (songs) => cache.cacheRandomSongs(libraryId, songs),
     cacheRead: () => cache.getRandomSongs(libraryId),
     failedProvider: randomSongsLoadFailedProvider,
