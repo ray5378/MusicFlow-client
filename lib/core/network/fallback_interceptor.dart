@@ -1,0 +1,138 @@
+import 'package:dio/dio.dart';
+import 'package:musicflow_client/core/network/address_pool.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+
+class FallbackInterceptor extends Interceptor {
+  static const _tag = 'FALLBACK';
+  static const allowRetryExtraKey = 'echo.allowFallbackRetry';
+  final AddressPool _addressPool;
+  final Dio _dio; // The customized Dio instance (with this interceptor)
+
+  int _consecutiveFailures = 0;
+
+  FallbackInterceptor(this._addressPool, this._dio);
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final active = _addressPool.activeAddress;
+    if (active != null) {
+      options.baseUrl = active.url;
+    }
+    Logger.debugWithTag(
+      _tag,
+      'request ${options.method} ${options.path} via '
+      '${active?.label ?? 'no-active-address'}',
+    );
+    super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    if (_consecutiveFailures != 0) {
+      Logger.debugWithTag(_tag, 'reset consecutive failure counter');
+      _consecutiveFailures = 0;
+    }
+    super.onResponse(response, handler);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    if (_isConnectionError(err)) {
+      if (err.requestOptions.extra[allowRetryExtraKey] == false) {
+        Logger.warnWithTag(
+          _tag,
+          'skip automatic replay for non-idempotent request '
+          'path=${err.requestOptions.path}',
+          err,
+        );
+        super.onError(err, handler);
+        return;
+      }
+      _consecutiveFailures++;
+      Logger.warnWithTag(
+        _tag,
+        'connection error, consecutiveFailures=$_consecutiveFailures '
+        'path=${err.requestOptions.path}',
+        err,
+      );
+
+      // 手动模式 + 自动回退关闭时，不自动切换线路
+      if (_addressPool.isManualMode && !_addressPool.autoFallback) {
+        Logger.warnWithTag(
+          _tag,
+          'manual mode with autoFallback disabled, skip switch',
+        );
+        super.onError(err, handler);
+        return;
+      }
+
+      if (_consecutiveFailures >= 2) {
+        final currentAddress = _addressPool.activeAddress;
+        if (currentAddress != null) {
+          _addressPool.markFailed(currentAddress);
+
+          final next = _addressPool.getNextAvailable();
+          if (next != null && next.id != currentAddress.id) {
+            // Try probing/switching to next
+            Logger.infoWithTag(
+              _tag,
+              'trying switch: ${currentAddress.label} -> ${next.label}',
+            );
+            final success = await _addressPool.switchTo(next, manual: false);
+            if (success) {
+              _consecutiveFailures = 0;
+              ToastNotifier.show('已切换线路：${next.label}');
+
+              // Retry with new address
+              final opts = err.requestOptions;
+              opts.baseUrl = next.url;
+
+              try {
+                final response = await _dio.fetch(opts);
+                Logger.infoWithTag(
+                  _tag,
+                  'retry succeeded on ${next.label} path=${opts.path}',
+                );
+                return handler.resolve(response);
+              } catch (e) {
+                // If retry fails, it might trigger onError again via the interceptor chain
+                // So we just return here, letting the next error propagate if it wasn't resolved
+                Logger.warnWithTag(
+                  _tag,
+                  'retry failed on ${next.label} path=${opts.path}',
+                  e,
+                );
+                if (e is DioException) {
+                  return handler.next(e);
+                }
+              }
+            } else {
+              Logger.warnWithTag(
+                _tag,
+                'switch rejected by address pool: ${next.label}',
+              );
+            }
+          } else {
+            Logger.warnWithTag(_tag, 'no next address available for fallback');
+          }
+        }
+      }
+    } else {
+      if (_consecutiveFailures != 0) {
+        Logger.debugWithTag(_tag, 'reset consecutive failure counter');
+      }
+      _consecutiveFailures = 0;
+    }
+
+    super.onError(err, handler);
+  }
+
+  bool _isConnectionError(DioException err) {
+    return err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.connectionError ||
+        (err.type == DioExceptionType.unknown &&
+            err.message?.contains('SocketException') == true);
+  }
+}
