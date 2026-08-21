@@ -203,31 +203,37 @@ class MusicRepository {
     }
   }
 
-  /// 获取所有歌曲 (通过 search3 接口变通实现)
-  Future<List<Song>> getAllSongs() async {
+  /// 获取所有歌曲。
+  /// 对齐 Web 前端:走 /rest/api/v1/songs 的服务端分页接口(与 HA 卡片同构的
+  /// 窗口化分块加载数据源),按页拉取直至取完,避免 search3 的 500 条上限与整表
+  /// 一次性返回。歌曲字段经 Song.fromJson 解析(服务端部分数值为浮点,已做容错)。
+  Future<List<Song>> getAllSongs({String query = ''}) async {
     try {
-      // Subsonic API 没有直接的 getAllSongs 接口
-      // 这里使用 search3 接口，查询空字符串或通配符，获取大量歌曲
-      // 实际生产中可能需要分页处理，这里为了简化先一次性获取较多数量
-      final response = await _apiClient.get(
-        ApiConstants.search3,
-        queryParameters: {
-          'query': '', // 尝试空字符串获取所有
-          'songCount': '5000', // 获取足够多的歌曲
-          'artistCount': '0',
-          'albumCount': '0',
-        },
-      );
+      const pageSize = 200; // 与后端 /v1/songs 的 pageSize 上限对齐
+      final List<Song> all = <Song>[];
+      int page = 1;
+      int total = 0;
+      do {
+        final data = await _apiClient.getRaw(
+          '/rest/api/v1/songs',
+          queryParameters: <String, String>{
+            'page': page.toString(),
+            'pageSize': pageSize.toString(),
+            if (query.isNotEmpty) 'query': query,
+          },
+        ) as Map<String, dynamic>;
 
-      final searchResult = response['searchResult3'];
-      if (searchResult == null) return [];
+        final items = data['items'] as List? ?? [];
+        total = (data['total'] as num?)?.toInt() ?? 0;
+        all.addAll(
+          items.map((e) => Song.fromJson(e as Map<String, dynamic>)),
+        );
 
-      final songList = searchResult['song'] as List?;
-      if (songList == null) return [];
-
-      return songList
-          .map((e) => Song.fromJson(e as Map<String, dynamic>))
-          .toList();
+        // 空页或已取满则停止
+        if (items.isEmpty || all.length >= total) break;
+        page++;
+      } while (true);
+      return all;
     } catch (e) {
       Logger.error('Failed to get all songs', e);
       rethrow;
