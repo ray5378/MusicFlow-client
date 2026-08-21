@@ -7,6 +7,7 @@ import '../../../core/utils/cover_ref_security.dart';
 import '../../../data/models/search.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../widgets/cover_art_image.dart';
+import '../../library/pages/remote_playlist_page.dart';
 import '../search_actions.dart';
 
 /// 远程搜索结果展示:按类目渲染歌曲/专辑/艺术家/歌单卡片,
@@ -76,7 +77,15 @@ class SearchResultList extends ConsumerWidget {
                       SearchSongLike(id: p.id, source: p.source),
                       playlist: p,
                     ),
-                    onOpen: () => importSearchPlaylist(context, ref, p),
+                    onOpen: () => Navigator.of(context).push<void>(
+                      EchoPageRoute<void>(
+                        context: context,
+                        builder: (_) => RemotePlaylistPage(
+                          playlist: p,
+                          providerId: p.providerId,
+                        ),
+                      ),
+                    ),
                   ))
               .toList(),
         );
