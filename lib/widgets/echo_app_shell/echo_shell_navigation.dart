@@ -188,7 +188,7 @@ class EchoExpandedNavigationSidebar extends StatelessWidget {
                         child: Semantics(
                           header: true,
                           child: Text(
-                            'Echo',
+                            'MusicFlow',
                             style: context.echoTypography.title,
                           ),
                         ),

@@ -35,7 +35,7 @@ val hasReleaseSigning = releaseStoreFile.isFile &&
     releaseKeyPassword != null
 
 android {
-    namespace = "com.az1n.echoes"
+    namespace = "com.musicflow.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -49,7 +49,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.az1n.echoes"
+        applicationId = "com.musicflow.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -22,6 +22,7 @@ import '../widgets/player_hero_helpers.dart';
 import '../widgets/player_scrubber.dart';
 import '../widgets/song_options_sheet.dart';
 import '../widgets/synced_lyrics_view.dart';
+import '../widgets/vinyl_record_cover.dart';
 
 /// Echo's immersive now-playing scene.
 class FullPlayerPage extends ConsumerStatefulWidget {
@@ -131,43 +132,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     if (artist.isNotEmpty && album.isNotEmpty) return '$artist · $album';
     if (artist.isNotEmpty) return artist;
     return album;
-  }
-
-  Widget _buildSongCover(Song song, double size) {
-    final previewCover = song.previewCoverUrl?.trim();
-    if (song.isPreview && previewCover?.isNotEmpty == true) {
-      return Image.network(
-        previewCover!,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        semanticLabel: '${song.title} 封面',
-        errorBuilder: (context, error, stackTrace) => Semantics(
-          image: true,
-          label: '暂无封面',
-          child: ExcludeSemantics(
-            child: ColoredBox(
-              color: context.echoColors.raised,
-              child: Center(
-                child: Icon(
-                  AppIcons.music,
-                  size: 56,
-                  color: context.echoColors.muted,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return CoverArtImage(
-      coverArtId: song.coverArt,
-      size: size,
-      requestSize: 720,
-      fit: BoxFit.cover,
-      semanticLabel: '${song.title} 封面',
-    );
   }
 
   Future<void> _enqueuePreviewSong(Song song, {bool force = false}) async {
@@ -724,25 +688,10 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         child: Builder(
           builder: (context) {
             return RepaintBoundary(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: context.echoColors.raised,
-                  borderRadius: context.echoRadii.surface,
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: context.echoColors.scrim.withValues(alpha: 0.24),
-                      blurRadius: 40,
-                      offset: const Offset(0, 16),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: context.echoRadii.surface,
-                  child: SizedBox.square(
-                    dimension: size,
-                    child: _buildSongCover(song, size),
-                  ),
-                ),
+              child: VinylRecordCover(
+                song: song,
+                size: size,
+                showVinylEffect: true,
               ),
             );
           },

@@ -151,7 +151,7 @@ class MainScaffold extends ConsumerStatefulWidget {
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
   static const _logTag = 'BACK';
   static const MethodChannel _appLifecycleChannel = MethodChannel(
-    'com.ray5378.musicflow/app_lifecycle',
+    'com.musicflow.app/app_lifecycle',
   );
   int? _lastSyncedBranchIndex;
   bool _branchFallbackScheduled = false;

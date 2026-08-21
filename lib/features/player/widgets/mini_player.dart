@@ -830,8 +830,7 @@ class _MiniPlayerCover extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: 48,
-      child: ClipRRect(
-        borderRadius: context.echoRadii.detail,
+      child: ClipOval(
         child: CoverArtImage(
           coverArtId: song.artworkReference,
           size: 48,

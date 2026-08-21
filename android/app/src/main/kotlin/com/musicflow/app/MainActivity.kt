@@ -1,4 +1,4 @@
-package com.az1n.echoes
+package com.musicflow.app
 
 import android.content.Intent
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
@@ -7,7 +7,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceFragmentActivity() {
     companion object {
-        private const val APP_LIFECYCLE_CHANNEL = "com.az1n.echoes/app_lifecycle"
+        private const val APP_LIFECYCLE_CHANNEL = "com.musicflow.app/app_lifecycle"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
