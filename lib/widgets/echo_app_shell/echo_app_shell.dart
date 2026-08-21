@@ -67,8 +67,7 @@ class EchoAppShell extends StatelessWidget {
           networkStatusBar: networkStatusBar,
         ),
       },
-      bottomNavigationBar: windowClass == EchoWindowClass.compact &&
-              showNavigationBar
+      bottomNavigationBar: windowClass == EchoWindowClass.compact
           ? Column(
               key: const ValueKey<String>('echo-compact-bottom-chrome'),
               mainAxisSize: MainAxisSize.min,
@@ -79,11 +78,12 @@ class EchoAppShell extends StatelessWidget {
                   includeBottomSafeArea: false,
                   child: miniPlayer,
                 ),
-                EchoCompactNavigation(
-                  destinations: destinations,
-                  selectedBranchIndex: selectedBranchIndex,
-                  onDestinationSelected: onDestinationSelected,
-                ),
+                if (showNavigationBar)
+                  EchoCompactNavigation(
+                    destinations: destinations,
+                    selectedBranchIndex: selectedBranchIndex,
+                    onDestinationSelected: onDestinationSelected,
+                  ),
               ],
             )
           : null,

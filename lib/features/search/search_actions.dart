@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -110,17 +112,31 @@ Future<void> importSearchPlaylist(
     _toast(context, '未指定来源插件', error: true);
     return;
   }
+  final navigator = Navigator.of(context);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    ),
+  );
   try {
     final playlistId = await repo.importPlaylist(pl.providerId, pl);
     if (!context.mounted) return;
-    Navigator.of(context).push<void>(
+    navigator.pop();
+    navigator.push<void>(
       EchoPageRoute<void>(
         context: context,
         builder: (context) => PlaylistDetailPage(playlistId: playlistId),
       ),
     );
   } catch (e) {
-    _toast(context, '导入失败: $e', error: true);
+    if (context.mounted) {
+      navigator.pop();
+      _toast(context, '导入失败: $e', error: true);
+    }
   }
 }
 

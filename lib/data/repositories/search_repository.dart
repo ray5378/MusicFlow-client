@@ -195,7 +195,9 @@ class SearchRepository {
     });
   }
 
-  /// 歌单导入:POST /v1/playlist-search/:providerId/import → 返回 library playlistId
+  /// 歌单导入:POST /v1/playlist-search/:providerId/import。
+  /// 该端点走异步任务(触发即返回 taskId),平台歌单在子进程里拉歌+入库后才生成
+  /// library playlistId,因此需要轮询 GET /v1/tasks/:taskId 拿到结果里的 playlistId。
   Future<String> importPlaylist(
     String providerId,
     SearchPlaylist pl,
@@ -212,10 +214,39 @@ class SearchRepository {
         'link': pl.link,
       },
     ) as Map<String, dynamic>;
-    if (data['success'] != true || data['playlistId'] == null) {
+    if (data['success'] != true || data['taskId'] == null) {
       throw Exception(data['error']?.toString() ?? '导入歌单失败');
     }
-    return data['playlistId'] as String;
+    final taskId = data['taskId'] as String;
+    final result = await _waitTask(taskId);
+    final playlistId = result['playlistId'] as String?;
+    if (playlistId == null) {
+      throw Exception(result['error']?.toString() ?? '导入歌单失败');
+    }
+    return playlistId;
+  }
+
+  /// 轮询异步任务直到完成,返回任务 result(含 playlistId)。
+  Future<Map<String, dynamic>> _waitTask(String taskId) async {
+    const maxAttempts = 40;
+    for (var i = 0; i < maxAttempts; i++) {
+      final state = await _apiClient.getRaw(
+        '/rest/api/v1/tasks/$taskId',
+      ) as Map<String, dynamic>;
+      final status = state['status'] as String?;
+      if (status == 'ok') {
+        final result = state['result'];
+        if (result is Map) {
+          return Map<String, dynamic>.from(result);
+        }
+        return <String, dynamic>{};
+      }
+      if (status == 'error') {
+        throw Exception((state['error'] as String?) ?? '导入任务失败');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+    }
+    throw Exception('导入歌单超时,请稍后在音乐库查看');
   }
 
   Future<String> _import(String path, Map<String, dynamic> body) async {
