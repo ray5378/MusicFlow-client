@@ -15,7 +15,6 @@ import 'providers/theme_provider.dart';
 import 'widgets/main_scaffold.dart';
 import 'features/discover/pages/discover_page.dart';
 import 'features/explore/pages/explore_page.dart';
-import 'features/library/pages/library_page.dart';
 import 'features/library/pages/edit_library_page.dart';
 
 /// 应用主入口 Widget
@@ -131,12 +130,10 @@ class App extends ConsumerWidget {
 /// 路由配置
 final _homeBranchNavigatorKey = GlobalKey<NavigatorState>();
 final _exploreBranchNavigatorKey = GlobalKey<NavigatorState>();
-final _libraryBranchNavigatorKey = GlobalKey<NavigatorState>();
 
 final _branchNavigatorKeys = <GlobalKey<NavigatorState>>[
   _homeBranchNavigatorKey,
   _exploreBranchNavigatorKey,
-  _libraryBranchNavigatorKey,
 ];
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -242,16 +239,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/explore',
                 builder: (context, state) => const ExplorePage(),
-              ),
-            ],
-          ),
-          // Tab 3: 我的
-          StatefulShellBranch(
-            navigatorKey: _libraryBranchNavigatorKey,
-            routes: [
-              GoRoute(
-                path: '/library',
-                builder: (context, state) => const LibraryPage(),
               ),
             ],
           ),

@@ -96,13 +96,6 @@ const EchoShellDestination _exploreDestination = EchoShellDestination(
   selectedIcon: AppIcons.discoverFilled,
 );
 
-const EchoShellDestination _libraryDestination = EchoShellDestination(
-  branchIndex: libraryBranchIndex,
-  label: '我的',
-  icon: AppIcons.library,
-  selectedIcon: AppIcons.libraryFilled,
-);
-
 @visibleForTesting
 List<EchoShellDestination> echoMainDestinations({
   required bool showExploreTab,
@@ -110,7 +103,6 @@ List<EchoShellDestination> echoMainDestinations({
   return <EchoShellDestination>[
     _discoverDestination,
     if (showExploreTab) _exploreDestination,
-    _libraryDestination,
   ];
 }
 
@@ -402,6 +394,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
         showMiniPlayer: hasMiniPlayer,
         networkStatus: networkStatus,
+        showNavigationBar: false,
         onOpenDrawer: openEchoAppDrawer,
       ),
     );

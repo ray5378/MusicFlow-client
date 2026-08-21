@@ -17,6 +17,7 @@ class EchoAppShell extends StatelessWidget {
     required this.showMiniPlayer,
     this.networkStatus = EchoNetworkStatus.online,
     this.onOpenDrawer,
+    this.showNavigationBar = true,
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -29,6 +30,7 @@ class EchoAppShell extends StatelessWidget {
   final bool showMiniPlayer;
   final EchoNetworkStatus networkStatus;
   final VoidCallback? onOpenDrawer;
+  final bool showNavigationBar;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +67,8 @@ class EchoAppShell extends StatelessWidget {
           networkStatusBar: networkStatusBar,
         ),
       },
-      bottomNavigationBar: windowClass == EchoWindowClass.compact
+      bottomNavigationBar: windowClass == EchoWindowClass.compact &&
+              showNavigationBar
           ? Column(
               key: const ValueKey<String>('echo-compact-bottom-chrome'),
               mainAxisSize: MainAxisSize.min,
