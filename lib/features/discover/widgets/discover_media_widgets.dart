@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/album.dart';
+import '../../../data/models/playlist.dart';
 import '../../../data/models/song.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
@@ -860,6 +861,126 @@ class _DiscoverAlbumRowSkeleton extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class DiscoverPlaylistTile extends StatelessWidget {
+  const DiscoverPlaylistTile({
+    super.key,
+    required this.playlist,
+    required this.onPressed,
+    this.onLongPress,
+  });
+
+  final Playlist playlist;
+  final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 72),
+      child: EchoPressable(
+        semanticLabel: '${playlist.name}，${playlist.songCount} 首',
+        onPressed: onPressed,
+        onLongPress: onLongPress,
+        minimumSize: const Size(double.infinity, 72),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: context.echoSpacing.xs,
+            vertical: context.echoSpacing.xs,
+          ),
+          child: Row(
+            children: <Widget>[
+              SizedBox.square(
+                dimension: context.echoInteraction.minimumTouchTarget,
+                child: Center(
+                  child: Icon(
+                    AppIcons.playlist,
+                    size: 24,
+                    color: context.echoColors.accent,
+                  ),
+                ),
+              ),
+              SizedBox(width: context.echoSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      playlist.name,
+                      style: context.echoTypography.title,
+                    ),
+                    SizedBox(height: context.echoSpacing.xxs),
+                    Text(
+                      '${playlist.songCount} 首 · ${playlist.durationString}',
+                      style: context.echoTypography.metadata.copyWith(
+                        color: context.echoColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DiscoverPlaylistLoading extends StatelessWidget {
+  const DiscoverPlaylistLoading({super.key, this.count = 3});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final columns = textScale > 1.3 || constraints.maxWidth < 720 ? 1 : 2;
+        final gap = context.echoSpacing.md;
+        final itemWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: context.echoSpacing.xxs,
+          children: <Widget>[
+            for (var index = 0; index < count; index++)
+              SizedBox(
+                width: itemWidth,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 72),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: context.echoSpacing.xxs,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        const EchoSkeleton(width: 48, height: 48),
+                        SizedBox(width: context.echoSpacing.sm),
+                        const Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              EchoSkeleton.line(height: 16),
+                              SizedBox(height: 8),
+                              EchoSkeleton.line(width: 112, height: 12),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
