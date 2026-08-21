@@ -68,6 +68,14 @@ class SearchResultList extends ConsumerWidget {
           outcome.playlists
               .map((p) => _PlaylistView(
                     playlist: p,
+                    onPlay: () => playRemoteSearchCollection(
+                      context,
+                      ref,
+                      SearchEntityKind.playlist,
+                      p.providerId,
+                      SearchSongLike(id: p.id, source: p.source),
+                      playlist: p,
+                    ),
                     onOpen: () => importSearchPlaylist(context, ref, p),
                   ))
               .toList(),
@@ -84,10 +92,11 @@ class SearchResultList extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.symmetric(
-        horizontal: context.echoPageHorizontalPadding,
+      padding: EdgeInsets.only(
+        left: context.echoPageHorizontalPadding,
+        right: context.echoPageHorizontalPadding,
+        bottom:
+            context.echoSpacing.xxl + context.echoShellBottomObstruction,
       ),
       itemCount: songs.length,
       separatorBuilder: (_, _) => const SizedBox(height: 4),
@@ -128,12 +137,13 @@ class SearchResultList extends ConsumerWidget {
   ) {
     if (children.isEmpty) return const SizedBox.shrink();
     return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 3,
       childAspectRatio: 0.8,
-      padding: EdgeInsets.symmetric(
-        horizontal: context.echoPageHorizontalPadding,
+      padding: EdgeInsets.only(
+        left: context.echoPageHorizontalPadding,
+        right: context.echoPageHorizontalPadding,
+        bottom:
+            context.echoSpacing.xxl + context.echoShellBottomObstruction,
       ),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
@@ -280,60 +290,69 @@ class _ArtistView extends StatelessWidget {
 
 class _PlaylistView extends StatelessWidget {
   final SearchPlaylist playlist;
+  final VoidCallback onPlay;
   final VoidCallback onOpen;
-  const _PlaylistView({required this.playlist, required this.onOpen});
+  const _PlaylistView({
+    required this.playlist,
+    required this.onPlay,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              playlist.cover.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CoverArtImage(
-                        coverArtId:
-                            tryToTrustedCoverUrlRef(playlist.cover) ?? '',
-                        size: 120,
-                        requestSize: 240,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                playlist.cover.isNotEmpty
+                    ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        color: context.echoColors.surface,
+                        child: CoverArtImage(
+                          coverArtId:
+                              tryToTrustedCoverUrlRef(playlist.cover) ?? '',
+                          size: 120,
+                          requestSize: 240,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: context.echoColors.surface,
+                        ),
+                        child: const Center(child: Icon(AppIcons.playlist)),
                       ),
-                      child: const Center(child: Icon(AppIcons.playlist)),
-                    ),
-              Positioned(
-                right: 4,
-                bottom: 4,
-                child: IconButton(
-                  icon: const Icon(Remix.play_circle_fill, size: 24),
-                  color: context.echoColors.accent,
-                  onPressed: onOpen,
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: IconButton(
+                    icon: const Icon(Remix.play_circle_fill, size: 24),
+                    color: context.echoColors.accent,
+                    onPressed: onPlay,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(
-          playlist.trackCount.isNotEmpty
-              ? '${playlist.trackCount} 首'
-              : playlist.platformLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: context.echoTypography.metadata
-              .copyWith(color: context.echoColors.muted),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            playlist.trackCount.isNotEmpty
+                ? '${playlist.trackCount} 首'
+                : playlist.platformLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.echoTypography.metadata
+                .copyWith(color: context.echoColors.muted),
+          ),
+        ],
+      ),
     );
   }
 }

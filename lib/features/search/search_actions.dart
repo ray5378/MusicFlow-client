@@ -40,8 +40,9 @@ Future<void> playRemoteSearchCollection(
   WidgetRef ref,
   SearchEntityKind kind,
   String providerId,
-  SearchSongLike item,
-) async {
+  SearchSongLike item, {
+  SearchPlaylist? playlist,
+}) async {
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   if (providerId.isEmpty) {
@@ -52,7 +53,7 @@ Future<void> playRemoteSearchCollection(
     final songs = kind == SearchEntityKind.playlist
         ? await repo.getPlaylistSongs(
             providerId,
-            item as SearchPlaylist,
+            playlist ?? (item as SearchPlaylist),
           )
         : await repo.getCollectionSongs(kind, providerId, item);
     if (songs.isEmpty) {

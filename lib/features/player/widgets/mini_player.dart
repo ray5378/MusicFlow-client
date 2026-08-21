@@ -7,13 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/song.dart';
+import '../../../providers/dlna_provider.dart';
+import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../pages/full_player_page.dart';
-import 'play_queue_sheet.dart';
 import 'player_hero_helpers.dart';
-import 'song_options_sheet.dart';
 
 /// Stable bridge between the application shell and the immersive player.
 class MiniPlayer extends ConsumerWidget {
@@ -44,12 +44,14 @@ class MiniPlayer extends ConsumerWidget {
       duration: snapshot.duration,
     );
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
+    final lyricLine = ref.watch(currentLyricLineProvider);
     final currentSong = playerState.currentSong;
     if (currentSong == null) return const SizedBox.shrink();
 
     return MiniPlayerView(
       playerState: playerState,
       mediaVisuals: visuals,
+      lyricLine: lyricLine,
       onOpenPlayer: () => _openFullPlayer(context),
       onTogglePlayPause: () =>
           ref.read(playerProvider.notifier).togglePlayPause(),
@@ -57,12 +59,7 @@ class MiniPlayer extends ConsumerWidget {
       onNext: () => ref.read(playerProvider.notifier).next(),
       onSeek: (position) => ref.read(playerProvider.notifier).seek(position),
       progressLayer: const _ProviderMiniPlayerProgress(),
-      onOpenActions: () => _showPlayerActions(
-        context: context,
-        ref: ref,
-        playerState: playerState,
-        song: currentSong,
-      ),
+      onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
     );
   }
 
@@ -85,82 +82,15 @@ class MiniPlayer extends ConsumerWidget {
     );
   }
 
-  static Future<void> _showPlayerActions({
+  static Future<void> _showPlayerSwitcher({
     required BuildContext context,
     required WidgetRef ref,
-    required PlayerState playerState,
-    required Song song,
   }) async {
-    void closeThen(
-      BuildContext sheetContext,
-      FutureOr<void> Function() action,
-    ) {
-      Navigator.of(sheetContext).pop();
-      Future<void>.microtask(() async {
-        if (!context.mounted) return;
-        await action();
-      });
-    }
-
     await showEchoBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
-        title: '播放操作',
-        subtitle: <String>[
-          song.title,
-          if (song.artist?.trim().isNotEmpty == true) song.artist!.trim(),
-        ].join(' · '),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.55,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                EchoActionRow(
-                  icon: AppIcons.previous,
-                  title: '上一首',
-                  onPressed: playerState.hasPrevious
-                      ? () => closeThen(
-                          sheetContext,
-                          () => ref.read(playerProvider.notifier).previous(),
-                        )
-                      : null,
-                ),
-                EchoActionRow(
-                  icon: AppIcons.next,
-                  title: '下一首',
-                  onPressed: playerState.hasNext
-                      ? () => closeThen(
-                          sheetContext,
-                          () => ref.read(playerProvider.notifier).next(),
-                        )
-                      : null,
-                ),
-                EchoActionRow(
-                  icon: AppIcons.queue,
-                  title: '查看播放队列',
-                  onPressed: () => closeThen(
-                    sheetContext,
-                    () => showPlayQueueSheet(context: context),
-                  ),
-                ),
-                EchoActionRow(
-                  icon: AppIcons.more,
-                  title: '曲目操作',
-                  onPressed: () => closeThen(
-                    sheetContext,
-                    () => showSongOptionsSheet(context: context, song: song),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      builder: (sheetContext) => const _PlayerSwitcherSheet(),
     );
   }
 }
@@ -177,7 +107,8 @@ class MiniPlayerView extends StatefulWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onSeek,
-    required this.onOpenActions,
+    required this.onSwitchPlayer,
+    this.lyricLine,
     this.mediaVisuals,
     this.albumColor,
     this.progressLayer,
@@ -186,6 +117,9 @@ class MiniPlayerView extends StatefulWidget {
   final PlayerState playerState;
   final EchoMediaVisuals? mediaVisuals;
 
+  /// 当前滚动歌词单行，非空时优先展示在副标题（对齐主项目前端行为）。
+  final String? lyricLine;
+
   /// Compatibility seed for provider-free tests and older call sites.
   final Color? albumColor;
   final VoidCallback onOpenPlayer;
@@ -193,7 +127,7 @@ class MiniPlayerView extends StatefulWidget {
   final Future<void> Function() onPrevious;
   final Future<void> Function() onNext;
   final Future<void> Function(Duration position) onSeek;
-  final VoidCallback onOpenActions;
+  final VoidCallback onSwitchPlayer;
   final Widget? progressLayer;
 
   @override
@@ -513,6 +447,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                                                 useHero:
                                                     !_awaitingSongConfirmation,
                                                 showSubtitle: showSubtitle,
+                                                lyricLine: widget.lyricLine,
                                               ),
                                             ),
                                             SizedBox(
@@ -536,6 +471,18 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             ),
                           ),
                           EchoIconButton(
+                            icon: AppIcons.previous,
+                            label: '上一首',
+                            foregroundColor: context.echoColors.ink,
+                            backgroundColor: Colors.transparent,
+                            onPressed: _playerState.hasPrevious
+                                ? () {
+                                    HapticFeedback.selectionClick();
+                                    unawaited(widget.onPrevious());
+                                  }
+                                : null,
+                          ),
+                          EchoIconButton(
                             icon: _playerState.isPlaying
                                 ? AppIcons.pause
                                 : AppIcons.play,
@@ -545,11 +492,23 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             onPressed: _togglePlayPause,
                           ),
                           EchoIconButton(
-                            icon: AppIcons.more,
-                            label: '更多播放操作',
+                            icon: AppIcons.next,
+                            label: '下一首',
                             foregroundColor: context.echoColors.ink,
                             backgroundColor: Colors.transparent,
-                            onPressed: widget.onOpenActions,
+                            onPressed: _playerState.hasNext
+                                ? () {
+                                    HapticFeedback.selectionClick();
+                                    unawaited(widget.onNext());
+                                  }
+                                : null,
+                          ),
+                          EchoIconButton(
+                            icon: AppIcons.headphones,
+                            label: '切换播放器',
+                            foregroundColor: context.echoColors.ink,
+                            backgroundColor: Colors.transparent,
+                            onPressed: widget.onSwitchPlayer,
                           ),
                         ],
                       ),
@@ -763,17 +722,22 @@ class _MiniPlayerTrack extends StatelessWidget {
     required this.song,
     required this.useHero,
     required this.showSubtitle,
+    this.lyricLine,
   });
 
   final Song song;
   final bool useHero;
   final bool showSubtitle;
+  final String? lyricLine;
 
   @override
   Widget build(BuildContext context) {
     final artist = song.artist?.trim() ?? '';
     final album = song.album?.trim() ?? '';
-    final subtitle = artist.isNotEmpty ? artist : album;
+    final fallbackSubtitle = artist.isNotEmpty ? artist : album;
+    final subtitle = lyricLine?.trim().isNotEmpty == true
+        ? lyricLine!.trim()
+        : fallbackSubtitle;
     final cover = _MiniPlayerCover(song: song);
     final title = _MiniPlayerTitle(song: song);
     final subtitleWidget = _MiniPlayerSubtitle(text: subtitle);
@@ -912,6 +876,115 @@ class _MiniPlayerScrubBubble extends StatelessWidget {
           _formatPlayerDuration(position),
           style: context.echoTypography.metadata.copyWith(
             color: context.echoColors.canvas,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 「切换播放器」底部弹层，对齐主项目前端播放条的「选择播放器」。
+/// 列出本机播放与已发现的 DLNA 设备，选中即把播放目标切换到该设备。
+class _PlayerSwitcherSheet extends ConsumerWidget {
+  const _PlayerSwitcherSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cast = ref.watch(dlnaCastProvider);
+    final devicesState = ref.watch(dlnaDevicesProvider);
+    final currentSong = ref.watch(
+      playerProvider.select((state) => state.currentSong),
+    );
+    final hasSong = currentSong != null;
+
+    return EchoBottomSheet(
+      title: '选择播放器',
+      subtitle: '切换播放器仅改变当前控制目标，不会停止其他播放器。',
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              EchoActionRow(
+                icon: AppIcons.headphones,
+                title: '本机播放',
+                subtitle: cast.isCasting ? '当前正在投屏' : '使用此设备扬声器',
+                selected: !cast.isCasting,
+                onPressed: () async {
+                  final notifier = ref.read(dlnaCastProvider.notifier);
+                  if (ref.read(dlnaCastProvider).isCasting) {
+                    await notifier.stopCast();
+                  }
+                  if (!ref.read(playerProvider).isPlaying) {
+                    ref.read(playerProvider.notifier).play();
+                  }
+                  if (context.mounted) Navigator.of(context).pop();
+                },
+              ),
+              if (devicesState.devices.isNotEmpty) ...<Widget>[
+                for (final device in devicesState.devices)
+                  EchoActionRow(
+                    icon: AppIcons.signalTower,
+                    title: device.displayName,
+                    subtitle: device.disabled
+                        ? '已禁用'
+                        : device.available
+                        ? '可用'
+                        : '离线',
+                    selected: cast.isCasting &&
+                        cast.currentDevice?.id == device.id,
+                          onPressed: !hasSong || device.disabled || !device.available
+                              ? null
+                              : () async {
+                                  final song =
+                                      ref.read(playerProvider).currentSong;
+                                  if (song == null) return;
+                                  final navigator = Navigator.of(context);
+                                  final ok = await ref
+                                      .read(dlnaCastProvider.notifier)
+                                      .startCast(device, song.id);
+                                  if (ok && context.mounted) {
+                                    await ref
+                                        .read(playerProvider.notifier)
+                                        .pause();
+                                    navigator.pop();
+                                  }
+                                },
+                  ),
+              ] else
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    vertical: context.echoSpacing.sm,
+                  ),
+                  child: Text(
+                    devicesState.isScanning
+                        ? '正在扫描可用播放器…'
+                        : '未发现其他播放器，可点击下方按钮重新扫描。',
+                    style: context.echoTypography.body.copyWith(
+                      color: context.echoColors.muted,
+                    ),
+                  ),
+                ),
+              EchoActionRow(
+                icon: AppIcons.refresh,
+                title: '重新扫描播放器',
+                trailing: devicesState.isScanning
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : null,
+                onPressed: devicesState.isScanning
+                    ? null
+                    : () => ref
+                        .read(dlnaDevicesProvider.notifier)
+                        .scan(),
+              ),
+            ],
           ),
         ),
       ),

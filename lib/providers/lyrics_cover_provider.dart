@@ -266,3 +266,37 @@ Future<void> updateCoverProviderConfig(
     ),
   );
 }
+
+/// 当前播放进度的「滚动歌词」单行文本，对齐主项目前端的
+/// `playerStore.currentLyricLine`（迷你播放器副标题处展示当前歌词）。
+/// 无同步歌词 / 未加载完成时返回 null，调用方应回退到歌手名。
+final currentLyricLineProvider = Provider<String?>((ref) {
+  final lyricsAsync = ref.watch(currentLyricsProvider);
+  final position = ref.watch(
+    playerProvider.select((state) => state.position),
+  );
+  final lyrics = lyricsAsync.valueOrNull;
+  if (lyrics == null) return null;
+
+  final best = lyrics.getBest();
+  if (best == null || !best.synced || best.lines.isEmpty) return null;
+
+  final lines = best.lines;
+  final offset = best.offsetMs;
+  final currentMs = position.inMilliseconds;
+  var result = 0;
+  var low = 0;
+  var high = lines.length - 1;
+  while (low <= high) {
+    final middle = (low + high) >> 1;
+    final start = (lines[middle].startMs ?? 0) + offset;
+    if (currentMs >= start) {
+      result = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  final value = lines[result].value.trim();
+  return value.isEmpty ? null : value;
+});
