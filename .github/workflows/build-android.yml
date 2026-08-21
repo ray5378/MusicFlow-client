@@ -5,10 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,7 +39,31 @@ jobs:
       - name: Build APK (Release)
         run: flutter build apk --release
 
-      - name: Upload APK artifact
+      - name: Rename APK for release
+        run: cp build/app/outputs/flutter-apk/app-release.apk "MusicFlowClient-${{ github.run_number }}.apk"
+
+      - name: Remove previous rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest -y || true
+          git push --delete origin latest || true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "MusicFlow Client (最新构建 #${{ github.run_number }})"
+          body: |
+            自动构建的 release 版本 APK。
+            提交: ${{ github.sha }}
+            工作流运行: #${{ github.run_number }}
+          files: "MusicFlowClient-${{ github.run_number }}.apk"
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK artifact (backup)
         uses: actions/upload-artifact@v4
         with:
           name: musicflow-client-release
