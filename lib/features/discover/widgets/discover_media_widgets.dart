@@ -1150,6 +1150,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
     this.coverArtId,
     this.coverUrl,
     required this.onPressed,
+    this.loading = false,
     this.width = 160,
   });
 
@@ -1158,6 +1159,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
   final String? coverArtId;
   final String? coverUrl;
   final VoidCallback onPressed;
+  final bool loading;
   final double width;
 
   String? get _effectiveCoverRef {
@@ -1192,24 +1194,36 @@ class DiscoverPlaylistCard extends StatelessWidget {
                 aspectRatio: 1,
                 child: ClipRRect(
                   borderRadius: context.echoRadii.surface,
-                  child: coverRef != null
-                      ? CoverArtImage(
-                          coverArtId: coverRef,
-                          size: width,
-                          requestSize: 320,
-                          fit: BoxFit.cover,
-                          semanticLabel: '$title 封面',
-                        )
-                      : Container(
-                          color: context.echoColors.surface,
-                          child: Center(
-                            child: Icon(
-                              AppIcons.playlist,
-                              size: width * 0.3,
-                              color: context.echoColors.accent,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      coverRef != null
+                          ? CoverArtImage(
+                              coverArtId: coverRef,
+                              size: width,
+                              requestSize: 320,
+                              fit: BoxFit.cover,
+                              semanticLabel: '$title 封面',
+                            )
+                          : Container(
+                              color: context.echoColors.surface,
+                              child: Center(
+                                child: Icon(
+                                  AppIcons.playlist,
+                                  size: width * 0.3,
+                                  color: context.echoColors.accent,
+                                ),
+                              ),
                             ),
+                      if (loading)
+                        Container(
+                          color: Colors.black45,
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 3),
                           ),
                         ),
+                    ],
+                  ),
                 ),
               ),
               SizedBox(height: context.echoSpacing.xs),

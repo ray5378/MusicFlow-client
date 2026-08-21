@@ -25,18 +25,43 @@ class RecommendRepository {
     }
   }
 
-  /// 不同插件的平台推荐频道(网易云/QQ 等)
-  Future<List<RecommendChannel>> getRecommendChannels() async {
+  /// 不同插件的平台推荐频道(网易云/QQ 等)及提供方 providerId。
+  /// providerId 用于把未入库的推荐歌单经 /v1/online/:providerId/recommend/import
+  /// 导入成本地库歌单(返回真实 library playlistId 后播放,与主项目一致)。
+  Future<RecommendResult> getRecommend() async {
     try {
-      final data = await _apiClient.getRaw(
-        '/rest/api/v1/recommend',
-      );
+      final data = await _apiClient.getRaw('/rest/api/v1/recommend');
+      final providerId = data['providerId'] as String? ?? '';
       final channels = data['channels'] as List? ?? [];
-      return channels
-          .map((e) => RecommendChannel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return RecommendResult(
+        providerId: providerId,
+        channels: channels
+            .map((e) => RecommendChannel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
     } catch (e) {
       Logger.error('Failed to get recommend channels', e);
+      rethrow;
+    }
+  }
+
+  /// 导入一个平台推荐歌单到本地库,返回真实 library playlistId。
+  /// 与主项目一致:点推荐歌单即「导入(幂等 upsert)」,再以其 library id 播放。
+  Future<String> importRecommendPlaylist(
+    String providerId,
+    Map<String, dynamic> info,
+  ) async {
+    try {
+      final data = await _apiClient.postRaw(
+        '/rest/api/v1/online/$providerId/recommend/import',
+        data: info,
+      ) as Map<String, dynamic>;
+      if (data['success'] != true || data['playlistId'] == null) {
+        throw Exception(data['error']?.toString() ?? '导入推荐歌单失败');
+      }
+      return data['playlistId'] as String;
+    } catch (e) {
+      Logger.error('Failed to import recommend playlist', e);
       rethrow;
     }
   }

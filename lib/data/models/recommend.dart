@@ -67,6 +67,14 @@ class RecommendPlaylist {
   }
 }
 
+/// /rest/api/v1/recommend 整体返回(含 providerId 与频道列表)
+class RecommendResult {
+  final String providerId;
+  final List<RecommendChannel> channels;
+
+  RecommendResult({required this.providerId, required this.channels});
+}
+
 /// 平台推荐频道(一个平台/插件对应一个频道)
 class RecommendChannel {
   final String source;

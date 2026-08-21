@@ -122,6 +122,22 @@ class SubsonicApiClient {
     return response.data;
   }
 
+  /// Raw POST for non-Subsonic endpoints (e.g. /rest/api/v1/online/.../recommend/import).
+  /// Sends [data] as JSON and returns the decoded JSON body directly.
+  Future<dynamic> postRaw(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    dynamic data,
+  }) async {
+    final response = await _dio.post(
+      path,
+      queryParameters: queryParameters,
+      data: data,
+      options: Options(contentType: 'application/json'),
+    );
+    return response.data;
+  }
+
   /// Generic POST
   Future<Map<String, dynamic>> post(
     String path, {

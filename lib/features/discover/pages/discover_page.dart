@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:remixicon/remixicon.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../data/models/recommend.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -588,6 +589,52 @@ class FixedRecommendSection extends ConsumerWidget {
   }
 }
 
+/// 打开平台推荐歌单:与主项目一致,先经 /v1/online/:providerId/recommend/import
+/// 导入(幂等 upsert)拿到真实 library playlistId,再以本地歌单打开播放。
+Future<void> _openRecommendPlaylist(
+  BuildContext context,
+  WidgetRef ref,
+  String? providerId,
+  RecommendPlaylist pl,
+) async {
+  if (providerId == null || providerId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('推荐服务暂不可用，请检查平台推荐插件是否已启用')),
+    );
+    return;
+  }
+  ref.read(recommendImportingProvider.notifier).state = pl.id;
+  try {
+    final repo = ref.read(recommendRepositoryProvider);
+    if (repo == null) throw Exception('未连接到音乐库');
+    final playlistId = await repo.importRecommendPlaylist(providerId, <String, dynamic>{
+      'source': pl.source,
+      'id': pl.id,
+      'name': pl.name,
+      'cover': pl.cover ?? '',
+      'creator': pl.creator,
+      'trackCount': pl.trackCount,
+      'link': pl.link,
+    });
+    if (!context.mounted) return;
+    Navigator.of(context).push<void>(
+      EchoPageRoute<void>(
+        context: context,
+        builder: (context) => PlaylistDetailPage(playlistId: playlistId),
+      ),
+    );
+  } catch (e) {
+    if (context.mounted) {
+      final msg = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导入歌单失败：$msg')),
+      );
+    }
+  } finally {
+    ref.read(recommendImportingProvider.notifier).state = null;
+  }
+}
+
 /// 不同插件的平台推荐歌单:整体上下滚动不同平台,
 /// 同一平台内歌单横向滑动(与网页一致)。
 class PlatformRecommendSection extends ConsumerWidget {
@@ -597,6 +644,8 @@ class PlatformRecommendSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final channelsAsync = ref.watch(recommendChannelsProvider);
     final loadFailed = ref.watch(recommendChannelsLoadFailedProvider);
+    final providerId = ref.watch(recommendProviderIdProvider).valueOrNull;
+    final importingId = ref.watch(recommendImportingProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,7 +658,8 @@ class PlatformRecommendSection extends ConsumerWidget {
         channelsAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
-          data: (channels) {
+          data: (result) {
+            final channels = result.channels;
             final allPlaylists =
                 channels.expand((c) => c.playlists).toList();
             if (allPlaylists.isEmpty) {
@@ -651,6 +701,7 @@ class PlatformRecommendSection extends ConsumerWidget {
                             SizedBox(width: context.echoSpacing.sm),
                         itemBuilder: (context, index) {
                           final pl = channel.playlists[index];
+                          final isImporting = importingId == pl.id;
                           return DiscoverPlaylistCard(
                             width: _playlistCardWidth,
                             title: pl.name,
@@ -658,26 +709,15 @@ class PlatformRecommendSection extends ConsumerWidget {
                                 ? '${pl.trackCount} 首'
                                 : null,
                             coverUrl: pl.cover,
-                            onPressed: () {
-                              if (pl.imported) {
-                                Navigator.of(context).push<void>(
-                                  EchoPageRoute<void>(
-                                    context: context,
-                                    builder: (context) => PlaylistDetailPage(
-                                      playlistId: pl.id,
+                            loading: isImporting,
+                            onPressed: isImporting
+                                ? () {}
+                                : () => _openRecommendPlaylist(
+                                      context,
+                                      ref,
+                                      providerId,
+                                      pl,
                                     ),
-                                  ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      '该歌单尚未导入，请先在主项目导入后再试',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
                           );
                         },
                       ),

@@ -16,6 +16,9 @@ final recommendRepositoryProvider = Provider<RecommendRepository?>((ref) {
 final homeCardsLoadFailedProvider = StateProvider<bool>((ref) => false);
 final recommendChannelsLoadFailedProvider = StateProvider<bool>((ref) => false);
 
+/// 正在导入的平台推荐歌单 id(导入即播放流程中显示 loading)
+final recommendImportingProvider = StateProvider<String?>((ref) => null);
+
 /// 首页固定推荐卡(每日推荐/今日漫游/本地推荐等)
 final homeCardsProvider =
     FutureProvider.autoDispose<List<HomeCard>>((ref) async {
@@ -35,20 +38,22 @@ final homeCardsProvider =
   }
 });
 
-/// 不同插件的平台推荐频道(网易云/QQ 等)
+/// 不同插件的平台推荐频道(网易云/QQ 等),整体返回含 providerId。
 final recommendChannelsProvider =
-    FutureProvider.autoDispose<List<RecommendChannel>>((ref) async {
+    FutureProvider.autoDispose<RecommendResult>((ref) async {
   final repository = ref.watch(recommendRepositoryProvider);
-  if (repository == null) return [];
+  if (repository == null) {
+    return RecommendResult(providerId: '', channels: []);
+  }
   try {
     await ref.read(ensureActiveAddressProvider.future);
-    final channels = await repository.getRecommendChannels();
+    final result = await repository.getRecommend();
     ref.read(recommendChannelsLoadFailedProvider.notifier).state = false;
     Logger.infoWithTag(
       'RECOMMEND',
-      'recommend channels loaded, count=${channels.length}',
+      'recommend channels loaded, providerId=${result.providerId}, count=${result.channels.length}',
     );
-    return channels;
+    return result;
   } catch (e, stackTrace) {
     Logger.warnWithTag('RECOMMEND', 'recommend channels load failed', e);
     Logger.debugWithTag(
@@ -58,6 +63,13 @@ final recommendChannelsProvider =
       stackTrace,
     );
     ref.read(recommendChannelsLoadFailedProvider.notifier).state = true;
-    return [];
+    return RecommendResult(providerId: '', channels: []);
   }
+});
+
+/// 平台推荐所属插件 providerId(导入歌单时拼接 /v1/online/:providerId/recommend/import)
+final recommendProviderIdProvider = Provider<AsyncValue<String>>((ref) {
+  return ref
+      .watch(recommendChannelsProvider)
+      .whenData((r) => r.providerId);
 });
