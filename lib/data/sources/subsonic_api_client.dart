@@ -214,6 +214,39 @@ class SubsonicApiClient {
     return urlWithParams.toString();
   }
 
+  /// 远程插件歌曲流地址(/rest/stream-remote):与主项目一致,带 provider/source/id,
+  /// 以及标题/艺术家/专辑/时长/封面等透传参数,确保插件侧能正确解析并回源。
+  /// 鉴权参数由 _addAuthParamsMap 注入(query),播放器可直接用此 URL 拉流。
+  String getRemoteStreamUrl({
+    required String provider,
+    required String source,
+    required String id,
+    String? title,
+    String? artist,
+    String? album,
+    int? duration,
+    String? cover,
+  }) {
+    if (_library == null) return '';
+    final baseUrl = _dio.options.baseUrl;
+    if (baseUrl.isEmpty) return '';
+
+    final params = <String, String>{};
+    _addAuthParamsMap(params);
+
+    params['provider'] = provider;
+    params['source'] = source;
+    params['id'] = id;
+    if (title != null && title.isNotEmpty) params['title'] = title;
+    if (artist != null && artist.isNotEmpty) params['artist'] = artist;
+    if (album != null && album.isNotEmpty) params['album'] = album;
+    if (duration != null) params['duration'] = duration.toString();
+    if (cover != null && cover.isNotEmpty) params['cover'] = cover;
+
+    final uri = Uri.parse(baseUrl + '/rest/stream-remote');
+    return uri.replace(queryParameters: params).toString();
+  }
+
   /// Generate Download URL（始终下载原始无损文件）
   String getDownloadUrl(String songId) {
     if (_library == null) return '';

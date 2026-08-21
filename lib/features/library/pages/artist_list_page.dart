@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../core/design/components/echo_page_route.dart';
 import '../../../data/models/artist.dart';
+import '../../../data/models/search.dart';
+import '../../../features/search/widgets/entity_search_bar.dart';
+import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../providers/search_provider.dart';
 import '../../../utils/az_item.dart';
 import '../../../utils/pinyin_helper.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
@@ -23,6 +28,9 @@ class ArtistListPage extends ConsumerStatefulWidget {
 class _ArtistListPageState extends ConsumerState<ArtistListPage> {
   List<AzItem<Artist>> _azArtists = const <AzItem<Artist>>[];
   int _artistsSignature = 0;
+  SearchMode _searchMode = SearchMode.aggregate;
+  String _searchProviderId = '';
+  String _searchQuery = '';
 
   int _buildSignature(List<Artist> artists) {
     return Object.hashAll(
@@ -69,98 +77,163 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
         topBar: EchoTopBar.back(
           context: context,
           title: '所有歌手',
-          subtitle: artistCount == null ? null : '$artistCount 位歌手',
+          subtitle: _searchQuery.isEmpty
+              ? (artistCount == null ? null : '$artistCount 位歌手')
+              : '搜索：$_searchQuery',
         ),
-        body: artistsAsync.when(
-          data: (artists) {
-            if (artists.isEmpty) {
-              if (loadFailed) {
-                return EchoErrorState(
-                  title: '歌手列表加载失败',
-                  description: '请检查网络或服务器状态后重试。',
-                  actionLabel: '重试',
-                  onAction: () => ref.invalidate(allArtistsProvider),
-                );
-              }
-              return const EchoEmptyState(
-                title: '暂无歌手',
-                description: '同步音乐库后，歌手会按名称分组显示在这里。',
-                icon: AppIcons.profile,
-              );
-            }
+        body: Column(
+          children: <Widget>[
+            EntitySearchBar(
+              kind: SearchEntityKind.artist,
+              mode: _searchMode,
+              providerId: _searchProviderId,
+              query: _searchQuery,
+              onSourceChanged: (source) => setState(() {
+                _searchMode = source.mode;
+                _searchProviderId = source.providerId;
+              }),
+              onQueryChanged: (query) => setState(() => _searchQuery = query),
+            ),
+            SizedBox(height: context.echoSpacing.xs),
+            Expanded(
+              child: _searchBody(artistsAsync, loadFailed),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-            final signature = _buildSignature(artists);
-            if (signature != _artistsSignature ||
-                _azArtists.length != artists.length) {
-              _processArtists(artists, signature);
-            }
+  Widget _searchBody(AsyncValue<List<Artist>> artistsAsync, bool loadFailed) {
+    if (_searchQuery.isEmpty) {
+      return artistsAsync.when(
+        data: (artists) => _localList(artists, loadFailed),
+        loading: () => const EchoMediaListSkeleton(circle: true),
+        error: (error, stackTrace) => _errorState(),
+      );
+    }
+    if (_searchMode == SearchMode.local) {
+      return artistsAsync.when(
+        data: (artists) {
+          final filtered =
+              artists.where((a) => _matches(a, _searchQuery)).toList();
+          if (filtered.isEmpty) return _emptyResults();
+          final signature = _buildSignature(filtered);
+          if (signature != _artistsSignature ||
+              _azArtists.length != filtered.length) {
+            _processArtists(filtered, signature);
+          }
+          return _buildArtistCollection(context);
+        },
+        loading: () => const EchoMediaListSkeleton(circle: true),
+        error: (error, stackTrace) => _errorState(),
+      );
+    }
+    final results = ref.watch(
+      searchResultsProvider(
+        SearchRequest(
+          kind: SearchEntityKind.artist,
+          mode: _searchMode,
+          query: _searchQuery,
+          providerId: _searchProviderId,
+        ),
+      ),
+    );
+    return results.when(
+      data: (outcome) => outcome.artists.isEmpty
+          ? _emptyResults()
+          : SearchResultList(kind: SearchEntityKind.artist, outcome: outcome),
+      loading: () => const EchoMediaListSkeleton(circle: true),
+      error: (error, stackTrace) => _errorState(),
+    );
+  }
 
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1400),
-                child: EchoAzIndexReveal(
-                  builder: (context, opacity, _) => AzListView(
-                    key: const ValueKey<String>('artist-list-scroll'),
-                    data: _azArtists,
-                    itemCount: _azArtists.length,
-                    padding: EdgeInsets.only(
-                      bottom:
-                          context.echoSpacing.xxl +
-                          context.echoShellBottomObstruction,
+  bool _matches(Artist artist, String query) =>
+      artist.name.toLowerCase().contains(query.toLowerCase());
+
+  Widget _localList(List<Artist> artists, bool loadFailed) {
+    if (artists.isEmpty) {
+      if (loadFailed) return _errorState();
+      return const EchoEmptyState(
+        title: '暂无歌手',
+        description: '同步音乐库后，歌手会按名称分组显示在这里。',
+        icon: AppIcons.profile,
+      );
+    }
+    final signature = _buildSignature(artists);
+    if (signature != _artistsSignature ||
+        _azArtists.length != artists.length) {
+      _processArtists(artists, signature);
+    }
+    return _buildArtistCollection(context);
+  }
+
+  Widget _buildArtistCollection(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: EchoAzIndexReveal(
+          builder: (context, opacity, _) => AzListView(
+            key: const ValueKey<String>('artist-list-scroll'),
+            data: _azArtists,
+            itemCount: _azArtists.length,
+            padding: EdgeInsets.only(
+              bottom: context.echoSpacing.xxl + context.echoShellBottomObstruction,
+            ),
+            itemBuilder: (context, index) {
+              final item = _azArtists[index];
+              final artist = item.data;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (item.isShowSuspension)
+                    EchoLibrarySectionLabel(
+                      label: item.getSuspensionTag(),
                     ),
-                    itemBuilder: (context, index) {
-                      final item = _azArtists[index];
-                      final artist = item.data;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          if (item.isShowSuspension)
-                            EchoLibrarySectionLabel(
-                              label: item.getSuspensionTag(),
-                            ),
-                          EchoArtistRow(
-                            artist: artist,
-                            contentPadding: EdgeInsetsDirectional.fromSTEB(
-                              context.echoPageHorizontalPadding,
-                              context.echoSpacing.xs,
-                              44,
-                              context.echoSpacing.xs,
-                            ),
-                            onPressed: () => Navigator.of(context).push<void>(
-                              EchoPageRoute<void>(
-                                context: context,
-                                builder: (_) =>
-                                    ArtistDetailPage(artistId: artist.id),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                    indexBarData: SuspensionUtil.getTagIndexList(_azArtists),
-                    indexBarWidth: 24,
-                    indexBarMargin: EdgeInsetsDirectional.only(
-                      end: context.echoSpacing.xxs,
+                  EchoArtistRow(
+                    artist: artist,
+                    contentPadding: EdgeInsetsDirectional.fromSTEB(
+                      context.echoPageHorizontalPadding,
+                      context.echoSpacing.xs,
+                      44,
+                      context.echoSpacing.xs,
                     ),
-                    indexBarOptions: echoIndexBarOptions(
-                      context,
-                      opacity: opacity,
+                    onPressed: () => Navigator.of(context).push<void>(
+                      EchoPageRoute<void>(
+                        context: context,
+                        builder: (_) => ArtistDetailPage(artistId: artist.id),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            );
-          },
-          loading: () => const EchoMediaListSkeleton(circle: true),
-          error: (error, stackTrace) => EchoErrorState(
-            title: '歌手列表加载失败',
-            description: '请检查网络或服务器状态后重试。',
-            actionLabel: '重试',
-            onAction: () => ref.invalidate(allArtistsProvider),
+                ],
+              );
+            },
+            indexBarData: SuspensionUtil.getTagIndexList(_azArtists),
+            indexBarWidth: 24,
+            indexBarMargin: EdgeInsetsDirectional.only(
+              end: context.echoSpacing.xxs,
+            ),
+            indexBarOptions: echoIndexBarOptions(
+              context,
+              opacity: opacity,
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _emptyResults() => const EchoEmptyState(
+        title: '未找到结果',
+        description: '换个关键词或切换搜索来源试试。',
+        icon: AppIcons.search,
+      );
+
+  Widget _errorState() => EchoErrorState(
+        title: '加载失败',
+        description: '请检查网络或服务器状态后重试。',
+        actionLabel: '重试',
+        onAction: () => ref.invalidate(allArtistsProvider),
+      );
 }

@@ -18,6 +18,7 @@ import '../../explore/pages/explore_page.dart';
 import '../../library/pages/album_list_page.dart';
 import '../../library/pages/artist_list_page.dart';
 import '../../library/pages/playlist_detail_page.dart';
+import '../../library/pages/playlist_search_page.dart';
 import '../../library/pages/song_list_page.dart';
 import '../../library/pages/starred_page.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -148,7 +149,7 @@ class CategoryNavBar extends StatelessWidget {
     ('艺术家', AppIcons.profile, const ArtistListPage()),
     ('专辑', AppIcons.album, const AlbumListPage()),
     ('歌曲', AppIcons.music, const SongListPage()),
-    ('歌单', AppIcons.playlist, const ExplorePage()),
+    ('歌单', AppIcons.playlist, const PlaylistSearchPage()),
     ('喜爱', AppIcons.heart, const StarredPage()),
     ('风格', Remix.price_tag_3_line, const ExplorePage()),
   ];

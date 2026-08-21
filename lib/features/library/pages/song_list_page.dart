@@ -7,10 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
+import '../../../features/search/widgets/entity_search_bar.dart';
+import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
+import '../../../providers/search_provider.dart';
 import '../../../utils/az_item.dart';
 import '../../../utils/pinyin_helper.dart';
 import '../utils/library_sorting.dart';
@@ -31,6 +35,9 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   List<Song> _displaySongs = [];
   SongSortOption _sortOption = SongSortOption.alphabeticalAsc;
   int _songsSignature = 0;
+  SearchMode _searchMode = SearchMode.aggregate;
+  String _searchProviderId = '';
+  String _searchQuery = '';
   late final ItemPositionsListener _itemPositionsListener;
   int _coverLoadStart = 0;
   int _coverLoadEnd = -1;
@@ -174,57 +181,127 @@ class _SongListPageState extends ConsumerState<SongListPage> {
         topBar: EchoTopBar.back(
           context: context,
           title: '所有歌曲',
-          subtitle: songCount == null
-              ? _sortOption.label
-              : '$songCount 首 · ${_sortOption.label}',
+          subtitle: _searchQuery.isEmpty
+              ? (songCount == null
+                  ? _sortOption.label
+                  : '$songCount 首 · ${_sortOption.label}')
+              : '搜索：$_searchQuery',
           actions: <Widget>[
-            EchoIconButton(
-              icon: AppIcons.sort,
-              label: '歌曲排序：${_sortOption.label}',
-              onPressed: () => unawaited(_showSortSheet()),
-            ),
+            if (_searchQuery.isEmpty)
+              EchoIconButton(
+                icon: AppIcons.sort,
+                label: '歌曲排序：${_sortOption.label}',
+                onPressed: () => unawaited(_showSortSheet()),
+              ),
           ],
         ),
-        body: songsAsync.when(
-          data: (songs) {
-            if (songs.isEmpty) {
-              if (loadFailed) {
-                return EchoErrorState(
-                  title: '歌曲加载失败',
-                  description: '请检查网络或服务器状态后重试。',
-                  actionLabel: '重试',
-                  onAction: () => ref.invalidate(allSongsProvider),
-                );
-              }
-              return const EchoEmptyState(
-                title: '暂无歌曲',
-                description: '同步音乐库后，歌曲会显示在这里。',
-                icon: AppIcons.music,
-              );
-            }
-
-            final signature = _buildSongsSignature(songs);
-            final processedLength = _sortOption.usesAlphabeticalIndexBar
-                ? _azSongs.length
-                : _displaySongs.length;
-            if (signature != _songsSignature ||
-                processedLength != songs.length) {
-              _processSongs(songs, signature);
-            }
-
-            return _buildSongCollection();
-          },
-          loading: () => const EchoMediaListSkeleton(count: 10),
-          error: (error, stackTrace) => EchoErrorState(
-            title: '歌曲加载失败',
-            description: '请检查网络或服务器状态后重试。',
-            actionLabel: '重试',
-            onAction: () => ref.invalidate(allSongsProvider),
-          ),
+        body: Column(
+          children: <Widget>[
+            EntitySearchBar(
+              kind: SearchEntityKind.song,
+              mode: _searchMode,
+              providerId: _searchProviderId,
+              query: _searchQuery,
+              onSourceChanged: (source) => setState(() {
+                _searchMode = source.mode;
+                _searchProviderId = source.providerId;
+              }),
+              onQueryChanged: (query) => setState(() => _searchQuery = query),
+            ),
+            SizedBox(height: context.echoSpacing.xs),
+            Expanded(
+              child: _searchBody(songsAsync, loadFailed),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  Widget _searchBody(AsyncValue<List<Song>> songsAsync, bool loadFailed) {
+    if (_searchQuery.isEmpty) {
+      return songsAsync.when(
+        data: (songs) => _localList(songs, loadFailed),
+        loading: () => const EchoMediaListSkeleton(count: 10),
+        error: (error, stackTrace) => _errorState(),
+      );
+    }
+    if (_searchMode == SearchMode.local) {
+      return songsAsync.when(
+        data: (songs) {
+          final filtered = songs.where((s) => _matches(s, _searchQuery)).toList();
+          if (filtered.isEmpty) return _emptyResults();
+          final signature = _buildSongsSignature(filtered);
+          final processedLength = _sortOption.usesAlphabeticalIndexBar
+              ? _azSongs.length
+              : _displaySongs.length;
+          if (signature != _songsSignature ||
+              processedLength != filtered.length) {
+            _processSongs(filtered, signature);
+          }
+          return _buildSongCollection();
+        },
+        loading: () => const EchoMediaListSkeleton(count: 10),
+        error: (error, stackTrace) => _errorState(),
+      );
+    }
+    final results = ref.watch(
+      searchResultsProvider(
+        SearchRequest(
+          kind: SearchEntityKind.song,
+          mode: _searchMode,
+          query: _searchQuery,
+          providerId: _searchProviderId,
+        ),
+      ),
+    );
+    return results.when(
+      data: (outcome) => outcome.songs.isEmpty
+          ? _emptyResults()
+          : SearchResultList(kind: SearchEntityKind.song, outcome: outcome),
+      loading: () => const EchoMediaListSkeleton(count: 10),
+      error: (error, stackTrace) => _errorState(),
+    );
+  }
+
+  bool _matches(Song song, String query) {
+    final lower = query.toLowerCase();
+    return (song.title.toLowerCase().contains(lower)) ||
+        (song.artist?.toLowerCase().contains(lower) ?? false) ||
+        (song.album?.toLowerCase().contains(lower) ?? false);
+  }
+
+  Widget _localList(List<Song> songs, bool loadFailed) {
+    if (songs.isEmpty) {
+      if (loadFailed) return _errorState();
+      return const EchoEmptyState(
+        title: '暂无歌曲',
+        description: '同步音乐库后，歌曲会显示在这里。',
+        icon: AppIcons.music,
+      );
+    }
+    final signature = _buildSongsSignature(songs);
+    final processedLength = _sortOption.usesAlphabeticalIndexBar
+        ? _azSongs.length
+        : _displaySongs.length;
+    if (signature != _songsSignature || processedLength != songs.length) {
+      _processSongs(songs, signature);
+    }
+    return _buildSongCollection();
+  }
+
+  Widget _emptyResults() => const EchoEmptyState(
+        title: '未找到结果',
+        description: '换个关键词或切换搜索来源试试。',
+        icon: AppIcons.search,
+      );
+
+  Widget _errorState() => EchoErrorState(
+        title: '加载失败',
+        description: '请检查网络或服务器状态后重试。',
+        actionLabel: '重试',
+        onAction: () => ref.invalidate(allSongsProvider),
+      );
 
   Widget _buildSongCollection() {
     return Align(
