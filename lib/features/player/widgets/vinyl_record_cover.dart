@@ -67,7 +67,6 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
 
   @override
   Widget build(BuildContext context) {
-    final vinylRadius = widget.size * 0.5;
     final coverRadius = widget.size * 0.35;
     final centerHoleRadius = widget.size * 0.04;
 

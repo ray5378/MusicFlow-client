@@ -183,8 +183,7 @@ class LocalRelay {
   int _secureRandomByte() {
     // 使用时间戳+随机数作为简单实现
     // 生产环境可改用 dart:crypto
-    return (DateTime.now().microsecondsSinceEpoch ^ (1000000 * 0.7)).toInt() &
-        0xFF;
+    return (DateTime.now().microsecondsSinceEpoch ^ (1000000 * 7 ~/ 10)) & 0xFF;
   }
 
   /// 获取当前活跃会话数

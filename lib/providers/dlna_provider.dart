@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../dlna/dlna_manager.dart';
-import '../dlna/dlna_models.dart';
+import '../core/dlna/dlna_manager.dart';
+import '../core/dlna/dlna_models.dart';
 
 /// DLNA 管理器 Provider（单例）
 final dlnaManagerProvider = Provider<DlnaManager>((ref) {

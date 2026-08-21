@@ -16,7 +16,6 @@ import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/offline_download_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
-import '../../../widgets/cover_art_image.dart';
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/player_hero_helpers.dart';
 import '../widgets/player_scrubber.dart';
