@@ -12,6 +12,8 @@ class Playlist {
   final DateTime? created;
   final DateTime? changed;
   final String? coverArt;
+  final bool isImported; // 来自平台导入/插件同步(非本地自建)
+  final String? sourcePlatform; // 来源平台,如 netease / qq / mixed
   final List<Song>? songs; // 歌单详情时才有
 
   Playlist({
@@ -25,6 +27,8 @@ class Playlist {
     this.created,
     this.changed,
     this.coverArt,
+    this.isImported = false,
+    this.sourcePlatform,
     this.songs,
   });
 
@@ -43,8 +47,8 @@ class Playlist {
       comment: json['comment'] as String?,
       owner: json['owner'] as String?,
       public: json['public'] as bool? ?? false,
-      songCount: json['songCount'] as int? ?? 0,
-      duration: json['duration'] as int? ?? 0,
+      songCount: (json['songCount'] as num?)?.toInt() ?? 0,
+      duration: (json['duration'] as num?)?.toInt() ?? 0,
       created: json['created'] != null
           ? DateTime.parse(json['created'] as String)
           : null,
@@ -52,6 +56,8 @@ class Playlist {
           ? DateTime.parse(json['changed'] as String)
           : null,
       coverArt: json['coverArt'] as String?,
+      isImported: json['isImported'] as bool? ?? false,
+      sourcePlatform: json['sourcePlatform'] as String?,
       songs: songsList,
     );
   }
@@ -69,6 +75,8 @@ class Playlist {
       'created': created?.toIso8601String(),
       'changed': changed?.toIso8601String(),
       'coverArt': coverArt,
+      'isImported': isImported,
+      if (sourcePlatform != null) 'sourcePlatform': sourcePlatform,
       if (songs != null) 'entry': songs!.map((s) => s.toJson()).toList(),
     };
   }

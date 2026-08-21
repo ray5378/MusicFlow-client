@@ -266,6 +266,20 @@ class FixedPlaylistsSection extends ConsumerWidget {
           );
         }
 
+        final fixedPlaylists =
+            playlists.where((p) => !p.isImported).toList();
+
+        if (fixedPlaylists.isEmpty) {
+          return DiscoverSectionMessage(
+            title: loadFailed ? '歌单暂时不可用' : '暂无歌单推荐',
+            description: loadFailed
+                ? '请检查网络或当前线路，然后重试。'
+                : '创建歌单后，可以在这里快速访问。',
+            icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
+            onRetry: loadFailed ? () => ref.invalidate(playlistsProvider) : null,
+          );
+        }
+
         return LayoutBuilder(
           builder: (context, constraints) {
             final textScale = MediaQuery.textScalerOf(context).scale(1);
@@ -283,17 +297,19 @@ class FixedPlaylistsSection extends ConsumerWidget {
                   spacing: gap,
                   runSpacing: context.echoSpacing.xxs,
                   children: <Widget>[
-                    for (var index = 0; index < playlists.length; index++)
+                    for (var index = 0;
+                        index < fixedPlaylists.length;
+                        index++)
                       SizedBox(
                         width: itemWidth,
                         child: DiscoverPlaylistTile(
-                          playlist: playlists[index],
+                          playlist: fixedPlaylists[index],
                           onPressed: () {
                             Navigator.of(context).push<void>(
                               EchoPageRoute<void>(
                                 context: context,
                                 builder: (context) => PlaylistDetailPage(
-                                  playlistId: playlists[index].id,
+                                  playlistId: fixedPlaylists[index].id,
                                 ),
                               ),
                             );
@@ -331,7 +347,10 @@ class PlatformPlaylistsSection extends ConsumerWidget {
       skipLoadingOnRefresh: false,
       skipLoadingOnReload: false,
       data: (playlists) {
-        if (playlists.isEmpty) {
+        final platformPlaylists =
+            playlists.where((p) => p.isImported).toList();
+
+        if (platformPlaylists.isEmpty) {
           return DiscoverSectionMessage(
             title: loadFailed ? '歌单暂时不可用' : '暂无平台歌单推荐',
             description: loadFailed
@@ -361,17 +380,19 @@ class PlatformPlaylistsSection extends ConsumerWidget {
                   spacing: gap,
                   runSpacing: context.echoSpacing.xxs,
                   children: <Widget>[
-                    for (var index = 0; index < playlists.length; index++)
+                    for (var index = 0;
+                        index < platformPlaylists.length;
+                        index++)
                       SizedBox(
                         width: itemWidth,
                         child: DiscoverPlaylistTile(
-                          playlist: playlists[index],
+                          playlist: platformPlaylists[index],
                           onPressed: () {
                             Navigator.of(context).push<void>(
                               EchoPageRoute<void>(
                                 context: context,
                                 builder: (context) => PlaylistDetailPage(
-                                  playlistId: playlists[index].id,
+                                  playlistId: platformPlaylists[index].id,
                                 ),
                               ),
                             );
