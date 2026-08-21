@@ -24,6 +24,33 @@ final playlistDetailLoadFailedProvider = StateProvider.family<bool, String>(
   (ref, playlistId) => false,
 );
 
+/// 最近更新的歌单(按 changed 倒序取前 20)
+final recentPlaylistsLoadFailedProvider = StateProvider<bool>((ref) => false);
+
+final recentPlaylistsProvider =
+    FutureProvider.autoDispose<List<Playlist>>((ref) async {
+  final repository = ref.watch(playlistRepositoryProvider);
+  if (repository == null) return [];
+  try {
+    await ref.read(ensureActiveAddressProvider.future);
+    final all = await repository.getPlaylists();
+    all.sort((a, b) {
+      final ta = a.changed?.millisecondsSinceEpoch ?? 0;
+      final tb = b.changed?.millisecondsSinceEpoch ?? 0;
+      return tb.compareTo(ta);
+    });
+    final result = all.take(20).toList();
+    ref.read(recentPlaylistsLoadFailedProvider.notifier).state = false;
+    Logger.infoWithTag('PLAYLIST', 'recent playlists loaded, count=${result.length}');
+    return result;
+  } catch (e, stackTrace) {
+    Logger.warnWithTag('PLAYLIST', 'recent playlists load failed', e);
+    Logger.debugWithTag('PLAYLIST', 'recent playlists stackTrace', null, stackTrace);
+    ref.read(recentPlaylistsLoadFailedProvider.notifier).state = true;
+    return [];
+  }
+});
+
 /// 所有歌单 Provider
 final playlistsProvider = FutureProvider.autoDispose<List<Playlist>>((
   ref,

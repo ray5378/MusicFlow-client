@@ -111,6 +111,17 @@ class SubsonicApiClient {
     return data['subsonic-response'];
   }
 
+  /// Raw GET for non-Subsonic endpoints (e.g. /rest/api/v1/...).
+  /// Returns the decoded JSON body directly (no subsonic-response unwrap,
+  /// no status check), but still carries the auth interceptor.
+  Future<dynamic> getRaw(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await _dio.get(path, queryParameters: queryParameters);
+    return response.data;
+  }
+
   /// Generic POST
   Future<Map<String, dynamic>> post(
     String path, {

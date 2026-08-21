@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../core/utils/cover_ref_security.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/playlist.dart';
 import '../../../data/models/song.dart';
@@ -981,6 +982,286 @@ class DiscoverPlaylistLoading extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// 带封面的推荐歌单条目(固定推荐卡与平台推荐歌单共用)。
+/// 封面优先用 [coverArtId](pl- 前缀 id 走 getCoverArt),否则用 [coverUrl](远程地址,
+/// 经 trusted-url 前缀放行)。
+class DiscoverRecommendTile extends StatelessWidget {
+  const DiscoverRecommendTile({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.coverArtId,
+    this.coverUrl,
+    required this.onPressed,
+    this.onLongPress,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String? coverArtId;
+  final String? coverUrl;
+  final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
+
+  String? get _effectiveCoverRef {
+    if (coverArtId != null && coverArtId!.isNotEmpty) return coverArtId;
+    if (coverUrl != null && coverUrl!.isNotEmpty) {
+      return tryToTrustedCoverUrlRef(coverUrl);
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final coverRef = _effectiveCoverRef;
+    final artworkSize = MediaQuery.textScalerOf(context).scale(1) > 1.3
+        ? 80.0
+        : 56.0;
+    final semanticLabel = <String>[
+      title,
+      if (subtitle != null && subtitle!.isNotEmpty) subtitle!,
+    ].join('，');
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 72),
+      child: EchoPressable(
+        semanticLabel: semanticLabel,
+        onPressed: onPressed,
+        onLongPress: onLongPress,
+        minimumSize: const Size(double.infinity, 72),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: context.echoSpacing.xs,
+            vertical: context.echoSpacing.xxs,
+          ),
+          child: Row(
+            children: <Widget>[
+              SizedBox.square(
+                dimension: artworkSize,
+                child: ClipRRect(
+                  borderRadius: context.echoRadii.surface,
+                  child: coverRef != null
+                      ? CoverArtImage(
+                          coverArtId: coverRef,
+                          size: artworkSize,
+                          requestSize: 160,
+                          fit: BoxFit.cover,
+                          semanticLabel: '$title 封面',
+                        )
+                      : Container(
+                          color: context.echoColors.surface,
+                          child: Center(
+                            child: Icon(
+                              AppIcons.playlist,
+                              size: 24,
+                              color: context.echoColors.accent,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              SizedBox(width: context.echoSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: context.echoTypography.title,
+                    ),
+                    if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
+                      SizedBox(height: context.echoSpacing.xxs),
+                      Text(
+                        subtitle!,
+                        style: context.echoTypography.metadata.copyWith(
+                          color: context.echoColors.muted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DiscoverRecommendLoading extends StatelessWidget {
+  const DiscoverRecommendLoading({super.key, this.count = 3});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final artworkSize = MediaQuery.textScalerOf(context).scale(1) > 1.3
+        ? 80.0
+        : 56.0;
+    return Wrap(
+      spacing: context.echoSpacing.md,
+      runSpacing: context.echoSpacing.xxs,
+      children: <Widget>[
+        for (var index = 0; index < count; index++)
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 72),
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xxs),
+              child: Row(
+                children: <Widget>[
+                  EchoSkeleton(
+                    width: artworkSize,
+                    height: artworkSize,
+                    borderRadius: context.echoRadii.surface,
+                  ),
+                  SizedBox(width: context.echoSpacing.sm),
+                  const Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        EchoSkeleton.line(height: 16),
+                        SizedBox(height: 8),
+                        EchoSkeleton.line(width: 112, height: 12),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 封面在上的歌单卡片(标题在下、歌曲数在底),与相册卡片同款样式。
+/// [coverArtId] 走 getCoverArt(pl- 前缀的 id),[coverUrl] 为远程封面(经 trusted-url 放行)。
+class DiscoverPlaylistCard extends StatelessWidget {
+  const DiscoverPlaylistCard({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.coverArtId,
+    this.coverUrl,
+    required this.onPressed,
+    this.width = 160,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String? coverArtId;
+  final String? coverUrl;
+  final VoidCallback onPressed;
+  final double width;
+
+  String? get _effectiveCoverRef {
+    if (coverArtId != null && coverArtId!.isNotEmpty) return coverArtId;
+    if (coverUrl != null && coverUrl!.isNotEmpty) {
+      return tryToTrustedCoverUrlRef(coverUrl);
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final coverRef = _effectiveCoverRef;
+    final semanticLabel = <String>[
+      title,
+      if (subtitle != null && subtitle!.isNotEmpty) subtitle!,
+    ].join('，');
+
+    return SizedBox(
+      width: width,
+      child: Semantics(
+        label: semanticLabel,
+        child: EchoPressable(
+          onPressed: onPressed,
+          minimumSize: Size(width, width),
+          borderRadius: context.echoRadii.surface,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              AspectRatio(
+                aspectRatio: 1,
+                child: ClipRRect(
+                  borderRadius: context.echoRadii.surface,
+                  child: coverRef != null
+                      ? CoverArtImage(
+                          coverArtId: coverRef,
+                          size: width,
+                          requestSize: 320,
+                          fit: BoxFit.cover,
+                          semanticLabel: '$title 封面',
+                        )
+                      : Container(
+                          color: context.echoColors.surface,
+                          child: Center(
+                            child: Icon(
+                              AppIcons.playlist,
+                              size: width * 0.3,
+                              color: context.echoColors.accent,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              SizedBox(height: context.echoSpacing.xs),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: context.echoTypography.title,
+              ),
+              if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
+                SizedBox(height: context.echoSpacing.xxs),
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.echoTypography.metadata.copyWith(
+                    color: context.echoColors.muted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DiscoverPlaylistCardLoading extends StatelessWidget {
+  const DiscoverPlaylistCardLoading({super.key, this.width = 160});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          EchoSkeleton(
+            width: width,
+            height: width,
+            borderRadius: context.echoRadii.surface,
+          ),
+          SizedBox(height: context.echoSpacing.xs),
+          EchoSkeleton.line(height: 14),
+          SizedBox(height: context.echoSpacing.xxs),
+          EchoSkeleton.line(width: width * 0.6, height: 12),
+        ],
+      ),
     );
   }
 }
