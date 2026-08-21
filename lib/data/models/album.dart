@@ -1,3 +1,10 @@
+int? _toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
 /// 专辑模型
 class Album {
   final String id;
@@ -36,13 +43,13 @@ class Album {
       artist: json['artist'] as String?,
       artistId: json['artistId'] as String?,
       coverArt: json['coverArt'] as String?,
-      songCount: json['songCount'] as int? ?? 0,
-      duration: json['duration'] as int? ?? 0,
-      playCount: json['playCount'] as int?,
-      created: json['created'] != null
-          ? DateTime.parse(json['created'] as String)
+      songCount: _toInt(json['songCount']) ?? 0,
+      duration: _toInt(json['duration']) ?? 0,
+      playCount: _toInt(json['playCount']),
+      created: json['created'] is String
+          ? DateTime.tryParse(json['created'] as String)
           : null,
-      year: json['year'] as int?,
+      year: _toInt(json['year']),
       genre: json['genre'] as String?,
       starred: json['starred'] != null,
     );

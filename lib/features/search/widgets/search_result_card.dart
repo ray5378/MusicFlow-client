@@ -7,6 +7,8 @@ import '../../../core/utils/cover_ref_security.dart';
 import '../../../data/models/search.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../widgets/cover_art_image.dart';
+import '../../library/pages/remote_album_page.dart';
+import '../../library/pages/remote_artist_page.dart';
 import '../../library/pages/remote_playlist_page.dart';
 import '../search_actions.dart';
 
@@ -42,6 +44,15 @@ class SearchResultList extends ConsumerWidget {
                       SearchSongLike(id: a.id, source: a.source),
                     ),
                     onImport: () => importSearchAlbum(context, ref, a),
+                    onOpen: () => Navigator.of(context).push<void>(
+                      EchoPageRoute<void>(
+                        context: context,
+                        builder: (_) => RemoteAlbumPage(
+                          album: a,
+                          providerId: a.providerId,
+                        ),
+                      ),
+                    ),
                   ))
               .toList(),
         );
@@ -58,6 +69,15 @@ class SearchResultList extends ConsumerWidget {
                       SearchEntityKind.artist,
                       a.providerId,
                       SearchSongLike(name: a.name),
+                    ),
+                    onOpen: () => Navigator.of(context).push<void>(
+                      EchoPageRoute<void>(
+                        context: context,
+                        builder: (_) => RemoteArtistPage(
+                          artist: a,
+                          providerId: a.providerId,
+                        ),
+                      ),
                     ),
                   ))
               .toList(),
@@ -175,68 +195,74 @@ class _AlbumView extends StatelessWidget {
   final SearchAlbum album;
   final VoidCallback onPlay;
   final VoidCallback onImport;
+  final VoidCallback onOpen;
   const _AlbumView({
     required this.album,
     required this.onPlay,
     required this.onImport,
+    required this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              album.cover.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CoverArtImage(
-                        coverArtId: tryToTrustedCoverUrlRef(album.cover) ?? '',
-                        size: 120,
-                        requestSize: 240,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                album.cover.isNotEmpty
+                    ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        color: context.echoColors.surface,
+                        child: CoverArtImage(
+                          coverArtId: tryToTrustedCoverUrlRef(album.cover) ?? '',
+                          size: 120,
+                          requestSize: 240,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: context.echoColors.surface,
+                        ),
+                        child: const Center(child: Icon(AppIcons.album)),
                       ),
-                      child: const Center(child: Icon(AppIcons.album)),
-                    ),
-              Positioned(
-                right: 4,
-                bottom: 4,
-                child: Row(
-                  children: <Widget>[
-                    IconButton(
-                      icon: const Icon(Remix.play_circle_fill, size: 24),
-                      color: context.echoColors.accent,
-                      onPressed: onPlay,
-                    ),
-                    IconButton(
-                      icon: const Icon(Remix.add_circle_line, size: 22),
-                      onPressed: onImport,
-                    ),
-                  ],
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: Row(
+                    children: <Widget>[
+                      IconButton(
+                        icon: const Icon(Remix.play_circle_fill, size: 24),
+                        color: context.echoColors.accent,
+                        onPressed: onPlay,
+                      ),
+                      IconButton(
+                        icon: const Icon(Remix.add_circle_line, size: 22),
+                        onPressed: onImport,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(album.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(
-          album.artist.isNotEmpty ? album.artist : album.platformLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: context.echoTypography.metadata
-              .copyWith(color: context.echoColors.muted),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(album.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            album.artist.isNotEmpty ? album.artist : album.platformLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.echoTypography.metadata
+                .copyWith(color: context.echoColors.muted),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -244,55 +270,64 @@ class _AlbumView extends StatelessWidget {
 class _ArtistView extends StatelessWidget {
   final SearchArtist artist;
   final VoidCallback onPlay;
-  const _ArtistView({required this.artist, required this.onPlay});
+  final VoidCallback onOpen;
+  const _ArtistView({
+    required this.artist,
+    required this.onPlay,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              artist.avatar.isNotEmpty
-                  ? ClipOval(
-                      child: CoverArtImage(
-                        coverArtId: tryToTrustedCoverUrlRef(artist.avatar) ?? '',
-                        size: 120,
-                        requestSize: 240,
-                        fit: BoxFit.cover,
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                artist.avatar.isNotEmpty
+                    ? ClipOval(
+                        child: CoverArtImage(
+                          coverArtId: tryToTrustedCoverUrlRef(artist.avatar) ?? '',
+                          size: 120,
+                          requestSize: 240,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: context.echoColors.surface,
+                        ),
+                        child: const Center(child: Icon(AppIcons.profile)),
                       ),
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: context.echoColors.surface,
-                      ),
-                      child: const Center(child: Icon(AppIcons.profile)),
-                    ),
-              Positioned(
-                right: 4,
-                bottom: 4,
-                child: IconButton(
-                  icon: const Icon(Remix.play_circle_fill, size: 24),
-                  color: context.echoColors.accent,
-                  onPressed: onPlay,
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: IconButton(
+                    icon: const Icon(Remix.play_circle_fill, size: 24),
+                    color: context.echoColors.accent,
+                    onPressed: onPlay,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(
-          artist.platformLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: context.echoTypography.metadata
-              .copyWith(color: context.echoColors.muted),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            artist.platformLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.echoTypography.metadata
+                .copyWith(color: context.echoColors.muted),
+          ),
+        ],
+      ),
     );
   }
 }

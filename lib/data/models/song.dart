@@ -1,3 +1,20 @@
+/// 服务端部分数值字段可能返回浮点(如聚合/导入歌曲的 duration),
+/// 这里统一按 num 解析后取整,避免 as int 强转抛 CastError。
+int? _toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
+bool? _toBool(dynamic value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is num) return value.toInt() != 0;
+  if (value is String) return value == '1' || value == 'true';
+  return null;
+}
+
 /// 歌曲模型
 class Song {
   final String id;
@@ -178,29 +195,29 @@ class Song {
       albumId: json['albumId'] as String?,
       artist: json['artist'] as String?,
       artistId: json['artistId'] as String?,
-      track: json['track'] as int?,
-      year: json['year'] as int?,
+      track: _toInt(json['track']),
+      year: _toInt(json['year']),
       genre: json['genre'] as String?,
       coverArt: json['coverArt'] as String?,
-      size: json['size'] as int?,
+      size: _toInt(json['size']),
       contentType: json['contentType'] as String?,
       suffix: json['suffix'] as String?,
-      duration: json['duration'] as int?,
-      bitRate: json['bitRate'] as int?,
-      bitDepth: json['bitDepth'] as int?,
-      samplingRate: json['samplingRate'] as int?,
-      channelCount: json['channelCount'] as int?,
+      duration: _toInt(json['duration']),
+      bitRate: _toInt(json['bitRate']),
+      bitDepth: _toInt(json['bitDepth']),
+      samplingRate: _toInt(json['samplingRate']),
+      channelCount: _toInt(json['channelCount']),
       path: json['path'] as String?,
-      isVideo: json['isVideo'] as bool?,
-      playCount: json['playCount'] as int?,
-      created: json['created'] != null
-          ? DateTime.parse(json['created'] as String)
+      isVideo: _toBool(json['isVideo']),
+      playCount: _toInt(json['playCount']),
+      created: json['created'] is String
+          ? DateTime.tryParse(json['created'] as String)
           : null,
       starred: switch (json['starred']) {
         bool value => value,
         _ => json['starred'] != null,
       },
-      discNumber: json['discNumber'] as int?,
+      discNumber: _toInt(json['discNumber']),
       type: json['type'] as String?,
       isPreview: json['isPreview'] as bool? ?? false,
       previewSource: json['previewSource'] as String?,
