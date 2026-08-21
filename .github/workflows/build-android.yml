@@ -36,7 +36,18 @@ jobs:
         run: dart analyze lib/
         continue-on-error: true
 
+      - name: Decode signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "${{ github.workspace }}/android/app/release-key.jks"
+
       - name: Build APK (Release)
+        env:
+          ECHO_STORE_FILE: ${{ github.workspace }}/android/app/release-key.jks
+          ECHO_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ECHO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ECHO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: flutter build apk --release
 
       - name: Rename APK for release
