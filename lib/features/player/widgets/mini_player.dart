@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/dlna_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -23,41 +23,64 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final snapshot = ref.watch(
-      playerProvider.select(
-        (state) => (
-          currentSong: state.currentSong,
-          queue: state.queue,
-          currentIndex: state.currentIndex,
-          isPlaying: state.isPlaying,
-          shuffleEnabled: state.shuffleEnabled,
-          duration: state.duration,
-        ),
-      ),
-    );
+    final player = ref.watch(playerProvider);
+    final cast = ref.watch(dlnaCastProvider);
+    final isCasting = cast.isCasting;
+    final castStatus = cast.status;
+
+    final currentSong = player.currentSong;
+    if (currentSong == null) return const SizedBox.shrink();
+
+    // 投屏(切换播放器)激活时,迷你播放器反映远端设备的实时状态:正在播放的曲目即本地
+    // 正在投屏的曲目,进度/播放态取自设备上报(DlnaManager SOAP 轮询),从而与
+    // 主项目前端「切换播放器后控件控制该播放器、显示其正在播放内容与进度」对齐。
+    final effectiveIsPlaying = isCasting
+        ? castStatus.state == 'PLAYING'
+        : player.isPlaying;
+    final effectivePosition = isCasting
+        ? Duration(seconds: castStatus.position)
+        : player.position;
+    final effectiveDuration = isCasting
+        ? Duration(seconds: castStatus.duration)
+        : player.duration;
+
     final playerState = PlayerState(
-      currentSong: snapshot.currentSong,
-      queue: snapshot.queue,
-      currentIndex: snapshot.currentIndex,
-      isPlaying: snapshot.isPlaying,
-      shuffleEnabled: snapshot.shuffleEnabled,
-      duration: snapshot.duration,
+      currentSong: currentSong,
+      queue: player.queue,
+      currentIndex: player.currentIndex,
+      isPlaying: effectiveIsPlaying,
+      shuffleEnabled: player.shuffleEnabled,
+      position: effectivePosition,
+      duration: effectiveDuration,
     );
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
     final lyricLine = ref.watch(currentLyricLineProvider);
-    final currentSong = playerState.currentSong;
-    if (currentSong == null) return const SizedBox.shrink();
+
+    Future<void> togglePlayPause() async {
+      if (isCasting) {
+        if (castStatus.state == 'PLAYING') {
+          await ref.read(dlnaCastProvider.notifier).pause();
+        } else {
+          await ref.read(dlnaCastProvider.notifier).resume();
+        }
+      } else {
+        await ref.read(playerProvider.notifier).togglePlayPause();
+      }
+    }
 
     return MiniPlayerView(
       playerState: playerState,
       mediaVisuals: visuals,
       lyricLine: lyricLine,
       onOpenPlayer: () => _openFullPlayer(context),
-      onTogglePlayPause: () =>
-          ref.read(playerProvider.notifier).togglePlayPause(),
-      onPrevious: () => ref.read(playerProvider.notifier).previous(),
-      onNext: () => ref.read(playerProvider.notifier).next(),
-      onSeek: (position) => ref.read(playerProvider.notifier).seek(position),
+      onTogglePlayPause: togglePlayPause,
+      onSeek: (position) async {
+        if (isCasting) {
+          ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
+        } else {
+          await ref.read(playerProvider.notifier).seek(position);
+        }
+      },
       progressLayer: const _ProviderMiniPlayerProgress(),
       onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
     );
@@ -104,8 +127,6 @@ class MiniPlayerView extends StatefulWidget {
     required this.playerState,
     required this.onOpenPlayer,
     required this.onTogglePlayPause,
-    required this.onPrevious,
-    required this.onNext,
     required this.onSeek,
     required this.onSwitchPlayer,
     this.lyricLine,
@@ -124,8 +145,6 @@ class MiniPlayerView extends StatefulWidget {
   final Color? albumColor;
   final VoidCallback onOpenPlayer;
   final Future<void> Function() onTogglePlayPause;
-  final Future<void> Function() onPrevious;
-  final Future<void> Function() onNext;
   final Future<void> Function(Duration position) onSeek;
   final VoidCallback onSwitchPlayer;
   final Widget? progressLayer;
@@ -135,28 +154,15 @@ class MiniPlayerView extends StatefulWidget {
 }
 
 class _MiniPlayerViewState extends State<MiniPlayerView> {
-  static const double _swipeActionThreshold = 72;
   static const double _verticalExpandThreshold = 36;
 
-  double _horizontalDragDx = 0;
-  double _swipeViewportWidth = 0;
   double _verticalDragDy = 0;
-  Song? _pendingVisualSong;
-  bool _settlingSwipe = false;
-  bool _awaitingSongConfirmation = false;
 
   PlayerState get _playerState => widget.playerState;
 
   @override
   void didUpdateWidget(covariant MiniPlayerView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.playerState.currentSong?.id !=
-        widget.playerState.currentSong?.id) {
-      _pendingVisualSong = null;
-      _horizontalDragDx = 0;
-      _settlingSwipe = false;
-      _awaitingSongConfirmation = false;
-    }
   }
 
   void _togglePlayPause() {
@@ -164,111 +170,15 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     unawaited(widget.onTogglePlayPause());
   }
 
-  void _handleSwipeDragStart(DragStartDetails details) {
-    if (_awaitingSongConfirmation) return;
-    setState(() {
-      _horizontalDragDx = 0;
-      _pendingVisualSong = null;
-      _settlingSwipe = false;
-    });
-  }
-
-  void _handleSwipeDragUpdate(DragUpdateDetails details) {
-    if (_awaitingSongConfirmation) return;
-    setState(() {
-      _horizontalDragDx += details.primaryDelta ?? 0;
-    });
-  }
-
-  void _handleSwipeDragEnd(DragEndDetails details) {
-    if (_awaitingSongConfirmation) return;
-    final shouldGoNext =
-        _horizontalDragDx <= -_swipeActionThreshold && _playerState.hasNext;
-    final shouldGoPrevious =
-        _horizontalDragDx >= _swipeActionThreshold && _playerState.hasPrevious;
-
-    if (shouldGoNext || shouldGoPrevious) {
-      unawaited(_switchTrack(next: shouldGoNext));
-      return;
-    }
-
-    setState(() => _horizontalDragDx = 0);
-  }
-
-  void _handleSwipeDragCancel() {
-    if (_awaitingSongConfirmation) return;
-    setState(() => _horizontalDragDx = 0);
-  }
-
-  Future<void> _switchTrack({required bool next}) async {
-    if (_awaitingSongConfirmation) return;
-    HapticFeedback.mediumImpact();
-    final canPredictVisualTarget = !_playerState.shuffleEnabled;
-    final targetSong = canPredictVisualTarget
-        ? _adjacentSong(_playerState, next ? 1 : -1)
-        : null;
-    final targetOffset = next ? -_swipeViewportWidth : _swipeViewportWidth;
-    final settleDuration = context.echoMotion.resolve(
-      context,
-      context.echoMotion.feedback,
-    );
-
-    setState(() {
-      _awaitingSongConfirmation = true;
-      _settlingSwipe = _swipeViewportWidth > 0;
-      _horizontalDragDx = _settlingSwipe ? targetOffset : 0;
-    });
-
-    if (_settlingSwipe && settleDuration > Duration.zero) {
-      await Future<void>.delayed(settleDuration);
-      if (!mounted) return;
-    }
-
-    if (mounted && canPredictVisualTarget) {
-      setState(() {
-        _pendingVisualSong = targetSong;
-        _horizontalDragDx = 0;
-        _settlingSwipe = false;
-      });
-    } else if (mounted) {
-      setState(() {
-        _horizontalDragDx = 0;
-        _settlingSwipe = false;
-      });
-    }
-
-    try {
-      if (next) {
-        await widget.onNext();
-      } else {
-        await widget.onPrevious();
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _pendingVisualSong = null;
-        _horizontalDragDx = 0;
-        _settlingSwipe = false;
-        _awaitingSongConfirmation = false;
-      });
-    }
-  }
-
   void _handleVerticalDragStart(DragStartDetails details) {
-    if (_awaitingSongConfirmation) return;
     _verticalDragDy = 0;
   }
 
   void _handleVerticalDragUpdate(DragUpdateDetails details) {
-    if (_awaitingSongConfirmation) return;
     _verticalDragDy += details.primaryDelta ?? 0;
   }
 
   void _handleVerticalDragEnd(DragEndDetails details) {
-    if (_awaitingSongConfirmation) {
-      _verticalDragDy = 0;
-      return;
-    }
     final velocity = details.primaryVelocity ?? 0;
     final shouldExpand =
         velocity < -600 || _verticalDragDy <= -_verticalExpandThreshold;
@@ -278,35 +188,12 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     widget.onOpenPlayer();
   }
 
-  Song? _adjacentSong(PlayerState state, int offset) {
-    if (state.queue.isEmpty) return null;
-    if (state.queue.length == 1) return state.queue.first;
-
-    final queueLength = state.queue.length;
-    final currentIndex = state.currentIndex;
-    final normalizedCurrentIndex =
-        currentIndex >= 0 && currentIndex < queueLength
-        ? currentIndex
-        : state.queue.indexWhere((song) => song.id == state.currentSong?.id);
-    final safeCurrentIndex = normalizedCurrentIndex >= 0
-        ? normalizedCurrentIndex
-        : 0;
-    final targetIndex = (safeCurrentIndex + offset + queueLength) % queueLength;
-    return state.queue[targetIndex];
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentSong = _playerState.currentSong;
     if (currentSong == null) return const SizedBox.shrink();
 
-    final song = _pendingVisualSong ?? currentSong;
-    final previousSong = _playerState.shuffleEnabled
-        ? null
-        : _adjacentSong(_playerState, -1);
-    final nextSong = _playerState.shuffleEnabled
-        ? null
-        : _adjacentSong(_playerState, 1);
+    final song = currentSong;
     final visuals =
         widget.mediaVisuals ??
         EchoMediaVisuals.fallback(
@@ -320,11 +207,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         builder: (context) {
           final textScale = MediaQuery.textScalerOf(context).scale(1);
           final showSubtitle = textScale <= 1.4;
-          final semanticState = _awaitingSongConfirmation
-              ? '正在切换曲目'
-              : _playerState.isPlaying
-              ? '正在播放'
-              : '已暂停';
+          final semanticState = _playerState.isPlaying ? '正在播放' : '已暂停';
           final semanticSubtitle = song.artist?.trim().isNotEmpty == true
               ? '，${song.artist!.trim()}'
               : '';
@@ -334,33 +217,13 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
             explicitChildNodes: true,
             label: '迷你播放器，${song.title}$semanticSubtitle',
             value: semanticState,
-            onTap: _awaitingSongConfirmation ? null : widget.onOpenPlayer,
-            customSemanticsActions: _awaitingSongConfirmation
-                ? const <CustomSemanticsAction, VoidCallback>{}
-                : <CustomSemanticsAction, VoidCallback>{
-                    const CustomSemanticsAction(label: '上一首'): () {
-                      if (_playerState.hasPrevious) {
-                        unawaited(_switchTrack(next: false));
-                      }
-                    },
-                    const CustomSemanticsAction(label: '下一首'): () {
-                      if (_playerState.hasNext) {
-                        unawaited(_switchTrack(next: true));
-                      }
-                    },
-                  },
+            onTap: widget.onOpenPlayer,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               excludeFromSemantics: true,
-              onVerticalDragStart: _awaitingSongConfirmation
-                  ? null
-                  : _handleVerticalDragStart,
-              onVerticalDragUpdate: _awaitingSongConfirmation
-                  ? null
-                  : _handleVerticalDragUpdate,
-              onVerticalDragEnd: _awaitingSongConfirmation
-                  ? null
-                  : _handleVerticalDragEnd,
+              onVerticalDragStart: _handleVerticalDragStart,
+              onVerticalDragUpdate: _handleVerticalDragUpdate,
+              onVerticalDragEnd: _handleVerticalDragEnd,
               child: SizedBox(
                 key: const Key('mini-player-surface'),
                 height: MiniPlayer.height,
@@ -390,97 +253,17 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             child: GestureDetector(
                               key: const Key('mini-player-track'),
                               behavior: HitTestBehavior.opaque,
-                              onTap: _awaitingSongConfirmation
-                                  ? null
-                                  : widget.onOpenPlayer,
+                              onTap: widget.onOpenPlayer,
                               onDoubleTap: _togglePlayPause,
-                              onHorizontalDragStart: _handleSwipeDragStart,
-                              onHorizontalDragUpdate: _handleSwipeDragUpdate,
-                              onHorizontalDragEnd: _handleSwipeDragEnd,
-                              onHorizontalDragCancel: _handleSwipeDragCancel,
                               child: ClipRect(
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final width = constraints.maxWidth;
-                                    _swipeViewportWidth = width;
-                                    final dragOffset = _horizontalDragDx.clamp(
-                                      -width,
-                                      width,
-                                    );
-                                    final translateX = -width + dragOffset;
-
-                                    return OverflowBox(
-                                      alignment: Alignment.centerLeft,
-                                      minWidth: width * 3,
-                                      maxWidth: width * 3,
-                                      child: AnimatedContainer(
-                                        width: width * 3,
-                                        duration: _settlingSwipe
-                                            ? context.echoMotion.resolve(
-                                                context,
-                                                context.echoMotion.feedback,
-                                              )
-                                            : Duration.zero,
-                                        curve: context.echoMotion.easeOut,
-                                        transform: Matrix4.translationValues(
-                                          translateX,
-                                          0,
-                                          0,
-                                        ),
-                                        child: Row(
-                                          children: <Widget>[
-                                            SizedBox(
-                                              width: width,
-                                              child: previousSong == null
-                                                  ? const SizedBox.shrink()
-                                                  : _MiniPlayerTrack(
-                                                      song: previousSong,
-                                                      useHero: false,
-                                                      showSubtitle:
-                                                          showSubtitle,
-                                                    ),
-                                            ),
-                                            SizedBox(
-                                              width: width,
-                                              child: _MiniPlayerTrack(
-                                                song: song,
-                                                useHero:
-                                                    !_awaitingSongConfirmation,
-                                                showSubtitle: showSubtitle,
-                                                lyricLine: widget.lyricLine,
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: width,
-                                              child: nextSong == null
-                                                  ? const SizedBox.shrink()
-                                                  : _MiniPlayerTrack(
-                                                      song: nextSong,
-                                                      useHero: false,
-                                                      showSubtitle:
-                                                          showSubtitle,
-                                                    ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                child: _MiniPlayerTrack(
+                                  song: song,
+                                  useHero: true,
+                                  showSubtitle: showSubtitle,
+                                  lyricLine: widget.lyricLine,
                                 ),
                               ),
                             ),
-                          ),
-                          EchoIconButton(
-                            icon: AppIcons.previous,
-                            label: '上一首',
-                            foregroundColor: context.echoColors.ink,
-                            backgroundColor: Colors.transparent,
-                            onPressed: _playerState.hasPrevious
-                                ? () {
-                                    HapticFeedback.selectionClick();
-                                    unawaited(widget.onPrevious());
-                                  }
-                                : null,
                           ),
                           EchoIconButton(
                             icon: _playerState.isPlaying
@@ -490,18 +273,6 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             foregroundColor: context.echoColors.ink,
                             backgroundColor: Colors.transparent,
                             onPressed: _togglePlayPause,
-                          ),
-                          EchoIconButton(
-                            icon: AppIcons.next,
-                            label: '下一首',
-                            foregroundColor: context.echoColors.ink,
-                            backgroundColor: Colors.transparent,
-                            onPressed: _playerState.hasNext
-                                ? () {
-                                    HapticFeedback.selectionClick();
-                                    unawaited(widget.onNext());
-                                  }
-                                : null,
                           ),
                           EchoIconButton(
                             icon: AppIcons.headphones,
@@ -542,15 +313,12 @@ class _ProviderMiniPlayerProgress extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(
-      playerProvider.select(
-        (state) => (position: state.position, duration: state.duration),
-      ),
-    );
+    final position = ref.watch(effectivePositionProvider);
+    final duration = ref.watch(effectiveDurationProvider);
     return _MiniPlayerProgressSurface(
-      position: progress.position,
-      duration: progress.duration,
-      onSeek: (target) => ref.read(playerProvider.notifier).seek(target),
+      position: position,
+      duration: duration,
+      onSeek: (target) => seekEffectivePlayback(ref, target),
     );
   }
 }

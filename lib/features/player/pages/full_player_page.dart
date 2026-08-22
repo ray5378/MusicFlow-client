@@ -11,6 +11,7 @@ import '../../../data/models/audio_quality.dart';
 import '../../../data/models/embed_service_config.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/audio_quality_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/offline_download_provider.dart';
@@ -1220,16 +1221,23 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
         if (previous != next) _cancelSeekSession();
       },
     );
-    final state = ref.watch(
+    final songAndBuffer = ref.watch(
       playerProvider.select(
         (state) => (
           songId: state.currentSong?.id,
-          position: state.position,
-          duration: state.duration,
           buffered: state.bufferedPosition,
           processing: state.processingState,
         ),
       ),
+    );
+    final effectivePosition = ref.watch(effectivePositionProvider);
+    final effectiveDuration = ref.watch(effectiveDurationProvider);
+    final state = (
+      songId: songAndBuffer.songId,
+      position: effectivePosition,
+      duration: effectiveDuration,
+      buffered: songAndBuffer.buffered,
+      processing: songAndBuffer.processing,
     );
     final isLoading =
         state.processing == ProcessingState.loading ||
@@ -1315,9 +1323,10 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
                       }
                       HapticFeedback.selectionClick();
                       unawaited(
-                        ref
-                            .read(playerProvider.notifier)
-                            .seek(Duration(milliseconds: value.round())),
+                        seekEffectivePlayback(
+                          ref,
+                          Duration(milliseconds: value.round()),
+                        ),
                       );
                     },
               onChangeCancel: state.duration <= Duration.zero
@@ -1350,8 +1359,8 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
   }
 }
 
-/// The primary transport zone contains only previous, play/pause, and next.
-/// Position ticks and secondary utility state stay outside its dependency set.
+/// 主播放控件：仅保留播放/暂停。上一首/下一首已移除，腾出空间用于歌词展示。
+/// 投屏时该控件直接控制 DLNA 设备（播放/暂停状态取自设备实时状态）。
 class PlaybackControls extends ConsumerWidget {
   const PlaybackControls({super.key, this.compact = false});
 
@@ -1364,46 +1373,21 @@ class PlaybackControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
-      playerProvider.select(
-        (state) => (
-          isPlaying: state.isPlaying,
-          hasPrevious: state.hasPrevious,
-          hasNext: state.hasNext,
-        ),
-      ),
-    );
+    final isPlaying = ref.watch(effectiveIsPlayingProvider);
 
     final playDimension = compact ? 56.0 : 64.0;
     final playIconSize = compact ? 30.0 : 32.0;
     final buttons = <Widget>[
       _PlayerIconButton(
-        icon: AppIcons.previous,
-        label: '上一首',
-        iconSize: 30,
-        onPressed: !state.hasPrevious
-            ? null
-            : () => unawaited(ref.read(playerProvider.notifier).previous()),
-      ),
-      _PlayerIconButton(
-        icon: state.isPlaying ? AppIcons.pause : AppIcons.play,
-        label: state.isPlaying ? '暂停' : '播放',
+        icon: isPlaying ? AppIcons.pause : AppIcons.play,
+        label: isPlaying ? '暂停' : '播放',
         emphasized: true,
         dimension: playDimension,
         iconSize: playIconSize,
-        iconOffset: state.isPlaying
+        iconOffset: isPlaying
             ? Offset.zero
             : Offset(playIconSize * _playIconOpticalCorrection, 0),
-        onPressed: () =>
-            unawaited(ref.read(playerProvider.notifier).togglePlayPause()),
-      ),
-      _PlayerIconButton(
-        icon: AppIcons.next,
-        label: '下一首',
-        iconSize: 30,
-        onPressed: !state.hasNext
-            ? null
-            : () => unawaited(ref.read(playerProvider.notifier).next()),
+        onPressed: () => unawaited(toggleEffectivePlayback(ref)),
       ),
     ];
 
@@ -1411,7 +1395,7 @@ class PlaybackControls extends ConsumerWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 280),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: buttons,
         ),
       ),

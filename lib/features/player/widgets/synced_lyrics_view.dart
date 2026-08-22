@@ -9,7 +9,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/structured_lyrics.dart';
-import '../../../providers/player_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 
 class _LyricsRenderParts {
   const _LyricsRenderParts(this.primary, [this.secondary]);
@@ -36,9 +36,7 @@ class SyncedLyricsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(
-      playerProvider.select((state) => state.position),
-    );
+    final position = ref.watch(effectivePositionProvider);
     return SyncedLyricsSurface(
       lyrics: lyrics,
       position: position,
@@ -46,7 +44,7 @@ class SyncedLyricsView extends ConsumerWidget {
       activeSecondaryColor: activeSecondaryColor,
       inactivePrimaryColor: inactivePrimaryColor,
       inactiveSecondaryColor: inactiveSecondaryColor,
-      onSeek: (target) => ref.read(playerProvider.notifier).seek(target),
+      onSeek: (target) => seekEffectivePlayback(ref, target),
     );
   }
 }

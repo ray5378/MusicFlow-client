@@ -22,6 +22,7 @@ import 'api_provider.dart';
 import 'library_provider.dart';
 import 'player_provider.dart';
 import 'gd_music_provider.dart';
+import 'effective_playback_provider.dart';
 
 // ======== 提供商配置 Providers ========
 
@@ -272,9 +273,7 @@ Future<void> updateCoverProviderConfig(
 /// 无同步歌词 / 未加载完成时返回 null，调用方应回退到歌手名。
 final currentLyricLineProvider = Provider<String?>((ref) {
   final lyricsAsync = ref.watch(currentLyricsProvider);
-  final position = ref.watch(
-    playerProvider.select((state) => state.position),
-  );
+  final position = ref.watch(effectivePositionProvider);
   final lyrics = lyricsAsync.valueOrNull;
   if (lyrics == null) return null;
 

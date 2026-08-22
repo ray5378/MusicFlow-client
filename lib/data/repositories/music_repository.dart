@@ -311,6 +311,72 @@ class MusicRepository {
     }
   }
 
+  /// 单页歌曲(供虚拟化滚动分块加载):对齐 Web 前端 useInfiniteList 的 RangeFetcher。
+  /// 返回本页 items 与服务端 total。sort 仅后端支持的 'recentAdded' 有效,其余按标题升序。
+  Future<({List<Song> items, int total})> getSongsPage(
+    int page,
+    int pageSize, {
+    String query = '',
+    String sort = '',
+  }) async {
+    final data = await _apiClient.getRaw(
+      '/rest/api/v1/songs',
+      queryParameters: <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        if (query.isNotEmpty) 'query': query,
+        if (sort.isNotEmpty) 'sort': sort,
+      },
+    ) as Map<String, dynamic>;
+    final items = (data['items'] as List? ?? [])
+        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final total = (data['total'] as num?)?.toInt() ?? 0;
+    return (items: items, total: total);
+  }
+
+  /// 单页专辑(供虚拟化滚动分块加载):对齐 Web 前端 useCardGrid 的 RangeFetcher。
+  Future<({List<Album> items, int total})> getAlbumsPage(
+    int page,
+    int pageSize, {
+    String query = '',
+  }) async {
+    final data = await _apiClient.getRaw(
+      '/rest/api/v1/albums',
+      queryParameters: <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        if (query.isNotEmpty) 'query': query,
+      },
+    ) as Map<String, dynamic>;
+    final items = (data['items'] as List? ?? [])
+        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final total = (data['total'] as num?)?.toInt() ?? 0;
+    return (items: items, total: total);
+  }
+
+  /// 单页艺术家(供虚拟化滚动分块加载):对齐 Web 前端 useCardGrid 的 RangeFetcher。
+  Future<({List<Artist> items, int total})> getArtistsPage(
+    int page,
+    int pageSize, {
+    String query = '',
+  }) async {
+    final data = await _apiClient.getRaw(
+      '/rest/api/v1/artists',
+      queryParameters: <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        if (query.isNotEmpty) 'query': query,
+      },
+    ) as Map<String, dynamic>;
+    final items = (data['items'] as List? ?? [])
+        .map((e) => Artist.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final total = (data['total'] as num?)?.toInt() ?? 0;
+    return (items: items, total: total);
+  }
+
   /// 搜索
   Future<SearchResult> search({
     required String query,
