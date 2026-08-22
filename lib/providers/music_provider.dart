@@ -182,8 +182,7 @@ final allAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
   return _fetchWithCacheFallback(
     ref: ref,
     label: 'allAlbums',
-    fetch: () =>
-        repository.getAlbumList(type: 'alphabeticalByName', size: 2000),
+    fetch: () => repository.getAllAlbums(),
     cacheWrite: (albums) => cache.cacheAllAlbums(libraryId, albums),
     cacheRead: () => cache.getAllAlbums(libraryId),
     failedProvider: allAlbumsLoadFailedProvider,
@@ -247,7 +246,7 @@ final allArtistsProvider = FutureProvider.autoDispose<List<Artist>>((
   return _fetchWithCacheFallback(
     ref: ref,
     label: 'allArtists',
-    fetch: () => repository.getArtists(),
+    fetch: () => repository.getAllArtists(),
     cacheWrite: (artists) => cache.cacheAllArtists(libraryId, artists),
     cacheRead: () => cache.getAllArtists(libraryId),
     failedProvider: allArtistsLoadFailedProvider,

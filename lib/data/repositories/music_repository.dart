@@ -240,6 +240,77 @@ class MusicRepository {
     }
   }
 
+  /// 获取所有专辑。
+  /// 对齐 Web 前端:走 /rest/api/v1/albums 的服务端分页接口(窗口化分块加载数据源),
+  /// 按页拉取直至取完,避免 subsonic getAlbumList2 的条数上限。字段经 Album.fromJson
+  /// 解析(数值字段服务端可能为浮点,已做容错)。
+  Future<List<Album>> getAllAlbums({String query = ''}) async {
+    try {
+      const pageSize = 200; // 与后端 /v1/albums 的 pageSize 上限对齐
+      final List<Album> all = <Album>[];
+      int page = 1;
+      int total = 0;
+      do {
+        final data = await _apiClient.getRaw(
+          '/rest/api/v1/albums',
+          queryParameters: <String, String>{
+            'page': page.toString(),
+            'pageSize': pageSize.toString(),
+            if (query.isNotEmpty) 'query': query,
+          },
+        ) as Map<String, dynamic>;
+
+        final items = data['items'] as List? ?? [];
+        total = (data['total'] as num?)?.toInt() ?? 0;
+        all.addAll(
+          items.map((e) => Album.fromJson(e as Map<String, dynamic>)),
+        );
+
+        if (items.isEmpty || all.length >= total) break;
+        page++;
+      } while (true);
+      return all;
+    } catch (e) {
+      Logger.error('Failed to get all albums', e);
+      rethrow;
+    }
+  }
+
+  /// 获取所有艺术家。
+  /// 对齐 Web 前端:走 /rest/api/v1/artists 的服务端分页接口(窗口化分块加载数据源),
+  /// 按页拉取直至取完。字段经 Artist.fromJson 解析(已做容错)。
+  Future<List<Artist>> getAllArtists({String query = ''}) async {
+    try {
+      const pageSize = 200; // 与后端 /v1/artists 的 pageSize 上限对齐
+      final List<Artist> all = <Artist>[];
+      int page = 1;
+      int total = 0;
+      do {
+        final data = await _apiClient.getRaw(
+          '/rest/api/v1/artists',
+          queryParameters: <String, String>{
+            'page': page.toString(),
+            'pageSize': pageSize.toString(),
+            if (query.isNotEmpty) 'query': query,
+          },
+        ) as Map<String, dynamic>;
+
+        final items = data['items'] as List? ?? [];
+        total = (data['total'] as num?)?.toInt() ?? 0;
+        all.addAll(
+          items.map((e) => Artist.fromJson(e as Map<String, dynamic>)),
+        );
+
+        if (items.isEmpty || all.length >= total) break;
+        page++;
+      } while (true);
+      return all;
+    } catch (e) {
+      Logger.error('Failed to get all artists', e);
+      rethrow;
+    }
+  }
+
   /// 搜索
   Future<SearchResult> search({
     required String query,
