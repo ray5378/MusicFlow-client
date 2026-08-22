@@ -2,6 +2,10 @@
 cmake_minimum_required(VERSION 3.14)
 project(musicflow_app LANGUAGES CXX)
 
+# VS18(MSVC 14.51) 对 <experimental/coroutine> 触发 STL1011 硬错误,
+# just_audio_windows 插件仍使用旧式协程头;全局静默该弃用告警直至插件上游迁移 C++20。
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "musicflow_app")
