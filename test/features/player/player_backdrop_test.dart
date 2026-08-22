@@ -1,5 +1,5 @@
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/features/player/widgets/player_hero_helpers.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:palette_generator/palette_generator.dart';

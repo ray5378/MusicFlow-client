@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:echoes/core/network/fallback_interceptor.dart';
-import 'package:echoes/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/network/fallback_interceptor.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

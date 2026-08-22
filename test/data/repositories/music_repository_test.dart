@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:echoes/data/repositories/music_repository.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/data/models/album.dart';
+import 'package:musicflow_client/data/repositories/music_repository.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/models/album.dart';
 import '../../helpers/mocks.dart';
 
 void main() {
@@ -207,23 +207,28 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('getAllSongs', () {
-    test('parses search3 response as song list', () async {
+    // 当前实现对齐主项目前端:走 /rest/api/v1/songs 服务端分页。
+    test('parses paginated /v1/songs response as song list', () async {
       when(
-        () => mockApiClient.get(any(), queryParameters: any(named: 'queryParameters')),
+        () => mockApiClient.getRaw(any(), queryParameters: any(named: 'queryParameters')),
       ).thenAnswer((_) async => {
-            'searchResult3': {
-              'song': [songJson(id: 'all1'), songJson(id: 'all2')],
-            },
+            'items': [songJson(id: 'all1'), songJson(id: 'all2')],
+            'total': 2,
           });
 
       final songs = await repository.getAllSongs();
       expect(songs.length, 2);
+
+      final captured = verify(
+        () => mockApiClient.getRaw(captureAny(), queryParameters: captureAny(named: 'queryParameters')),
+      ).captured;
+      expect(captured.first, '/rest/api/v1/songs');
     });
 
-    test('returns empty when searchResult3 is null', () async {
+    test('stops after a single empty page', () async {
       when(
-        () => mockApiClient.get(any(), queryParameters: any(named: 'queryParameters')),
-      ).thenAnswer((_) async => {'searchResult3': null});
+        () => mockApiClient.getRaw(any(), queryParameters: any(named: 'queryParameters')),
+      ).thenAnswer((_) async => {'items': <Object?>[], 'total': 0});
 
       expect(await repository.getAllSongs(), isEmpty);
     });

@@ -1,14 +1,14 @@
 import 'dart:io';
 
-import 'package:echoes/core/design/tokens/echo_breakpoints.dart';
-import 'package:echoes/core/design/tokens/echo_colors.dart';
-import 'package:echoes/core/design/tokens/echo_interaction.dart';
-import 'package:echoes/core/design/tokens/echo_motion.dart';
-import 'package:echoes/core/design/tokens/echo_radii.dart';
-import 'package:echoes/core/design/tokens/echo_spacing.dart';
-import 'package:echoes/core/design/tokens/echo_typography.dart';
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/core/theme/color_scheme.dart';
+import 'package:musicflow_client/core/design/tokens/echo_breakpoints.dart';
+import 'package:musicflow_client/core/design/tokens/echo_colors.dart';
+import 'package:musicflow_client/core/design/tokens/echo_interaction.dart';
+import 'package:musicflow_client/core/design/tokens/echo_motion.dart';
+import 'package:musicflow_client/core/design/tokens/echo_radii.dart';
+import 'package:musicflow_client/core/design/tokens/echo_spacing.dart';
+import 'package:musicflow_client/core/design/tokens/echo_typography.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/core/theme/color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

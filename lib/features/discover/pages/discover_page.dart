@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
-import 'package:remixicon/remixicon.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/recommend.dart';
@@ -14,7 +13,6 @@ import '../../../providers/playlist_provider.dart';
 import '../../../providers/recommend_provider.dart';
 import '../../../widgets/main_scaffold.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
-import '../../explore/pages/explore_page.dart';
 import '../../library/pages/album_list_page.dart';
 import '../../library/pages/artist_list_page.dart';
 import '../../library/pages/playlist_detail_page.dart';
@@ -151,7 +149,6 @@ class CategoryNavBar extends StatelessWidget {
     ('歌曲', AppIcons.music, const SongListPage()),
     ('歌单', AppIcons.playlist, const PlaylistSearchPage()),
     ('喜爱', AppIcons.heart, const StarredPage()),
-    ('风格', Remix.price_tag_3_line, const ExplorePage()),
   ];
 
   @override

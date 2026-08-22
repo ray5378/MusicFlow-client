@@ -1,4 +1,4 @@
-import 'package:echoes/providers/player/player_seek_policy.dart';
+import 'package:musicflow_client/providers/player/player_seek_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 

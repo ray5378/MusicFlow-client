@@ -13,7 +13,6 @@ class DlnaManager {
   final LocalRelay _relay = LocalRelay();
 
   final List<DlnaDevice> _devices = [];
-  DlnaCastSession? _currentSession;
   DlnaDevice? _currentDevice;
   Timer? _statusTimer;
   DlnaDeviceStatus _currentStatus = const DlnaDeviceStatus();
@@ -183,7 +182,6 @@ class DlnaManager {
       // Step 3: Play
       await SoapControl.play(device.avTransportUrl!);
 
-      _currentSession = session;
       _currentDevice = device;
 
       // 启动状态轮询
@@ -207,7 +205,6 @@ class DlnaManager {
       } catch (_) {}
     }
 
-    _currentSession = null;
     _currentDevice = null;
     _currentStatus = const DlnaDeviceStatus();
 

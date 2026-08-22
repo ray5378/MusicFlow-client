@@ -1,5 +1,5 @@
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/theme/app_theme.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';

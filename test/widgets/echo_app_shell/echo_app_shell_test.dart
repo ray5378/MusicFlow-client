@@ -1,13 +1,13 @@
 import 'dart:ui' show Tristate;
 
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/features/player/widgets/mini_player.dart';
-import 'package:echoes/providers/player_provider.dart';
-import 'package:echoes/widgets/echo_app_shell/echo_app_shell.dart';
-import 'package:echoes/widgets/echo_app_shell/echo_network_status_bar.dart';
-import 'package:echoes/widgets/echo_app_shell/echo_shell_navigation.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/player/widgets/mini_player.dart';
+import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/widgets/echo_app_shell/echo_app_shell.dart';
+import 'package:musicflow_client/widgets/echo_app_shell/echo_network_status_bar.dart';
+import 'package:musicflow_client/widgets/echo_app_shell/echo_shell_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -374,10 +374,10 @@ void main() {
           albumColor: const Color(0xFF556F60),
           onOpenPlayer: () {},
           onTogglePlayPause: () async {},
-          onPrevious: () async {},
-          onNext: () async {},
+          onPrevious: () async => true,
+          onNext: () async => true,
           onSeek: (_) async {},
-          onOpenActions: () {},
+          onSwitchPlayer: () {},
         ),
       );
 

@@ -57,15 +57,7 @@ class MiniPlayer extends ConsumerWidget {
     final lyricLine = ref.watch(currentLyricLineProvider);
 
     Future<void> togglePlayPause() async {
-      if (isCasting) {
-        if (castStatus.state == 'PLAYING') {
-          await ref.read(dlnaCastProvider.notifier).pause();
-        } else {
-          await ref.read(dlnaCastProvider.notifier).resume();
-        }
-      } else {
-        await ref.read(playerProvider.notifier).togglePlayPause();
-      }
+      await toggleEffectivePlayback(ref);
     }
 
     return MiniPlayerView(
@@ -74,6 +66,8 @@ class MiniPlayer extends ConsumerWidget {
       lyricLine: lyricLine,
       onOpenPlayer: () => _openFullPlayer(context),
       onTogglePlayPause: togglePlayPause,
+      onPrevious: () => previousEffectivePlayback(ref),
+      onNext: () => nextEffectivePlayback(ref),
       onSeek: (position) async {
         if (isCasting) {
           ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
@@ -83,6 +77,8 @@ class MiniPlayer extends ConsumerWidget {
       },
       progressLayer: const _ProviderMiniPlayerProgress(),
       onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
+      currentPlayerName: currentPlayerName(cast),
+      isCasting: isCasting,
     );
   }
 
@@ -113,8 +109,18 @@ class MiniPlayer extends ConsumerWidget {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => const _PlayerSwitcherSheet(),
+      builder: (sheetContext) => const PlayerSwitcherSheet(),
     );
+    if (context.mounted) {
+      final cast = ref.read(dlnaCastProvider);
+      showEchoMessage(
+        context,
+        cast.isCasting
+            ? '正在投屏到「${currentPlayerName(cast)}」'
+            : '已切换为本机播放',
+        kind: EchoMessageKind.success,
+      );
+    }
   }
 }
 
@@ -127,8 +133,12 @@ class MiniPlayerView extends StatefulWidget {
     required this.playerState,
     required this.onOpenPlayer,
     required this.onTogglePlayPause,
+    required this.onPrevious,
+    required this.onNext,
     required this.onSeek,
     required this.onSwitchPlayer,
+    this.currentPlayerName = '本机',
+    this.isCasting = false,
     this.lyricLine,
     this.mediaVisuals,
     this.albumColor,
@@ -138,6 +148,13 @@ class MiniPlayerView extends StatefulWidget {
   final PlayerState playerState;
   final EchoMediaVisuals? mediaVisuals;
 
+  /// 当前播放目标名称（本机 / DLNA 设备名），对齐主项目前端的
+  /// 「扬声器图标 + 当前播放器名」反馈。
+  final String currentPlayerName;
+
+  /// 是否正在投屏：为 true 时切换按钮换用信号塔图标并以强调色显示。
+  final bool isCasting;
+
   /// 当前滚动歌词单行，非空时优先展示在副标题（对齐主项目前端行为）。
   final String? lyricLine;
 
@@ -145,6 +162,8 @@ class MiniPlayerView extends StatefulWidget {
   final Color? albumColor;
   final VoidCallback onOpenPlayer;
   final Future<void> Function() onTogglePlayPause;
+  final Future<bool> Function() onPrevious;
+  final Future<bool> Function() onNext;
   final Future<void> Function(Duration position) onSeek;
   final VoidCallback onSwitchPlayer;
   final Widget? progressLayer;
@@ -168,6 +187,11 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
   void _togglePlayPause() {
     HapticFeedback.selectionClick();
     unawaited(widget.onTogglePlayPause());
+  }
+
+  void _skip({required bool forward}) {
+    HapticFeedback.selectionClick();
+    unawaited(forward ? widget.onNext() : widget.onPrevious());
   }
 
   void _handleVerticalDragStart(DragStartDetails details) {
@@ -266,6 +290,14 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             ),
                           ),
                           EchoIconButton(
+                            key: const Key('mini-player-previous'),
+                            icon: AppIcons.previous,
+                            label: '上一首',
+                            foregroundColor: context.echoColors.ink,
+                            backgroundColor: Colors.transparent,
+                            onPressed: () => _skip(forward: false),
+                          ),
+                          EchoIconButton(
                             icon: _playerState.isPlaying
                                 ? AppIcons.pause
                                 : AppIcons.play,
@@ -275,9 +307,21 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             onPressed: _togglePlayPause,
                           ),
                           EchoIconButton(
-                            icon: AppIcons.headphones,
-                            label: '切换播放器',
+                            key: const Key('mini-player-next'),
+                            icon: AppIcons.next,
+                            label: '下一首',
                             foregroundColor: context.echoColors.ink,
+                            backgroundColor: Colors.transparent,
+                            onPressed: () => _skip(forward: true),
+                          ),
+                          EchoIconButton(
+                            icon: widget.isCasting
+                                ? AppIcons.signalTower
+                                : AppIcons.headphones,
+                            label: '切换播放器，当前：${widget.currentPlayerName}',
+                            foregroundColor: widget.isCasting
+                                ? context.echoColors.accent
+                                : context.echoColors.ink,
                             backgroundColor: Colors.transparent,
                             onPressed: widget.onSwitchPlayer,
                           ),
@@ -417,7 +461,7 @@ class _MiniPlayerProgressSurfaceState
       children: <Widget>[
         PositionedDirectional(
           start: 0,
-          end: 112,
+          end: 196,
           bottom: 0,
           height: 20,
           child: LayoutBuilder(
@@ -462,7 +506,7 @@ class _MiniPlayerProgressSurfaceState
         if (_scrubbing)
           PositionedDirectional(
             start: context.echoSpacing.sm,
-            end: 112,
+            end: 196,
             bottom: 18,
             child: _MiniPlayerScrubBubble(
               progress: displayedProgress,
@@ -653,8 +697,9 @@ class _MiniPlayerScrubBubble extends StatelessWidget {
 
 /// 「切换播放器」底部弹层，对齐主项目前端播放条的「选择播放器」。
 /// 列出本机播放与已发现的 DLNA 设备，选中即把播放目标切换到该设备。
-class _PlayerSwitcherSheet extends ConsumerWidget {
-  const _PlayerSwitcherSheet();
+/// 迷你播放条与全屏播放器共用。
+class PlayerSwitcherSheet extends ConsumerWidget {
+  const PlayerSwitcherSheet({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -715,12 +760,20 @@ class _PlayerSwitcherSheet extends ConsumerWidget {
                                   final ok = await ref
                                       .read(dlnaCastProvider.notifier)
                                       .startCast(device, song.id);
-                                  if (ok && context.mounted) {
-                                    await ref
-                                        .read(playerProvider.notifier)
-                                        .pause();
-                                    navigator.pop();
+                                  if (!ok) {
+                                    if (context.mounted) {
+                                      showEchoMessage(
+                                        context,
+                                        '投屏「${device.displayName}」失败，请重试',
+                                        kind: EchoMessageKind.error,
+                                      );
+                                    }
+                                    return;
                                   }
+                                  await ref
+                                      .read(playerProvider.notifier)
+                                      .pause();
+                                  navigator.pop();
                                 },
                   ),
               ] else

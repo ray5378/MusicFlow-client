@@ -1,5 +1,5 @@
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/features/library/widgets/address_dialog.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/features/library/widgets/address_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

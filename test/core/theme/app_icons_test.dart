@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:echoes/core/theme/app_icons.dart';
+import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -31,7 +31,7 @@ void main() {
       isEmpty,
       reason: 'Every AppIcons call must resolve through the semantic map.',
     );
-    expect(declarations, hasLength(93));
+    expect(declarations, hasLength(95));
   });
 
   test('product symbols use Remix and platform actions use Cupertino', () {

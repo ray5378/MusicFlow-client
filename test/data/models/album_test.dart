@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echoes/data/models/album.dart';
+import 'package:musicflow_client/data/models/album.dart';
 
 void main() {
   // -------------------------------------------------------------------------

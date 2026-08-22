@@ -1,4 +1,4 @@
-import 'package:echoes/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

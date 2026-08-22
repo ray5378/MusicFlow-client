@@ -1,7 +1,7 @@
 import 'dart:ui' show SemanticsAction;
 
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/features/player/widgets/player_scrubber.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/features/player/widgets/player_scrubber.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

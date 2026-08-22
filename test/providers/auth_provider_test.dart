@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:echoes/providers/auth_provider.dart';
-import 'package:echoes/data/repositories/auth_repository.dart';
-import 'package:echoes/data/repositories/library_repository.dart';
-import 'package:echoes/data/models/music_library.dart';
+import 'package:musicflow_client/providers/auth_provider.dart';
+import 'package:musicflow_client/data/repositories/auth_repository.dart';
+import 'package:musicflow_client/data/repositories/library_repository.dart';
+import 'package:musicflow_client/data/models/music_library.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 

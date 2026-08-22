@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echoes/data/models/audio_quality.dart';
+import 'package:musicflow_client/data/models/audio_quality.dart';
 
 void main() {
   // -------------------------------------------------------------------------

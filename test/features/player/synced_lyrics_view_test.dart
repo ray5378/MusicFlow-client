@@ -1,7 +1,7 @@
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/data/models/lyrics_line.dart';
-import 'package:echoes/data/models/structured_lyrics.dart';
-import 'package:echoes/features/player/widgets/synced_lyrics_view.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/data/models/lyrics_line.dart';
+import 'package:musicflow_client/data/models/structured_lyrics.dart';
+import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';

@@ -14,7 +14,6 @@ import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'widgets/main_scaffold.dart';
 import 'features/discover/pages/discover_page.dart';
-import 'features/explore/pages/explore_page.dart';
 import 'features/library/pages/edit_library_page.dart';
 
 /// 应用主入口 Widget
@@ -129,11 +128,9 @@ class App extends ConsumerWidget {
 
 /// 路由配置
 final _homeBranchNavigatorKey = GlobalKey<NavigatorState>();
-final _exploreBranchNavigatorKey = GlobalKey<NavigatorState>();
 
 final _branchNavigatorKeys = <GlobalKey<NavigatorState>>[
   _homeBranchNavigatorKey,
-  _exploreBranchNavigatorKey,
 ];
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -213,7 +210,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: EditLibraryPage(libraryId: state.pathParameters['id']!),
         ),
       ),
-      // StatefulShellRoute 为主要导航结构
+      // StatefulShellRoute 为主要导航结构(探索分支已移除,仅音乐流)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return MainScaffold(
@@ -229,16 +226,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/home',
                 builder: (context, state) => const DiscoverPage(),
-              ),
-            ],
-          ),
-          // Tab 2: 探索
-          StatefulShellBranch(
-            navigatorKey: _exploreBranchNavigatorKey,
-            routes: [
-              GoRoute(
-                path: '/explore',
-                builder: (context, state) => const ExplorePage(),
               ),
             ],
           ),

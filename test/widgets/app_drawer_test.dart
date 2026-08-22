@@ -1,5 +1,5 @@
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/widgets/echo_app_shell/echo_drawer.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/widgets/echo_app_shell/echo_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

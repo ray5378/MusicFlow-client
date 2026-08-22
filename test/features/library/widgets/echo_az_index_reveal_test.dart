@@ -1,7 +1,7 @@
 import 'package:azlistview/azlistview.dart';
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/features/library/widgets/library_collection_components.dart';
-import 'package:echoes/utils/az_item.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/utils/az_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

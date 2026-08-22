@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:echoes/data/models/server_address.dart';
-import 'package:echoes/data/repositories/music_repository.dart';
-import 'package:echoes/providers/api_provider.dart';
-import 'package:echoes/providers/music_provider.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/data/repositories/music_repository.dart';
+import 'package:musicflow_client/providers/api_provider.dart';
+import 'package:musicflow_client/providers/music_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

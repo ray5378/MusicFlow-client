@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echoes/data/models/song.dart';
+import 'package:musicflow_client/data/models/song.dart';
 
 void main() {
   // -------------------------------------------------------------------------

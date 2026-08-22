@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:echoes/core/network/address_pool.dart';
-import 'package:echoes/data/models/server_address.dart';
+import 'package:musicflow_client/core/network/address_pool.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
 
 class MockDio extends Mock implements Dio {
   @override

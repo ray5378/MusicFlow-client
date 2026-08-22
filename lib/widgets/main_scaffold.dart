@@ -12,7 +12,6 @@ import '../data/models/server_address.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../providers/api_provider.dart';
 import '../providers/navigation_provider.dart';
-import '../providers/offline_download_provider.dart';
 import '../providers/player_provider.dart';
 import 'app_drawer.dart';
 import 'echo_app_shell/echo_app_shell.dart';
@@ -89,21 +88,9 @@ const EchoShellDestination _discoverDestination = EchoShellDestination(
   selectedIcon: AppIcons.homeFilled,
 );
 
-const EchoShellDestination _exploreDestination = EchoShellDestination(
-  branchIndex: exploreBranchIndex,
-  label: '探索',
-  icon: AppIcons.discover,
-  selectedIcon: AppIcons.discoverFilled,
-);
-
 @visibleForTesting
-List<EchoShellDestination> echoMainDestinations({
-  required bool showExploreTab,
-}) {
-  return <EchoShellDestination>[
-    _discoverDestination,
-    if (showExploreTab) _exploreDestination,
-  ];
+List<EchoShellDestination> echoMainDestinations() {
+  return <EchoShellDestination>[_discoverDestination];
 }
 
 class MainScaffold extends ConsumerStatefulWidget {
@@ -117,7 +104,6 @@ class MainScaffold extends ConsumerStatefulWidget {
     this.drawerOverride,
     this.miniPlayerOverride,
     this.showMiniPlayerOverride,
-    this.showExploreTabOverride,
     this.networkStatusOverride,
   });
 
@@ -129,9 +115,6 @@ class MainScaffold extends ConsumerStatefulWidget {
 
   @visibleForTesting
   final bool? showMiniPlayerOverride;
-
-  @visibleForTesting
-  final bool? showExploreTabOverride;
 
   @visibleForTesting
   final EchoNetworkStatus? networkStatusOverride;
@@ -146,7 +129,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     'com.musicflow.app/app_lifecycle',
   );
   int? _lastSyncedBranchIndex;
-  bool _branchFallbackScheduled = false;
   StreamSubscription<NetworkType>? _networkTypeSubscription;
   Timer? _initialNetworkStateTimer;
   NetworkType? _observedNetworkType;
@@ -241,29 +223,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     );
   }
 
-  void _scheduleHiddenBranchFallback() {
-    if (_branchFallbackScheduled) return;
-    _branchFallbackScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _branchFallbackScheduled = false;
-      if (!mounted) return;
-      final currentIndex = widget.navigationShell.currentIndex;
-      final currentDestinations = echoMainDestinations(
-        showExploreTab: ref.read(
-          activeEmbedServiceConfigProvider.select((config) {
-            return config.isEnabledAndConfigured;
-          }),
-        ),
-      );
-      final stillHidden = !currentDestinations.any(
-        (destination) => destination.branchIndex == currentIndex,
-      );
-      if (stillHidden) {
-        _goToBranch(discoverBranchIndex);
-      }
-    });
-  }
-
   Future<void> _handleBackPressed() async {
     final index = widget.navigationShell.currentIndex;
     final branchCount = widget.branchNavigatorKeys.length;
@@ -345,13 +304,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         : ref.watch(
             playerProvider.select((state) => state.currentSong != null),
           );
-    final bool showExploreTab = widget.showExploreTabOverride != null
-        ? widget.showExploreTabOverride!
-        : ref.watch(
-            activeEmbedServiceConfigProvider.select((config) {
-              return config.isEnabledAndConfigured;
-            }),
-          );
     final activeAddressIsHealthy = ref.watch(
       activeAddressProvider.select((address) {
         return address?.status == ServerAddressStatus.ok;
@@ -361,14 +313,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         widget.networkStatusOverride ??
         _resolveNetworkStatus(activeAddressIsHealthy: activeAddressIsHealthy);
     final currentBranchIndex = widget.navigationShell.currentIndex;
-    final destinations = echoMainDestinations(showExploreTab: showExploreTab);
+    final destinations = echoMainDestinations();
     final currentBranchIsVisible = destinations.any(
       (destination) => destination.branchIndex == currentBranchIndex,
     );
-
-    if (!currentBranchIsVisible) {
-      _scheduleHiddenBranchFallback();
-    }
 
     return BackButtonListener(
       onBackButtonPressed: () async {

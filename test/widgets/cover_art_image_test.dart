@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/utils/cover_ref_security.dart';
-import 'package:echoes/widgets/cover_art_image.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

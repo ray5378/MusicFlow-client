@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/data/sources/remote/gd_music_api_client.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/sources/remote/gd_music_api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _CoverCall {

@@ -1,10 +1,10 @@
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/features/player/widgets/play_queue_sheet.dart';
-import 'package:echoes/providers/player_provider.dart';
-import 'package:echoes/widgets/cover_art_image.dart';
-import 'package:echoes/widgets/song_list_item.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
+import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

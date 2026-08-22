@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:echoes/core/design/tokens/echo_colors.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/providers/palette_provider.dart';
-import 'package:echoes/providers/player_provider.dart';
+import 'package:musicflow_client/core/design/tokens/echo_colors.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/palette_provider.dart';
+import 'package:musicflow_client/providers/player_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

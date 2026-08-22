@@ -354,7 +354,7 @@ class AudioCacheService {
       final imageCacheDir = Directory(
         p.join(appCacheDir.path, 'libCachedImageData'),
       );
-      return _getDirectorySize(imageCacheDir);
+      return await _getDirectorySize(imageCacheDir);
     } catch (e) {
       Logger.warnWithTag(_tag, 'failed to calculate image cache size', e);
       return 0;

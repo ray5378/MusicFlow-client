@@ -1,7 +1,7 @@
 import 'dart:ui' show PointerDeviceKind, SemanticsAction, Tristate;
 
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/theme/app_theme.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

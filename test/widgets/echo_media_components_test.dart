@@ -1,10 +1,10 @@
 import 'dart:ui' show Tristate;
 
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/widgets/echo_artwork.dart';
-import 'package:echoes/widgets/echo_media_actions.dart';
-import 'package:echoes/widgets/echo_metadata_line.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/widgets/echo_artwork.dart';
+import 'package:musicflow_client/widgets/echo_media_actions.dart';
+import 'package:musicflow_client/widgets/echo_metadata_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

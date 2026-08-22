@@ -2113,6 +2113,37 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  /// 投屏切歌时同步本地队列游标：仅更新 currentSong/currentIndex,
+  /// 不触发本地播放（本地在投屏期间保持暂停）。这样迷你/全屏播放器、
+  /// 歌词与「上一首/下一首」的相邻关系都跟随投屏目标曲目前进。
+  void syncCursorForCast({required int index}) {
+    if (!mounted) return;
+    if (index < 0 || index >= state.queue.length) return;
+    final song = state.queue[index];
+    if (song.id == state.currentSong?.id && index == state.currentIndex) {
+      return;
+    }
+    state = state.copyWith(
+      currentSong: song,
+      currentIndex: index,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+    );
+  }
+
+  /// 计算投屏模式下「下一首/上一首」的目标索引（按队列顺序并回绕）。
+  /// 返回 null 表示队列为空或没有可切换目标。
+  int? resolveCastNeighborIndex({required bool forward}) {
+    final queue = state.queue;
+    if (queue.isEmpty) return null;
+    if (queue.length == 1) return state.currentIndex;
+    final current = state.currentIndex.clamp(0, queue.length - 1);
+    return forward
+        ? (current + 1) % queue.length
+        : (current - 1 + queue.length) % queue.length;
+  }
+
   /// 跳转到指定位置
   Future<void> seek(Duration position) async {
     final player = _audioPlayer;

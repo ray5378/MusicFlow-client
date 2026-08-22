@@ -50,3 +50,55 @@ Future<void> seekEffectivePlayback(WidgetRef ref, Duration position) async {
     await ref.read(playerProvider.notifier).seek(position);
   }
 }
+
+/// 当前播放目标名称：投屏时为设备名，否则「本机」。
+/// 对齐主项目前端播放条右侧的当前播放器名称反馈（currentPeerName）。
+String currentPlayerName(DlnaCastState cast) {
+  if (!cast.isCasting) return '本机';
+  return cast.currentDevice?.displayName ?? 'DLNA 设备';
+}
+
+final effectivePlayerNameProvider = Provider<String>((ref) {
+  return currentPlayerName(ref.watch(dlnaCastProvider));
+});
+
+/// 下一首：投屏时把队列中的下一首重新投射到设备并同步本地游标，
+/// 否则走本地播放器的切歌逻辑。
+Future<bool> nextEffectivePlayback(WidgetRef ref) async {
+  final cast = ref.read(dlnaCastProvider);
+  final player = ref.read(playerProvider.notifier);
+  if (cast.isCasting) {
+    final index = player.resolveCastNeighborIndex(forward: true);
+    if (index == null) return false;
+    final song = ref.read(playerProvider).queue[index];
+    final device = cast.currentDevice;
+    if (device == null) return false;
+    final ok = await ref
+        .read(dlnaCastProvider.notifier)
+        .startCast(device, song.id);
+    if (ok) player.syncCursorForCast(index: index);
+    return ok;
+  }
+  await player.next();
+  return true;
+}
+
+/// 上一首：语义同 [nextEffectivePlayback]。
+Future<bool> previousEffectivePlayback(WidgetRef ref) async {
+  final cast = ref.read(dlnaCastProvider);
+  final player = ref.read(playerProvider.notifier);
+  if (cast.isCasting) {
+    final index = player.resolveCastNeighborIndex(forward: false);
+    if (index == null) return false;
+    final song = ref.read(playerProvider).queue[index];
+    final device = cast.currentDevice;
+    if (device == null) return false;
+    final ok = await ref
+        .read(dlnaCastProvider.notifier)
+        .startCast(device, song.id);
+    if (ok) player.syncCursorForCast(index: index);
+    return ok;
+  }
+  await player.previous();
+  return true;
+}

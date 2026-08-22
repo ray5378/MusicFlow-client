@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echoes/data/models/download_task.dart';
+import 'package:musicflow_client/data/models/download_task.dart';
 
 void main() {
   // -------------------------------------------------------------------------

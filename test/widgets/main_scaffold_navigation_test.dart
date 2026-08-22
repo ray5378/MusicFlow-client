@@ -1,7 +1,7 @@
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/providers/navigation_provider.dart';
-import 'package:echoes/widgets/main_scaffold.dart';
-import 'package:echoes/widgets/echo_app_shell/echo_network_status_bar.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/providers/navigation_provider.dart';
+import 'package:musicflow_client/widgets/main_scaffold.dart';
+import 'package:musicflow_client/widgets/echo_app_shell/echo_network_status_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,13 +9,13 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   group('MainScaffold back decision', () {
-    test('keeps the established five-level priority', () {
+    test('keeps the established priority levels', () {
       expect(
         resolveEchoBackAction(
           drawerOpen: true,
           rootCanPop: true,
           branchCanPop: true,
-          currentBranchIndex: libraryBranchIndex,
+          currentBranchIndex: discoverBranchIndex,
         ),
         EchoBackAction.closeDrawer,
       );
@@ -24,7 +24,7 @@ void main() {
           drawerOpen: false,
           rootCanPop: true,
           branchCanPop: true,
-          currentBranchIndex: libraryBranchIndex,
+          currentBranchIndex: discoverBranchIndex,
         ),
         EchoBackAction.popRootNavigator,
       );
@@ -33,19 +33,11 @@ void main() {
           drawerOpen: false,
           rootCanPop: false,
           branchCanPop: true,
-          currentBranchIndex: libraryBranchIndex,
+          currentBranchIndex: discoverBranchIndex,
         ),
         EchoBackAction.popBranchNavigator,
       );
-      expect(
-        resolveEchoBackAction(
-          drawerOpen: false,
-          rootCanPop: false,
-          branchCanPop: false,
-          currentBranchIndex: libraryBranchIndex,
-        ),
-        EchoBackAction.switchToDiscover,
-      );
+      // 探索/我的分支已移除,音乐流即根分支 → 退到后台。
       expect(
         resolveEchoBackAction(
           drawerOpen: false,
@@ -84,22 +76,15 @@ void main() {
       expect(find.text('wide'), findsOneWidget);
     });
 
-    test('keeps fixed branch indices while Explore is dynamically visible', () {
-      expect(
-        echoMainDestinations(
-          showExploreTab: true,
-        ).map((destination) => destination.branchIndex),
-        <int>[discoverBranchIndex, exploreBranchIndex, libraryBranchIndex],
-      );
-      expect(
-        echoMainDestinations(
-          showExploreTab: false,
-        ).map((destination) => destination.branchIndex),
-        <int>[discoverBranchIndex, libraryBranchIndex],
-      );
+    test('exposes only the music-flow destination', () {
+      // 探索分支已移除:侧栏仅保留「音乐流」,分支索引固定为 0。
+      final destinations = echoMainDestinations();
+      expect(destinations, hasLength(1));
+      expect(destinations.single.branchIndex, discoverBranchIndex);
+      expect(destinations.single.label, '音乐流');
     });
 
-    testWidgets('preserves branch stacks and resets a reselected branch', (
+    testWidgets('sidebar selects the only branch and reselect resets stack', (
       tester,
     ) async {
       final harness = await _pumpMainScaffold(tester);
@@ -107,82 +92,29 @@ void main() {
       harness.router.go('/home/detail');
       await tester.pumpAndSettle();
       expect(find.text('Home detail'), findsOneWidget);
-
-      await tester.tap(find.bySemanticsLabel('我的'));
-      await tester.pumpAndSettle();
-      expect(find.text('Library root'), findsOneWidget);
-      expect(
-        harness.container.read(currentVisibleBranchIndexProvider),
-        libraryBranchIndex,
-      );
-
-      await tester.tap(find.bySemanticsLabel('音乐流'));
-      await tester.pumpAndSettle();
-      expect(find.text('Home detail'), findsOneWidget);
       expect(
         harness.container.read(currentVisibleBranchIndexProvider),
         discoverBranchIndex,
       );
 
+      // 宽屏侧栏可见;重选当前分支 → 重置到分支根(对齐主项目行为)。
       await tester.tap(find.bySemanticsLabel('音乐流'));
       await tester.pumpAndSettle();
       expect(find.text('Home root'), findsOneWidget);
       expect(find.text('Home detail'), findsNothing);
     });
-
-    testWidgets(
-      'hiding active Explore falls back to Home and syncs visibility',
-      (tester) async {
-        final harness = await _pumpMainScaffold(tester);
-
-        await tester.tap(find.bySemanticsLabel('探索'));
-        await tester.pumpAndSettle();
-        expect(find.text('Explore root'), findsOneWidget);
-        expect(
-          harness.container.read(currentVisibleBranchIndexProvider),
-          exploreBranchIndex,
-        );
-
-        harness.router.go('/explore/detail');
-        await tester.pumpAndSettle();
-        expect(find.text('Explore detail'), findsOneWidget);
-
-        harness.showExplore.value = false;
-        await tester.pumpAndSettle();
-
-        expect(find.text('Home root'), findsOneWidget);
-        expect(find.bySemanticsLabel('探索'), findsNothing);
-        expect(
-          harness.container.read(currentVisibleBranchIndexProvider),
-          discoverBranchIndex,
-        );
-
-        harness.showExplore.value = true;
-        await tester.pumpAndSettle();
-        await tester.tap(find.bySemanticsLabel('探索'));
-        await tester.pumpAndSettle();
-        expect(find.text('Explore detail'), findsOneWidget);
-        expect(
-          harness.container.read(currentVisibleBranchIndexProvider),
-          exploreBranchIndex,
-        );
-      },
-    );
   });
 }
 
 Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
+  // 宽屏尺寸:侧栏常驻,可点击分支目标(compact 无底部导航)。
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(390, 800);
+  tester.view.physicalSize = const Size(1280, 800);
   addTearDown(tester.view.reset);
 
   final container = ProviderContainer();
   addTearDown(container.dispose);
-  final showExplore = ValueNotifier<bool>(true);
-  addTearDown(showExplore.dispose);
   final branchNavigatorKeys = <GlobalKey<NavigatorState>>[
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
   ];
 
@@ -191,19 +123,13 @@ Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
     routes: <RouteBase>[
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          return ValueListenableBuilder<bool>(
-            valueListenable: showExplore,
-            builder: (context, showExploreTab, child) {
-              return MainScaffold(
-                navigationShell: navigationShell,
-                branchNavigatorKeys: branchNavigatorKeys,
-                showExploreTabOverride: showExploreTab,
-                showMiniPlayerOverride: false,
-                networkStatusOverride: EchoNetworkStatus.online,
-                drawerOverride: const SizedBox(width: 320),
-                miniPlayerOverride: const SizedBox(height: 72),
-              );
-            },
+          return MainScaffold(
+            navigationShell: navigationShell,
+            branchNavigatorKeys: branchNavigatorKeys,
+            showMiniPlayerOverride: false,
+            networkStatusOverride: EchoNetworkStatus.online,
+            drawerOverride: const SizedBox(width: 320),
+            miniPlayerOverride: const SizedBox(height: 72),
           );
         },
         branches: <StatefulShellBranch>[
@@ -223,31 +149,6 @@ Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
               ),
             ],
           ),
-          StatefulShellBranch(
-            navigatorKey: branchNavigatorKeys[exploreBranchIndex],
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/explore',
-                builder: (context, state) => const _BranchPage('Explore root'),
-                routes: <RouteBase>[
-                  GoRoute(
-                    path: 'detail',
-                    builder: (context, state) =>
-                        const _BranchPage('Explore detail'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            navigatorKey: branchNavigatorKeys[libraryBranchIndex],
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/library',
-                builder: (context, state) => const _BranchPage('Library root'),
-              ),
-            ],
-          ),
         ],
       ),
     ],
@@ -262,23 +163,14 @@ Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
   );
   await tester.pumpAndSettle();
 
-  return _MainScaffoldHarness(
-    router: router,
-    container: container,
-    showExplore: showExplore,
-  );
+  return _MainScaffoldHarness(router: router, container: container);
 }
 
 class _MainScaffoldHarness {
-  const _MainScaffoldHarness({
-    required this.router,
-    required this.container,
-    required this.showExplore,
-  });
+  const _MainScaffoldHarness({required this.router, required this.container});
 
   final GoRouter router;
   final ProviderContainer container;
-  final ValueNotifier<bool> showExplore;
 }
 
 class _BranchPage extends StatelessWidget {

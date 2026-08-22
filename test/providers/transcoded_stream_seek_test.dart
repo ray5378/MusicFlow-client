@@ -1,4 +1,4 @@
-import 'package:echoes/providers/player/transcoded_stream_seek.dart';
+import 'package:musicflow_client/providers/player/transcoded_stream_seek.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

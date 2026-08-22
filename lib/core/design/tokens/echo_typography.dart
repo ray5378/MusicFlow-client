@@ -22,43 +22,46 @@ class EchoTypography extends ThemeExtension<EchoTypography> {
   final TextStyle metadata;
 
   factory EchoTypography.standard(EchoColors colors) {
+    // 字号规格对齐「箭头音乐」参考稿(/root/opencode/photo/ui.jpg):
+    // 内容紧凑、层级分明 —— 大标题 26 / 区块标题 19 / 条目标题 15 /
+    // 正文 13 / 标签 12 / 元数据 11。禁止在 UI 中硬编码字号,统一走本令牌。
     return EchoTypography(
       display: TextStyle(
         color: colors.ink,
-        fontSize: 32,
+        fontSize: 26,
         fontWeight: FontWeight.w700,
-        height: 1.12,
-        letterSpacing: -0.64,
+        height: 1.16,
+        letterSpacing: -0.52,
       ),
       headline: TextStyle(
         color: colors.ink,
-        fontSize: 24,
+        fontSize: 19,
         fontWeight: FontWeight.w700,
-        height: 1.18,
-        letterSpacing: -0.24,
+        height: 1.22,
+        letterSpacing: -0.19,
       ),
       title: TextStyle(
         color: colors.ink,
-        fontSize: 17,
+        fontSize: 15,
         fontWeight: FontWeight.w600,
-        height: 1.25,
+        height: 1.3,
       ),
       body: TextStyle(
         color: colors.ink,
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: FontWeight.w400,
-        height: 1.45,
+        height: 1.5,
       ),
       label: TextStyle(
         color: colors.ink,
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: FontWeight.w600,
         height: 1.25,
-        letterSpacing: 0.13,
+        letterSpacing: 0.12,
       ),
       metadata: TextStyle(
         color: colors.muted,
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: FontWeight.w500,
         height: 1.25,
         fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],

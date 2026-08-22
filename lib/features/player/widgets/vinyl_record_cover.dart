@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/song.dart';
-import '../../../providers/player_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 
 /// 黑胶唱片封面组件 - 参考箭头音乐风格
@@ -49,13 +49,14 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final isPlaying = ref.watch(
-      playerProvider.select((state) => state.isPlaying),
-    );
-    if (isPlaying) {
+    // 使用「有效播放状态」:投屏时设备在播,黑胶同样旋转(对齐主项目行为)。
+    final isPlaying = ref.watch(effectiveIsPlayingProvider);
+    // 尊重系统「减少动态效果」/测试禁用动画,避免无限动画阻塞 pumpAndSettle。
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (isPlaying && !reduceMotion) {
       _rotationController.repeat();
     } else {
-      _rotationController.stop();
+      _rotationController.stop(canceled: true);
     }
   }
 

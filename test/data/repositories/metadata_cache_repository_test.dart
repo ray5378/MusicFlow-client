@@ -1,6 +1,6 @@
-import 'package:echoes/data/models/playlist.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/data/repositories/metadata_cache_repository.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/repositories/metadata_cache_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -46,6 +46,8 @@ abstract final class AppIcons {
   static const lyricsFilled = Remix.chat_quote_fill;
   static const equalizer = Remix.equalizer_2_line;
   static const headphones = Remix.headphone_fill;
+  static const speaker = Remix.speaker_2_line;
+  static const speakerFilled = Remix.speaker_2_fill;
 
   // Media and collection state.
   static const album = Remix.disc_fill;

@@ -1,16 +1,16 @@
 import 'dart:ui' show SemanticsAction, Tristate;
 
-import 'package:echoes/core/design/echo_design.dart';
-import 'package:echoes/core/theme/app_theme.dart';
-import 'package:echoes/data/models/audio_quality.dart';
-import 'package:echoes/data/models/song.dart';
-import 'package:echoes/features/player/pages/full_player_page.dart';
-import 'package:echoes/features/player/widgets/mini_player.dart';
-import 'package:echoes/features/player/widgets/player_hero_helpers.dart';
-import 'package:echoes/features/player/widgets/player_scrubber.dart';
-import 'package:echoes/providers/lyrics_cover_provider.dart';
-import 'package:echoes/providers/palette_provider.dart';
-import 'package:echoes/providers/player_provider.dart';
+import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/data/models/audio_quality.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/player/pages/full_player_page.dart';
+import 'package:musicflow_client/features/player/widgets/mini_player.dart';
+import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
+import 'package:musicflow_client/features/player/widgets/player_scrubber.dart';
+import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/palette_provider.dart';
+import 'package:musicflow_client/providers/player_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -101,10 +101,10 @@ void main() {
     );
     expect(
       find.descendant(of: utility, matching: find.byType(EchoPressable)),
-      findsNWidgets(4),
+      findsNWidgets(5),
     );
 
-    for (final label in <String>['上一首', '暂停', '下一首']) {
+    for (final label in <String>['上一首', '播放', '下一首']) {
       final target = find.descendant(
         of: transport,
         matching: find.bySemanticsLabel(label),
@@ -231,7 +231,10 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
 
-      final notifier = TestPlayerNotifier(initialState());
+      // 暂停态:黑胶旋转为无限动画,会让 pumpAndSettle 无法收敛。
+      final notifier = TestPlayerNotifier(
+        initialState().copyWith(isPlaying: false),
+      );
       await tester.pumpWidget(
         providerApp(
           notifier: notifier,
@@ -391,7 +394,10 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
 
-      final notifier = TestPlayerNotifier(initialState());
+      // 暂停态:黑胶旋转为无限动画,会让 pumpAndSettle 无法收敛。
+      final notifier = TestPlayerNotifier(
+        initialState().copyWith(isPlaying: false),
+      );
       await tester.pumpWidget(
         providerApp(
           notifier: notifier,

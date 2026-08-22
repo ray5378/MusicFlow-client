@@ -11,12 +11,14 @@ import '../../../data/models/audio_quality.dart';
 import '../../../data/models/embed_service_config.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/audio_quality_provider.dart';
+import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/offline_download_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
+import '../widgets/mini_player.dart' show PlayerSwitcherSheet;
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/player_hero_helpers.dart';
 import '../widgets/player_scrubber.dart';
@@ -1359,8 +1361,8 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
   }
 }
 
-/// 主播放控件：仅保留播放/暂停。上一首/下一首已移除，腾出空间用于歌词展示。
-/// 投屏时该控件直接控制 DLNA 设备（播放/暂停状态取自设备实时状态）。
+/// 主播放控件:上一首/播放暂停/下一首,对齐主项目前端播放条的中央控制区。
+/// 投屏时该控件直接控制 DLNA 设备(切歌 = 把队列相邻曲目重新投射并同步游标)。
 class PlaybackControls extends ConsumerWidget {
   const PlaybackControls({super.key, this.compact = false});
 
@@ -1377,26 +1379,34 @@ class PlaybackControls extends ConsumerWidget {
 
     final playDimension = compact ? 56.0 : 64.0;
     final playIconSize = compact ? 30.0 : 32.0;
-    final buttons = <Widget>[
-      _PlayerIconButton(
-        icon: isPlaying ? AppIcons.pause : AppIcons.play,
-        label: isPlaying ? '暂停' : '播放',
-        emphasized: true,
-        dimension: playDimension,
-        iconSize: playIconSize,
-        iconOffset: isPlaying
-            ? Offset.zero
-            : Offset(playIconSize * _playIconOpticalCorrection, 0),
-        onPressed: () => unawaited(toggleEffectivePlayback(ref)),
-      ),
-    ];
-
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
+        constraints: const BoxConstraints(maxWidth: 320),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: buttons,
+          children: <Widget>[
+            _PlayerIconButton(
+              icon: AppIcons.previous,
+              label: '上一首',
+              onPressed: () => unawaited(previousEffectivePlayback(ref)),
+            ),
+            _PlayerIconButton(
+              icon: isPlaying ? AppIcons.pause : AppIcons.play,
+              label: isPlaying ? '暂停' : '播放',
+              emphasized: true,
+              dimension: playDimension,
+              iconSize: playIconSize,
+              iconOffset: isPlaying
+                  ? Offset.zero
+                  : Offset(playIconSize * _playIconOpticalCorrection, 0),
+              onPressed: () => unawaited(toggleEffectivePlayback(ref)),
+            ),
+            _PlayerIconButton(
+              icon: AppIcons.next,
+              label: '下一首',
+              onPressed: () => unawaited(nextEffectivePlayback(ref)),
+            ),
+          ],
         ),
       ),
     );
@@ -1428,6 +1438,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
         ),
       ),
     );
+    final cast = ref.watch(dlnaCastProvider);
     final mode = state.shuffleEnabled
         ? PlaybackMode.shuffle
         : state.loopMode == LoopMode.one
@@ -1446,7 +1457,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
+        constraints: const BoxConstraints(maxWidth: 340),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[
@@ -1477,9 +1488,33 @@ class _PlayerUtilityBar extends ConsumerWidget {
                 ref.read(playerProvider.notifier).toggleFavorite();
               },
             ),
+            _PlayerIconButton(
+              icon: cast.isCasting ? AppIcons.signalTower : AppIcons.speaker,
+              label: '切换播放器，当前：${currentPlayerName(cast)}',
+              selected: cast.isCasting,
+              onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _openPlayerSwitcher(BuildContext context, WidgetRef ref) async {
+    await showEchoBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => const PlayerSwitcherSheet(),
+    );
+    if (!context.mounted) return;
+    final cast = ref.read(dlnaCastProvider);
+    showEchoMessage(
+      context,
+      cast.isCasting
+          ? '正在投屏到「${currentPlayerName(cast)}」'
+          : '已切换为本机播放',
+      kind: EchoMessageKind.success,
     );
   }
 }

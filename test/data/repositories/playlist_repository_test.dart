@@ -1,5 +1,5 @@
-import 'package:echoes/core/constants/api_constants.dart';
-import 'package:echoes/data/repositories/playlist_repository.dart';
+import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/data/repositories/playlist_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
