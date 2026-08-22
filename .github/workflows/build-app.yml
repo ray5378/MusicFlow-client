@@ -1,0 +1,86 @@
+name: build-app
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["app/**", ".github/workflows/build-app.yml"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.1"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: app
+      - run: flutter analyze
+        working-directory: app
+      - run: flutter test
+        working-directory: app
+      - run: flutter build apk --release
+        working-directory: app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicFlow-android
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.1"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: app
+      - run: flutter analyze
+        working-directory: app
+      - run: flutter test
+        working-directory: app
+      - run: flutter build windows --release
+        working-directory: app
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "app/build/windows/x64/runner/Release/*" -DestinationPath "MusicFlow-windows.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicFlow-windows
+          path: MusicFlow-windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MusicFlow-android
+      - uses: actions/download-artifact@v4
+        with:
+          name: MusicFlow-windows
+      - name: Rename artifacts
+        run: |
+          mv app-release.apk MusicFlow-${GITHUB_REF_NAME}-android.apk
+          mv MusicFlow-windows.zip MusicFlow-${GITHUB_REF_NAME}-windows-portable.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MusicFlow-*-android.apk
+            MusicFlow-*-windows-portable.zip
+          generate_release_notes: true
