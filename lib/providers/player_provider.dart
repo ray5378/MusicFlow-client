@@ -2130,7 +2130,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // 避免用户紧接着退出客户端时写入还在半途被进程终止丢弃。
     try {
       await LocalStorage.setPlayerVolume(clamped);
-    } catch (Object e) {
+    } catch (e) {
       Logger.warnWithTag(
         _playerLogTag,
         'failed to persist player volume: $clamped',

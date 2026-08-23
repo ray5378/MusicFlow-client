@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/echo_design.dart';
-
 /// 横向滚动容器：鼠标悬停时浮显左右箭头按钮，点击可左右滑动查看隐藏内容。
 /// 对标主项目 web 端横向列表的交互体验。
 ///
