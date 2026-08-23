@@ -288,7 +288,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
-      state = state.copyWith(position: logicalPosition);
+      // 进度更新节流 ≥250ms(与投屏 tick 对齐):positionStream(~200ms)
+      // 高频 tick 只写回明显前进的位置,避免驱动整页高频重建(SEC §8.2)。
+      // 后退(换歌/seek 回退)必须立即写回,保证进度回跳及时。
+      final lastWrittenPosition = state.position;
+      if ((logicalPosition - lastWrittenPosition) >=
+              const Duration(milliseconds: 250) ||
+          logicalPosition < lastWrittenPosition) {
+        state = state.copyWith(position: logicalPosition);
+      }
     });
     _startPositionPolling(player);
 

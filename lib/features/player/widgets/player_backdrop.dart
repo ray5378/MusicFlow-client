@@ -182,7 +182,38 @@ class _PlayerBackdropSpec {
   }
 }
 
+/// 纯函数结果缓存:同一 (candidate, foreground, control) 三元组只计算一次。
+/// 避免在 build 路径反复执行 22 次二分 × 2 目标的对比度搜索(SEC §8.1)。
+/// 容量封顶,防止 palette 变化导致无限增长。
+final Map<int, Color> _backdropContrastCache = <int, Color>{};
+const int _backdropContrastCacheLimit = 96;
+
 Color _ensureBackdropContrast(
+  Color candidate, {
+  required Color foreground,
+  required Color control,
+}) {
+  final key = Object.hash(
+    candidate.toARGB32(),
+    foreground.toARGB32(),
+    control.toARGB32(),
+  );
+  final cached = _backdropContrastCache[key];
+  if (cached != null) return cached;
+
+  final result = _ensureBackdropContrastUncached(
+    candidate,
+    foreground: foreground,
+    control: control,
+  );
+  if (_backdropContrastCache.length >= _backdropContrastCacheLimit) {
+    _backdropContrastCache.clear();
+  }
+  _backdropContrastCache[key] = result;
+  return result;
+}
+
+Color _ensureBackdropContrastUncached(
   Color candidate, {
   required Color foreground,
   required Color control,

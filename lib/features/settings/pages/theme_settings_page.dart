@@ -151,6 +151,7 @@ class ThemeSettingsPage extends ConsumerWidget {
 
 const List<Color> _presetColors = <Color>[
   AppColorScheme.defaultSeedColor,
+  EchoColors.legacyGreenAccent,
   Color(0xFF3D7188),
   Color(0xFF6B6F9A),
   Color(0xFF8A633D),

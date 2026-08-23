@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
@@ -344,7 +343,6 @@ class _LyricsTextEdgeEffect extends StatelessWidget {
   });
 
   static const double _edgeExtent = 0.15;
-  static const double _maximumSigma = 2.4;
   static const double _terminalOpacity = 0;
 
   final int index;
@@ -405,16 +403,8 @@ class _LyricsTextEdgeEffect extends StatelessWidget {
         return Opacity(
           key: ValueKey<String>('lyrics-text-softening-$index'),
           opacity: opacity,
-          child: ImageFiltered(
-            key: ValueKey<String>('lyrics-text-filter-$index'),
-            enabled: strength > 0.001,
-            imageFilter: ImageFilter.blur(
-              sigmaX: _maximumSigma * strength,
-              sigmaY: _maximumSigma * strength,
-              tileMode: TileMode.decal,
-            ),
-            child: content,
-          ),
+          // 软化仅靠透明度:BackdropFilter/ImageFilter.blur 全局禁止(SEC §8.1)。
+          child: content,
         );
       },
     );

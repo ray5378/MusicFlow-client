@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 
 import '../echo_context.dart';
@@ -50,6 +52,16 @@ class EchoPageRoute<T> extends PageRouteBuilder<T> {
       curve: context.echoMotion.sceneCurve,
       reverseCurve: context.echoMotion.easeOut,
     );
+
+    // Windows 走 Skia,Slide 位移叠加动画成本高:降级为 Fade-only(SEC §8.1)。
+    final isWindows =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+    if (isWindows) {
+      return FadeTransition(
+        opacity: Tween<double>(begin: 0.86, end: 1).animate(curved),
+        child: child,
+      );
+    }
 
     return FadeTransition(
       opacity: Tween<double>(begin: 0.86, end: 1).animate(curved),

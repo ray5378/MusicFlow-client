@@ -27,8 +27,13 @@ class EchoColors extends ThemeExtension<EchoColors> {
     required this.scrim,
   });
 
-  static const Color echoAccent = Color(0xFF3B8258);
+  /// 默认强调色 = 网易云品牌红(SEC §7.1);旧绿仅保留为可选主题色,不作为默认。
+  static const Color echoAccent = Color(0xFFEC4141);
   static const Color defaultAccent = echoAccent;
+
+  /// 旧版默认绿(可选项,见设置页主题色预设)。
+  static const Color legacyGreenAccent = Color(0xFF3B8258);
+
   static const Color contentTintFallback = Color(0xFF556F60);
 
   static const Color dayCanvas = Color(0xFFF5F7F8);

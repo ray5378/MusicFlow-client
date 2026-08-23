@@ -1268,88 +1268,95 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
       color: context.echoColors.muted,
     );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        SizedBox(
-          height: context.echoInteraction.minimumTouchTarget,
-          child: AnimatedBuilder(
-            animation: _loadingOpacity,
-            builder: (context, child) => Opacity(
-              opacity: isLoading && !_reduceMotion ? _loadingOpacity.value : 1,
-              child: child,
-            ),
-            child: EchoPlayerScrubber(
-              key: ValueKey<String?>(state.songId),
-              value: sliderValue,
-              min: 0,
-              max: maxMilliseconds,
-              secondaryValue: bufferedValue,
-              semanticStep: 10000,
-              semanticLabel: '播放进度',
-              semanticValue: progressLabel,
-              semanticValueFormatter: (value) {
-                final position = Duration(milliseconds: value.round());
-                return '${_formatDuration(position)} / '
-                    '${_formatDuration(state.duration)}';
-              },
-              activeColor: context.echoColors.accent,
-              secondaryColor: context.echoColors.accent.withValues(alpha: 0.42),
-              inactiveColor: context.echoColors.divider,
-              thumbColor: context.echoColors.ink,
-              onChangeStart: state.duration <= Duration.zero
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _dragSongId = state.songId;
-                        _dragValue = value;
-                      });
-                    },
-              onChanged: state.duration <= Duration.zero
-                  ? null
-                  : (value) {
-                      if (_dragSongId != state.songId) return;
-                      setState(() => _dragValue = value);
-                    },
-              onChangeEnd: state.duration <= Duration.zero
-                  ? null
-                  : (endedValue) {
-                      final sessionSongId = _dragSongId;
-                      final value = (_dragValue ?? endedValue)
-                          .clamp(0.0, maxMilliseconds)
-                          .toDouble();
-                      setState(_clearSeekSession);
-                      if (sessionSongId == null ||
-                          sessionSongId != state.songId) {
-                        return;
-                      }
-                      HapticFeedback.selectionClick();
-                      unawaited(
-                        seekEffectivePlayback(
-                          ref,
-                          Duration(milliseconds: value.round()),
-                        ),
-                      );
-                    },
-              onChangeCancel: state.duration <= Duration.zero
-                  ? null
-                  : (_) => _cancelSeekSession(),
-            ),
-          ),
-        ),
-        ExcludeSemantics(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.sm),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Text(_formatDuration(displayPosition), style: timeStyle),
-                Text(_formatDuration(state.duration), style: timeStyle),
-              ],
+    // 进度条与时间文本区域用 RepaintBoundary 隔离,进度高频更新不扩散整页重绘(SEC §8.2)。
+    return RepaintBoundary(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            height: context.echoInteraction.minimumTouchTarget,
+            child: AnimatedBuilder(
+              animation: _loadingOpacity,
+              builder: (context, child) => Opacity(
+                opacity: isLoading && !_reduceMotion
+                    ? _loadingOpacity.value
+                    : 1,
+                child: child,
+              ),
+              child: EchoPlayerScrubber(
+                key: ValueKey<String?>(state.songId),
+                value: sliderValue,
+                min: 0,
+                max: maxMilliseconds,
+                secondaryValue: bufferedValue,
+                semanticStep: 10000,
+                semanticLabel: '播放进度',
+                semanticValue: progressLabel,
+                semanticValueFormatter: (value) {
+                  final position = Duration(milliseconds: value.round());
+                  return '${_formatDuration(position)} / '
+                      '${_formatDuration(state.duration)}';
+                },
+                activeColor: context.echoColors.accent,
+                secondaryColor: context.echoColors.accent.withValues(
+                  alpha: 0.42,
+                ),
+                inactiveColor: context.echoColors.divider,
+                thumbColor: context.echoColors.ink,
+                onChangeStart: state.duration <= Duration.zero
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _dragSongId = state.songId;
+                          _dragValue = value;
+                        });
+                      },
+                onChanged: state.duration <= Duration.zero
+                    ? null
+                    : (value) {
+                        if (_dragSongId != state.songId) return;
+                        setState(() => _dragValue = value);
+                      },
+                onChangeEnd: state.duration <= Duration.zero
+                    ? null
+                    : (endedValue) {
+                        final sessionSongId = _dragSongId;
+                        final value = (_dragValue ?? endedValue)
+                            .clamp(0.0, maxMilliseconds)
+                            .toDouble();
+                        setState(_clearSeekSession);
+                        if (sessionSongId == null ||
+                            sessionSongId != state.songId) {
+                          return;
+                        }
+                        HapticFeedback.selectionClick();
+                        unawaited(
+                          seekEffectivePlayback(
+                            ref,
+                            Duration(milliseconds: value.round()),
+                          ),
+                        );
+                      },
+                onChangeCancel: state.duration <= Duration.zero
+                    ? null
+                    : (_) => _cancelSeekSession(),
+              ),
             ),
           ),
-        ),
-      ],
+          ExcludeSemantics(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.sm),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(_formatDuration(displayPosition), style: timeStyle),
+                  Text(_formatDuration(state.duration), style: timeStyle),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
