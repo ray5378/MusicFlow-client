@@ -27,6 +27,11 @@ class TestPlayerNotifier extends StateNotifier<PlayerState>
   }
 
   @override
+  Future<void> pause() async {
+    state = state.copyWith(isPlaying: false);
+  }
+
+  @override
   Future<void> togglePlayPause() async {
     toggleCount += 1;
     state = state.copyWith(isPlaying: !state.isPlaying);

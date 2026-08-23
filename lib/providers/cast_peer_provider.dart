@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/peer.dart';
 import 'api_provider.dart';
-import 'player/player_state.dart';
 import 'player_provider.dart';
 
 /// 「切换播放器」控制器 —— 对齐主项目前端 stores/player.ts 的 peer 机制:
@@ -417,7 +416,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _schedulePoll(peerId);
     _tickTimer = Timer.periodic(
       Duration(milliseconds: _progressTickMs),
-      () => _advanceSmooth(),
+      (_) => _advanceSmooth(),
     );
   }
 

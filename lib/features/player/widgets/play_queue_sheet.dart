@@ -403,10 +403,9 @@ class CastQueueSheetView extends StatelessWidget {
                       ),
                       buildDefaultDragHandles: false,
                       itemCount: queue.length,
-                      onReorder: (from, to) {
-                        // ReorderableListView 的 to 为插入位置;下移时需 -1 得到目标索引。
-                        final target = to > from ? to - 1 : to;
-                        if (target != from) onReorder(from, target);
+                      onReorderItem: (from, to) {
+                        // onReorderItem 的 to 已是移除后插入位置,直接下发后端 reorder。
+                        if (from != to) onReorder(from, to);
                       },
                       proxyDecorator: (child, index, animation) => Material(
                         color: Colors.transparent,
