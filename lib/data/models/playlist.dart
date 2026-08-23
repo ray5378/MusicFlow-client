@@ -49,12 +49,8 @@ class Playlist {
       public: json['public'] as bool? ?? false,
       songCount: (json['songCount'] as num?)?.toInt() ?? 0,
       duration: (json['duration'] as num?)?.toInt() ?? 0,
-      created: json['created'] != null
-          ? DateTime.parse(json['created'] as String)
-          : null,
-      changed: json['changed'] != null
-          ? DateTime.parse(json['changed'] as String)
-          : null,
+      created: _parseDate(json['created']),
+      changed: _parseDate(json['changed']),
       coverArt: json['coverArt'] as String?,
       isImported: json['isImported'] as bool? ?? false,
       sourcePlatform: json['sourcePlatform'] as String?,
@@ -87,4 +83,31 @@ class Playlist {
     final seconds = duration % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
+}
+
+/// 容错日期解析：支持 ISO 8601 字符串、epoch 毫秒/秒数值、以及各种
+/// 后端可能返回的格式。解析失败返回 null 而不是抛出 FormatException。
+DateTime? _parseDate(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is num) {
+    final ms = value.abs() > 1e12
+        ? value.toInt()
+        : (value * 1000).toInt();
+    return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+  }
+  final s = value.toString().trim();
+  if (s.isEmpty) return null;
+  // 标准 ISO 8601
+  try {
+    return DateTime.parse(s);
+  } catch (_) {}
+  // 去掉尾部时区缩写 (e.g. "2024-01-01T00:00:00Z" 已OK,
+  // 但 "2024-01-01 00:00:00" 需要 T)
+  if (!s.contains('T') && s.contains(' ')) {
+    try {
+      return DateTime.parse(s.replaceFirst(' ', 'T'));
+    } catch (_) {}
+  }
+  return null;
 }
