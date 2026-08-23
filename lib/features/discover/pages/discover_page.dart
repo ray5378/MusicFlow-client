@@ -49,6 +49,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       ref.refresh(playlistsProvider.future),
       ref.refresh(recentPlaylistsProvider.future),
       ref.refresh(homeCardsProvider.future),
+      ref.refresh(homeRecommendSectionProvider.future),
       ref.refresh(recommendChannelsProvider.future),
     ]);
   }
@@ -78,6 +79,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         ref.invalidate(playlistsProvider);
         ref.invalidate(recentPlaylistsProvider);
         ref.invalidate(homeCardsProvider);
+        ref.invalidate(homeRecommendSectionProvider);
         ref.invalidate(recommendChannelsProvider);
       },
       child: Scaffold(
@@ -519,78 +521,102 @@ class RecentPlaylistsSection extends ConsumerWidget {
   }
 }
 
-/// 固定推荐歌单(来自主项目插件,如每日推荐/今日漫游/本地推荐),横滑卡片
+/// 固定推荐歌单 + 随机歌单（对齐主项目首页「为你推荐」顶部）：
+/// 固定卡（今日漫游/每日推荐/本地推荐，>30 首门槛）+ 随机补位的本地歌单，
+/// 合计 homeCount 张（每日推荐插件配置，默认 8，含今日漫游固定卡）。
 class FixedRecommendSection extends ConsumerWidget {
   const FixedRecommendSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cardsAsync = ref.watch(homeCardsProvider);
+    final sectionAsync = ref.watch(homeRecommendSectionProvider);
     final loadFailed = ref.watch(homeCardsLoadFailedProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         EchoSectionHeader(
-          title: '固定推荐',
+          title: '为你推荐',
         ),
         SizedBox(height: context.echoSpacing.xxs),
-        cardsAsync.when(
+        sectionAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
-          data: (cards) {
-            if (cards.isEmpty) {
+          data: (section) {
+            if (section.isEmpty) {
               return DiscoverSectionMessage(
-                title: loadFailed ? '固定推荐暂时不可用' : '暂无固定推荐歌单',
+                title: loadFailed ? '为你推荐暂时不可用' : '暂无推荐歌单',
                 description: loadFailed
                     ? '请检查网络或当前线路，然后重试。'
                     : '启用推荐插件后，这里会显示每日推荐等歌单。',
                 icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
                 onRetry: loadFailed
-                    ? () => ref.invalidate(homeCardsProvider)
+                    ? () => ref.invalidate(homeRecommendSectionProvider)
                     : null,
               );
             }
-            return HoverableHorizontalScroll(
-              builder: (context, controller) => SizedBox(
-                height: playlistRailHeight(context),
-                child: ListView.separated(
-                  controller: controller,
-                  scrollDirection: Axis.horizontal,
+            // 固定卡 + 随机歌单合并为等大卡片网格（对齐主项目 top-row）。
+            final cards = <({String id, String name, String coverArt, int songCount, String playlistId})>[
+              for (final c in section.fixed)
+                (
+                  id: c.playlistId,
+                  name: c.playlistName.isNotEmpty ? c.playlistName : c.name,
+                  coverArt: c.coverArt ?? '',
+                  songCount: c.songCount,
+                  playlistId: c.playlistId,
+                ),
+              for (final p in section.random)
+                (
+                  id: p.id,
+                  name: p.name,
+                  coverArt: p.coverArt ?? '',
+                  songCount: p.songCount,
+                  playlistId: p.id,
+                ),
+            ];
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final gap = context.echoSpacing.sm;
+                final columns = constraints.maxWidth >= 1200
+                    ? 4
+                    : (constraints.maxWidth >= 760 ? 3 : 2);
+                final itemWidth =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: context.echoPageHorizontalPadding,
                   ),
-                  itemCount: cards.length,
-                  separatorBuilder: (context, index) =>
-                      SizedBox(width: context.echoSpacing.sm),
-                  itemBuilder: (context, index) {
-                    final card = cards[index];
-                    return DiscoverPlaylistCard(
-                      width: _playlistCardWidth,
-                      title: card.playlistName.isNotEmpty
-                          ? card.playlistName
-                          : card.name,
-                      subtitle: '${card.songCount} 首',
-                      coverArtId: card.coverArt,
-                      onPressed: () {
-                        Navigator.of(context).push<void>(
-                          EchoPageRoute<void>(
-                            context: context,
-                            builder: (context) => PlaylistDetailPage(
-                              playlistId: card.playlistId,
-                              initialName: card.playlistName.isNotEmpty
-                                  ? card.playlistName
-                                  : card.name,
-                              initialSongCount: card.songCount,
-                              initialCoverArt: card.coverArt,
-                            ),
+                  child: Wrap(
+                    spacing: gap,
+                    runSpacing: context.echoSpacing.sm,
+                    children: <Widget>[
+                      for (final card in cards)
+                        SizedBox(
+                          width: itemWidth,
+                          child: DiscoverPlaylistCard(
+                            width: itemWidth,
+                            title: card.name,
+                            subtitle: '${card.songCount} 首',
+                            coverArtId: card.coverArt,
+                            onPressed: () {
+                              Navigator.of(context).push<void>(
+                                EchoPageRoute<void>(
+                                  context: context,
+                                  builder: (context) => PlaylistDetailPage(
+                                    playlistId: card.playlistId,
+                                    initialName: card.name,
+                                    initialSongCount: card.songCount,
+                                    initialCoverArt: card.coverArt,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             );
           },
           loading: () => SizedBox(
@@ -600,7 +626,7 @@ class FixedRecommendSection extends ConsumerWidget {
               padding: EdgeInsets.symmetric(
                 horizontal: context.echoPageHorizontalPadding,
               ),
-              itemCount: 3,
+              itemCount: 4,
               separatorBuilder: (context, index) =>
                   SizedBox(width: context.echoSpacing.sm),
               itemBuilder: (context, index) =>
@@ -608,10 +634,10 @@ class FixedRecommendSection extends ConsumerWidget {
             ),
           ),
           error: (error, stackTrace) => DiscoverSectionMessage(
-            title: '固定推荐加载失败',
+            title: '为你推荐加载失败',
             description: '请检查网络或切换线路后重试。',
             icon: AppIcons.cloudOff,
-            onRetry: () => ref.invalidate(homeCardsProvider),
+            onRetry: () => ref.invalidate(homeRecommendSectionProvider),
           ),
         ),
       ],

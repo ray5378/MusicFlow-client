@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/peer.dart';
@@ -40,6 +41,7 @@ class MiniPlayer extends ConsumerWidget {
       currentIndex: player.currentIndex,
       isPlaying: ref.watch(effectiveIsPlayingProvider),
       shuffleEnabled: player.shuffleEnabled,
+      loopMode: player.loopMode,
       position: ref.watch(effectivePositionProvider),
       duration: ref.watch(effectiveDurationProvider),
     );
@@ -194,55 +196,74 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     unawaited(widget.onTogglePlayPause());
   }
 
-  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 随机 / 循环 / 音量 / 投屏
+  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 随机 / 循环 / 音量 / 投屏。
+  /// 每个按钮包一层 Tooltip（悬停显示文字注释，对齐主项目前端），
+  /// 随机/循环带激活态反馈（选中高亮 + 文案随状态变化）。
   List<Widget> _buildDesktopControls(BuildContext context) {
+    final loopMode = _playerState.loopMode;
+    final repeatActive = loopMode != LoopMode.off;
+    final repeatLabel = switch (loopMode) {
+      LoopMode.one => '单曲循环',
+      LoopMode.all => '列表循环',
+      LoopMode.off => '循环播放',
+    };
     return <Widget>[
-      EchoIconButton(
+      Tooltip(message: '上一首', child: EchoIconButton(
         icon: AppIcons.previous,
         label: '上一首',
         foregroundColor: context.echoColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: widget.onPrevious,
+      )),
+      Tooltip(
+        message: _playerState.isPlaying ? '暂停' : '播放',
+        child: EchoIconButton(
+          icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
+          label: _playerState.isPlaying ? '暂停' : '播放',
+          foregroundColor: context.echoColors.ink,
+          backgroundColor: Colors.transparent,
+          onPressed: _togglePlayPause,
+        ),
       ),
-      EchoIconButton(
-        icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
-        label: _playerState.isPlaying ? '暂停' : '播放',
-        foregroundColor: context.echoColors.ink,
-        backgroundColor: Colors.transparent,
-        onPressed: _togglePlayPause,
-      ),
-      EchoIconButton(
+      Tooltip(message: '下一首', child: EchoIconButton(
         icon: AppIcons.next,
         label: '下一首',
         foregroundColor: context.echoColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: widget.onNext,
+      )),
+      Tooltip(
+        message: _playerState.shuffleEnabled ? '随机播放中，点击关闭' : '随机播放',
+        child: EchoIconButton(
+          icon: AppIcons.shuffle,
+          label: _playerState.shuffleEnabled ? '随机播放中' : '随机播放',
+          selected: _playerState.shuffleEnabled,
+          onPressed: widget.onToggleShuffle,
+        ),
       ),
-      EchoIconButton(
-        icon: AppIcons.shuffle,
-        label: _playerState.shuffleEnabled ? '随机播放中' : '随机播放',
-        foregroundColor: _playerState.shuffleEnabled
-            ? context.echoColors.accent
-            : context.echoColors.ink,
-        backgroundColor: Colors.transparent,
-        onPressed: widget.onToggleShuffle,
+      Tooltip(
+        message: repeatActive ? '$repeatLabel，点击切换' : '循环播放，点击开启',
+        child: EchoIconButton(
+          icon: repeatActive && loopMode == LoopMode.one
+              ? AppIcons.repeatOne
+              : AppIcons.repeat,
+          label: repeatLabel,
+          selected: repeatActive,
+          onPressed: widget.onToggleRepeat,
+        ),
       ),
-      EchoIconButton(
-        icon: AppIcons.repeat,
-        label: '循环播放',
-        foregroundColor: context.echoColors.ink,
-        backgroundColor: Colors.transparent,
-        onPressed: widget.onToggleRepeat,
-      ),
-      _VolumeButton(),
-      EchoIconButton(
-        icon: widget.isCasting ? AppIcons.signalTower : AppIcons.headphones,
-        label: '切换播放器，当前：${widget.currentPlayerName}',
-        foregroundColor: widget.isCasting
-            ? context.echoColors.accent
-            : context.echoColors.ink,
-        backgroundColor: Colors.transparent,
-        onPressed: widget.onSwitchPlayer,
+      const _VolumeButton(),
+      Tooltip(
+        message: '切换播放器，当前：${widget.currentPlayerName}',
+        child: EchoIconButton(
+          icon: widget.isCasting ? AppIcons.signalTower : AppIcons.headphones,
+          label: '切换播放器，当前：${widget.currentPlayerName}',
+          foregroundColor: widget.isCasting
+              ? context.echoColors.accent
+              : context.echoColors.ink,
+          backgroundColor: Colors.transparent,
+          onPressed: widget.onSwitchPlayer,
+        ),
       ),
     ];
   }
@@ -591,13 +612,11 @@ class _MiniPlayerTrack extends StatelessWidget {
   Widget build(BuildContext context) {
     final artist = song.artist?.trim() ?? '';
     final album = song.album?.trim() ?? '';
-    final fallbackSubtitle = artist.isNotEmpty ? artist : album;
-    final subtitle = lyricLine?.trim().isNotEmpty == true
-        ? lyricLine!.trim()
-        : fallbackSubtitle;
+    // 歌名-歌手：歌手行永远显示（无歌手时回退专辑名），歌词另起一行。
+    final artistLine = artist.isNotEmpty ? artist : album;
+    final lyric = lyricLine?.trim().isNotEmpty == true ? lyricLine!.trim() : null;
     final cover = _MiniPlayerCover(song: song);
     final title = _MiniPlayerTitle(song: song);
-    final subtitleWidget = _MiniPlayerSubtitle(text: subtitle);
 
     return Row(
       children: <Widget>[
@@ -624,16 +643,19 @@ class _MiniPlayerTrack extends StatelessWidget {
                 )
               else
                 title,
-              if (showSubtitle && subtitle.isNotEmpty)
+              if (showSubtitle && artistLine.isNotEmpty)
                 if (useHero)
                   Hero(
                     tag: playerSubtitleHeroTag,
                     createRectTween: playerLinearRectTween,
                     flightShuttleBuilder: playerTextFlightShuttleBuilder,
-                    child: subtitleWidget,
+                    child: _MiniPlayerSubtitle(text: artistLine),
                   )
                 else
-                  subtitleWidget,
+                  _MiniPlayerSubtitle(text: artistLine),
+              // 当前歌词行：黄色高亮显示（对齐主项目前端歌词配色）。
+              if (lyric != null)
+                _MiniPlayerLyric(text: lyric),
             ],
           ),
         ),
@@ -698,6 +720,34 @@ class _MiniPlayerSubtitle extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: context.echoTypography.metadata.copyWith(
           color: context.echoColors.muted,
+        ),
+      ),
+    );
+  }
+}
+
+/// 迷你播放器当前歌词行：黄色显示（对齐主项目前端歌词配色）。
+class _MiniPlayerLyric extends StatelessWidget {
+  const _MiniPlayerLyric({required this.text});
+
+  final String text;
+
+  static const Color _lyricYellow = Color(0xFFFFD700);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: Padding(
+        padding: EdgeInsets.only(top: context.echoSpacing.xxs),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: context.echoTypography.metadata.copyWith(
+            color: _lyricYellow,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );

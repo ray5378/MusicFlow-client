@@ -1,10 +1,14 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/utils/logger.dart';
+import '../data/models/playlist.dart';
 import '../data/models/recommend.dart';
 import '../data/repositories/recommend_repository.dart';
 import 'api_provider.dart';
 import 'library_provider.dart';
+import 'playlist_provider.dart';
 
 final recommendRepositoryProvider = Provider<RecommendRepository?>((ref) {
   final activeLib = ref.watch(activeLibraryProvider);
@@ -84,4 +88,69 @@ final homePlaylistCountProvider = FutureProvider<int>((ref) async {
   } catch (_) {
     return 8;
   }
+});
+
+/// 首页「为你推荐」顶部卡片：固定推荐卡 + 随机补位本地歌单。
+/// 对齐主项目前端 Home/index.vue：
+/// - 固定卡来自 /v1/recommend/home-cards（今日漫游/每日推荐/本地推荐，>30 首门槛）；
+/// - 随机歌单从本地库歌单随机抽取（排除固定卡、≥30 首），
+///   补足到 homeCount 张（每日推荐插件配置，默认 8，含今日漫游固定卡）。
+class HomeRecommendSection {
+  final List<HomeCard> fixed;
+  final List<Playlist> random;
+
+  const HomeRecommendSection({required this.fixed, required this.random});
+
+  bool get isEmpty => fixed.isEmpty && random.isEmpty;
+}
+
+final homeRecommendSectionProvider =
+    FutureProvider.autoDispose<HomeRecommendSection>((ref) async {
+  final repo = ref.watch(recommendRepositoryProvider);
+  final plRepo = ref.watch(playlistRepositoryProvider);
+
+  // 1) 固定推荐卡（>30 首门槛，与主项目一致）
+  var fixed = <HomeCard>[];
+  if (repo != null) {
+    try {
+      await ref.read(ensureActiveAddressProvider.future);
+      fixed = await repo.getHomeCards();
+    } catch (e) {
+      Logger.warnWithTag('RECOMMEND', 'home cards load failed', e);
+    }
+  }
+  final fixedCards = fixed.where((c) => (c.songCount ?? 0) > 30).toList();
+
+  // 2) 首页张数（默认 8，每日推荐插件配置）
+  var homeCount = 8;
+  try {
+    homeCount = await ref.read(homePlaylistCountProvider.future);
+  } catch (_) {}
+
+  // 3) 随机补位本地歌单
+  final random = <Playlist>[];
+  final fixedIds = fixedCards.map((c) => c.playlistId).toSet();
+  final needed = max(0, homeCount - fixedCards.length);
+  if (plRepo != null && needed > 0) {
+    final pool = <Playlist>[];
+    try {
+      // 首页随机池：取前若干页本地歌单（上限控制），随机抽取
+      for (var page = 1; page <= 4 && pool.length < 400; page++) {
+        final r = await plRepo.getPlaylistsPage(page, 100, query: '');
+        pool.addAll(r.items);
+        if (r.items.length < 100) break;
+      }
+    } catch (e) {
+      Logger.warnWithTag('RECOMMEND', 'random playlist pool load failed', e);
+    }
+    pool.shuffle(Random());
+    for (final p in pool) {
+      if (random.length >= needed) break;
+      if (fixedIds.contains(p.id)) continue;
+      if ((p.songCount ?? 0) < 30) continue;
+      random.add(p);
+    }
+  }
+
+  return HomeRecommendSection(fixed: fixedCards, random: random);
 });
