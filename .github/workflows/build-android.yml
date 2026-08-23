@@ -147,6 +147,13 @@ jobs:
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
       - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
@@ -158,13 +165,6 @@ jobs:
         with:
           name: musicflow-windows
           path: artifacts
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version from tag
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: List artifacts
         run: ls -la artifacts/
