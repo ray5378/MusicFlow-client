@@ -102,6 +102,11 @@ jobs:
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
     steps:
+      # checkout 必须先于 download：actions/checkout 会重置工作目录，
+      # 若在 download 之后执行会把刚下载的 apk/zip 清掉，导致 Release 无资产。
+      - name: Checkout code (for git push)
+        uses: actions/checkout@v4
+
       - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
@@ -111,9 +116,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: musicflow-windows
-
-      - name: Checkout code (for git push)
-        uses: actions/checkout@v4
 
       - name: Remove previous rolling release
         env:
