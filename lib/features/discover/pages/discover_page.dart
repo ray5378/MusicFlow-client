@@ -5,8 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import '../../../core/design/echo_design.dart';
+import '../../../core/utils/logger.dart';
 import '../../../data/models/recommend.dart';
+import '../../../data/models/song.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/library_provider.dart';
+import '../../../providers/metadata_cache_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -261,8 +265,34 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   int _roundToken = 0;
   final ScrollController _scrollCtrl = ScrollController();
 
+  /// 最近一次可展示的歌曲(本地缓存或远程结果)。打开首页时先用它秒出内容,
+  /// 同时后台拉取远程最新结果,避免每次都阻塞在远程请求与后端惰性刷新上。
+  List<Song>? _lastKnownSongs;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCachedSongs();
+  }
+
+  /// 先读本地缓存的随机歌曲,让区块立即有内容可展示,不等远程。
+  Future<void> _loadCachedSongs() async {
+    try {
+      final cache = ref.read(metadataCacheRepositoryProvider);
+      final libraryId = ref.read(activeLibraryProvider)?.id;
+      if (cache == null || libraryId == null || libraryId.isEmpty) return;
+      final cached = await cache.getRandomSongs(libraryId);
+      if (!mounted || cached == null || cached.isEmpty) return;
+      // 远程数据已就绪时不再用旧缓存覆盖,避免「新内容 → 旧缓存」的闪回。
+      if (_lastKnownSongs != null) return;
+      setState(() => _lastKnownSongs = cached);
+    } catch (e) {
+      Logger.warnWithTag('DISCOVER', 'random songs cache read failed', e);
+    }
+  }
+
   Future<void> _playRound() async {
-    final songs = ref.read(randomSongsProvider).valueOrNull;
+    final songs = ref.read(randomSongsProvider).valueOrNull ?? _lastKnownSongs;
     if (songs == null || songs.isEmpty) return;
     _autoContinue = true;
     _roundToken++;
@@ -281,6 +311,58 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     _autoContinue = false;
     _roundToken++;
     ref.invalidate(randomSongsProvider);
+  }
+
+  /// 歌曲横滑网格(每列 3 行),供数据态与缓存占位态共用,布局完全一致。
+  Widget _buildSongsContent(List<Song> songs) {
+    final itemWidth =
+        (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
+
+    return HoverableHorizontalScroll(
+      builder: (context, controller) => SingleChildScrollView(
+        controller: controller,
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(
+          horizontal: context.echoSpacing.xs,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (var col = 0; col < (songs.length / 3).ceil(); col++)
+              Padding(
+                padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (var row = 0;
+                        row < 3 && col * 3 + row < songs.length;
+                        row++) ...<Widget>[
+                      SizedBox(
+                        width: itemWidth,
+                        child: DiscoverSongTile(
+                          song: songs[col * 3 + row],
+                          onPressed: () {
+                            playEffectiveQueue(
+                              ref,
+                              songs,
+                              startIndex: col * 3 + row,
+                            );
+                          },
+                          onOpenActions: () => showSongOptionsSheet(
+                            context: context,
+                            song: songs[col * 3 + row],
+                          ),
+                        ),
+                      ),
+                      if (row < 2) SizedBox(height: 2),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -309,6 +391,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       skipLoadingOnRefresh: false,
       skipLoadingOnReload: false,
       data: (songs) {
+        if (songs.isNotEmpty) {
+          _lastKnownSongs = songs;
+        }
         if (songs.isEmpty) {
           return DiscoverSectionMessage(
             title: loadFailed ? '随心听暂时不可用' : '还没有可播放的歌曲',
@@ -322,56 +407,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
           );
         }
 
-        final itemWidth =
-            (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
-
-        return HoverableHorizontalScroll(
-          builder: (context, controller) => SingleChildScrollView(
-            controller: controller,
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: context.echoSpacing.xs,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                for (var col = 0; col < (songs.length / 3).ceil(); col++)
-                  Padding(
-                    padding: EdgeInsets.only(right: context.echoSpacing.sm),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        for (var row = 0;
-                            row < 3 && col * 3 + row < songs.length;
-                            row++) ...<Widget>[
-                          SizedBox(
-                            width: itemWidth,
-                            child: DiscoverSongTile(
-                              song: songs[col * 3 + row],
-                              onPressed: () {
-                                playEffectiveQueue(
-                                  ref,
-                                  songs,
-                                  startIndex: col * 3 + row,
-                                );
-                              },
-                              onOpenActions: () => showSongOptionsSheet(
-                                context: context,
-                                song: songs[col * 3 + row],
-                              ),
-                            ),
-                          ),
-                          if (row < 2) SizedBox(height: 2),
-                        ],
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
+        return _buildSongsContent(songs);
       },
-      loading: () => const _RandomSongsLoading(),
+      loading: () {
+        final cached = _lastKnownSongs;
+        return (cached != null && cached.isNotEmpty)
+            ? _buildSongsContent(cached)
+            : const _RandomSongsLoading();
+      },
       error: (error, stackTrace) => DiscoverSectionMessage(
         title: '随心听加载失败',
         description: '请检查网络或切换线路后重试。',
