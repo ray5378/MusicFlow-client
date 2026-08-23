@@ -121,6 +121,8 @@ class SearchResultList extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.only(
         left: context.echoPageHorizontalPadding,
         right: context.echoPageHorizontalPadding,
@@ -166,6 +168,8 @@ class SearchResultList extends ConsumerWidget {
   ) {
     if (children.isEmpty) return const SizedBox.shrink();
     return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 3,
       childAspectRatio: 0.8,
       padding: EdgeInsets.only(

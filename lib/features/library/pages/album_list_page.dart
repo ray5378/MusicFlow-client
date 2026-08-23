@@ -6,11 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/search.dart';
+import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
-import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
-import '../../../providers/search_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../widgets/album_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
@@ -28,8 +27,6 @@ class AlbumListPage extends ConsumerStatefulWidget {
 }
 
 class _AlbumListPageState extends ConsumerState<AlbumListPage> {
-  SearchMode _searchMode = SearchMode.aggregate;
-  String _searchProviderId = '';
   String _searchQuery = '';
 
   late final WindowedPaginatedList<Album> _list = WindowedPaginatedList<Album>(
@@ -61,17 +58,11 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
-              kind: SearchEntityKind.album,
-              mode: _searchMode,
-              providerId: _searchProviderId,
               query: _searchQuery,
-              onSourceChanged: (source) => setState(() {
-                _searchMode = source.mode;
-                _searchProviderId = source.providerId;
-              }),
+              hintText: '搜索专辑',
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
-                if (_searchMode == SearchMode.local) _reload();
+                if (query.isEmpty) _reload();
               },
             ),
             SizedBox(height: context.echoSpacing.xs),
@@ -83,38 +74,22 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
   }
 
   Widget _body() {
-    if (_searchQuery.isNotEmpty && _searchMode != SearchMode.local) {
-      final results = ref.watch(
-        searchResultsProvider(
-          SearchRequest(
-            kind: SearchEntityKind.album,
-            mode: _searchMode,
-            query: _searchQuery,
-            providerId: _searchProviderId,
-          ),
-        ),
-      );
-      return results.when(
-        data: (outcome) => outcome.albums.isEmpty
-            ? const EchoEmptyState(
-                title: '未找到结果',
-                description: '换个关键词或切换搜索来源试试。',
-                icon: AppIcons.search,
-              )
-            : SearchResultList(kind: SearchEntityKind.album, outcome: outcome),
-        loading: () => const EchoAlbumGridSkeleton(),
-        error: (e, _) => EchoErrorState(
-          title: '搜索失败',
-          description: '$e',
-          actionLabel: '重试',
-          onAction: () {
-            ref.invalidate(searchResultsProvider(SearchRequest(
-              kind: SearchEntityKind.album,
-              mode: _searchMode,
-              query: _searchQuery,
-              providerId: _searchProviderId,
-            )));
+    if (_searchQuery.isNotEmpty) {
+      // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
+      return AggregateSearchResults(
+        kind: SearchEntityKind.album,
+        query: _searchQuery,
+        localBlock: AggregateLocalBlock<Album>(
+          fetcher: () async {
+            final repository = ref.read(musicRepositoryProvider);
+            if (repository == null) {
+              return (items: <Album>[], total: 0);
+            }
+            return repository.getAlbumsPage(1, 12, query: _searchQuery);
           },
+          itemExtent: 180,
+          itemBuilder: (context, album) => _buildTile(0, album),
+          emptyText: '本地库无匹配专辑',
         ),
       );
     }

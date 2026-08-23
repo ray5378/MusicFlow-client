@@ -9,12 +9,11 @@ import '../../../data/models/song.dart';
 import '../../../features/library/widgets/windowed_list_view.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../features/player/widgets/song_options_sheet.dart';
+import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
-import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
-import '../../../providers/search_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../widgets/library_collection_components.dart';
@@ -33,8 +32,6 @@ enum _SongSort { titleAsc, recentAdded }
 
 class _SongListPageState extends ConsumerState<SongListPage> {
   _SongSort _sort = _SongSort.titleAsc;
-  SearchMode _searchMode = SearchMode.aggregate;
-  String _searchProviderId = '';
   String _searchQuery = '';
 
   late final WindowedPaginatedList<Song> _list = WindowedPaginatedList<Song>(
@@ -114,17 +111,11 @@ class _SongListPageState extends ConsumerState<SongListPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
-              kind: SearchEntityKind.song,
-              mode: _searchMode,
-              providerId: _searchProviderId,
               query: _searchQuery,
-              onSourceChanged: (source) => setState(() {
-                _searchMode = source.mode;
-                _searchProviderId = source.providerId;
-              }),
+              hintText: '搜索歌曲',
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
-                if (_searchMode == SearchMode.local) _reload();
+                if (query.isEmpty) _reload();
               },
             ),
             SizedBox(height: context.echoSpacing.xs),
@@ -136,41 +127,22 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   }
 
   Widget _body() {
-    if (_searchQuery.isNotEmpty && _searchMode != SearchMode.local) {
-      // 聚合/在线搜索走主项目聚合端点。
-      final results = ref.watch(
-        searchResultsProvider(
-          SearchRequest(
-            kind: SearchEntityKind.song,
-            mode: _searchMode,
-            query: _searchQuery,
-            providerId: _searchProviderId,
-          ),
-        ),
-      );
-      return results.when(
-        data: (outcome) => outcome.songs.isEmpty
-            ? const EchoEmptyState(
-                title: '未找到结果',
-                description: '换个关键词或切换搜索来源试试。',
-                icon: AppIcons.search,
-              )
-            : SearchResultList(
-                kind: SearchEntityKind.song,
-                outcome: outcome,
-              ),
-        loading: () => const EchoMediaListSkeleton(count: 10),
-        error: (e, _) => EchoErrorState(
-          title: '搜索失败',
-          description: '$e',
-          actionLabel: '重试',
-          onAction: () =>
-              ref.invalidate(searchResultsProvider(SearchRequest(
-            kind: SearchEntityKind.song,
-            mode: _searchMode,
-            query: _searchQuery,
-            providerId: _searchProviderId,
-          ))),
+    if (_searchQuery.isNotEmpty) {
+      // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
+      return AggregateSearchResults(
+        kind: SearchEntityKind.song,
+        query: _searchQuery,
+        localBlock: AggregateLocalBlock<Song>(
+          fetcher: () async {
+            final repository = ref.read(musicRepositoryProvider);
+            if (repository == null) {
+              return (items: <Song>[], total: 0);
+            }
+            return repository.getSongsPage(1, 12, query: _searchQuery);
+          },
+          horizontal: false,
+          itemBuilder: (context, song) => _buildRow(0, song),
+          emptyText: '本地库无匹配歌曲',
         ),
       );
     }

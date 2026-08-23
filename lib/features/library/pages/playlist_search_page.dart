@@ -8,11 +8,10 @@ import '../../../features/discover/widgets/discover_media_widgets.dart';
 import '../../../features/library/widgets/library_collection_components.dart';
 import '../../../features/library/widgets/windowed_list_view.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
+import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
-import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/playlist_provider.dart';
-import '../../../providers/search_provider.dart';
 import '../../library/pages/playlist_detail_page.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 
@@ -26,8 +25,6 @@ class PlaylistSearchPage extends ConsumerStatefulWidget {
 }
 
 class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
-  SearchMode _searchMode = SearchMode.aggregate;
-  String _searchProviderId = '';
   String _searchQuery = '';
 
   late final WindowedPaginatedList<Playlist> _list =
@@ -61,17 +58,11 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
-              kind: SearchEntityKind.playlist,
-              mode: _searchMode,
-              providerId: _searchProviderId,
               query: _searchQuery,
-              onSourceChanged: (source) => setState(() {
-                _searchMode = source.mode;
-                _searchProviderId = source.providerId;
-              }),
+              hintText: '搜索歌单',
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
-                if (_searchMode == SearchMode.local) _list.load(query);
+                if (query.isEmpty) _list.load('');
               },
             ),
             SizedBox(height: context.echoSpacing.xs),
@@ -83,41 +74,38 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
   }
 
   Widget _body() {
-    if (_searchQuery.isNotEmpty && _searchMode != SearchMode.local) {
-      final results = ref.watch(
-        searchResultsProvider(
-          SearchRequest(
-            kind: SearchEntityKind.playlist,
-            mode: _searchMode,
-            query: _searchQuery,
-            providerId: _searchProviderId,
-          ),
-        ),
-      );
-      return results.when(
-        data: (outcome) => outcome.playlists.isEmpty
-            ? const EchoEmptyState(
-                title: '未找到结果',
-                description: '换个关键词或切换搜索来源试试。',
-                icon: AppIcons.search,
-              )
-            : SearchResultList(
-                kind: SearchEntityKind.playlist,
-                outcome: outcome,
-              ),
-        loading: () => const EchoMediaListSkeleton(count: 8),
-        error: (e, _) => EchoErrorState(
-          title: '搜索失败',
-          description: '$e',
-          actionLabel: '重试',
-          onAction: () {
-            ref.invalidate(searchResultsProvider(SearchRequest(
-              kind: SearchEntityKind.playlist,
-              mode: _searchMode,
-              query: _searchQuery,
-              providerId: _searchProviderId,
-            )));
+    if (_searchQuery.isNotEmpty) {
+      // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
+      return AggregateSearchResults(
+        kind: SearchEntityKind.playlist,
+        query: _searchQuery,
+        localBlock: AggregateLocalBlock<Playlist>(
+          fetcher: () async {
+            final repository = ref.read(playlistRepositoryProvider);
+            if (repository == null) {
+              return (items: <Playlist>[], total: 0);
+            }
+            return repository.getPlaylistsPage(1, 12, query: _searchQuery);
           },
+          itemExtent: 152,
+          itemBuilder: (context, playlist) => DiscoverPlaylistCard(
+            width: 152,
+            title: playlist.name,
+            subtitle: '${playlist.songCount} 首',
+            coverArtId: playlist.coverArt,
+            onPressed: () => Navigator.of(context).push<void>(
+              EchoPageRoute<void>(
+                context: context,
+                builder: (_) => PlaylistDetailPage(
+                  playlistId: playlist.id,
+                  initialName: playlist.name,
+                  initialSongCount: playlist.songCount,
+                  initialCoverArt: playlist.coverArt,
+                ),
+              ),
+            ),
+          ),
+          emptyText: '本地库无匹配歌单',
         ),
       );
     }

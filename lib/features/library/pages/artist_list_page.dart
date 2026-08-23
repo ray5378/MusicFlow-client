@@ -4,11 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/artist.dart';
 import '../../../data/models/search.dart';
+import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
-import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
-import '../../../providers/search_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../widgets/library_collection_components.dart';
 import '../widgets/windowed_list_view.dart';
@@ -24,8 +23,6 @@ class ArtistListPage extends ConsumerStatefulWidget {
 }
 
 class _ArtistListPageState extends ConsumerState<ArtistListPage> {
-  SearchMode _searchMode = SearchMode.aggregate;
-  String _searchProviderId = '';
   String _searchQuery = '';
 
   late final WindowedPaginatedList<Artist> _list =
@@ -56,19 +53,11 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             EntitySearchBar(
-              kind: SearchEntityKind.artist,
-              mode: _searchMode,
-              providerId: _searchProviderId,
               query: _searchQuery,
-              onSourceChanged: (source) => setState(() {
-                _searchMode = source.mode;
-                _searchProviderId = source.providerId;
-              }),
+              hintText: '搜索歌手',
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
-                if (_searchMode == SearchMode.local) {
-                  _list.load(query);
-                }
+                if (query.isEmpty) _list.load('');
               },
             ),
             SizedBox(height: context.echoSpacing.xs),
@@ -80,38 +69,37 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
   }
 
   Widget _body() {
-    if (_searchQuery.isNotEmpty && _searchMode != SearchMode.local) {
-      final results = ref.watch(
-        searchResultsProvider(
-          SearchRequest(
-            kind: SearchEntityKind.artist,
-            mode: _searchMode,
-            query: _searchQuery,
-            providerId: _searchProviderId,
-          ),
-        ),
-      );
-      return results.when(
-        data: (outcome) => outcome.artists.isEmpty
-            ? const EchoEmptyState(
-                title: '未找到结果',
-                description: '换个关键词或切换搜索来源试试。',
-                icon: AppIcons.search,
-              )
-            : SearchResultList(kind: SearchEntityKind.artist, outcome: outcome),
-        loading: () => const EchoMediaListSkeleton(circle: true),
-        error: (e, _) => EchoErrorState(
-          title: '搜索失败',
-          description: '$e',
-          actionLabel: '重试',
-          onAction: () {
-            ref.invalidate(searchResultsProvider(SearchRequest(
-              kind: SearchEntityKind.artist,
-              mode: _searchMode,
-              query: _searchQuery,
-              providerId: _searchProviderId,
-            )));
+    if (_searchQuery.isNotEmpty) {
+      // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
+      return AggregateSearchResults(
+        kind: SearchEntityKind.artist,
+        query: _searchQuery,
+        localBlock: AggregateLocalBlock<Artist>(
+          fetcher: () async {
+            final repository = ref.read(musicRepositoryProvider);
+            if (repository == null) {
+              return (items: <Artist>[], total: 0);
+            }
+            return repository.getArtistsPage(1, 12, query: _searchQuery);
           },
+          horizontal: false,
+          itemBuilder: (context, artist) => EchoArtistRow(
+            key: ValueKey('local-artist-${artist.id}'),
+            artist: artist,
+            contentPadding: EdgeInsetsDirectional.fromSTEB(
+              context.echoPageHorizontalPadding,
+              context.echoSpacing.xs,
+              context.echoPageHorizontalPadding,
+              context.echoSpacing.xs,
+            ),
+            onPressed: () => Navigator.of(context).push<void>(
+              EchoPageRoute<void>(
+                context: context,
+                builder: (_) => ArtistDetailPage(artistId: artist.id),
+              ),
+            ),
+          ),
+          emptyText: '本地库无匹配歌手',
         ),
       );
     }
