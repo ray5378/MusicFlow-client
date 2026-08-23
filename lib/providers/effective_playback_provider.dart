@@ -11,7 +11,10 @@ import 'player_provider.dart';
 final effectivePositionProvider = Provider<Duration>((ref) {
   final cast = ref.watch(castPeerControllerProvider);
   if (cast.activePeer != null) {
-    return Duration(milliseconds: (cast.status.positionSeconds * 1000).round());
+    // 平滑进度:250/500ms 插值 + 轮询回写修正。
+    return Duration(
+      milliseconds: (cast.smoothPositionSeconds * 1000).round(),
+    );
   }
   return ref.watch(playerProvider.select((state) => state.position));
 });

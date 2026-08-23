@@ -1439,20 +1439,25 @@ class _PlayerUtilityBar extends ConsumerWidget {
       ),
     );
     final cast = ref.watch(castPeerControllerProvider);
-    final mode = state.shuffleEnabled
-        ? PlaybackMode.shuffle
-        : state.loopMode == LoopMode.one
-        ? PlaybackMode.repeatOne
-        : PlaybackMode.repeatAll;
+    final isCastMode = cast.activePeer != null;
+    // 投屏态:播放模式以后端 playMode 为准(order|one|all|shuffle);
+    // 本机:以本地三态为准。
+    final mode = isCastMode
+        ? cast.playMode
+        : (state.shuffleEnabled
+              ? 'shuffle'
+              : (state.loopMode == LoopMode.one ? 'one' : 'all'));
     final modeIcon = switch (mode) {
-      PlaybackMode.shuffle => AppIcons.shuffle,
-      PlaybackMode.repeatAll => AppIcons.repeat,
-      PlaybackMode.repeatOne => AppIcons.repeatOne,
+      'shuffle' => AppIcons.shuffle,
+      'one' => AppIcons.repeatOne,
+      'order' => AppIcons.queue,
+      _ => AppIcons.repeat,
     };
     final modeLabel = switch (mode) {
-      PlaybackMode.shuffle => '随机播放，点击切换到列表循环',
-      PlaybackMode.repeatAll => '列表循环，点击切换到单曲循环',
-      PlaybackMode.repeatOne => '单曲循环，点击切换到随机播放',
+      'shuffle' => '随机播放，点击切换到顺序播放',
+      'one' => '单曲循环，点击切换到列表循环',
+      'order' => '顺序播放，点击切换到单曲循环',
+      _ => '列表循环，点击切换到随机播放',
     };
 
     return Center(
@@ -1464,9 +1469,14 @@ class _PlayerUtilityBar extends ConsumerWidget {
             _PlayerIconButton(
               icon: modeIcon,
               label: modeLabel,
-              selected: mode != PlaybackMode.repeatAll,
+              selected: mode != 'all' && mode != 'order',
               onPressed: () {
-                ref.read(playerProvider.notifier).cyclePlaybackMode();
+                // 投屏态下发后端 play-mode;本机走本地三态。
+                if (isCastMode) {
+                  ref.read(castPeerControllerProvider.notifier).cyclePlayMode();
+                } else {
+                  ref.read(playerProvider.notifier).cyclePlaybackMode();
+                }
               },
             ),
             _PlayerIconButton(

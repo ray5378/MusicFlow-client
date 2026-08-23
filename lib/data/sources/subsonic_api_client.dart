@@ -139,6 +139,16 @@ class SubsonicApiClient {
     return response.data;
   }
 
+  /// Raw DELETE for non-Subsonic endpoints (e.g. /rest/api/v1/...).
+  /// Returns the decoded JSON body directly (no subsonic-response unwrap).
+  Future<dynamic> deleteRaw(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await _dio.delete(path, queryParameters: queryParameters);
+    return response.data;
+  }
+
   /// Generic POST
   Future<Map<String, dynamic>> post(
     String path, {

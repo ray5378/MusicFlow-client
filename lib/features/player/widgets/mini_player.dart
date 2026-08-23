@@ -1021,13 +1021,26 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
               EchoActionRow(
                 icon: AppIcons.headphones,
                 title: '本机播放',
-                subtitle: cast.activePeer != null ? '当前正在投屏' : '使用此设备扬声器',
+                subtitle: cast.activePeer != null
+                    ? (cast.offline ? '设备离线,已暂停轮询' : '当前正在投屏')
+                    : '使用此设备扬声器',
                 selected: cast.activePeer == null,
                 onPressed: () async {
-                  await controller.backToLocal(resumeLocal: true);
+                  // 回本机=仅切换控制目标(远端继续播,对齐前端 switchPeer)。
+                  await controller.backToLocal();
                   if (context.mounted) Navigator.of(context).pop();
                 },
               ),
+              if (cast.activePeer != null)
+                EchoActionRow(
+                  icon: AppIcons.close,
+                  title: '停止投屏',
+                  subtitle: '停止「${cast.activePeer!.name}」播放并清除控制',
+                  onPressed: () async {
+                    await controller.stopCasting();
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
+                ),
               if (remotePeers.isNotEmpty)
                 for (final peer in remotePeers)
                   EchoActionRow(

@@ -11,6 +11,7 @@ import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/api_provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/offline_download_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -86,6 +87,9 @@ class _SongOptionsSheet extends ConsumerWidget {
       playerProvider.select((state) => state.currentSong?.id),
     );
     final isCurrentSong = currentSongId != null && currentSongId == song.id;
+    final isCasting = ref.watch(
+      castPeerControllerProvider.select((s) => s.activePeer != null),
+    );
     final artistName = song.artist?.trim().isNotEmpty == true
         ? song.artist!.trim()
         : '未知歌手';
@@ -135,11 +139,18 @@ class _SongOptionsSheet extends ConsumerWidget {
         if (!isCurrentSong)
           _SongOptionRow(
             icon: AppIcons.queueAdd,
-            title: '下一曲播放',
+            title: isCasting ? '加入投屏队列' : '下一曲播放',
             onPressed: () => unawaited(
               _closeAndRun(context, () async {
-                await ref.read(playerProvider.notifier).playNext(song);
-                _showMessage('已添加试听歌曲到下一曲');
+                if (isCasting) {
+                  await ref
+                      .read(castPeerControllerProvider.notifier)
+                      .enqueueSongs(<Song>[song]);
+                  _showMessage('已加入投屏队列');
+                } else {
+                  await ref.read(playerProvider.notifier).playNext(song);
+                  _showMessage('已添加试听歌曲到下一曲');
+                }
               }),
             ),
           ),
@@ -225,11 +236,18 @@ class _SongOptionsSheet extends ConsumerWidget {
         if (!isCurrentSong)
           _SongOptionRow(
             icon: AppIcons.queueAdd,
-            title: '下一曲播放',
+            title: isCasting ? '加入投屏队列' : '下一曲播放',
             onPressed: () => unawaited(
               _closeAndRun(context, () async {
-                await ref.read(playerProvider.notifier).playNext(song);
-                _showMessage('已添加到下一曲');
+                if (isCasting) {
+                  await ref
+                      .read(castPeerControllerProvider.notifier)
+                      .enqueueSongs(<Song>[song]);
+                  _showMessage('已加入投屏队列');
+                } else {
+                  await ref.read(playerProvider.notifier).playNext(song);
+                  _showMessage('已添加到下一曲');
+                }
               }),
             ),
           ),

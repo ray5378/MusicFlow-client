@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import 'package:flutter/foundation.dart'
 
 import 'features/auth/pages/login_page.dart';
 import 'providers/auth_provider.dart';
+import 'providers/cast_peer_provider.dart';
 import 'providers/theme_provider.dart';
 import 'widgets/main_scaffold.dart';
 import 'features/discover/pages/discover_page.dart';
@@ -139,6 +142,18 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   // 监听认证状态变化
   ref.listen<AuthState>(authStateProvider, (previous, next) {
+    // 登录成功 → 注册本机 peer 并启动心跳保活(对齐主项目前端 registerLocalPeer)。
+    if (next.isAuthenticated && !(previous?.isAuthenticated ?? false)) {
+      unawaited(
+        ref.read(castPeerControllerProvider.notifier).registerAndHeartbeat(),
+      );
+    }
+    // 登出 → 停止心跳与投屏轮询,回本机。
+    if (!next.isAuthenticated && (previous?.isAuthenticated ?? false)) {
+      ref.read(castPeerControllerProvider.notifier).stopHeartbeat();
+      unawaited(ref.read(castPeerControllerProvider.notifier).backToLocal());
+    }
+
     // 当认证状态变化时，刷新路由
     final wasAuth = previous?.isAuthenticated ?? false;
     final wasInit = previous?.isInitializing ?? true;

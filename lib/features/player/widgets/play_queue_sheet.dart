@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
+import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
@@ -28,6 +30,35 @@ class PlayQueueSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cast = ref.watch(castPeerControllerProvider);
+    // 投屏态:队列权威在后端,展示投屏队列快照并把操作路由到后端。
+    if (cast.activePeer != null) {
+      final castQueue = cast.castQueue.map(castQueueItemToSong).toList();
+      return CastQueueSheetView(
+        queue: castQueue,
+        currentIndex: cast.castIndex,
+        deviceName: cast.activePeer!.name,
+        offline: cast.offline,
+        onSelect: (index) async {
+          Navigator.of(context).pop();
+          await Future<void>.delayed(Duration.zero);
+          unawaited(
+            ref.read(castPeerControllerProvider.notifier).jumpTo(index),
+          );
+        },
+        onRemove: (index) {
+          ref.read(castPeerControllerProvider.notifier).removeQueueItem(index);
+        },
+        onReorder: (from, to) {
+          ref.read(castPeerControllerProvider.notifier).reorderQueue(from, to);
+        },
+        onClear: () async {
+          await ref.read(castPeerControllerProvider.notifier).clearCastQueue();
+          if (context.mounted) Navigator.of(context).pop();
+        },
+      );
+    }
+
     final queueSnapshot = ref.watch(
       playerProvider.select(
         (state) => (
@@ -260,6 +291,174 @@ class PlayQueueSheetView extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// 投屏队列面板(provider-free,便于确定性测试)——
+/// 展示后端权威队列快照,操作经回调路由到后端 queue API。
+@visibleForTesting
+class CastQueueSheetView extends StatelessWidget {
+  const CastQueueSheetView({
+    super.key,
+    required this.queue,
+    required this.currentIndex,
+    required this.deviceName,
+    required this.onSelect,
+    required this.onRemove,
+    required this.onReorder,
+    required this.onClear,
+    this.offline = false,
+  });
+
+  final List<Song> queue;
+  final int currentIndex;
+  final String deviceName;
+  final bool offline;
+  final Future<void> Function(int index) onSelect;
+  final void Function(int index) onRemove;
+  final void Function(int from, int to) onReorder;
+  final Future<void> Function() onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final topRadius = BorderRadius.only(
+      topLeft: context.echoRadii.scene.topLeft,
+      topRight: context.echoRadii.scene.topRight,
+    );
+
+    return EchoSurface(
+      level: EchoSurfaceLevel.modal,
+      color: context.echoColors.surface,
+      borderRadius: topRadius,
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: <Widget>[
+            SizedBox(height: context.echoSpacing.xs),
+            Center(
+              child: ExcludeSemantics(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: context.echoColors.divider,
+                    borderRadius: context.echoRadii.pill,
+                  ),
+                  child: const SizedBox(width: 36, height: 4),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsetsDirectional.fromSTEB(
+                context.echoSpacing.md,
+                context.echoSpacing.sm,
+                context.echoSpacing.xs,
+                context.echoSpacing.sm,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            '投屏队列',
+                            style: context.echoTypography.headline,
+                          ),
+                        ),
+                        SizedBox(height: context.echoSpacing.xxs),
+                        Text(
+                          '${queue.length} 首曲目 · 正在投屏到「$deviceName」'
+                          '${offline ? ' · 设备离线' : ''}',
+                          style: context.echoTypography.metadata,
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: context.echoSpacing.sm),
+                  EchoIconButton(
+                    icon: AppIcons.close,
+                    label: '关闭投屏队列',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ],
+              ),
+            ),
+            const EchoDivider(),
+            Expanded(
+              child: queue.isEmpty
+                  ? const EchoEmptyState(
+                      title: '投屏队列为空',
+                      description: '后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。',
+                      icon: AppIcons.queue,
+                    )
+                  : ReorderableListView.builder(
+                      padding: EdgeInsets.symmetric(
+                        vertical: context.echoSpacing.xs,
+                      ),
+                      buildDefaultDragHandles: false,
+                      itemCount: queue.length,
+                      onReorder: (from, to) {
+                        // ReorderableListView 的 to 为插入位置;下移时需 -1 得到目标索引。
+                        final target = to > from ? to - 1 : to;
+                        if (target != from) onReorder(from, target);
+                      },
+                      proxyDecorator: (child, index, animation) => Material(
+                        color: Colors.transparent,
+                        elevation: 0,
+                        child: child,
+                      ),
+                      itemBuilder: (context, index) {
+                        final song = queue[index];
+                        return KeyedSubtree(
+                          key: ValueKey<String>('cast-queue-$index-${song.id}'),
+                          child: ReorderableDelayedDragStartListener(
+                            index: index,
+                            child: EchoSongRow(
+                              index: index,
+                              song: song,
+                              variant: EchoSongRowVariant.standard,
+                              isCurrent: index == currentIndex,
+                              contentPadding: EdgeInsetsDirectional.fromSTEB(
+                                context.echoSpacing.md,
+                                context.echoSpacing.xs,
+                                context.echoSpacing.xs,
+                                context.echoSpacing.xs,
+                              ),
+                              onPressed: () => unawaited(onSelect(index)),
+                              onMorePressed: () => onRemove(index),
+                              moreSemanticLabel: '${song.title}，从投屏队列移除',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const EchoDivider(),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                context.echoSpacing.md,
+                context.echoSpacing.xs,
+                context.echoSpacing.md,
+                context.echoSpacing.sm,
+              ),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: EchoButton.ghost(
+                  label: '清空并停止投屏',
+                  semanticLabel: '清空投屏队列并停止投屏',
+                  leadingIcon: AppIcons.clearAll,
+                  onPressed: queue.isEmpty ? null : () => unawaited(onClear()),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

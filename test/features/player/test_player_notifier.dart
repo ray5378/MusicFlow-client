@@ -20,6 +20,13 @@ class TestPlayerNotifier extends StateNotifier<PlayerState>
   void emit(PlayerState value) => state = value;
 
   @override
+  PlaybackMode get playbackMode {
+    if (state.shuffleEnabled) return PlaybackMode.shuffle;
+    if (state.loopMode == LoopMode.one) return PlaybackMode.repeatOne;
+    return PlaybackMode.repeatAll;
+  }
+
+  @override
   Future<void> togglePlayPause() async {
     toggleCount += 1;
     state = state.copyWith(isPlaying: !state.isPlaying);

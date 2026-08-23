@@ -1,4 +1,5 @@
 /// 主项目后端「播放器(peer)」模型 —— 对齐 /rest/api/v1/peers*。
+import 'song.dart';
 class PeerInfo {
   const PeerInfo({
     required this.peerId,
@@ -76,6 +77,24 @@ class PeerStatus {
   final bool active;
 
   bool get playing => state == 'PLAYING';
+
+  PeerStatus copyWith({
+    String? state,
+    double? positionSeconds,
+    double? durationSeconds,
+    int? volume,
+    bool? muted,
+    bool? active,
+  }) {
+    return PeerStatus(
+      state: state ?? this.state,
+      positionSeconds: positionSeconds ?? this.positionSeconds,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      volume: volume ?? this.volume,
+      muted: muted ?? this.muted,
+      active: active ?? this.active,
+    );
+  }
 }
 
 /// 队列条目：投递给后端 queue/play 的形状（对齐前端 songToQueueItem）。
@@ -93,11 +112,28 @@ Map<String, dynamic> songToQueueItem(dynamic song) => <String, dynamic>{
         'm4a' => 'audio/mp4',
         'opus' => 'audio/opus',
         'ape' => 'audio/ape',
+        'wma' => 'audio/x-ms-wma',
         _ => 'audio/mpeg',
       },
       'coverArt': (song.coverArt as String?) ??
           ((song.albumId as String?) != null
               ? 'al-${song.albumId}'
               : null),
-      'duration': (song.durationSeconds as num?)?.round(),
+      'duration': (song.duration as num?)?.round(),
     };
+
+/// 后端投屏队列条目 → 客户端 Song（对齐前端 queueItemToSong）。
+/// 仅用于投屏队列面板展示，不参与本机播放。
+Song castQueueItemToSong(Map<String, dynamic> it) {
+  final songId = '${it['songId'] ?? ''}';
+  final albumId = it['albumId'] as String?;
+  return Song(
+    id: songId,
+    title: (it['title'] as String?) ?? '未知',
+    artist: it['artist'] as String?,
+    album: it['album'] as String?,
+    albumId: albumId,
+    duration: (it['duration'] as num?)?.toInt(),
+    coverArt: (it['coverArt'] as String?) ?? (albumId != null ? 'al-$albumId' : null),
+  );
+}
