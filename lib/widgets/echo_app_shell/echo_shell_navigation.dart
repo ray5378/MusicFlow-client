@@ -151,7 +151,7 @@ class EchoSidebarLibraryEntry {
   final VoidCallback onTap;
 }
 
-class EchoExpandedNavigationSidebar extends StatelessWidget {
+class EchoExpandedNavigationSidebar extends StatefulWidget {
   const EchoExpandedNavigationSidebar({
     super.key,
     required this.destinations,
@@ -168,63 +168,136 @@ class EchoExpandedNavigationSidebar extends StatelessWidget {
   final List<EchoSidebarLibraryEntry> libraryEntries;
 
   @override
+  State<EchoExpandedNavigationSidebar> createState() =>
+      _EchoExpandedNavigationSidebarState();
+}
+
+/// 宽屏侧边栏：点击「收起」可折叠为图标窄栏（再点击「展开」恢复），
+/// 对齐箭头音乐 Windows 版可收起的左侧栏。
+class _EchoExpandedNavigationSidebarState
+    extends State<EchoExpandedNavigationSidebar> {
+  /// 是否折叠为图标窄栏。收起状态只保留图标与 Tooltip，节省横向空间。
+  bool _collapsed = false;
+
+  void _toggleCollapsed() {
+    setState(() => _collapsed = !_collapsed);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final spacing = context.echoSpacing;
+    final motion = context.echoMotion;
+    final duration = motion.resolve(context, motion.state);
+    final collapsed = _collapsed;
 
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '主导航',
+      label: collapsed ? '主导航（已收起）' : '主导航',
       child: ColoredBox(
         key: const ValueKey<String>('echo-expanded-navigation'),
         color: context.echoColors.surface,
         child: SafeArea(
           right: false,
-          child: SizedBox(
-            width: 232,
+          child: AnimatedContainer(
+            duration: duration,
+            curve: motion.easeOut,
+            width: collapsed ? 76 : 232,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                // 头部：展开态显示品牌名 + 收起按钮；折叠态只留菜单与展开按钮。
                 Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    spacing.sm,
-                    spacing.xs,
-                    spacing.md,
-                    spacing.xs,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: spacing.xs,
+                    vertical: spacing.xs,
                   ),
-                  child: Row(
-                    children: <Widget>[
-                      EchoIconButton(
-                        icon: AppIcons.menu,
-                        label: '打开应用菜单',
-                        onPressed: onOpenDrawer,
-                      ),
-                      SizedBox(width: spacing.sm),
-                      Expanded(
-                        child: Semantics(
-                          header: true,
-                          child: Text(
-                            'MusicFlow',
-                            style: context.echoTypography.title,
-                          ),
+                  child: collapsed
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            EchoIconButton(
+                              icon: AppIcons.menu,
+                              label: '打开应用菜单',
+                              onPressed: widget.onOpenDrawer,
+                            ),
+                            SizedBox(height: spacing.xs),
+                            EchoIconButton(
+                              icon: AppIcons.chevronRight,
+                              label: '展开侧边栏',
+                              onPressed: _toggleCollapsed,
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: <Widget>[
+                            EchoIconButton(
+                              icon: AppIcons.menu,
+                              label: '打开应用菜单',
+                              onPressed: widget.onOpenDrawer,
+                            ),
+                            SizedBox(width: spacing.sm),
+                            Expanded(
+                              child: Semantics(
+                                header: true,
+                                child: Text(
+                                  'MusicFlow',
+                                  style: context.echoTypography.title,
+                                ),
+                              ),
+                            ),
+                            EchoIconButton(
+                              icon: AppIcons.chevronLeft,
+                              label: '收起侧边栏',
+                              onPressed: _toggleCollapsed,
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
-                EchoDivider(inset: spacing.md, endInset: spacing.md),
+                EchoDivider(
+                  inset: collapsed ? spacing.sm : spacing.md,
+                  endInset: collapsed ? spacing.sm : spacing.md,
+                ),
                 Expanded(
                   child: ListView.builder(
                     padding: EdgeInsets.symmetric(
-                      horizontal: spacing.sm,
+                      horizontal: collapsed ? spacing.xxs : spacing.sm,
                       vertical: spacing.md,
                     ),
                     itemCount:
-                        destinations.length + libraryEntries.length,
+                        widget.destinations.length + widget.libraryEntries.length,
                     itemBuilder: (context, index) {
-                      if (index >= destinations.length) {
+                      final isLibrary = index >= widget.destinations.length;
+                      if (collapsed) {
+                        // 折叠态：全部显示为带 Tooltip 的图标窄条。
+                        if (isLibrary) {
+                          final entry =
+                              widget.libraryEntries[index - widget.destinations.length];
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: spacing.xxs),
+                            child: _SidebarIconEntry(
+                              label: entry.label,
+                              icon: entry.icon,
+                              onPressed: entry.onTap,
+                            ),
+                          );
+                        }
+                        final destination = widget.destinations[index];
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: spacing.xxs),
+                          child: _SidebarIconDestination(
+                            destination: destination,
+                            selected: destination.branchIndex ==
+                                widget.selectedBranchIndex,
+                            onPressed: () => widget.onDestinationSelected(
+                              destination.branchIndex,
+                            ),
+                          ),
+                        );
+                      }
+                      if (isLibrary) {
                         final entry =
-                            libraryEntries[index - destinations.length];
+                            widget.libraryEntries[index - widget.destinations.length];
                         return Padding(
                           padding: EdgeInsets.only(bottom: spacing.xxs),
                           child: _SidebarActionEntry(
@@ -234,15 +307,16 @@ class EchoExpandedNavigationSidebar extends StatelessWidget {
                           ),
                         );
                       }
-                      final destination = destinations[index];
+                      final destination = widget.destinations[index];
                       return Padding(
                         padding: EdgeInsets.only(bottom: spacing.xxs),
                         child: _SidebarDestination(
                           destination: destination,
-                          selected:
-                              destination.branchIndex == selectedBranchIndex,
-                          onPressed: () =>
-                              onDestinationSelected(destination.branchIndex),
+                          selected: destination.branchIndex ==
+                              widget.selectedBranchIndex,
+                          onPressed: () => widget.onDestinationSelected(
+                            destination.branchIndex,
+                          ),
                         ),
                       );
                     },
@@ -637,6 +711,123 @@ class _SidebarActionEntry extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 折叠态侧边栏条目：仅图标 + Tooltip（悬停显示文字）。
+class _SidebarIconDestination extends StatelessWidget {
+  const _SidebarIconDestination({
+    required this.destination,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final EchoShellDestination destination;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.echoColors;
+    final spacing = context.echoSpacing;
+    final foreground = selected ? colors.accent : colors.muted;
+
+    return Tooltip(
+      message: destination.label,
+      child: EchoPressable(
+        semanticLabel: destination.label,
+        selected: selected,
+        onPressed: onPressed,
+        enableHaptics: true,
+        minimumSize: const Size(double.infinity, 56),
+        borderRadius: context.echoRadii.detail,
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            spacing.xxs,
+            spacing.xs,
+            spacing.xxs,
+            spacing.xs,
+          ),
+          child: Row(
+            children: <Widget>[
+              _SelectionMarker(
+                markerKey: ValueKey<String>(
+                  'echo-expanded-collapsed-selection-indicator-'
+                  '${destination.branchIndex}',
+                ),
+                selected: selected,
+                axis: Axis.vertical,
+              ),
+              SizedBox(width: spacing.xxs),
+              Expanded(
+                child: Center(
+                  child: _AnimatedDestinationIcon(
+                    icon: selected
+                        ? destination.selectedIcon
+                        : destination.icon,
+                    color: foreground,
+                    size: context.echoInteraction.iconSize,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 折叠态侧边栏曲库快捷入口：仅图标 + Tooltip。
+class _SidebarIconEntry extends StatelessWidget {
+  const _SidebarIconEntry({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.echoColors;
+    final spacing = context.echoSpacing;
+
+    return Tooltip(
+      message: label,
+      child: EchoPressable(
+        semanticLabel: label,
+        onPressed: onPressed,
+        enableHaptics: true,
+        minimumSize: const Size(double.infinity, 56),
+        borderRadius: context.echoRadii.detail,
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            spacing.xxs,
+            spacing.xs,
+            spacing.xxs,
+            spacing.xs,
+          ),
+          child: Row(
+            children: <Widget>[
+              const SizedBox(width: 3),
+              SizedBox(width: spacing.xxs),
+              Expanded(
+                child: Center(
+                  child: Icon(
+                    icon,
+                    size: context.echoInteraction.iconSize,
+                    color: colors.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

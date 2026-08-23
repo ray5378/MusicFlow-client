@@ -8,7 +8,6 @@ import 'package:just_audio/just_audio.dart' show LoopMode;
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
-import '../../../providers/api_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
@@ -92,6 +91,17 @@ class MiniPlayer extends ConsumerWidget {
     required BuildContext context,
     required WidgetRef ref,
   }) async {
+    // 电脑端：播放控件上方的小弹窗（对齐主项目前端），手机端保留底部弹层。
+    final isDesktop = switch (Theme.of(context).platform) {
+      TargetPlatform.windows ||
+      TargetPlatform.macOS ||
+      TargetPlatform.linux => true,
+      _ => false,
+    };
+    if (isDesktop) {
+      _showDesktopPlayerSwitcherPopover(context: context);
+      return;
+    }
     await showEchoBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -100,7 +110,7 @@ class MiniPlayer extends ConsumerWidget {
     );
     if (context.mounted) {
       final cast = ref.read(castPeerControllerProvider);
-      showEchoMessage(
+      showEchoToast(
         context,
         cast.activePeer != null
             ? '正在投屏到「${currentPlayerName(cast)}」'
@@ -108,6 +118,29 @@ class MiniPlayer extends ConsumerWidget {
         kind: EchoMessageKind.success,
       );
     }
+  }
+
+  /// 电脑端「切换播放器」小弹窗：以 Overlay 呈现，播放控件上方小窗，
+  /// 点击弹窗外任意位置关闭；切换完成后弹出右上角 Toast 反馈。
+  static void _showDesktopPlayerSwitcherPopover({required BuildContext context}) {
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (entryContext) => PlayerSwitcherPopover(
+        onSwitched: (message) {
+          if (entry.mounted) entry.remove();
+          if (context.mounted) {
+            showEchoToast(
+              context,
+              message,
+              kind: EchoMessageKind.success,
+            );
+          }
+        },
+      ),
+    );
+    overlay.insert(entry);
   }
 }
 
@@ -833,6 +866,12 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
   /// 投屏端节流发送时间戳：拖动时 ≤10 次/秒，避免刷爆网络。
   DateTime? _lastCastVolumeSend;
 
+  /// 本机端节流：拖动时避免每次 onChanged 都走 media_kit FFI（全局锁串行，
+  /// 高频调用会堆积造成 UI 假死）。仅保留最新值，≤13 次/秒。
+  DateTime? _lastLocalVolumeSend;
+  double? _pendingLocalVolume;
+  Timer? _localVolumeThrottleTimer;
+
   /// 当前控制目标音量（0.0~1.0）：投屏取 peer status.volume(0-100)，
   /// 本机取 playerState.volume。peer 未回报音量时回退本机音量。
   double _effectiveVolume() {
@@ -843,15 +882,39 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
     return ref.watch(playerProvider.select((s) => s.volume));
   }
 
+  /// 本机音量实时跟手：节流合并，避免刷爆 media_kit FFI。
+  void _sendLocalVolumeLive(double v) {
+    _pendingLocalVolume = v;
+    final now = DateTime.now();
+    if (_lastLocalVolumeSend != null &&
+        now.difference(_lastLocalVolumeSend!).inMilliseconds < 80) {
+      // 距上次发送不足 80ms：记录最新值，由定时器统一发送。
+      _localVolumeThrottleTimer ??= Timer(
+        const Duration(milliseconds: 80),
+        () {
+          _localVolumeThrottleTimer = null;
+          final pending = _pendingLocalVolume;
+          if (pending != null) {
+            _lastLocalVolumeSend = DateTime.now();
+            ref.read(playerProvider.notifier).setVolumeLive(pending);
+          }
+        },
+      );
+      return;
+    }
+    _lastLocalVolumeSend = now;
+    ref.read(playerProvider.notifier).setVolumeLive(v);
+  }
+
   /// 拖动中：按「切换播放器」所选目标**只写一路**——
-  /// 本机 → setVolumeLive（just_audio 实时跟手，零 IO）；
+  /// 本机 → setVolumeLive（节流，just_audio 实时跟手）；
   /// 投屏 → 节流 POST 到所选播放器（≤10 次/秒，不刷爆网络）。
   void _onSliderChanged(double v) {
     final clamped = v.clamp(0.0, 1.0).toDouble();
     setState(() => _dragValue = clamped);
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer == null) {
-      ref.read(playerProvider.notifier).setVolumeLive(clamped);
+      _sendLocalVolumeLive(clamped);
       return;
     }
     // 投屏：只写所选播放器，节流发送保持跟手。
@@ -872,6 +935,9 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
     final clamped = v.clamp(0.0, 1.0).toDouble();
     setState(() => _dragValue = null);
     _lastCastVolumeSend = null;
+    _localVolumeThrottleTimer?.cancel();
+    _localVolumeThrottleTimer = null;
+    _pendingLocalVolume = null;
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer != null) {
       unawaited(
@@ -890,67 +956,83 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
       return;
     }
     _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: 80,
-        right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: EchoSurface(
-            level: EchoSurfaceLevel.floating,
-            padding: EdgeInsets.all(context.echoSpacing.sm),
-            child: SizedBox(
-              width: 64,
-              height: 184,
-              // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final cast = ref.watch(castPeerControllerProvider);
-                  final double sourceVolume;
-                  if (cast.activePeer != null &&
-                      cast.status.volume != null) {
-                    sourceVolume = (cast.status.volume! / 100)
-                        .clamp(0.0, 1.0)
-                        .toDouble();
-                  } else {
-                    sourceVolume =
-                        ref.watch(playerProvider.select((s) => s.volume));
-                  }
-                  // 拖动中显示拖动值，否则显示真实值。
-                  final volume = _dragValue ?? sourceVolume;
-                  final percent = (volume * 100).round();
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 实时显示当前音量数值（拖动时随状态刷新）。
-                      Text(
-                        '$percent%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: context.echoColors.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: 40,
-                        height: 140,
-                        child: RotatedBox(
-                          quarterTurns: -1,
-                          child: Slider(
-                            value: volume,
-                            onChanged: _onSliderChanged,
-                            onChangeEnd: _onSliderCommit,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+      builder: (context) => Stack(
+        children: <Widget>[
+          // 点击弹窗外部任意位置自动关闭。
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _removeOverlay,
+            ),
+          ),
+          Positioned(
+            bottom: 80,
+            right: 16,
+            child: GestureDetector(
+              // 抢占命中：点击弹窗内部不触发外部关闭。
+              behavior: HitTestBehavior.opaque,
+              onTap: () {},
+              child: Material(
+                color: Colors.transparent,
+                child: EchoSurface(
+                  level: EchoSurfaceLevel.floating,
+                  padding: EdgeInsets.all(context.echoSpacing.sm),
+                  child: SizedBox(
+                    width: 64,
+                    height: 184,
+                    // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final cast = ref.watch(castPeerControllerProvider);
+                        final double sourceVolume;
+                        if (cast.activePeer != null &&
+                            cast.status.volume != null) {
+                          sourceVolume = (cast.status.volume! / 100)
+                              .clamp(0.0, 1.0)
+                              .toDouble();
+                        } else {
+                          sourceVolume = ref
+                              .watch(playerProvider.select((s) => s.volume));
+                        }
+                        // 拖动中显示拖动值，否则显示真实值。
+                        final volume = _dragValue ?? sourceVolume;
+                        final percent = (volume * 100).round();
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // 实时显示当前音量数值（拖动时随状态刷新）。
+                            Text(
+                              '$percent%',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: context.echoColors.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: 40,
+                              height: 140,
+                              child: RotatedBox(
+                                quarterTurns: -1,
+                                child: Slider(
+                                  value: volume,
+                                  onChanged: _onSliderChanged,
+                                  onChangeEnd: _onSliderCommit,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
     Overlay.of(context).insert(_overlayEntry!);
@@ -964,6 +1046,7 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
   @override
   void dispose() {
     _removeOverlay();
+    _localVolumeThrottleTimer?.cancel();
     super.dispose();
   }
 
@@ -1037,15 +1120,10 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
   }
 
+  /// 直接加载后端 /peers 列表即可：后端本身持续自动扫描设备并维护
+  /// available 状态，客户端不再额外触发 dlna/scan（避免每次切播放器都扫描）。
   Future<void> _reload() async {
     final controller = ref.read(castPeerControllerProvider.notifier);
-    // 先触发 DLNA 扫描（对齐主项目前端 scanDlnaDevices）
-    try {
-      final client = ref.read(subsonicApiClientProvider);
-      await client.post('/rest/api/v1/dlna/scan');
-    } catch (_) {
-      // 扫描失败不阻塞，直接加载列表
-    }
     final peers = await controller.loadPeers();
     if (mounted) setState(() => _peers = peers);
   }
@@ -1055,8 +1133,9 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     final cast = ref.watch(castPeerControllerProvider);
     final controller = ref.read(castPeerControllerProvider.notifier);
     final peers = _peers;
+    // 只展示后端回报为可用（available）的远端设备，离线设备不显示。
     final remotePeers = (peers ?? const <PeerInfo>[])
-        .where((p) => !p.isLocal)
+        .where((p) => !p.isLocal && p.available)
         .toList();
 
     return EchoBottomSheet(
@@ -1106,7 +1185,6 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                     title: peer.name,
                     subtitle: <String>[
                       peer.kindLabel,
-                      if (!peer.available) '离线',
                       if (peer.queueTotal > 0)
                         peer.queueLabel,
                     ].join(' · '),
@@ -1133,7 +1211,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                   child: Text(
                     _peers == null
                         ? '正在获取可用播放器…'
-                        : '未发现其他播放器,可点击下方按钮重新扫描。',
+                        : '未发现其他可用播放器。',
                     style: context.echoTypography.body.copyWith(
                       color: context.echoColors.muted,
                     ),
@@ -1141,7 +1219,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                 ),
               EchoActionRow(
                 icon: AppIcons.refresh,
-                title: '重新扫描播放器',
+                title: '刷新播放器列表',
                 trailing: cast.loadingPeers
                     ? const SizedBox.square(
                         dimension: 16,
@@ -1154,6 +1232,207 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 电脑端「切换播放器」小弹窗：播放控件上方弹出、点击外部自动关闭。
+/// 数据源直接取后端 /peers 列表（后端自行扫描维护可用状态，客户端不触发
+/// 扫描）；只展示 available 的远端设备，离线设备不显示。
+/// 切换完成或关闭后通过 [onSwitched] 回调通知调用方弹出右上角 Toast。
+class PlayerSwitcherPopover extends ConsumerStatefulWidget {
+  const PlayerSwitcherPopover({super.key, required this.onSwitched});
+
+  /// 切换完成（或用户主动关闭）时回调，参数为要展示的 Toast 文案。
+  final ValueChanged<String?> onSwitched;
+
+  @override
+  ConsumerState<PlayerSwitcherPopover> createState() =>
+      _PlayerSwitcherPopoverState();
+}
+
+class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
+  List<PeerInfo>? _peers;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
+  }
+
+  Future<void> _reload() async {
+    final controller = ref.read(castPeerControllerProvider.notifier);
+    final peers = await controller.loadPeers();
+    if (mounted) setState(() => _peers = peers);
+  }
+
+  void _close({String? toast}) {
+    widget.onSwitched(toast);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cast = ref.watch(castPeerControllerProvider);
+    final controller = ref.read(castPeerControllerProvider.notifier);
+    final peers = _peers;
+    final remotePeers = (peers ?? const <PeerInfo>[])
+        .where((p) => !p.isLocal && p.available)
+        .toList();
+    final isDesktop = switch (Theme.of(context).platform) {
+      TargetPlatform.windows ||
+      TargetPlatform.macOS ||
+      TargetPlatform.linux => true,
+      _ => false,
+    };
+
+    return Stack(
+      children: <Widget>[
+        // 点击弹窗外任意位置自动关闭。
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _close(),
+          ),
+        ),
+        Positioned(
+          // 播放控件(MiniPlayer)上方的小弹窗。
+          bottom: isDesktop
+              ? MiniPlayer.height + 24
+              : 80,
+          right: 16,
+          child: Material(
+            color: Colors.transparent,
+            child: EchoSurface(
+              level: EchoSurfaceLevel.floating,
+              borderRadius: context.echoRadii.scene,
+              width: 320,
+              constraints: const BoxConstraints(maxHeight: 380),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      context.echoSpacing.sm,
+                      context.echoSpacing.xs,
+                      context.echoSpacing.xs,
+                      context.echoSpacing.xxs,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            '选择播放器',
+                            style: context.echoTypography.headline,
+                          ),
+                        ),
+                        EchoIconButton(
+                          icon: AppIcons.close,
+                          label: '关闭',
+                          onPressed: () => _close(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        context.echoSpacing.xs,
+                        0,
+                        context.echoSpacing.xs,
+                        context.echoSpacing.xs,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          EchoActionRow(
+                            icon: AppIcons.headphones,
+                            title: '本机播放',
+                            subtitle: cast.activePeer != null
+                                ? (cast.offline ? '设备离线,已暂停轮询' : '当前正在投屏')
+                                : '使用此设备扬声器',
+                            selected: cast.activePeer == null,
+                            onPressed: () async {
+                              await controller.backToLocal(resumeLocal: true);
+                              _close(toast: '已切换为本机播放');
+                            },
+                          ),
+                          if (cast.activePeer != null)
+                            EchoActionRow(
+                              icon: AppIcons.close,
+                              title: '停止投屏',
+                              subtitle: '停止「${cast.activePeer!.name}」播放并清除控制',
+                              onPressed: () async {
+                                await controller.stopCasting();
+                                _close(toast: '已停止投屏');
+                              },
+                            ),
+                          if (remotePeers.isNotEmpty)
+                            for (final peer in remotePeers)
+                              EchoActionRow(
+                                icon: switch (peer.kind) {
+                                  'group' => AppIcons.people,
+                                  _ => AppIcons.signalTower,
+                                },
+                                title: peer.name,
+                                subtitle: <String>[
+                                  peer.kindLabel,
+                                  if (peer.queueTotal > 0) peer.queueLabel,
+                                ].join(' · '),
+                                selected: cast.activePeer?.peerId == peer.peerId,
+                                onPressed: () async {
+                                  final ok = await controller.switchTo(peer);
+                                  if (!ok) {
+                                    if (mounted) {
+                                      showEchoMessage(
+                                        context,
+                                        '切换到「${peer.name}」失败,请检查设备是否在线',
+                                        kind: EchoMessageKind.error,
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  _close(toast: '正在投屏到「${peer.name}」');
+                                },
+                              )
+                          else
+                            Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: context.echoSpacing.sm,
+                              ),
+                              child: Text(
+                                _peers == null
+                                    ? '正在获取可用播放器…'
+                                    : '未发现其他可用播放器。',
+                                style: context.echoTypography.body.copyWith(
+                                  color: context.echoColors.muted,
+                                ),
+                              ),
+                            ),
+                          EchoActionRow(
+                            icon: AppIcons.refresh,
+                            title: '刷新播放器列表',
+                            trailing: cast.loadingPeers
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : null,
+                            onPressed: cast.loadingPeers ? null : () => _reload(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

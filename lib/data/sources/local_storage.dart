@@ -11,6 +11,7 @@ class LocalStorage {
   static const String _keyAutoFallback = 'auto_fallback';
   static const String _keyAudioQualitySettings = 'audio_quality_settings';
   static const String _keyPlaybackMode = 'playback_mode';
+  static const String _keyAutoPlayOnLaunch = 'auto_play_on_launch';
   static const String _keyPlaybackSession = 'playback_session_v1';
   static const String _keyThemeMode = 'theme_mode';
   static const String _keyThemeSeedColor = 'theme_seed_color';
@@ -147,6 +148,21 @@ class LocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyPlaybackMode, mode);
     Logger.infoWithTag(_logTag, 'playback mode saved: $mode');
+  }
+
+  /// 读取「打开时自动播放上次本机音乐」设置（默认 false）
+  static Future<bool> getAutoPlayOnLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getBool(_keyAutoPlayOnLaunch) ?? false;
+    Logger.debugWithTag(_logTag, 'autoPlayOnLaunch=$value');
+    return value;
+  }
+
+  /// 保存「打开时自动播放上次本机音乐」设置
+  static Future<void> setAutoPlayOnLaunch(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAutoPlayOnLaunch, value);
+    Logger.infoWithTag(_logTag, 'autoPlayOnLaunch updated: $value');
   }
 
   /// 保存播放会话（队列 + 索引 + 进度 + 播放状态）

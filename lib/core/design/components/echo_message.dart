@@ -139,3 +139,112 @@ ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showEchoMessage(
           ),
   );
 }
+
+/// 右上角 Toast：从右侧滑入 + 淡入淡出，默认 3 秒自动消失。
+/// 用于「切换播放器」等操作的轻量反馈（对齐主项目前端 Toast 交互）。
+void showEchoToast(
+  BuildContext context,
+  String message, {
+  EchoMessageKind kind = EchoMessageKind.info,
+  Duration duration = const Duration(seconds: 3),
+}) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (entryContext) => _EchoTopToast(
+      message: message,
+      kind: kind,
+      duration: duration,
+      onDismissed: () {
+        if (entry.mounted) entry.remove();
+      },
+    ),
+  );
+  overlay.insert(entry);
+}
+
+/// 右上角 Toast 实现：滑入/淡出动画 + 自动消失计时。
+class _EchoTopToast extends StatefulWidget {
+  const _EchoTopToast({
+    required this.message,
+    required this.kind,
+    required this.duration,
+    required this.onDismissed,
+  });
+
+  final String message;
+  final EchoMessageKind kind;
+  final Duration duration;
+  final VoidCallback onDismissed;
+
+  @override
+  State<_EchoTopToast> createState() => _EchoTopToastState();
+}
+
+class _EchoTopToastState extends State<_EchoTopToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+  Timer? _dismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 180),
+    );
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(1.2, 0),
+      end: Offset.zero,
+    ).animate(curve);
+    _fade = Tween<double>(begin: 0, end: 1).animate(curve);
+    _controller.forward();
+    _dismissTimer = Timer(widget.duration, _dismiss);
+  }
+
+  void _dismiss() {
+    if (!mounted) return;
+    _controller.reverse().whenComplete(() {
+      if (mounted) widget.onDismissed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top + context.echoSpacing.sm;
+    return Positioned(
+      top: top,
+      right: context.echoSpacing.md,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Material(
+            color: Colors.transparent,
+            child: EchoMessage(
+              message: widget.message,
+              kind: widget.kind,
+              onDismiss: _dismiss,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

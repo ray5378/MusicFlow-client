@@ -40,6 +40,15 @@ class AppSettingsPage extends ConsumerStatefulWidget {
 class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   bool _isExportingLogs = false;
   bool _isCheckingUpdate = false;
+  bool _autoPlayOnLaunch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    LocalStorage.getAutoPlayOnLaunch().then((value) {
+      if (mounted) setState(() => _autoPlayOnLaunch = value);
+    });
+  }
 
   Future<void> _exportLogs() async {
     setState(() => _isExportingLogs = true);
@@ -327,6 +336,16 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     value: _crossfadeLabel(crossfadeMs),
                     description: '设置相邻曲目之间的交叉衰减时长。',
                     onPressed: () => _showCrossfadeSheet(crossfadeMs),
+                  ),
+                  EchoToggleSettingRow(
+                    icon: AppIcons.play,
+                    title: '打开时自动播放',
+                    description: '启动后恢复上次本机播放队列与进度，并自动续播。',
+                    value: _autoPlayOnLaunch,
+                    onChanged: (value) async {
+                      setState(() => _autoPlayOnLaunch = value);
+                      await LocalStorage.setAutoPlayOnLaunch(value);
+                    },
                   ),
                   EchoSettingRow(
                     icon: AppIcons.lyrics,

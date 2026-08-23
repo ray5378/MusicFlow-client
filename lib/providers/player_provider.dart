@@ -143,6 +143,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Completer<void>? _fadeCompleter;
   static const Duration _playbackSessionPersistInterval = Duration(seconds: 2);
   Timer? _playbackSessionPersistTimer;
+  Timer? _volumePersistTimer;
   bool _isPersistingPlaybackSession = false;
   bool _isRestoringPlaybackSession = false;
   NetworkType _lastObservedNetworkType = NetworkType.none;
@@ -2128,24 +2129,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// 设置本机播放音量（0.0~1.0，对齐主项目前端 setVolume）。
-  /// 立即作用于 just_audio 并持久化，供下次启动恢复。
+  /// 立即作用于 just_audio，持久化改为**延迟批量**写入（防抖），
+  /// 避免滑杆松手时同步 IO / 平台通道写入阻塞 UI（Windows 上会假死数秒）。
+  /// 会话周期（_persistPlaybackSession）也会顺带落盘音量，双保险兜底。
   Future<void> setVolume(double volume) async {
     final clamped = volume.clamp(0.0, 1.0).toDouble();
     if (mounted) {
       state = state.copyWith(volume: clamped);
     }
     _audioPlayer?.setVolume(clamped);
-    // await 落盘：确保滑块松手后写入真实完成（而不是 fire-and-forget），
-    // 避免用户紧接着退出客户端时写入还在半途被进程终止丢弃。
-    try {
-      await LocalStorage.setPlayerVolume(clamped);
-    } catch (e) {
-      Logger.warnWithTag(
-        _playerLogTag,
-        'failed to persist player volume: $clamped',
-        e,
-      );
-    }
+    _schedulePersistVolume();
+  }
+
+  /// 音量持久化防抖：松手后 1s 内没有新的调整才真正落盘。
+  void _schedulePersistVolume() {
+    _volumePersistTimer?.cancel();
+    _volumePersistTimer = Timer(const Duration(seconds: 1), () async {
+      _volumePersistTimer = null;
+      try {
+        await LocalStorage.setPlayerVolume(state.volume);
+      } catch (e) {
+        Logger.warnWithTag(
+          _playerLogTag,
+          'failed to persist player volume: ${state.volume}',
+          e,
+        );
+      }
+    });
   }
 
   /// 拖动音量滑块时的实时跟随：只改状态与播放器音量，**不落盘**。
@@ -2770,8 +2780,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (restoredPosition > Duration.zero) {
         await seek(restoredPosition);
       }
-      // 安全策略：恢复会话后始终暂停，避免未确认自动播放出声。
-      await pause();
+      // 恢复策略：默认安全暂停，避免未确认自动播放出声；
+      // 仅当用户在设置开启「打开时自动播放」且上次在播时才续播。
+      final autoResume = wasPlaying && await LocalStorage.getAutoPlayOnLaunch();
+      if (!autoResume) {
+        await pause();
+      }
 
       Logger.infoWithTag(_playerLogTag, 'playback session restored');
       restored = true;
@@ -4006,6 +4020,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   @override
   void dispose() {
     _playbackSessionPersistTimer?.cancel();
+    _volumePersistTimer?.cancel();
     unawaited(_persistPlaybackSession());
     _positionPollTimer?.cancel();
     _cancelFade();

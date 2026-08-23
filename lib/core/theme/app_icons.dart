@@ -14,6 +14,7 @@ abstract final class AppIcons {
   static const chevronRight = Remix.arrow_right_s_line;
   static const chevronDown = Remix.arrow_down_s_line;
   static const chevronUp = Remix.arrow_up_s_line;
+  static const chevronLeft = Remix.arrow_left_s_line;
 
   // App destinations and global actions.
   static const home = Remix.home_8_line;
