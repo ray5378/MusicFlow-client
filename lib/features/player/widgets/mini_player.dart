@@ -718,6 +718,9 @@ class _VolumeButton extends ConsumerStatefulWidget {
 class _VolumeButtonState extends ConsumerState<_VolumeButton> {
   OverlayEntry? _overlayEntry;
 
+  /// 拖动中的临时音量（0.0~1.0）。拖动期间优先显示它，松手后置空。
+  double? _dragValue;
+
   /// 当前控制目标音量（0.0~1.0）：投屏取 peer status.volume(0-100)，
   /// 本机取 playerState.volume。peer 未回报音量时回退本机音量。
   double _effectiveVolume() {
@@ -728,18 +731,32 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
     return ref.watch(playerProvider.select((s) => s.volume));
   }
 
-  void _applyVolume(double v) {
+  /// 拖动中：只更新显示 + 本机实时音量，不落盘、不发网络请求。
+  /// 否则每个 onChanged 都写 SharedPreferences / POST 投屏接口，
+  /// 导致滑块不丝滑、整个窗口假死。
+  void _onSliderChanged(double v) {
     final clamped = v.clamp(0.0, 1.0).toDouble();
+    setState(() => _dragValue = clamped);
+    final cast = ref.read(castPeerControllerProvider);
+    if (cast.activePeer == null) {
+      // 本机：实时跟手（just_audio setVolume 无 IO，开销极小）
+      ref.read(playerProvider.notifier).setVolumeLive(clamped);
+    }
+    // 投屏：拖动期间不发请求，松手统一提交。
+  }
+
+  /// 松手：提交并持久化（本机落盘 / 投屏发后端命令）。
+  void _onSliderCommit(double v) {
+    final clamped = v.clamp(0.0, 1.0).toDouble();
+    setState(() => _dragValue = null);
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer != null) {
-      // 投屏：命令后端控制设备音量
       unawaited(
         ref
             .read(castPeerControllerProvider.notifier)
             .setVolume((clamped * 100).round()),
       );
     } else {
-      // 本机：just_audio 音量 + 持久化
       unawaited(ref.read(playerProvider.notifier).setVolume(clamped));
     }
   }
@@ -765,14 +782,18 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
               child: Consumer(
                 builder: (context, ref, _) {
                   final cast = ref.watch(castPeerControllerProvider);
-                  final double volume;
+                  final double sourceVolume;
                   if (cast.activePeer != null &&
                       cast.status.volume != null) {
-                    volume =
-                        (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
+                    sourceVolume = (cast.status.volume! / 100)
+                        .clamp(0.0, 1.0)
+                        .toDouble();
                   } else {
-                    volume = ref.watch(playerProvider.select((s) => s.volume));
+                    sourceVolume =
+                        ref.watch(playerProvider.select((s) => s.volume));
                   }
+                  // 拖动中显示拖动值，否则显示真实值。
+                  final volume = _dragValue ?? sourceVolume;
                   final percent = (volume * 100).round();
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -795,8 +816,8 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
                           quarterTurns: -1,
                           child: Slider(
                             value: volume,
-                            onChangeEnd: _applyVolume,
-                            onChanged: _applyVolume,
+                            onChanged: _onSliderChanged,
+                            onChangeEnd: _onSliderCommit,
                           ),
                         ),
                       ),
@@ -825,7 +846,7 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
 
   @override
   Widget build(BuildContext context) {
-    final volume = _effectiveVolume();
+    final volume = _dragValue ?? _effectiveVolume();
     final percent = (volume * 100).round();
     return EchoIconButton(
       icon: AppIcons.speaker,

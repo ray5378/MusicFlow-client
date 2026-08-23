@@ -87,8 +87,8 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
             }
             return repository.getAlbumsPage(1, 12, query: _searchQuery);
           },
-          itemExtent: 180,
-          itemBuilder: (context, album) => _buildTile(0, album),
+          grid: true,
+          itemBuilder: (context, album, _) => _buildTile(0, album),
           emptyText: '本地库无匹配专辑',
         ),
       );

@@ -101,10 +101,10 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
             widget.builder(context, _controller),
             if (_canLeft)
               Positioned(
-                left: 0,
+                left: 6,
                 top: 0,
                 bottom: 0,
-                width: 48,
+                width: 44,
                 child: FadeTransition(
                   opacity: _fade,
                   child: GestureDetector(
@@ -119,10 +119,10 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
               ),
             if (_canRight)
               Positioned(
-                right: 0,
+                right: 6,
                 top: 0,
                 bottom: 0,
-                width: 48,
+                width: 44,
                 child: FadeTransition(
                   opacity: _fade,
                   child: GestureDetector(
@@ -190,27 +190,53 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
   }
 }
 
-class _ArrowBtn extends StatelessWidget {
+/// 箭头按钮：半透明黑色圆形，鼠标悬停时高亮（底色加深、图标变亮）。
+class _ArrowBtn extends StatefulWidget {
   const _ArrowBtn({required this.icon});
   final IconData icon;
 
   @override
+  State<_ArrowBtn> createState() => _ArrowBtnState();
+}
+
+class _ArrowBtnState extends State<_ArrowBtn> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: context.echoColors.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: context.echoColors.divider),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: context.echoColors.ink.withAlpha(25),
-            blurRadius: 4,
-          ),
-        ],
+    // 半透明黑底 + 白色图标；悬停时加深并轻微放大，达到高亮效果。
+    final background = _hovered
+        ? Colors.black.withAlpha(170)
+        : Colors.black.withAlpha(110);
+    final iconColor = _hovered
+        ? Colors.white
+        : Colors.white.withAlpha(235);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 32,
+        height: 32,
+        transform: Matrix4.diagonal3Values(
+          _hovered ? 1.12 : 1.0,
+          _hovered ? 1.12 : 1.0,
+          1.0,
+        ),
+        transformAlignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: background,
+          shape: BoxShape.circle,
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withAlpha(50),
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: Icon(widget.icon, size: 20, color: iconColor),
       ),
-      child: Icon(icon, size: 18, color: context.echoColors.ink),
     );
   }
 }

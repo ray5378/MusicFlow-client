@@ -86,9 +86,9 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
             }
             return repository.getPlaylistsPage(1, 12, query: _searchQuery);
           },
-          itemExtent: 152,
-          itemBuilder: (context, playlist) => DiscoverPlaylistCard(
-            width: 152,
+          grid: true,
+          itemBuilder: (context, playlist, width) => DiscoverPlaylistCard(
+            width: width,
             title: playlist.name,
             subtitle: '${playlist.songCount} 首',
             coverArtId: playlist.coverArt,

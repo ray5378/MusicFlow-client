@@ -2137,6 +2137,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
   }
 
+  /// 拖动音量滑块时的实时跟随：只改状态与播放器音量，**不落盘**。
+  /// 避免每次 onChanged 都写 SharedPreferences 造成卡顿/窗口假死；
+  /// 松手时由 [setVolume] 统一持久化。
+  void setVolumeLive(double volume) {
+    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    if (mounted) {
+      state = state.copyWith(volume: clamped);
+    }
+    _audioPlayer?.setVolume(clamped);
+  }
+
   /// 启动时恢复本机音量（默认 0.8）。
   Future<void> _restorePlayerVolume() async {
     try {

@@ -82,8 +82,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
             }
             return repository.getArtistsPage(1, 12, query: _searchQuery);
           },
-          horizontal: false,
-          itemBuilder: (context, artist) => EchoArtistRow(
+          itemBuilder: (context, artist, _) => EchoArtistRow(
             key: ValueKey('local-artist-${artist.id}'),
             artist: artist,
             contentPadding: EdgeInsetsDirectional.fromSTEB(

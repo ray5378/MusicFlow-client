@@ -896,12 +896,26 @@ class DiscoverPlaylistTile extends StatelessWidget {
             children: <Widget>[
               SizedBox.square(
                 dimension: context.echoInteraction.minimumTouchTarget,
-                child: Center(
-                  child: Icon(
-                    AppIcons.playlist,
-                    size: 24,
-                    color: context.echoColors.accent,
-                  ),
+                child: ClipRRect(
+                  borderRadius: context.echoRadii.control,
+                  // 与其它库一致使用 CoverArtImage 封面加载规范：
+                  // coverArt 非空(如 pl-<id>)显示封面，否则回退歌单图标。
+                  child: playlist.coverArt != null &&
+                          playlist.coverArt!.isNotEmpty
+                      ? CoverArtImage(
+                          coverArtId: playlist.coverArt,
+                          size: context.echoInteraction.minimumTouchTarget,
+                          requestSize: 160,
+                          fit: BoxFit.cover,
+                          semanticLabel: '${playlist.name} 封面',
+                        )
+                      : Center(
+                          child: Icon(
+                            AppIcons.playlist,
+                            size: 24,
+                            color: context.echoColors.accent,
+                          ),
+                        ),
                 ),
               ),
               SizedBox(width: context.echoSpacing.sm),

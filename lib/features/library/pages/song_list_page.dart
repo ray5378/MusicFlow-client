@@ -139,8 +139,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             }
             return repository.getSongsPage(1, 12, query: _searchQuery);
           },
-          horizontal: false,
-          itemBuilder: (context, song) => _buildRow(0, song),
+          itemBuilder: (context, song, _) => _buildRow(0, song),
           emptyText: '本地库无匹配歌曲',
         ),
       );

@@ -111,24 +111,25 @@ class AggregateSearchResults extends ConsumerWidget {
 }
 
 /// 「本地结果」块：按关键词拉取本地库匹配项。
-/// [horizontal] 为 true 时渲染横向卡片行（专辑/歌手/歌单），
-/// 否则渲染纵向行（歌曲）。
+/// [grid] 为 true 时渲染卡片网格（对齐全网结果的卡片网格，专辑/歌单）；
+/// 为 false 时渲染纵向行（歌曲/歌手）。
 class AggregateLocalBlock<T> extends StatelessWidget {
   const AggregateLocalBlock({
     super.key,
     required this.fetcher,
     required this.itemBuilder,
     required this.emptyText,
-    this.horizontal = true,
-    this.itemExtent = 152,
+    this.grid = false,
     this.limit = 12,
   });
 
   final Future<({List<T> items, int total})> Function() fetcher;
-  final Widget Function(BuildContext context, T item) itemBuilder;
+
+  /// 构建本地匹配项；[width] 为网格单元宽度（非网格布局时传 0，忽略）。
+  final Widget Function(BuildContext context, T item, double width)
+      itemBuilder;
   final String emptyText;
-  final bool horizontal;
-  final double itemExtent;
+  final bool grid;
   final int limit;
 
   @override
@@ -160,27 +161,37 @@ class AggregateLocalBlock<T> extends StatelessWidget {
           );
         }
         final shown = items.take(limit).toList();
-        if (!horizontal) {
+        if (!grid) {
           return Column(
             children: <Widget>[
-              for (final item in shown) itemBuilder(context, item),
+              for (final item in shown) itemBuilder(context, item, 0),
             ],
           );
         }
-        return SizedBox(
-          height: 168,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: context.echoPageHorizontalPadding,
-            ),
-            itemCount: shown.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) => SizedBox(
-              width: itemExtent,
-              child: itemBuilder(context, shown[index]),
-            ),
-          ),
+        // 卡片网格：与全网结果的网格观感一致（宽屏 3 列，窄屏 2 列）。
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final gap = context.echoSpacing.sm;
+            final columns = constraints.maxWidth >= 900 ? 3 : 2;
+            final itemWidth =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            return Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: context.echoPageHorizontalPadding,
+              ),
+              child: Wrap(
+                spacing: gap,
+                runSpacing: context.echoSpacing.sm,
+                children: <Widget>[
+                  for (final item in shown)
+                    SizedBox(
+                      width: itemWidth,
+                      child: itemBuilder(context, item, itemWidth),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
