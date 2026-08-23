@@ -555,7 +555,8 @@ class FixedRecommendSection extends ConsumerWidget {
                     : null,
               );
             }
-            // 固定卡 + 随机歌单合并为等大卡片网格（对齐主项目 top-row）。
+            // 固定卡 + 随机歌单合并为横向卡片行，样式与「平台推荐」完全一致：
+            // 152 宽封面、playlistRailHeight 行高、HoverableHorizontalScroll 左右滑动。
             final cards = <({String id, String name, String coverArt, int songCount, String playlistId})>[
               for (final c in section.fixed)
                 (
@@ -574,49 +575,42 @@ class FixedRecommendSection extends ConsumerWidget {
                   playlistId: p.id,
                 ),
             ];
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final gap = context.echoSpacing.sm;
-                final columns = constraints.maxWidth >= 1200
-                    ? 4
-                    : (constraints.maxWidth >= 760 ? 3 : 2);
-                final itemWidth =
-                    (constraints.maxWidth - gap * (columns - 1)) / columns;
-                return Padding(
+            return HoverableHorizontalScroll(
+              builder: (context, controller) => SizedBox(
+                height: playlistRailHeight(context),
+                child: ListView.separated(
+                  controller: controller,
+                  scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(
                     horizontal: context.echoPageHorizontalPadding,
                   ),
-                  child: Wrap(
-                    spacing: gap,
-                    runSpacing: context.echoSpacing.sm,
-                    children: <Widget>[
-                      for (final card in cards)
-                        SizedBox(
-                          width: itemWidth,
-                          child: DiscoverPlaylistCard(
-                            width: itemWidth,
-                            title: card.name,
-                            subtitle: '${card.songCount} 首',
-                            coverArtId: card.coverArt,
-                            onPressed: () {
-                              Navigator.of(context).push<void>(
-                                EchoPageRoute<void>(
-                                  context: context,
-                                  builder: (context) => PlaylistDetailPage(
-                                    playlistId: card.playlistId,
-                                    initialName: card.name,
-                                    initialSongCount: card.songCount,
-                                    initialCoverArt: card.coverArt,
-                                  ),
-                                ),
-                              );
-                            },
+                  itemCount: cards.length,
+                  separatorBuilder: (context, index) =>
+                      SizedBox(width: context.echoSpacing.sm),
+                  itemBuilder: (context, index) {
+                    final card = cards[index];
+                    return DiscoverPlaylistCard(
+                      width: _playlistCardWidth,
+                      title: card.name,
+                      subtitle: '${card.songCount} 首',
+                      coverArtId: card.coverArt,
+                      onPressed: () {
+                        Navigator.of(context).push<void>(
+                          EchoPageRoute<void>(
+                            context: context,
+                            builder: (context) => PlaylistDetailPage(
+                              playlistId: card.playlistId,
+                              initialName: card.name,
+                              initialSongCount: card.songCount,
+                              initialCoverArt: card.coverArt,
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             );
           },
           loading: () => SizedBox(
