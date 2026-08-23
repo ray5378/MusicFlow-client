@@ -3,6 +3,7 @@ name: Build Client
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -97,6 +98,7 @@ jobs:
 
   publish-release:
     name: Publish Release
+    if: startsWith(github.ref, 'refs/heads/main')
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
     steps:
@@ -129,6 +131,61 @@ jobs:
             自动构建的 release 版本。
             提交: ${{ github.sha }}
             工作流运行: #${{ github.run_number }}
+
+            - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
+            - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
+          files: |
+            MusicFlow-${{ github.run_number }}-android.apk
+            MusicFlow-${{ github.run_number }}-windows.zip
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-versioned:
+    name: Publish Versioned Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: musicflow-android
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: musicflow-windows
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "MusicFlow Client ${{ steps.version.outputs.tag }}"
+          body: |
+            ## MusicFlow Client ${{ steps.version.outputs.tag }}
+
+            ### 新功能
+            - 播放失败自动跳过(连续5次上限)
+            - 预探测接下来3首歌曲可用性
+            - dead songs 播放前自动跳过
+            - Windows 系统托盘(关闭按钮最小化到托盘)
+
+            ### 修复
+            - 修复定时重渲染(health check级联刷新)
+            - CoverArtImage/palette_provider 多余watch
+            - mini_player 桌面全控+编译错误
+            - HoverableHorizontalScroll 横向悬停箭头
+
+            ### 构建信息
+            提交: ${{ github.sha }}
 
             - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
             - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
