@@ -1019,7 +1019,8 @@ class _MiniPlayerScrubBubble extends StatelessWidget {
 
 /// 「切换播放器」底部弹层 —— 对齐主项目前端「选择播放器」。
 /// 数据源为主项目后端 GET /rest/api/v1/peers(本机 + DLNA/AirPlay/群组);
-/// 选中远端 peer 即把当前队列交给**后端投流**,客户端仅保留控制与状态轮询。
+/// 选中远端 peer = 纯 UI 控制目标切换(对齐前端 switchPeer):不推队列/不投屏,
+/// 此后点歌/专辑/歌单由后端在设备播放,客户端是后端的远程遥控器。
 class PlayerSwitcherSheet extends ConsumerStatefulWidget {
   const PlayerSwitcherSheet({super.key});
 
@@ -1053,9 +1054,6 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
   Widget build(BuildContext context) {
     final cast = ref.watch(castPeerControllerProvider);
     final controller = ref.read(castPeerControllerProvider.notifier);
-    final hasSong = ref.watch(
-      playerProvider.select((state) => state.currentSong != null),
-    );
     final peers = _peers;
     final remotePeers = (peers ?? const <PeerInfo>[])
         .where((p) => !p.isLocal)
@@ -1081,8 +1079,9 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                     : '使用此设备扬声器',
                 selected: cast.activePeer == null,
                 onPressed: () async {
-                  // 回本机=仅切换控制目标(远端继续播,对齐前端 switchPeer)。
-                  await controller.backToLocal();
+                  // 回本机=仅切换控制目标(远端继续播,对齐前端 switchPeer);
+                  // 用户主动选「本机播放」,快照当时在播则续播本机。
+                  await controller.backToLocal(resumeLocal: true);
                   if (context.mounted) Navigator.of(context).pop();
                 },
               ),
@@ -1114,14 +1113,6 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                     selected: cast.activePeer?.peerId == peer.peerId,
                     onPressed: () async {
                             final navigator = Navigator.of(context);
-                            if (!hasSong) {
-                              showEchoMessage(
-                                context,
-                                '请先播放一首歌曲后再切换播放器',
-                                kind: EchoMessageKind.warning,
-                              );
-                              return;
-                            }
                             final ok = await controller.switchTo(peer);
                             if (!ok && context.mounted) {
                               showEchoMessage(

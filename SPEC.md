@@ -138,7 +138,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 客户端维护两个独立状态机，由 `currentPeerId` 决定 UI 显示/控制目标：
 
-- **本机（`local:<uid>`）**：`player_provider` + just_audio 本地播放；队列元数据经 `POST /peers/register` + `/queue/play`、`/queue/index` 同步给后端（后端只存元数据，不播）。
+- **本机（`local:<uid>`）**：`player_provider` + just_audio 本地播放；客户端仅 `POST /peers/register` + 30s heartbeat 保活本机 peer（对齐主项目 registerLocalPeer/startHeartbeat）；本机队列/播放**不推送后端**（本地自治），切回本机经本地状态快照恢复（§3.5）。
 - **远端（`dlna:<id>` / `group:<id>` / `airplay:<id>`）**：后端 `QueueController` 向设备投流（`Stop → SetAVTransportURI(/rest/dlna/stream/:token) → waitForCanPlay → Play`）；客户端只做控制 + 状态轮询（`cast_peer_provider`）。
 
 ```
@@ -378,12 +378,12 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 模块 | 测试文件 | 重点 |
 |------|----------|------|
 | 投屏控制 | `test/providers/cast_peer_provider_test.dart` | peers 列表/切换/轮询/回本机/待办项（§3.5） |
-| 播放队列 | `test/providers/player_provider_test.dart` | 队列、切歌、播放模式、投屏互斥 |
+| 播放队列/进度 | `test/providers/player_seek_policy_test.dart`、`test/providers/preview_playback_queue_test.dart` | 队列、切歌、播放模式、seek 策略 |
 | 数据源 | `test/data/sources/subsonic_api_client_test.dart` | 鉴权注入、响应解析、错误处理 |
-| 数据源 | `test/data/sources/music_repository_test.dart` | 分页解析、窗口化切片 |
+| 仓库 | `test/data/repositories/music_repository_test.dart` | 分页解析、窗口化切片 |
 | 模型 | `test/data/models/*_test.dart` | Freezed 序列化、`songToQueueItem` 形状 |
-| 工具 | `test/utils/*_test.dart` | 时间/字符串/列表工具 |
-| 列表 | `test/features/library/windowed_*_test.dart` | 窗口化预取/剪枝 |
+| 工具 | `test/core/utils/*_test.dart` | 时间/字符串/列表工具 |
+| 列表/页面 | `test/features/library/*_test.dart` | 页面布局、歌词、组件（窗口化列表专项测试待补） |
 
 > 旧 SPEC 所列 `test/dlna/*`、`test/data/subsonic_api_test.dart`、`test/providers/queue_test.dart` 与仓库不符，已按实际替换。**新增/修改逻辑必须附测试。**
 
