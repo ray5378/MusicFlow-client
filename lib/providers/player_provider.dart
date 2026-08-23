@@ -2126,15 +2126,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(volume: clamped);
     }
     _audioPlayer?.setVolume(clamped);
-    unawaited(
-      LocalStorage.setPlayerVolume(clamped).catchError((Object e) {
-        Logger.warnWithTag(
-          _playerLogTag,
-          'failed to persist player volume: $clamped',
-          e,
-        );
-      }),
-    );
+    // await 落盘：确保滑块松手后写入真实完成（而不是 fire-and-forget），
+    // 避免用户紧接着退出客户端时写入还在半途被进程终止丢弃。
+    try {
+      await LocalStorage.setPlayerVolume(clamped);
+    } catch (Object e) {
+      Logger.warnWithTag(
+        _playerLogTag,
+        'failed to persist player volume: $clamped',
+        e,
+      );
+    }
   }
 
   /// 拖动音量滑块时的实时跟随：只改状态与播放器音量，**不落盘**。
@@ -2658,6 +2660,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
       await LocalStorage.savePlaybackSession(payload);
+      // 顺带持久化音量：随会话周期反复落盘，即使滑块松手那次写入丢失，
+      // 下次周期也会补上，避免「直接退出客户端后音量回到 100%」。
+      await LocalStorage.setPlayerVolume(state.volume);
     } catch (e) {
       Logger.warnWithTag(
         _playerLogTag,

@@ -27,9 +27,11 @@ import 'search_page.dart';
 const double _playlistCardWidth = 152;
 
 /// 歌单卡片行高度:随文本缩放自适应,避免大字号下溢出。
+/// 需容纳:封面(152) + 标题最多 2 行 + 「N 首」副标题 ——
+/// 固定余量从 56 提到 70,保证标题换行时数量行不被挤出可视区。
 double playlistRailHeight(BuildContext context) {
   final scale = MediaQuery.textScalerOf(context).scale(1);
-  return _playlistCardWidth + 56 + ((scale - 1) * 44).clamp(0.0, 64.0);
+  return _playlistCardWidth + 70 + ((scale - 1) * 48).clamp(0.0, 72.0);
 }
 
 /// 音乐流首页 - Tab 1

@@ -721,6 +721,9 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
   /// 拖动中的临时音量（0.0~1.0）。拖动期间优先显示它，松手后置空。
   double? _dragValue;
 
+  /// 投屏端节流发送时间戳：拖动时 ≤10 次/秒，避免刷爆网络。
+  DateTime? _lastCastVolumeSend;
+
   /// 当前控制目标音量（0.0~1.0）：投屏取 peer status.volume(0-100)，
   /// 本机取 playerState.volume。peer 未回报音量时回退本机音量。
   double _effectiveVolume() {
@@ -731,24 +734,35 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
     return ref.watch(playerProvider.select((s) => s.volume));
   }
 
-  /// 拖动中：只更新显示 + 本机实时音量，不落盘、不发网络请求。
-  /// 否则每个 onChanged 都写 SharedPreferences / POST 投屏接口，
-  /// 导致滑块不丝滑、整个窗口假死。
+  /// 拖动中：按「切换播放器」所选目标**只写一路**——
+  /// 本机 → setVolumeLive（just_audio 实时跟手，零 IO）；
+  /// 投屏 → 节流 POST 到所选播放器（≤10 次/秒，不刷爆网络）。
   void _onSliderChanged(double v) {
     final clamped = v.clamp(0.0, 1.0).toDouble();
     setState(() => _dragValue = clamped);
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer == null) {
-      // 本机：实时跟手（just_audio setVolume 无 IO，开销极小）
       ref.read(playerProvider.notifier).setVolumeLive(clamped);
+      return;
     }
-    // 投屏：拖动期间不发请求，松手统一提交。
+    // 投屏：只写所选播放器，节流发送保持跟手。
+    final now = DateTime.now();
+    if (_lastCastVolumeSend == null ||
+        now.difference(_lastCastVolumeSend!).inMilliseconds >= 100) {
+      _lastCastVolumeSend = now;
+      unawaited(
+        ref
+            .read(castPeerControllerProvider.notifier)
+            .setVolume((clamped * 100).round()),
+      );
+    }
   }
 
-  /// 松手：提交并持久化（本机落盘 / 投屏发后端命令）。
+  /// 松手：按所选播放器提交（本机落盘 / 投屏发最终值）。
   void _onSliderCommit(double v) {
     final clamped = v.clamp(0.0, 1.0).toDouble();
     setState(() => _dragValue = null);
+    _lastCastVolumeSend = null;
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer != null) {
       unawaited(
