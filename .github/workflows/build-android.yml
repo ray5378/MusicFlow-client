@@ -151,11 +151,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: musicflow-android
+          path: artifacts
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: musicflow-windows
+          path: artifacts
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -163,6 +165,9 @@ jobs:
       - name: Get version from tag
         id: version
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: List artifacts
+        run: ls -la artifacts/
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -190,8 +195,8 @@ jobs:
             - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
             - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
           files: |
-            MusicFlow-${{ github.run_number }}-android.apk
-            MusicFlow-${{ github.run_number }}-windows.zip
+            artifacts/MusicFlow-${{ github.run_number }}-android.apk
+            artifacts/MusicFlow-${{ github.run_number }}-windows.zip
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
