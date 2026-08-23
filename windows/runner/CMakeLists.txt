@@ -20,6 +20,13 @@ add_executable(${BINARY_NAME} WIN32
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
 
+# Source files are UTF-8. Without /utf-8, MSVC reads them as the system
+# codepage (GBK on zh-CN), so Chinese wide string literals (e.g. tray menu
+# labels in main.cpp) get mis-decoded and display as mojibake.
+if(MSVC)
+  target_compile_options(${BINARY_NAME} PRIVATE "/utf-8")
+endif()
+
 # Add preprocessor definitions for the build version.
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION=\"${FLUTTER_VERSION}\"")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MAJOR=${FLUTTER_VERSION_MAJOR}")

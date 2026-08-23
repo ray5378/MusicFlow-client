@@ -2141,7 +2141,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _restorePlayerVolume() async {
     try {
       final saved = await LocalStorage.getPlayerVolume();
-      if (!mounted) return;
+      // 不能加 `if (!mounted) return;`：桌面端 SharedPreferences 读取极快，
+      // 常在第一个 widget 订阅前就完成，此时 mounted=false 会导致音量永远
+      // 停在默认 1.0（每次重开都是 100%）。StateNotifier 在无监听者时赋值
+      // 同样安全，后续监听者会拿到最新 state。
       state = state.copyWith(volume: saved);
       _audioPlayer?.setVolume(saved);
       Logger.infoWithTag(

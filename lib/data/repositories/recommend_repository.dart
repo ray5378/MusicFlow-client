@@ -45,6 +45,30 @@ class RecommendRepository {
     }
   }
 
+  /// 已入库的平台推荐歌单:经 /v1/online/:providerId/recommend/local
+  /// 按远程歌单 id 反查本地 library playlistId;未找到返回 null。
+  /// 用于「已入库的直接打开、未入库的才导入刷新」。
+  Future<String?> findImportedPlaylistId(
+    String providerId,
+    String remoteId,
+  ) async {
+    try {
+      final data = await _apiClient.getRaw(
+        '/rest/api/v1/online/$providerId/recommend/local',
+      );
+      final list = data['playlists'] as List? ?? [];
+      for (final e in list.whereType<Map>()) {
+        if ((e['_remoteId'] as String? ?? '') == remoteId) {
+          return e['id'] as String?;
+        }
+      }
+      return null;
+    } catch (e) {
+      Logger.error('Failed to find imported recommend playlist', e);
+      return null;
+    }
+  }
+
   /// 导入一个平台推荐歌单到本地库,返回真实 library playlistId。
   /// 与主项目一致:点推荐歌单即「导入(幂等 upsert)」,再以其 library id 播放。
   Future<String> importRecommendPlaylist(

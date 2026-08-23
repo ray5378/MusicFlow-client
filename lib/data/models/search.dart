@@ -87,7 +87,11 @@ class SearchSong {
       cover: json['cover'] as String? ?? '',
       suffix: json['suffix'] as String? ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: providerId ?? json['providerId'] as String? ?? '',
+      // 优先用仓库层传入的 providerId(单插件搜索时后端条目不带该字段)；
+      // 为空则回退条目自带的 providerId(聚合搜索时后端会给每条补 providerId)。
+      providerId: (providerId == null || providerId.isEmpty)
+          ? (json['providerId'] as String? ?? '')
+          : providerId,
       providerName: json['providerName'] as String? ?? '',
     );
   }
@@ -151,7 +155,11 @@ class SearchAlbum {
       year: json['year']?.toString() ?? '',
       link: json['link'] as String? ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: providerId ?? json['providerId'] as String? ?? '',
+      // 优先用仓库层传入的 providerId(单插件搜索时后端条目不带该字段)；
+      // 为空则回退条目自带的 providerId(聚合搜索时后端会给每条补 providerId)。
+      providerId: (providerId == null || providerId.isEmpty)
+          ? (json['providerId'] as String? ?? '')
+          : providerId,
       providerName: json['providerName'] as String? ?? '',
     );
   }
@@ -198,7 +206,11 @@ class SearchArtist {
       albumCount: json['albumCount']?.toString() ?? '',
       songCount: json['songCount']?.toString() ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: providerId ?? json['providerId'] as String? ?? '',
+      // 优先用仓库层传入的 providerId(单插件搜索时后端条目不带该字段)；
+      // 为空则回退条目自带的 providerId(聚合搜索时后端会给每条补 providerId)。
+      providerId: (providerId == null || providerId.isEmpty)
+          ? (json['providerId'] as String? ?? '')
+          : providerId,
       providerName: json['providerName'] as String? ?? '',
     );
   }
@@ -247,7 +259,11 @@ class SearchPlaylist {
       trackCount: json['trackCount']?.toString() ?? '',
       link: json['link'] as String? ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: providerId ?? json['providerId'] as String? ?? '',
+      // 优先用仓库层传入的 providerId(单插件搜索时后端条目不带该字段)；
+      // 为空则回退条目自带的 providerId(聚合搜索时后端会给每条补 providerId)。
+      providerId: (providerId == null || providerId.isEmpty)
+          ? (json['providerId'] as String? ?? '')
+          : providerId,
       providerName: json['providerName'] as String? ?? '',
       imported: json['imported'] as bool? ?? false,
     );

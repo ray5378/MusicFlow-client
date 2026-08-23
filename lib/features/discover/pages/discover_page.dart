@@ -617,8 +617,11 @@ class FixedRecommendSection extends ConsumerWidget {
   }
 }
 
-/// 打开平台推荐歌单:与主项目一致,先经 /v1/online/:providerId/recommend/import
-/// 导入(幂等 upsert)拿到真实 library playlistId,再以本地歌单打开播放。
+/// 打开平台推荐歌单。
+/// - **已入库**的歌单（recommend 数据带 imported 标记）：直接经
+///   /recommend/local 反查本地 playlistId 打开，**不再重新导入刷新**；
+/// - **未入库**的歌单：与主项目一致，先经 /v1/online/:providerId/recommend/import
+///   导入（幂等 upsert）拿到真实 library playlistId，再以本地歌单打开播放。
 Future<void> _openRecommendPlaylist(
   BuildContext context,
   WidgetRef ref,
@@ -631,10 +634,35 @@ Future<void> _openRecommendPlaylist(
     );
     return;
   }
+  final repo = ref.read(recommendRepositoryProvider);
+  if (repo == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('未连接到音乐库')),
+    );
+    return;
+  }
+
+  // 已入库：直接打开本地歌单，跳过导入刷新。
+  if (pl.imported) {
+    try {
+      final localId = await repo.findImportedPlaylistId(providerId, pl.id);
+      if (localId != null && localId.isNotEmpty) {
+        if (!context.mounted) return;
+        Navigator.of(context).push<void>(
+          EchoPageRoute<void>(
+            context: context,
+            builder: (context) => PlaylistDetailPage(playlistId: localId),
+          ),
+        );
+        return;
+      }
+    } catch (_) {
+      // 反查失败则回退到导入流程（幂等，无副作用）。
+    }
+  }
+
   ref.read(recommendImportingProvider.notifier).state = pl.id;
   try {
-    final repo = ref.read(recommendRepositoryProvider);
-    if (repo == null) throw Exception('未连接到音乐库');
     final playlistId = await repo.importRecommendPlaylist(providerId, <String, dynamic>{
       'source': pl.source,
       'id': pl.id,
