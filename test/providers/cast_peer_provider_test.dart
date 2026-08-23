@@ -292,28 +292,58 @@ void main() {
       expect(controller.state.activePeer, isNull);
     });
 
-    test('remote without a playing song returns false', () async {
+    test('switchTo remote is a pure UI switch without pushing queue', () async {
+      // 无本机歌曲也允许纯 UI 切换(对齐前端 switchPeer):不推本地队列、不投屏。
+      when(() => client.getRaw(statusPath('dlna-1'))).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'STOPPED',
+          'position': 0,
+          'duration': 0,
+          'volume': 50,
+          'muted': false,
+        },
+      );
+      when(() => client.getRaw(queuePath('dlna-1'))).thenAnswer(
+        (_) async => <String, dynamic>{
+          'currentIndex': -1,
+          'total': 0,
+          'playMode': 'order',
+          'items': <Map<String, dynamic>>[],
+        },
+      );
+
       final ok = await controller.switchTo(dlnaPeer);
-      expect(ok, isFalse);
-      expect(controller.state.activePeer, isNull);
+      expect(ok, isTrue);
+      expect(controller.state.activePeer?.peerId, 'dlna-1');
+      // 纯 UI 切换:不推队列、不发 play-mode。
       verifyNever(
         () => client.postRaw('/rest/api/v1/peers/dlna-1/queue/play',
             data: any(named: 'data')),
       );
+      verifyNever(
+        () => client.postRaw('/rest/api/v1/peers/dlna-1/play-mode',
+            data: any(named: 'data')),
+      );
+      // 切换即开始轮询,拉取后端状态/队列镜像。
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      verify(() => client.getRaw(statusPath('dlna-1'))).called(1);
+      verify(() => client.getRaw(queuePath('dlna-1'))).called(1);
+      expect(controller.state.offline, isFalse);
     });
 
-    test('remote success pushes queue and starts control', () async {
+    test('switchTo remote mirrors backend queue and play mode via polling',
+        () async {
       await setupCasting();
       expect(controller.state.activePeer?.peerId, 'dlna-1');
-      verify(
+      // 纯 UI 切换不推队列;队列/播放模式由轮询从后端镜像。
+      verifyNever(
         () => client.postRaw('/rest/api/v1/peers/dlna-1/queue/play',
             data: any(named: 'data')),
-      ).called(1);
-      // 本地 repeatAll → play-mode 'all' 下发。
-      verify(
+      );
+      verifyNever(
         () => client.postRaw('/rest/api/v1/peers/dlna-1/play-mode',
-            data: <String, dynamic>{'mode': 'all'}),
-      ).called(1);
+            data: any(named: 'data')),
+      );
       // 轮询回写:后端权威队列/播放模式/离线标记。
       expect(controller.state.playMode, 'all');
       expect(controller.state.castIndex, 0);
@@ -322,23 +352,57 @@ void main() {
       expect(controller.state.offline, isFalse);
     });
 
-    test('remote failure keeps local playback (no dirty state)', () async {
+    test('leaving local saves snapshot + pauses; backToLocal restores it',
+        () async {
       playerNotifier.emit(
         PlayerState(
           currentSong: song,
           queue: <Song>[song],
           currentIndex: 0,
+          isPlaying: true,
+          position: const Duration(seconds: 10),
+          loopMode: LoopMode.all,
         ),
       );
-      when(
-        () => client.postRaw('/rest/api/v1/peers/dlna-1/queue/play',
-            data: any(named: 'data')),
-      ).thenAnswer((_) async => <String, dynamic>{'success': false});
+      when(() => client.getRaw(statusPath('dlna-1'))).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'PLAYING',
+          'position': 5,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+      when(() => client.getRaw(queuePath('dlna-1'))).thenAnswer(
+        (_) async => <String, dynamic>{
+          'currentIndex': 0,
+          'total': 1,
+          'playMode': 'all',
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'songId': 's1',
+              'title': '测试曲',
+              'artist': '歌手',
+              'albumId': 'al1',
+              'duration': 200,
+            },
+          ],
+        },
+      );
 
+      // 离开本机:先保存本地状态快照,再暂停本机(与远端播放互斥)。
       final ok = await controller.switchTo(dlnaPeer);
-      expect(ok, isFalse);
+      expect(ok, isTrue);
+      expect(controller.state.activePeer?.peerId, 'dlna-1');
+      expect(playerNotifier.state.isPlaying, isFalse);
+
+      // 回本机:恢复快照并可选续播(对齐 switchPeer 纯 UI 切换,远端继续播)。
+      await controller.backToLocal(resumeLocal: true);
       expect(controller.state.activePeer, isNull);
-      verifyNever(() => client.getRaw(any()));
+      expect(playerNotifier.state.isPlaying, isTrue);
+      expect(playerNotifier.state.currentSong?.id, 's1');
+      expect(playerNotifier.state.queue.length, 1);
+      expect(playerNotifier.state.currentIndex, 0);
     });
   });
 

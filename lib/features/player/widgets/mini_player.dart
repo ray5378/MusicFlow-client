@@ -31,7 +31,6 @@ class MiniPlayer extends ConsumerWidget {
     final isCasting = cast.activePeer != null;
 
     final currentSong = player.currentSong;
-    if (currentSong == null) return const SizedBox.shrink();
 
     // 投屏(切换播放器)激活时,迷你条反映后端 peer 的实时状态:
     // 曲目经队列 currentIndex 回写同步,进度/播放态取自 /peers/:id/status。
@@ -311,8 +310,6 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
   @override
   Widget build(BuildContext context) {
     final currentSong = _playerState.currentSong;
-    if (currentSong == null) return const SizedBox.shrink();
-
     final song = currentSong;
     final visuals =
         widget.mediaVisuals ??
@@ -328,14 +325,15 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
           final textScale = MediaQuery.textScalerOf(context).scale(1);
           final showSubtitle = textScale <= 1.4;
           final semanticState = _playerState.isPlaying ? '正在播放' : '已暂停';
-          final semanticSubtitle = song.artist?.trim().isNotEmpty == true
-              ? '，${song.artist!.trim()}'
+          final songTitle = song?.title ?? '未在播放';
+          final semanticSubtitle = song?.artist?.trim().isNotEmpty == true
+              ? '，${song!.artist!.trim()}'
               : '';
 
           return Semantics(
             container: true,
             explicitChildNodes: true,
-            label: '迷你播放器，${song.title}$semanticSubtitle',
+            label: '迷你播放器，$songTitle$semanticSubtitle',
             value: semanticState,
             onTap: widget.onOpenPlayer,
             child: GestureDetector(
@@ -603,13 +601,19 @@ class _MiniPlayerTrack extends StatelessWidget {
     this.lyricLine,
   });
 
-  final Song song;
+  final Song? song;
   final bool useHero;
   final bool showSubtitle;
   final String? lyricLine;
 
   @override
   Widget build(BuildContext context) {
+    final song = this.song;
+    // 未播放时展示占位轨迹(对齐主项目前端「未在播放 / 选择一首歌曲开始播放」),
+    // 迷你条保持常驻显示,不随播放状态隐藏。
+    if (song == null) {
+      return _MiniPlayerEmptyTrack(showSubtitle: showSubtitle);
+    }
     final artist = song.artist?.trim() ?? '';
     final album = song.album?.trim() ?? '';
     // 歌名 - 歌手 同一行（无歌手回退专辑名），歌词另起一行。
@@ -650,6 +654,57 @@ class _MiniPlayerTrack extends StatelessWidget {
               // 当前歌词行：黄色高亮显示（对齐主项目前端歌词配色）。
               if (lyric != null)
                 _MiniPlayerLyric(text: lyric),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniPlayerEmptyTrack extends StatelessWidget {
+  const _MiniPlayerEmptyTrack({required this.showSubtitle});
+
+  final bool showSubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: context.echoColors.surface,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            AppIcons.music,
+            size: 24,
+            color: context.echoColors.muted,
+          ),
+        ),
+        SizedBox(width: context.echoSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                '未在播放',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.echoTypography.title,
+              ),
+              if (showSubtitle)
+                Text(
+                  '选择一首歌曲开始播放',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.echoTypography.metadata.copyWith(
+                    color: context.echoColors.muted,
+                  ),
+                ),
             ],
           ),
         ),

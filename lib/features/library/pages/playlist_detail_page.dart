@@ -11,6 +11,7 @@ import '../../../data/sources/subsonic_api_client.dart';
 import '../../../providers/api_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/download_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/metadata_cache_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -200,9 +201,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                           songs: songs,
                           onPlay: songs.isEmpty
                               ? null
-                              : () => ref
-                                    .read(playerProvider.notifier)
-                                    .playQueue(songs),
+                              : () => playEffectiveQueue(ref, songs),
                         ),
                       ),
                       if (loadFailed)
@@ -268,9 +267,11 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                                 playlist,
                                 entry.originalIndex,
                               ),
-                              onTap: () => ref
-                                  .read(playerProvider.notifier)
-                                  .playQueue(songs, startIndex: index),
+                              onTap: () => playEffectiveQueue(
+                                ref,
+                                songs,
+                                startIndex: index,
+                              ),
                               onLongPress: () => _enterSelectionMode(
                                 playlist,
                                 originalIndex: entry.originalIndex,

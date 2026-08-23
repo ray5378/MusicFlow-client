@@ -5,9 +5,9 @@ import '../../../core/design/echo_design.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
-import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -110,9 +110,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                             _toggleArtistStarred(artist.id, artist.starred),
                         onPlay: songs.isEmpty
                             ? null
-                            : () => ref
-                                  .read(playerProvider.notifier)
-                                  .playQueue(songs),
+                            : () => playEffectiveQueue(ref, songs),
                       ),
                     ),
                     if (loadFailed)
@@ -217,12 +215,11 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                         final queueIndex = topSongs.indexWhere(
                           (song) => song.id == visibleSongs[index].id,
                         );
-                        ref
-                            .read(playerProvider.notifier)
-                            .playQueue(
-                              topSongs,
-                              startIndex: queueIndex < 0 ? index : queueIndex,
-                            );
+                        playEffectiveQueue(
+                          ref,
+                          topSongs,
+                          startIndex: queueIndex < 0 ? index : queueIndex,
+                        );
                       },
                       onLongPress: () => showSongOptionsSheet(
                         context: context,
@@ -256,7 +253,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
           actionLabel: songs.isEmpty ? null : '播放全部',
           onAction: songs.isEmpty
               ? null
-              : () => ref.read(playerProvider.notifier).playQueue(songs),
+              : () => playEffectiveQueue(ref, songs),
           padding: EdgeInsets.fromLTRB(
             context.echoSpacing.md,
             context.echoSpacing.lg,
@@ -287,9 +284,11 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
               song: song,
               index: index,
               variant: SongListItemVariant.standard,
-              onTap: () => ref
-                  .read(playerProvider.notifier)
-                  .playQueue(songs, startIndex: index),
+              onTap: () => playEffectiveQueue(
+                ref,
+                songs,
+                startIndex: index,
+              ),
               onLongPress: () =>
                   showSongOptionsSheet(context: context, song: song),
             );

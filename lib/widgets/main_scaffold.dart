@@ -19,7 +19,6 @@ import '../providers/api_provider.dart';
 import '../providers/cast_peer_provider.dart';
 import '../providers/effective_playback_provider.dart';
 import '../providers/navigation_provider.dart';
-import '../providers/player_provider.dart';
 import 'app_drawer.dart';
 import 'echo_app_shell/echo_app_shell.dart';
 import 'echo_app_shell/echo_network_status_bar.dart';
@@ -330,11 +329,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     _scheduleVisibleBranchSync();
-    final bool hasMiniPlayer = widget.showMiniPlayerOverride != null
-        ? widget.showMiniPlayerOverride!
-        : ref.watch(
-            playerProvider.select((state) => state.currentSong != null),
-          );
+    // 迷你播放器常驻显示(对齐主项目前端 player-bar 始终渲染):
+    // 无歌曲时展示「未在播放」占位,而不是隐藏播放控件。
+    final bool hasMiniPlayer = widget.showMiniPlayerOverride ?? true;
     final activeAddressIsHealthy = ref.watch(
       activeAddressProvider.select((address) {
         return address?.status == ServerAddressStatus.ok;

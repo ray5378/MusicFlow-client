@@ -69,7 +69,8 @@ void main() {
     await tester.pump();
 
     expect(find.byType(MiniPlayer), findsOneWidget);
-    expect(find.text(currentSong.title), findsOneWidget);
+    // 迷你条标题以「歌名 - 歌手」富文本展示,用 textContaining 匹配。
+    expect(find.textContaining(currentSong.title), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('mini-player-track')));
     await tester.pump(const Duration(milliseconds: 350));

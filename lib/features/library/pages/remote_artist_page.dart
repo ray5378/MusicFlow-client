@@ -7,7 +7,7 @@ import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../features/library/widgets/library_collection_components.dart';
-import '../../../providers/player_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
@@ -52,7 +52,7 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
 
   Future<void> _playAll(List<Song> songs) async {
     if (songs.isEmpty) return;
-    await ref.read(playerProvider.notifier).playQueue(songs, startIndex: 0);
+    await playEffectiveQueue(ref, songs, startIndex: 0);
   }
 
   @override
@@ -104,9 +104,11 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
                         index: index,
                         variant: SongListItemVariant.standard,
                         isPreview: song.isPreview,
-                        onTap: () => ref
-                            .read(playerProvider.notifier)
-                            .playQueue(songs, startIndex: index),
+                        onTap: () => playEffectiveQueue(
+                          ref,
+                          songs,
+                          startIndex: index,
+                        ),
                       );
                     },
                     childCount: songs.length,

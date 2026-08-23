@@ -7,9 +7,9 @@ import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/download_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
-import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -97,9 +97,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                         songs: songs,
                         onPlay: songs.isEmpty
                             ? null
-                            : () => ref
-                                  .read(playerProvider.notifier)
-                                  .playQueue(songs),
+                            : () => playEffectiveQueue(ref, songs),
                         onToggleStarred: () => _toggleStarred(album),
                         onDownload: songs.isEmpty
                             ? null
@@ -154,9 +152,11 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                             song: song,
                             index: index,
                             variant: SongListItemVariant.albumTrack,
-                            onTap: () => ref
-                                .read(playerProvider.notifier)
-                                .playQueue(songs, startIndex: index),
+                            onTap: () => playEffectiveQueue(
+                              ref,
+                              songs,
+                              startIndex: index,
+                            ),
                             onLongPress: () => showSongOptionsSheet(
                               context: context,
                               song: song,

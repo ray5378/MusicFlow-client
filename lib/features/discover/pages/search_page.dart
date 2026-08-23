@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/repositories/music_repository.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -287,9 +288,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       ),
                       isCurrent: result.songs[index].id == currentSongId,
                       onPressed: () {
-                        ref
-                            .read(playerProvider.notifier)
-                            .playQueue(result.songs, startIndex: index);
+                        playEffectiveQueue(
+                          ref,
+                          result.songs,
+                          startIndex: index,
+                        );
                       },
                       onLongPress: () => showSongOptionsSheet(
                         context: context,

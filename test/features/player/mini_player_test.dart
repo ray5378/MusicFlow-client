@@ -203,7 +203,10 @@ void main() {
       );
       await tester.pump();
 
-      final title = tester.widget<Text>(find.text(songs[1].title));
+      // 迷你条标题以「歌名 - 歌手」富文本(Text.rich)展示,用 textContaining 匹配。
+      final title = tester.widget<Text>(
+        find.textContaining(songs[1].title),
+      );
       final playIcon = tester.widget<Icon>(find.byIcon(AppIcons.play));
       final progress = tester.widget<EchoProgressBar>(
         find.byKey(const Key('mini-player-progress')),
@@ -217,7 +220,11 @@ void main() {
           matching: find.byType(Hero),
         ),
       );
-      expect(title.style?.color, visuals.foreground);
+      // 迷你条标题以「歌名 - 歌手」富文本(Text.rich)展示:颜色在首段 TextSpan 的
+      // style 上(EchoMediaColorScope 注入 visuals.foreground),而非 Text.style。
+      final titleSpan = (title.textSpan as TextSpan).children!.first
+          as TextSpan;
+      expect(titleSpan.style?.color, visuals.foreground);
       expect(playIcon.color, visuals.foreground);
       expect(progress.color, visuals.controlAccent);
       expect(backdrop.visuals, visuals);

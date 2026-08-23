@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/search.dart';
 import '../../data/repositories/search_repository.dart';
+import '../../providers/effective_playback_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/search_provider.dart';
 import '../../core/design/components/echo_page_route.dart';
@@ -62,7 +63,7 @@ Future<void> playRemoteSearchCollection(
       _toast(context, '该${_kindLabel(kind)}暂无可播放歌曲');
       return;
     }
-    await ref.read(playerProvider.notifier).playQueue(songs, startIndex: 0);
+    await playEffectiveQueue(ref, songs, startIndex: 0);
   } catch (e) {
     _toast(context, '播放失败: $e', error: true);
   }

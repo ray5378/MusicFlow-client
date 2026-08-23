@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/repositories/music_repository.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
-import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -150,8 +150,7 @@ class StarredPage extends ConsumerWidget {
                   EchoButton.ghost(
                     label: '播放全部',
                     leadingIcon: AppIcons.play,
-                    onPressed: () =>
-                        ref.read(playerProvider.notifier).playQueue(songs),
+                    onPressed: () => playEffectiveQueue(ref, songs),
                   ),
                 ],
               ),
@@ -168,9 +167,11 @@ class StarredPage extends ConsumerWidget {
               horizontal: context.echoPageHorizontalPadding,
               vertical: context.echoSpacing.xs,
             ),
-            onTap: () => ref
-                .read(playerProvider.notifier)
-                .playQueue(songs, startIndex: index),
+            onTap: () => playEffectiveQueue(
+              ref,
+              songs,
+              startIndex: index,
+            ),
             onLongPress: () =>
                 showSongOptionsSheet(context: context, song: song),
           );

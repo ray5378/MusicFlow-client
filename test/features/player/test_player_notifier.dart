@@ -1,3 +1,4 @@
+import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -134,4 +135,51 @@ class TestPlayerNotifier extends StateNotifier<PlayerState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
+
+  /// 投屏时镜像后端权威队列到本地(对齐 PlayerNotifier.syncQueueForCast)。
+  @override
+  void syncQueueForCast(List<Map<String, dynamic>> items, int index) {
+    final songs = <Song>[];
+    for (final it in items) {
+      songs.add(castQueueItemToSong(it));
+    }
+    if (songs.isEmpty) return;
+    final safeIndex = index.clamp(0, songs.length - 1);
+    state = state.copyWith(
+      queue: songs,
+      currentIndex: safeIndex,
+      currentSong: songs[safeIndex],
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+  }
+
+  /// 回本机时恢复离开前保存的本地播放状态(对齐 PlayerNotifier.restoreStateForCast)。
+  @override
+  void restoreStateForCast({
+    required List<Song> queue,
+    required int currentIndex,
+    required Song? currentSong,
+    required Duration position,
+    required LoopMode loopMode,
+    required bool shuffleEnabled,
+    required bool isPlaying,
+  }) {
+    final restoredIndex = currentIndex.clamp(
+      -1,
+      queue.isEmpty ? -1 : queue.length - 1,
+    );
+    state = state.copyWith(
+      queue: queue,
+      currentIndex: restoredIndex,
+      currentSong:
+          restoredIndex >= 0 && restoredIndex < queue.length
+              ? queue[restoredIndex]
+              : currentSong,
+      position: position,
+      loopMode: loopMode,
+      shuffleEnabled: shuffleEnabled,
+      isPlaying: isPlaying,
+    );
+  }
 }

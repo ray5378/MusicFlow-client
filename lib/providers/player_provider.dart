@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import '../data/models/song.dart';
+import '../data/models/peer.dart';
 import '../data/models/audio_quality.dart';
 import '../data/models/server_address.dart';
 import '../data/sources/subsonic_api_client.dart';
@@ -2345,23 +2346,70 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  /// 投屏切歌时同步本地队列游标：仅更新 currentSong/currentIndex,
-  /// 不触发本地播放（本地在投屏期间保持暂停）。这样迷你/全屏播放器、
-  /// 歌词与「上一首/下一首」的相邻关系都跟随投屏目标曲目前进。
-  void syncCursorForCast({required int index}) {
+  /// 投屏时镜像**后端权威队列**到本地(不触发本地播放,本地在投屏期间保持暂停)。
+  /// 迷你条/全屏/歌词/队列面板都读取 playerProvider,因此整队镜像让 UI 跟随设备
+  /// 当前播放(对齐主项目前端:远端队列以后端快照为准,前端只镜像展示)。
+  void syncQueueForCast(List<Map<String, dynamic>> items, int index) {
     if (!mounted) return;
-    if (index < 0 || index >= state.queue.length) return;
-    final song = state.queue[index];
-    if (song.id == state.currentSong?.id && index == state.currentIndex) {
+    final songs = <Song>[];
+    for (final it in items) {
+      songs.add(castQueueItemToSong(it));
+    }
+    if (songs.isEmpty) return;
+    final safeIndex = index.clamp(0, songs.length - 1);
+    final current = songs[safeIndex];
+    final queueChanged = state.queue.length != songs.length ||
+        (state.queue.isNotEmpty &&
+            (state.queue.first.id != songs.first.id ||
+                state.queue.last.id != songs.last.id));
+    if (!queueChanged &&
+        current.id == state.currentSong?.id &&
+        safeIndex == state.currentIndex) {
       return;
     }
     state = state.copyWith(
-      currentSong: song,
-      currentIndex: index,
+      queue: songs,
+      currentIndex: safeIndex,
+      currentSong: current,
       position: Duration.zero,
       duration: Duration.zero,
       bufferedPosition: Duration.zero,
     );
+  }
+
+  /// 回本机时恢复离开前保存的本地播放状态(见 CastPeerController.backToLocal)。
+  /// 本机 just_audio 在离开时仅 pause(未卸载);恢复 currentSong 后如需续播
+  /// 调用 [play] 直接 resume 当前加载源。
+  void restoreStateForCast({
+    required List<Song> queue,
+    required int currentIndex,
+    required Song? currentSong,
+    required Duration position,
+    required LoopMode loopMode,
+    required bool shuffleEnabled,
+    required bool isPlaying,
+  }) {
+    if (!mounted) return;
+    final restoredIndex = currentIndex.clamp(
+      -1,
+      queue.isEmpty ? -1 : queue.length - 1,
+    );
+    final restoredSong =
+        restoredIndex >= 0 && restoredIndex < queue.length
+            ? queue[restoredIndex]
+            : currentSong;
+    state = state.copyWith(
+      queue: queue,
+      currentIndex: restoredIndex,
+      currentSong: restoredSong,
+      position: position,
+      loopMode: loopMode,
+      shuffleEnabled: shuffleEnabled,
+      isPlaying: isPlaying,
+    );
+    if (isPlaying) {
+      _startPlayback(fadeIn: false);
+    }
   }
 
   /// 计算投屏模式下「下一首/上一首」的目标索引（按队列顺序并回绕）。

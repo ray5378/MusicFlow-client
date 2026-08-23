@@ -11,9 +11,9 @@ import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../features/player/widgets/song_options_sheet.dart';
 import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
-import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 
@@ -191,13 +191,13 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             final all =
                 await ref.read(musicRepositoryProvider)!.getAllSongs();
             if (!mounted) return;
-            await ref
-                .read(playerProvider.notifier)
-                .playQueue(all, startIndex: index.clamp(0, all.length - 1));
+            await playEffectiveQueue(
+              ref,
+              all,
+              startIndex: index.clamp(0, all.length - 1),
+            );
           } catch (_) {
-            await ref
-                .read(playerProvider.notifier)
-                .playQueue(<Song>[song], startIndex: 0);
+            await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
           }
         },
         onLongPress: () => showSongOptionsSheet(context: context, song: song),

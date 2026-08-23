@@ -3,31 +3,57 @@ import 'dart:async';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import '../data/models/peer.dart';
+import '../data/models/song.dart';
 import 'api_provider.dart';
 import 'player_provider.dart';
 
 /// 「切换播放器」控制器 —— 对齐主项目前端 stores/player.ts 的 peer 机制:
 /// - 面板列出 `GET /rest/api/v1/peers`(本机 + DLNA/AirPlay/群组);
-/// - 选中远端 peer → 把本地队列 POST /peers/:id/queue/play,由**后端**负责向设备投流;
-///   客户端只保留控制面(播放/暂停/切歌/seek/音量/静音/播放模式/队列编辑)与状态轮询;
-/// - 本机模式 = 现有 just_audio 播放,不经过后端。
+/// - **切换播放器 = 纯 UI 控制目标切换**(对齐前端 switchPeer):只改控制目标,
+///   不推本地队列、不自动投屏;此后客户端是后端的**远程遥控器** —— 点歌/专辑/歌单
+///   走 [playQueueOnPeer]/[playSongOnPeer] 命令**后端**在所选设备播放,播放控件
+///   直接作用于该设备;
+/// - 本机模式 = 现有 just_audio 播放,不经过后端;离开本机时保存本地状态快照,
+///   回本机时恢复,保证「切换前的设备」逻辑不被破坏。
 ///
 /// 注意:后端权限为「非 admin 仅能控制自己的 `local:<uid>`」;普通账号面板只会
 /// 出现本机条目,属预期表现。
 ///
 /// 完成项(对齐 SPEC §3.5):
 /// 1. 注册与保活:登录后 POST /peers/register + 每 30s heartbeat(registerAndHeartbeat)。
-/// 2. 回本机语义:backToLocal=仅切换控制目标(远端继续播);stopCasting=停止设备+deactivate。
+/// 2. 回本机语义:backToLocal=仅切换控制目标+恢复本地快照(远端继续播);stopCasting=停止设备+deactivate。
 /// 3. 播放模式同步:setPlayMode/cyclePlayMode 下发,轮询回读后端 playMode。
-/// 4. 投屏中加歌/点歌:enqueueSongs / jumpTo。
+/// 4. 投屏中加歌/点歌:enqueueSongs / jumpTo / playQueueOnPeer / playSongOnPeer。
 /// 5. 队列编辑:removeQueueItem / reorderQueue(投屏队列面板)。
 /// 6. 平滑进度:2s 轮询(失败退避至 15s)+ 桌面 500ms / 手机 250ms 插值 tick。
 /// 7. 离线/被移除:连续 3 次轮询失败置 offline,切回/移除时停止定时器。
 /// 8. 静音:setMuted 下发 /mute。
 /// 9. 群组/AirPlay 差异化:switcher 按 kind 区分图标/标签(群组/离线)。
 /// 10. 投屏失败:queue/play 失败返回 false,保持本机,不产生脏状态。
+
+/// 离开本机时的本地播放状态快照:回本机时恢复,保证「切换前设备」逻辑不丢。
+class LocalPlaybackSnapshot {
+  const LocalPlaybackSnapshot({
+    required this.queue,
+    required this.currentIndex,
+    required this.currentSong,
+    required this.position,
+    required this.isPlaying,
+    required this.loopMode,
+    required this.shuffleEnabled,
+  });
+
+  final List<Song> queue;
+  final int currentIndex;
+  final Song? currentSong;
+  final Duration position;
+  final bool isPlaying;
+  final LoopMode loopMode;
+  final bool shuffleEnabled;
+}
 
 class CastPeerState {
   const CastPeerState({
@@ -109,6 +135,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   /// 连续轮询失败计数(离线判定)。
   int _failureCount = 0;
+
+  /// 离开本机时的本地播放状态快照(回本机时恢复,保证「切换前设备」逻辑不丢)。
+  LocalPlaybackSnapshot? _localSnapshot;
 
   /// 自适应轮询间隔(2s 基准,失败翻倍,上限 15s)。
   Duration _pollInterval = const Duration(seconds: 2);
@@ -196,14 +225,22 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   // ==================== 切换播放器 ====================
 
   /// 切换播放器 = **纯 UI 控制目标切换**(对齐主项目前端 switchPeer):
-  /// 只改控制目标,不推本地队列、不停止任何播放器;
+  /// 只改控制目标,不推本地队列、不自动投屏;
   /// 选中远端 peer 时开始状态轮询,由轮询拉取其队列让 UI 镜像设备当前播放。
   /// 之后在客户端点歌/专辑/歌单会走 [playQueueOnPeer]/[playSongOnPeer]
   /// 命令**后端**在该设备播放,客户端此时仅是后端的远程遥控器。
+  ///
+  /// 离开本机时:保存本地状态快照并暂停本机(SPEC §3.1 本机播放与投屏互斥,
+  /// 避免双实例抢音频设备);回本机时经 [backToLocal] 恢复快照。
   Future<bool> switchTo(PeerInfo peer) async {
     if (peer.isLocal) {
-      await backToLocal();
+      await backToLocal(resumeLocal: true);
       return true;
+    }
+    if (state.activePeer == null) {
+      // 离开本机:先冻结本地状态(快照),再暂停本机。
+      _saveLocalSnapshot();
+      await _ref.read(playerProvider.notifier).pause();
     }
     state = state.copyWith(
       activePeer: peer,
@@ -216,10 +253,19 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     return true;
   }
 
-  /// 回本机:仅切换控制目标(远端继续播放,对齐前端 switchPeer 纯 UI 切换)。
+  /// 回本机:仅切换控制目标(远端继续播放,对齐前端 switchPeer 纯 UI 切换),
+  /// 并恢复离开本机时保存的本地状态快照。
   /// 不主动 stop 设备、不清空远端队列。
-  Future<void> backToLocal() async {
+  ///
+  /// [resumeLocal] 为 true 且快照当时在播放时,恢复后自动续播本机
+  /// (即用户主动选「本机播放」);false(如 stopCasting)则保持暂停。
+  Future<void> backToLocal({bool resumeLocal = false}) async {
     _stopTimers();
+    final snapshot = _localSnapshot;
+    _localSnapshot = null;
+    if (snapshot != null) {
+      _restoreLocalSnapshot(snapshot, resume: resumeLocal);
+    }
     state = state.copyWith(
       clearActivePeer: true,
       status: const PeerStatus(),
@@ -228,6 +274,36 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       castQueue: const <Map<String, dynamic>>[],
       castIndex: -1,
       offline: false,
+    );
+  }
+
+  /// 保存当前本机播放状态为快照(供回本机恢复)。
+  void _saveLocalSnapshot() {
+    final ps = _ref.read(playerProvider);
+    _localSnapshot = LocalPlaybackSnapshot(
+      queue: List<Song>.of(ps.queue),
+      currentIndex: ps.currentIndex,
+      currentSong: ps.currentSong,
+      position: ps.position,
+      isPlaying: ps.isPlaying,
+      loopMode: ps.loopMode,
+      shuffleEnabled: ps.shuffleEnabled,
+    );
+  }
+
+  /// 把快照恢复到本机播放器(不触碰远端)。
+  void _restoreLocalSnapshot(LocalPlaybackSnapshot snap, {required bool resume}) {
+    final notifier = _ref.read(playerProvider.notifier);
+    // 仅恢复队列/游标/播放模式,不动音频会话的加载源 ——
+    // 本机 just_audio 在离开时仅 pause(未卸载),恢复 currentSong 后 resume 即可续播。
+    notifier.restoreStateForCast(
+      queue: snap.queue,
+      currentIndex: snap.currentIndex,
+      currentSong: snap.currentSong,
+      position: snap.position,
+      loopMode: snap.loopMode,
+      shuffleEnabled: snap.shuffleEnabled,
+      isPlaying: resume && snap.isPlaying,
     );
   }
 

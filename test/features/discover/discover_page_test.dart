@@ -7,6 +7,7 @@ import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/recommend.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/discover/pages/discover_page.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
@@ -132,9 +133,12 @@ void main() {
     final trackedRefresh = refresh.then((_) => refreshCompleted = true);
     await tester.pump();
 
+    // 前三者 + 频道在 build 时即被 watch(初始 1 次),刷新后再加载 1 次 → 2;
+    // homeCardsProvider 为 autoDispose 且未被 widget watch(仅 _refresh/shouldRetry
+    // 中 read),初始不加载,刷新时才首次执行 → 1。
     expect(
       <int>[randomLoads, recentLoads, cardsLoads, channelsLoads],
-      <int>[2, 2, 2, 2],
+      <int>[2, 2, 1, 2],
     );
     expect(refreshCompleted, isFalse);
 
@@ -208,6 +212,16 @@ Future<void> _pumpDiscover(
   addTearDown(connectivity.stop);
   final overrides = <Override>[
     connectivityMonitorProvider.overrideWithValue(connectivity),
+    // 避免 ensureActiveAddressProvider 的 200ms 探测轮询定时器在测试结束时挂起。
+    ensureActiveAddressProvider.overrideWith(
+      (ref) async => ServerAddress(
+        id: 'server-1',
+        libraryId: 'library-1',
+        label: 'Test server',
+        url: 'https://example.test',
+        priority: 0,
+      ),
+    ),
     playerProvider.overrideWith((ref) => player ?? _RecordingPlayerNotifier()),
     if (extraOverrides.isEmpty) ...<Override>[
       randomSongsProvider.overrideWith((ref) async => songs ?? _songs()),

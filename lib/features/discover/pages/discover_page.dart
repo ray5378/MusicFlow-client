@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/recommend.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -265,7 +266,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     if (songs == null || songs.isEmpty) return;
     _autoContinue = true;
     _roundToken++;
-    await ref.read(playerProvider.notifier).playQueue(songs);
+    await playEffectiveQueue(ref, songs);
   }
 
   Future<void> _loadNextRound() async {
@@ -273,7 +274,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     final songs = await ref.refresh(randomSongsProvider.future);
     if (!mounted || token != _roundToken || !_autoContinue) return;
     if (songs.isEmpty) return;
-    await ref.read(playerProvider.notifier).playQueue(songs);
+    await playEffectiveQueue(ref, songs);
   }
 
   void _refresh() {
@@ -348,9 +349,11 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
                             child: DiscoverSongTile(
                               song: songs[col * 3 + row],
                               onPressed: () {
-                                ref
-                                    .read(playerProvider.notifier)
-                                    .playQueue(songs, startIndex: col * 3 + row);
+                                playEffectiveQueue(
+                                  ref,
+                                  songs,
+                                  startIndex: col * 3 + row,
+                                );
                               },
                               onOpenActions: () => showSongOptionsSheet(
                                 context: context,

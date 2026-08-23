@@ -98,7 +98,7 @@ void main() {
     expect(seeks, <Duration>[const Duration(seconds: 3)]);
   });
 
-  testWidgets('edge softening filters lyric glyphs without blurring backdrop', (
+  testWidgets('edge softening dims lyric glyphs by opacity without backdrop blur', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -123,29 +123,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // SEC §8.1:软化仅靠透明度,全局禁止 BackdropFilter / ImageFilter.blur。
     expect(find.byType(BackdropFilter), findsNothing);
-    final textFilters = find.byWidgetPredicate((widget) {
+    expect(find.byType(ImageFiltered), findsNothing);
+
+    final softenedText = find.byWidgetPredicate((widget) {
       final key = widget.key;
-      return widget is ImageFiltered &&
+      return widget is Opacity &&
           key is ValueKey<String> &&
-          key.value.startsWith('lyrics-text-filter-');
+          key.value.startsWith('lyrics-text-softening-');
     });
-    expect(textFilters, findsWidgets);
-    final enabledTextFilters = find.byWidgetPredicate((widget) {
-      final key = widget.key;
-      return widget is ImageFiltered &&
-          widget.enabled &&
-          key is ValueKey<String> &&
-          key.value.startsWith('lyrics-text-filter-');
-    });
-    expect(enabledTextFilters, findsWidgets);
-    expect(
-      find.descendant(
-        of: textFilters,
-        matching: find.byType(AnimatedDefaultTextStyle),
-      ),
-      findsWidgets,
-    );
+    expect(softenedText, findsWidgets);
+    // 软化只作用于文字内容,不作用于行标记(标记是兄弟节点,不被淡化)。
     final lineMarkers = find.byWidgetPredicate((widget) {
       final key = widget.key;
       return widget is AnimatedOpacity &&
@@ -153,17 +142,18 @@ void main() {
           key.value.startsWith('lyrics-line-marker-');
     });
     expect(
-      find.descendant(of: textFilters, matching: lineMarkers),
+      find.descendant(of: softenedText, matching: lineMarkers),
       findsNothing,
     );
-    final softenedText = find.byWidgetPredicate((widget) {
-      final key = widget.key;
-      return widget is Opacity &&
-          widget.opacity < 1 &&
-          key is ValueKey<String> &&
-          key.value.startsWith('lyrics-text-softening-');
-    });
-    expect(softenedText, findsWidgets);
+    // 软化文字下方仍是 AnimatedDefaultTextStyle(字号/字重过渡保留)。
+    expect(
+      find.descendant(
+        of: softenedText,
+        matching: find.byType(AnimatedDefaultTextStyle),
+      ),
+      findsWidgets,
+    );
+    // 边缘行被淡化(透明度 < 1),同时存在接近透明与轻微淡化两档。
     final softenedOpacities = softenedText
         .evaluate()
         .map((element) => (element.widget as Opacity).opacity)
@@ -174,19 +164,13 @@ void main() {
       isTrue,
     );
 
+    // 中心当前行保持不透明。
     final currentText = tester.widget<Opacity>(
       find.byKey(const ValueKey<String>('lyrics-text-softening-15')),
     );
     expect(currentText.opacity, 1);
-    expect(
-      tester
-          .widget<ImageFiltered>(
-            find.byKey(const ValueKey<String>('lyrics-text-filter-15')),
-          )
-          .enabled,
-      isFalse,
-    );
 
+    // 顶部第一行:滚到顶时上方无内容,不淡化。
     await tester.pumpWidget(
       buildSubject(
         position: Duration.zero,
@@ -203,15 +187,8 @@ void main() {
           .opacity,
       1,
     );
-    expect(
-      tester
-          .widget<ImageFiltered>(
-            find.byKey(const ValueKey<String>('lyrics-text-filter-0')),
-          )
-          .enabled,
-      isFalse,
-    );
 
+    // 底部最后一行:滚到底时下方无内容,不淡化。
     await tester.pumpWidget(
       buildSubject(
         position: const Duration(milliseconds: 29500),
@@ -227,14 +204,6 @@ void main() {
           )
           .opacity,
       1,
-    );
-    expect(
-      tester
-          .widget<ImageFiltered>(
-            find.byKey(const ValueKey<String>('lyrics-text-filter-29')),
-          )
-          .enabled,
-      isFalse,
     );
   });
 

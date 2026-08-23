@@ -8,8 +8,8 @@ import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/download_task.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/download_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
-import '../../../providers/player_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 
 typedef _DownloadScanResult = ({int valid, int missing, int orphan});
@@ -156,9 +156,7 @@ class DownloadManagerPage extends ConsumerWidget {
     }
 
     unawaited(
-      ref
-          .read(playerProvider.notifier)
-          .playSong(songs.first, queue: songs, index: 0),
+      playEffectiveSong(ref, songs.first, queue: songs, index: 0),
     );
     ToastNotifier.show('播放 ${songs.length} 首已下载歌曲');
   }
@@ -666,7 +664,7 @@ Future<void> _playTask(
     ToastNotifier.show('无法获取歌曲信息');
     return;
   }
-  unawaited(ref.read(playerProvider.notifier).playSong(song));
+  unawaited(playEffectiveSong(ref, song));
   ToastNotifier.show('正在播放：${task.title}');
 }
 

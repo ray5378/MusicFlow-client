@@ -206,24 +206,24 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 **已完成（现状，保持）**：
 
 - [x] 面板列表 `GET /peers`（含 kind/available/queue 摘要展示）
-- [x] 切到远端：`POST /:peerId/queue/play`（items+startIndex），暂停本机，启动 2s 轮询
-- [x] 播放/暂停/上一首/下一首/seek/音量 经 `POST /:peerId/{...}`
-- [x] 2s 轮询 `/status` + `/queue` 并回写 `currentIndex`
+- [x] **切到远端 = 纯 UI 控制目标切换**（对齐前端 `switchPeer`）：只改控制目标，**不推本地队列、不自动投屏**；选中远端后启动 2s 轮询（自适应退避：失败翻倍至 15s，成功回落 2s）拉取其队列，UI 镜像设备当前播放。此后点歌/专辑/歌单经 `playQueueOnPeer`/`playSongOnPeer` 命令**后端**在设备播放 —— 客户端此时是后端的**远程遥控器**。离开本机时保存本地状态快照并暂停本机（移动端避免双音频，§3.1），回本机 `backToLocal` 恢复快照（远端继续播放）。
+- [x] 播放/暂停/上一首/下一首/seek/音量/静音 经 `POST /:peerId/{play|pause|next|prev|seek|volume|mute}`（本机走 just_audio）
+- [x] 2s 轮询 `/status` + `/queue` 并回写 `currentIndex`（后端权威队列镜像到本地，迷你条/歌词/相邻关系跟随设备）
+- [x] **平滑进度**：250ms（桌面 500ms）tick 插值 + 轮询回写修正（§3.3）
 - [x] 迷你条「切换播放器」入口 + 面板（含 `POST /rest/api/v1/dlna/scan` 扫描）
 - [x] 反馈三要素：面板 ✓ 高亮 / 入口投屏态变色+设备名 / 切换成功&失败 toast
+- [x] **注册与保活**：登录后 `POST /peers/register` + 每 30s `POST /peers/:peerId/heartbeat`
+- [x] **回本机语义对齐**：`backToLocal`（仅切换控制目标，远端继续播放）vs `stopCasting`（`stop`+`queue/deactivate` 停止设备）
+- [x] **播放模式同步**：`POST /:peerId/play-mode` 下发 + 轮询回读；`cyclePlayMode` 循环切换（order→one→all→shuffle）
+- [x] **投屏中加歌/点歌**：`queue/enqueue`（加歌）/ `queue/jump`（跳播点歌）/ `playQueueOnPeer`（整队）/ `playSongOnPeer`（单曲）
+- [x] **队列编辑**：`DELETE /queue/:index`（删单条）+ `queue/reorder`（拖拽排序）
+- [x] **离线/被移除处理**：连续 3 次轮询失败置 `offline`，切回/移除时停止定时器（§1.5 内存红线）
+- [x] **群组/AirPlay 差异化**：面板按 kind 区分图标/标签（群组/离线）
+- [x] **投屏失败/设备忙**：`queue/play` 失败返回 false，保持本机，不残留投屏态
 
-**待办（对齐后端/前端，必须补齐）**：
+**待办**：
 
-- [ ] **注册与保活**：登录后调 `POST /peers/register`，周期性 `POST /peers/:peerId/heartbeat`（当前缺失 → 客户端本机 peer 在后端不存活、10min 被清理）。
-- [ ] **回本机语义对齐**：区分「仅切换控制目标」（`backToLocal`，不打断远端播放）与「停止投屏」（`POST /:peerId/queue/deactivate` 或 `stop`+清队列），当前 `backToLocal` 只取消轮询，语义不完整。
-- [ ] **播放模式同步**：投屏后播放模式（顺序/单曲/全部/随机）经 `POST /:peerId/play-mode` 下发并回读；切换模式时同步。
-- [ ] **投屏中加歌/点歌**：队列「下一首播放/添加到队列」→ `queue/enqueue`；点击队列项 → `queue/jump`。
-- [ ] **队列编辑**：投屏队列的删除（`DELETE /queue/:index`）与拖拽排序（`queue/reorder`）。
-- [ ] **平滑进度**：实现 250ms tick 插值（§3.3）。
-- [ ] **离线/被移除处理**：peer `available=false`（设备离线/被删）时 UI 置灰或提示「设备离线」，恢复在线自动回滚；轮询连续失败不再静默挂起。
-- [ ] **静音**：`mute` 控制（后端支持，当前缺失）。
-- [ ] **群组/AirPlay 差异化**：面板对 `group:`/`airplay:` 展示与 DLNA 相同控制面；群组显示成员数等语义（对齐前端）。
-- [ ] **投屏失败/设备忙**：`queue/play` 失败返回后正确回滚本机状态，不残留「投屏态」。
+- [ ] （当前 §3.5 已全部对齐完成；若主项目 `stores/player.ts` 行为变化，以主项目为基准回校）
 
 ---
 
