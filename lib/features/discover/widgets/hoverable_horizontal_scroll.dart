@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// 横向滚动容器：鼠标悬停时浮显左右箭头按钮，点击可左右滑动查看隐藏内容。
@@ -34,6 +36,9 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
   bool _canLeft = false;
   bool _canRight = false;
 
+  /// 长按箭头时的持续滚动定时器（80ms/步）。
+  Timer? _holdTimer;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +54,7 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
 
   @override
   void dispose() {
+    _stopHoldScroll();
     _controller.removeListener(_checkBounds);
     _controller.dispose();
     _fadeCtrl.dispose();
@@ -80,6 +86,28 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
     );
   }
 
+  /// 长按箭头：立即平滑滚一步，随后按住期间每 80ms 匀速推进。
+  /// 短按仍走 [onTap] 的单步滚动，长按（>500ms）才进入持续滚动。
+  void _startHoldScroll(double direction) {
+    _stopHoldScroll();
+    _scroll(direction * widget.scrollStep);
+    _holdTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+      if (!_controller.hasClients) return;
+      _controller.jumpTo(
+        (_controller.offset + direction * 100).clamp(
+          _controller.position.minScrollExtent,
+          _controller.position.maxScrollExtent,
+        ),
+      );
+      _checkBounds();
+    });
+  }
+
+  void _stopHoldScroll() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -108,6 +136,9 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onTap: () => _scroll(-widget.scrollStep),
+                    onLongPressStart: (_) => _startHoldScroll(-1),
+                    onLongPressEnd: (_) => _stopHoldScroll(),
+                    onLongPressCancel: _stopHoldScroll,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: _ArrowBtn(icon: Icons.chevron_left),
@@ -126,6 +157,9 @@ class _HoverableHorizontalScrollState extends State<HoverableHorizontalScroll>
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onTap: () => _scroll(widget.scrollStep),
+                    onLongPressStart: (_) => _startHoldScroll(1),
+                    onLongPressEnd: (_) => _stopHoldScroll(),
+                    onLongPressCancel: _stopHoldScroll,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: _ArrowBtn(icon: Icons.chevron_right),
