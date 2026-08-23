@@ -77,6 +77,20 @@ class _RecordingPlaylistRepository extends Fake implements PlaylistRepository {
   Object? failure;
 
   @override
+  Future<Playlist?> getPlaylistMeta(String playlistId) async => _playlist;
+
+  @override
+  Future<({List<Song> items, int total})> getPlaylistTracksPage(
+    String playlistId,
+    int page,
+    int pageSize,
+  ) async =>
+      (items: _songs, total: _songs.length);
+
+  @override
+  Future<List<Song>> getAllPlaylistSongs(String playlistId) async => _songs;
+
+  @override
   Future<void> updatePlaylist({
     required String playlistId,
     String? name,

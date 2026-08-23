@@ -16,12 +16,15 @@ import 'package:musicflow_client/features/library/pages/playlist_detail_page.dar
 import 'package:musicflow_client/features/library/pages/playlist_search_page.dart';
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/data/repositories/music_repository.dart';
+import 'package:musicflow_client/data/repositories/playlist_repository.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/music_provider.dart';
 import 'package:musicflow_client/providers/playlist_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 
 const _obstruction = 120.0;
@@ -53,6 +56,20 @@ final _playlist = Playlist(
   songCount: 1,
   duration: 180,
 );
+
+/// 歌单详情页走窗口化分页仓库接口,测试需提供可用的仓库实现才能渲染正文。
+class _FakePlaylistRepository extends Fake implements PlaylistRepository {
+  @override
+  Future<Playlist?> getPlaylistMeta(String playlistId) async => _playlist;
+
+  @override
+  Future<({List<Song> items, int total})> getPlaylistTracksPage(
+    String playlistId,
+    int page,
+    int pageSize,
+  ) async =>
+      (items: <Song>[_song], total: 1);
+}
 
 Future<void> _pumpPage(
   WidgetTester tester, {
@@ -149,6 +166,9 @@ void main() {
         playlistDetailProvider(
           'playlist-1',
         ).overrideWith((ref) async => _playlist),
+        playlistRepositoryProvider.overrideWithValue(
+          _FakePlaylistRepository(),
+        ),
       ],
     );
 

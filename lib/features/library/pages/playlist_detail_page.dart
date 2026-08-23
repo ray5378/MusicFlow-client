@@ -84,6 +84,11 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   bool _isRemovingSongs = false;
   int _mutationGeneration = 0;
 
+  /// 进入选择模式时记录的歌单内容版本;检测到外部刷新导致内容变化时,
+  /// 清空选择并提示,避免按过期索引移除错误的歌曲。
+  int? _selectionRevision;
+  bool _selectionResetScheduled = false;
+
   @override
   void initState() {
     super.initState();
@@ -99,6 +104,8 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     _selectionMode = false;
     _selectedSongIndexes.clear();
     _isRemovingSongs = false;
+    _selectionRevision = null;
+    _selectionResetScheduled = false;
     _meta = null;
     _metaFailed = false;
     _fullMode = false;
@@ -164,6 +171,12 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 监听歌单内容快照:外部刷新(惰性重建/其他端修改)导致内容变化时,
+    // 在选歌状态下自动清空过期选择,避免用过期索引移除错误的歌曲。
+    final currentPlaylist =
+        ref.watch(playlistDetailProvider(widget.playlistId)).valueOrNull;
+    _scheduleSelectionResetIfStale(currentPlaylist);
+
     final displayMeta = _displayMeta;
     final currentSongCount = _totalCount;
     final allSongsSelected =
@@ -441,7 +454,9 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
           itemCount: _fullEntries.length,
           itemBuilder: (context, index) {
             final entry = _fullEntries[index];
-            return _buildSongRow(context, index, entry.song);
+            // 全量模式按排序展示,但行 key/选中/移除必须使用原始歌单索引
+            // (songIndexesToRemove 语义 = 原歌单位置),而非排序后的显示位置。
+            return _buildSongRow(context, entry.originalIndex, entry.song);
           },
         ),
       ),
@@ -563,8 +578,15 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   void _enterSelectionMode({int? originalIndex}) {
     if (_isRemovingSongs) return;
+    final revision = _playlistRevision(
+      ref.read(playlistDetailProvider(widget.playlistId)).valueOrNull,
+    );
     setState(() {
+      if (_selectionRevision != revision) {
+        _selectedSongIndexes.clear();
+      }
       _selectionMode = true;
+      _selectionRevision = revision;
       if (originalIndex != null) {
         _selectedSongIndexes.add(originalIndex);
       }
@@ -576,6 +598,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     setState(() {
       _selectionMode = false;
       _selectedSongIndexes.clear();
+      _selectionRevision = null;
     });
   }
 
@@ -709,6 +732,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         _isRemovingSongs = false;
         _selectionMode = false;
         _selectedSongIndexes.clear();
+        _selectionRevision = null;
       });
       // 窗口化列表与元数据一并刷新:先重新拉轻量元数据再重载分页列表。
       _loadMeta();
@@ -732,6 +756,47 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   bool _isCurrentMutation(int token) {
     return mounted && _mutationGeneration == token;
+  }
+
+  /// 选择状态下若歌单内容版本发生变化,安排在下一次帧清空过期选择。
+  void _scheduleSelectionResetIfStale(Playlist? playlist) {
+    final selectionRevision = _selectionRevision;
+    if (!_selectionMode ||
+        selectionRevision == null ||
+        playlist == null ||
+        playlist.id != widget.playlistId ||
+        _playlistRevision(playlist) == selectionRevision ||
+        _selectionResetScheduled) {
+      return;
+    }
+
+    final playlistId = widget.playlistId;
+    _selectionResetScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectionResetScheduled = false;
+      if (!mounted ||
+          widget.playlistId != playlistId ||
+          !_selectionMode ||
+          _selectionRevision != selectionRevision) {
+        return;
+      }
+      final latest =
+          ref.read(playlistDetailProvider(playlistId)).valueOrNull;
+      if (latest == null || _playlistRevision(latest) == selectionRevision) {
+        return;
+      }
+      _resetStaleSelection();
+    });
+  }
+
+  void _resetStaleSelection() {
+    if (!mounted) return;
+    setState(() {
+      _selectionMode = false;
+      _selectedSongIndexes.clear();
+      _selectionRevision = null;
+    });
+    ToastNotifier.show('歌单内容已更新，请重新选择');
   }
 
   Future<void> _showPlaylistActions(
@@ -879,6 +944,29 @@ class _PlaylistSongEntry {
 
   final Song song;
   final int originalIndex;
+}
+
+/// 歌单内容版本:由元数据与歌曲明细共同决定,用于识别选择期间歌单被外部刷新。
+int _playlistRevision(Playlist? playlist) {
+  if (playlist == null) return 0;
+  final songs = playlist.songs ?? const <Song>[];
+  return Object.hash(
+    playlist.id,
+    playlist.changed?.microsecondsSinceEpoch,
+    playlist.songCount,
+    playlist.duration,
+    Object.hashAll(
+      songs.map(
+        (song) => Object.hash(
+          song.id,
+          song.title,
+          song.artistId,
+          song.albumId,
+          song.duration,
+        ),
+      ),
+    ),
+  );
 }
 
 List<_PlaylistSongEntry> _sortPlaylistEntries(
