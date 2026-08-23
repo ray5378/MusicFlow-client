@@ -577,6 +577,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _pollTimer = Timer(_pollInterval, () async {
       await _tick(peerId);
       if (!mounted) return;
+      // 控制目标已切换/回本机:停止该轮询链,避免孤儿定时器持续空转。
+      if (state.activePeer?.peerId != peerId) return;
       _schedulePoll(peerId);
     });
   }
@@ -609,6 +611,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<void> _tick(String peerId) async {
     final client = _ref.read(subsonicApiClientProvider);
     if (!mounted) return;
+    // 轮询期间用户可能已切换/回本机:控制目标不再是该 peer 时,本次结果作废。
+    // 若不加此守卫,回本机恢复本地快照后,仍在途的轮询响应会把后端队列/状态再次
+    // 镜像到 playerProvider,导致 UI 显示后端播放态而本机实际在播另一首歌。
+    if (state.activePeer?.peerId != peerId) return;
     final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
     try {
       final st = await client.getRaw('$base/status').timeout(const Duration(seconds: 6));
@@ -630,6 +636,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       final snap = await client
           .getRaw('$base/queue')
           .timeout(const Duration(seconds: 6));
+      // 二次校验:两次 HTTP 请求期间控制目标可能已切换/回本机,再确认一次,
+      // 防止把旧 peer 的队列镜像到刚恢复的本地播放状态上。
+      if (state.activePeer?.peerId != peerId) return;
       var idx = state.castIndex;
       var mode = state.playMode;
       List<Map<String, dynamic>> items = state.castQueue;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
@@ -414,6 +416,68 @@ void main() {
       expect(controller.state.castQueue, isEmpty);
       expect(controller.state.castIndex, -1);
       expect(controller.state.offline, isFalse);
+    });
+
+    test(
+        'in-flight poll after backToLocal does not clobber restored local state',
+        () async {
+      // 本机正在播放 s1。
+      playerNotifier.emit(
+        PlayerState(
+          currentSong: song,
+          queue: <Song>[song],
+          currentIndex: 0,
+          isPlaying: true,
+          position: const Duration(seconds: 10),
+          loopMode: LoopMode.all,
+        ),
+      );
+      // status 立即返回;queue 响应挂起,由 Completer 控制,模拟「回本机时仍有轮询在途」。
+      when(() => client.getRaw(statusPath('dlna-1'))).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'PLAYING',
+          'position': 5,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+      final queueCompleter = Completer<dynamic>();
+      when(() => client.getRaw(queuePath('dlna-1'))).thenAnswer(
+        (_) => queueCompleter.future,
+      );
+
+      // 切到 DLNA:保存本地快照并暂停本机,首轮轮询发出(status 已回,queue 仍在途)。
+      final ok = await controller.switchTo(dlnaPeer);
+      expect(ok, isTrue);
+      expect(playerNotifier.state.isPlaying, isFalse);
+
+      // 回本机:恢复本地快照(s1)并续播。
+      await controller.backToLocal(resumeLocal: true);
+      expect(controller.state.activePeer, isNull);
+      expect(playerNotifier.state.currentSong?.id, 's1');
+      expect(playerNotifier.state.isPlaying, isTrue);
+
+      // 此刻仍在途的 queue 响应才返回:不得再镜像覆盖刚恢复的本地播放状态。
+      queueCompleter.complete(<String, dynamic>{
+        'currentIndex': 0,
+        'total': 1,
+        'playMode': 'all',
+        'items': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'songId': 'remote-x',
+            'title': '后端曲',
+            'artist': '歌手B',
+            'albumId': 'al2',
+            'duration': 300,
+          },
+        ],
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // 本地播放状态保持 s1,不被后端队列覆盖。
+      expect(playerNotifier.state.currentSong?.id, 's1');
+      expect(playerNotifier.state.queue.length, 1);
     });
 
     test('stopCasting notifies backend stop and deactivate', () async {
