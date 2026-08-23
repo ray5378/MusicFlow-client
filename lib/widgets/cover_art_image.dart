@@ -36,12 +36,21 @@ class CoverArtImage extends ConsumerWidget {
     final trustedCoverUrl = extractTrustedCoverUrl(raw);
     if (trustedCoverUrl != null) {
       final apiClient = ref.watch(subsonicApiClientProvider);
+      final resolvedCoverSize = _resolveCoverSize(context);
       final proxiedUrl = apiClient.getCoverArtUrl(
         trustedCoverUrl,
-        size: _resolveCoverSize(context),
+        size: resolvedCoverSize,
       );
       if (proxiedUrl.isNotEmpty) {
-        return _buildNetworkImage(context, proxiedUrl);
+        // 必须给稳定 cacheKey：getCoverArtUrl 每次调用都会带上新盐值/新 token，
+        // 同一封面的 URL 每次重建都不同。若以 URL 做缓存键，任何 rebuild
+        // （切线路、导入态变化、进歌单详情返回等）都会让全部平台封面重新下载，
+        // 表现为「点进一个歌单，所有平台歌单封面一起刷新」。
+        return _buildNetworkImage(
+          context,
+          proxiedUrl,
+          cacheKey: 'trusted_${trustedCoverUrl}_$resolvedCoverSize',
+        );
       }
       return _buildPlaceholder(context);
     }

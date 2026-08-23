@@ -1198,7 +1198,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           debugSession: debugSession,
           autoPlay: autoPlay,
         );
+        // 转码路径内部自行处理成功/失败（失败会走 _handlePlaybackError 跳下一首）。
+        return;
       }
+
+      // 已尝试转码仍失败（或音源加载阶段就失败、本就不走转码）：
+      // 自动跳到下一首，避免"播放失败后卡在第一首"（对齐主项目前端
+      // localHandlePlaybackError；连续失败达 _maxFailStreak 会停止并提示）。
+      _handlePlaybackError(song.id);
     }
   }
 
@@ -1381,7 +1388,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           autoPlay: autoPlay,
         );
         NetworkErrorNotifier.show('网络异常，当前无可用线路');
+        return;
       }
+      // 有可用线路但转码仍失败 → 自动跳到下一首，避免"卡在第一首"。
+      // （对齐主项目前端 localHandlePlaybackError；连续失败会停止并提示。）
+      _handlePlaybackError(song.id);
     }
   }
 

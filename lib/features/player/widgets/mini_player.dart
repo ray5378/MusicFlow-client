@@ -759,30 +759,50 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
             level: EchoSurfaceLevel.floating,
             padding: EdgeInsets.all(context.echoSpacing.sm),
             child: SizedBox(
-              width: 40,
-              height: 160,
-              child: RotatedBox(
-                quarterTurns: -1,
-                // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
-                child: Consumer(
-                  builder: (context, ref, _) {
-                    final cast = ref.watch(castPeerControllerProvider);
-                    final double volume;
-                    if (cast.activePeer != null &&
-                        cast.status.volume != null) {
-                      volume =
-                          (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
-                    } else {
-                      volume =
-                          ref.watch(playerProvider.select((s) => s.volume));
-                    }
-                    return Slider(
-                      value: volume,
-                      onChangeEnd: _applyVolume,
-                      onChanged: _applyVolume,
-                    );
-                  },
-                ),
+              width: 64,
+              height: 184,
+              // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final cast = ref.watch(castPeerControllerProvider);
+                  final double volume;
+                  if (cast.activePeer != null &&
+                      cast.status.volume != null) {
+                    volume =
+                        (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
+                  } else {
+                    volume = ref.watch(playerProvider.select((s) => s.volume));
+                  }
+                  final percent = (volume * 100).round();
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 实时显示当前音量数值（拖动时随状态刷新）。
+                      Text(
+                        '$percent%',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: context.echoColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: 40,
+                        height: 140,
+                        child: RotatedBox(
+                          quarterTurns: -1,
+                          child: Slider(
+                            value: volume,
+                            onChangeEnd: _applyVolume,
+                            onChanged: _applyVolume,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

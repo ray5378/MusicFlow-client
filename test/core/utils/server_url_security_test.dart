@@ -56,6 +56,48 @@ void main() {
       );
     });
 
+    test('strips trailing SPA page route copied from web login link', () {
+      // 用户从浏览器复制的外网登录链接：https://music.cmct.fun:35378/login
+      expect(
+        normalizeServerBaseUrl('https://music.cmct.fun:35378/login'),
+        'https://music.cmct.fun:35378',
+      );
+      expect(
+        normalizeServerBaseUrl('https://host/songs'),
+        'https://host',
+      );
+      expect(
+        normalizeServerBaseUrl('https://host/settings'),
+        'https://host',
+      );
+    });
+
+    test('strips nested SPA routes (e.g. /admin/users)', () {
+      expect(
+        normalizeServerBaseUrl('https://host/admin/users'),
+        'https://host',
+      );
+    });
+
+    test('keeps deployment sub-path but strips SPA route under it', () {
+      // 反代挂在 /music 下，前端路由 /music/login -> 基址应为 /music
+      expect(
+        normalizeServerBaseUrl('https://host/music/login'),
+        'https://host/music',
+      );
+    });
+
+    test('drops query/fragment on copied web links', () {
+      expect(
+        normalizeServerBaseUrl('https://host/login?redirect=%2F'),
+        'https://host',
+      );
+      expect(
+        normalizeServerBaseUrl('https://host/login#token=abc'),
+        'https://host',
+      );
+    });
+
     test('empty input stays empty', () {
       expect(normalizeServerBaseUrl(''), '');
       expect(normalizeServerBaseUrl('   '), '');

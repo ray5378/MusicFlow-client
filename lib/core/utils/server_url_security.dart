@@ -17,7 +17,32 @@ bool isInsecureHttpUrl(String rawUrl) {
   return uri.scheme.toLowerCase() == 'http';
 }
 
-/// 归一化服务器基地址：去空白 + 去尾部斜杠 + 丢弃 query/fragment。
+/// MusicFlow Web 前端的 SPA 页面路由（地址栏可见，来自主项目 router/index.ts）。
+/// 这些是前端路由而非 API 挂载点；用户从浏览器复制 `https://host/login` 这类
+/// 外网链接时，必须剥掉末尾的页面路由，才能拿到真正的 API 基地址 `https://host`。
+///
+/// 反代子路径部署（如 `/music`）不属于此集合，绝不会被误删。
+const Set<String> _knownSpaRoutes = <String>{
+  'login',
+  'songs',
+  'genres',
+  'albums',
+  'artists',
+  'playlists',
+  'favorites',
+  'groups',
+  'flows',
+  'history',
+  'settings',
+  'admin',
+  'plugins',
+  'sources',
+  'users',
+  'wish',
+};
+
+/// 归一化服务器基地址：去空白 + 去尾部斜杠 + 丢弃 query/fragment +
+/// 剥掉末尾的 SPA 页面路由（如 `/login`、`/admin/users`）。
 ///
 /// 为什么必须做：baseUrl 会被手工拼接成 `baseUrl + '/rest/getCoverArt'`
 /// （封面/音频流/下载 URL 不走 Dio，无法依赖 Dio 的路径规范化）。
@@ -42,9 +67,17 @@ String normalizeServerBaseUrl(String rawUrl) {
   }
 
   var path = uri.path;
+  // 去尾部斜杠（根部署变 ''）。
   while (path.endsWith('/')) {
     path = path.substring(0, path.length - 1);
   }
+  // 剥掉末尾的 SPA 页面路由（可能多层嵌套，如 /admin/users）；
+  // 反代子路径（如 /music）不在集合内，保留。
+  final segments = path.split('/');
+  while (segments.isNotEmpty && _knownSpaRoutes.contains(segments.last)) {
+    segments.removeLast();
+  }
+  path = segments.join('/');
 
   return Uri(
     scheme: uri.scheme,
