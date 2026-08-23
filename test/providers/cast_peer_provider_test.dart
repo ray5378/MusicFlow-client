@@ -450,6 +450,52 @@ void main() {
       expect(playerNotifier.toggleCount, 1);
     });
 
+    test('toggle when casting optimistically flips button state', () async {
+      await setupCasting();
+      expect(controller.state.status.playing, isTrue);
+      when(
+        () => client.postRaw('/rest/api/v1/peers/dlna-1/pause',
+            data: any(named: 'data')),
+      ).thenAnswer((_) async => <String, dynamic>{});
+      // 轮询回写与暂停一致(position 不再前进),避免异步回写覆盖乐观置位。
+      when(
+        () => client.getRaw(statusPath('dlna-1')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'PAUSED_PLAYBACK',
+          'position': 5,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+
+      await controller.toggle();
+      // 乐观置位(对齐前端 castTogglePlay):点击后按钮立即翻转,不依赖轮询结果。
+      expect(controller.state.status.state, 'PAUSED_PLAYBACK');
+      expect(controller.state.status.playing, isFalse);
+
+      // 再点一次恢复播放。
+      when(
+        () => client.postRaw('/rest/api/v1/peers/dlna-1/play',
+            data: any(named: 'data')),
+      ).thenAnswer((_) async => <String, dynamic>{});
+      when(
+        () => client.getRaw(statusPath('dlna-1')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'PLAYING',
+          'position': 6,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+      await controller.toggle();
+      expect(controller.state.status.state, 'PLAYING');
+      expect(controller.state.status.playing, isTrue);
+    });
+
     test('seek when casting posts seek and aligns smooth position', () async {
       await setupCasting(position: 5);
       when(
@@ -622,6 +668,53 @@ void main() {
 
       expect(controller.state.offline, isTrue);
       expect(controller.state.status.state, isEmpty);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 播放状态自愈(对齐前端 startCastPoll)
+  // -------------------------------------------------------------------------
+
+  group('playback state self-healing', () {
+    test('advancing position heals stale STOPPED state to PLAYING', () async {
+      await setupCasting();
+      // GENA 事件缓存了 state=STOPPED,但 position 仍在前进(10 > 5)且 < duration,
+      // 以「position 真实前进」为在播权威证据,强制 playing=true。
+      when(
+        () => client.getRaw(statusPath('dlna-1')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'STOPPED',
+          'position': 10,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+
+      await controller.pollOnce();
+      expect(controller.state.status.state, 'PLAYING');
+      expect(controller.state.status.playing, isTrue);
+    });
+
+    test('stale STOPPED without advancing position is not healed', () async {
+      await setupCasting();
+      // position 未前进(仍为 5)时,不误判为在播。
+      when(
+        () => client.getRaw(statusPath('dlna-1')),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'STOPPED',
+          'position': 5,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+
+      await controller.pollOnce();
+      expect(controller.state.status.state, 'STOPPED');
+      expect(controller.state.status.playing, isFalse);
     });
   });
 }

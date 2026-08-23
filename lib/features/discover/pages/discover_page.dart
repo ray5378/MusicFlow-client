@@ -371,7 +371,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
           ),
         );
       },
-      loading: () => const DiscoverSongLoading(count: 5),
+      loading: () => const _RandomSongsLoading(),
       error: (error, stackTrace) => DiscoverSectionMessage(
         title: '随心听加载失败',
         description: '请检查网络或切换线路后重试。',
@@ -416,6 +416,82 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
             ),
             SizedBox(height: context.echoSpacing.xs),
             content,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 随机歌曲加载态:横滑 + 每列 3 行骨架,与数据态布局(横滑列、每列 3 行)
+/// 完全一致,避免「刚打开是 5 行、刷新后跳成 3 行」的高度跳变。
+class _RandomSongsLoading extends StatelessWidget {
+  const _RandomSongsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final itemWidth =
+        (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
+    return HoverableHorizontalScroll(
+      builder: (context, controller) => SingleChildScrollView(
+        controller: controller,
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(
+          horizontal: context.echoSpacing.xs,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (var col = 0; col < 3; col++)
+              Padding(
+                padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (var row = 0; row < 3; row++) ...[
+                      SizedBox(
+                        width: itemWidth,
+                        child: const _RandomSongTileSkeleton(),
+                      ),
+                      if (row < 2) const SizedBox(height: 2),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 单行歌曲骨架(封面 + 两行文字),与 DiscoverSongTile 高度对齐。
+class _RandomSongTileSkeleton extends StatelessWidget {
+  const _RandomSongTileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 72),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: context.echoSpacing.xxs,
+        ),
+        child: Row(
+          children: <Widget>[
+            const EchoSkeleton(width: 48, height: 48),
+            SizedBox(width: context.echoSpacing.sm),
+            const Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  EchoSkeleton.line(height: 16),
+                  SizedBox(height: 8),
+                  EchoSkeleton.line(width: 112, height: 12),
+                ],
+              ),
+            ),
           ],
         ),
       ),

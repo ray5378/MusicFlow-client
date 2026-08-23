@@ -136,6 +136,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 连续轮询失败计数(离线判定)。
   int _failureCount = 0;
 
+  /// 上次轮询读到的 position(用于「position 真实前进」播放态自愈判定)。
+  double _lastPollPosition = -1;
+
   /// 离开本机时的本地播放状态快照(回本机时恢复,保证「切换前设备」逻辑不丢)。
   LocalPlaybackSnapshot? _localSnapshot;
 
@@ -331,7 +334,16 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       await _ref.read(playerProvider.notifier).togglePlayPause();
       return;
     }
-    await _post(state.status.playing ? 'pause' : 'play');
+    final target = !state.status.playing;
+    await _post(target ? 'play' : 'pause');
+    // 乐观置位(对齐前端 castTogglePlay):点击后按钮立即翻转,不依赖轮询/事件;
+    // 轮询随后以后端权威状态修正。
+    state = state.copyWith(
+      status: state.status.copyWith(
+        state: target ? 'PLAYING' : 'PAUSED_PLAYBACK',
+        active: true,
+      ),
+    );
     unawaited(pollOnce());
   }
 
@@ -468,13 +480,21 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         );
       } catch (_) {}
 
-      // 乐观镜像:本地队列/游标立即跟随设备,不等轮询回写。
+      // 乐观镜像:本地队列/游标立即跟随设备,不等轮询回写;
+      // 同时乐观置 PLAYING(对齐前端 startCastPlayback):点击播放后按钮立即显示
+      // 「暂停」,进度由插值 tick 驱动、轮询回写修正。
       _ref.read(playerProvider.notifier).syncQueueForCast(items, startIndex);
+      _lastPollPosition = -1;
       state = state.copyWith(
         castQueue: items,
         castIndex: startIndex,
         smoothPositionSeconds: 0,
         offline: false,
+        status: state.status.copyWith(
+          state: 'PLAYING',
+          active: true,
+          positionSeconds: 0,
+        ),
       );
       unawaited(pollOnce());
       return true;
@@ -567,6 +587,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _tickTimer?.cancel();
     _tickTimer = null;
     _failureCount = 0;
+    _lastPollPosition = -1;
   }
 
   Future<void> pollOnce() async {
@@ -592,6 +613,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     try {
       final st = await client.getRaw('$base/status').timeout(const Duration(seconds: 6));
       final next = PeerStatus.fromJson((st as Map).cast<String, dynamic>());
+
+      // 播放状态自愈(对齐前端 startCastPoll):部分 DLNA 设备经「清空→重选→重新播放」
+      // 后 GENA 事件缓存的 state 停留在旧值(如 STOPPED)并覆盖 SOAP 实时 PLAYING,
+      // 轮询读到 state=STOPPED 却 position 仍在前进(进度条在走)。此时以「position 真实
+      // 前进」作为在播的权威证据,强制 playing=true,避免按钮卡在「未播放」。
+      final advancing = next.durationSeconds > 0 &&
+          next.positionSeconds > _lastPollPosition &&
+          next.positionSeconds < next.durationSeconds;
+      _lastPollPosition = next.positionSeconds;
+      final effectiveStatus = (advancing && next.state != 'PLAYING')
+          ? next.copyWith(state: 'PLAYING', active: true)
+          : next;
 
       // 队列权威在后端:同步 currentIndex/playMode/队列快照(UI 曲目/歌词/队列跟随设备)。
       final snap = await client
@@ -622,7 +655,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       _pollInterval = const Duration(seconds: 2);
       if (!mounted) return;
       state = state.copyWith(
-        status: next,
+        status: effectiveStatus,
         smoothPositionSeconds: next.positionSeconds,
         castIndex: idx,
         playMode: mode,
