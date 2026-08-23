@@ -722,15 +722,21 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                         peer.queueLabel,
                     ].join(' · '),
                     selected: cast.activePeer?.peerId == peer.peerId,
-                    onPressed: !hasSong || !peer.available
-                        ? null
-                        : () async {
+                    onPressed: () async {
                             final navigator = Navigator.of(context);
+                            if (!hasSong) {
+                              showEchoMessage(
+                                context,
+                                '请先播放一首歌曲后再切换播放器',
+                                kind: EchoMessageKind.warning,
+                              );
+                              return;
+                            }
                             final ok = await controller.switchTo(peer);
                             if (!ok && context.mounted) {
                               showEchoMessage(
                                 context,
-                                '切换到「' + peer.name + '」失败,请重试',
+                                '切换到「${peer.name}」失败,请检查设备是否在线',
                                 kind: EchoMessageKind.error,
                               );
                               return;

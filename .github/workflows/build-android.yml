@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Client
 
 on:
   push:
@@ -9,9 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-android:
+    name: Android APK
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,7 +51,67 @@ jobs:
         run: flutter build apk --release
 
       - name: Rename APK for release
-        run: cp build/app/outputs/flutter-apk/app-release.apk "MusicFlowClient-${{ github.run_number }}.apk"
+        run: cp build/app/outputs/flutter-apk/app-release.apk "MusicFlow-${{ github.run_number }}-android.apk"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musicflow-android
+          path: MusicFlow-${{ github.run_number }}-android.apk
+          retention-days: 30
+
+  build-windows:
+    name: Windows Portable
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run dart analyze
+        run: dart analyze lib/
+        continue-on-error: true
+
+      - name: Build Windows (Release)
+        run: flutter build windows --release
+
+      - name: Package portable zip
+        run: |
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "MusicFlow-${{ github.run_number }}-windows.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musicflow-windows
+          path: MusicFlow-${{ github.run_number }}-windows.zip
+          retention-days: 30
+
+  publish-release:
+    name: Publish Release
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: musicflow-android
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: musicflow-windows
+
+      - name: Checkout code (for git push)
+        uses: actions/checkout@v4
 
       - name: Remove previous rolling release
         env:
@@ -66,17 +126,15 @@ jobs:
           tag_name: latest
           name: "MusicFlow Client (最新构建 #${{ github.run_number }})"
           body: |
-            自动构建的 release 版本 APK。
+            自动构建的 release 版本。
             提交: ${{ github.sha }}
             工作流运行: #${{ github.run_number }}
-          files: "MusicFlowClient-${{ github.run_number }}.apk"
+
+            - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
+            - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
+          files: |
+            MusicFlow-${{ github.run_number }}-android.apk
+            MusicFlow-${{ github.run_number }}-windows.zip
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload APK artifact (backup)
-        uses: actions/upload-artifact@v4
-        with:
-          name: musicflow-client-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30

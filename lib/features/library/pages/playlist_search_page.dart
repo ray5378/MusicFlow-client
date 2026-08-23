@@ -148,8 +148,12 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
               onPressed: () => Navigator.of(context).push<void>(
                 EchoPageRoute<void>(
                   context: context,
-                  builder: (_) =>
-                      PlaylistDetailPage(playlistId: playlist.id),
+                  builder: (_) => PlaylistDetailPage(
+                    playlistId: playlist.id,
+                    initialName: playlist.name,
+                    initialSongCount: playlist.songCount,
+                    initialCoverArt: playlist.coverArt,
+                  ),
                 ),
               ),
             ),

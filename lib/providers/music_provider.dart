@@ -96,7 +96,9 @@ Future<T> _fetchWithCacheFallback<T>({
 // Provider 定义
 // ---------------------------------------------------------------------------
 
-/// 随机歌曲 Provider（保持数据，不自动释放）
+/// 随机歌曲 Provider（保持数据，不自动释放）。
+/// 数量由每日推荐插件 homeCount 控制(默认 8,范围 1~24),
+/// 多取一些以保证首页展示充足;播完自动换下一轮。
 final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
   final repository = ref.watch(musicRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);
@@ -106,7 +108,7 @@ final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
   return _fetchWithCacheFallback(
     ref: ref,
     label: 'randomSongs',
-    fetch: () => repository.getRandomSongs(size: 30),
+    fetch: () => repository.getRandomSongs(size: 24),
     cacheWrite: (songs) => cache.cacheRandomSongs(libraryId, songs),
     cacheRead: () => cache.getRandomSongs(libraryId),
     failedProvider: randomSongsLoadFailedProvider,

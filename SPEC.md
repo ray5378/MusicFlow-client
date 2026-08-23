@@ -63,6 +63,20 @@
 - SOAP 调用超时：单次 8 秒，累计 3 次失败标记设备不可用。
 - 本地 HTTP 中继：单个连接最多持续 6 小时，过期自动断开。
 
+### 1.6 构建约束（CI-only）
+
+**禁止在本地机器上构建客户端 APK 或 Windows 可执行文件。**
+
+所有客户端构建**必须**通过 GitHub Actions CI 完成：
+
+- **触发条件**：push 到 `main` 分支 或 `workflow_dispatch`（手动触发）。
+- **Android 构建**：`ubuntu-latest` runner，签名 APK → `latest` 滚动 Release。
+- **Windows 构建**：`windows-latest` runner，`flutter build windows --release` → 便携 zip → 同一 Release。
+- **Release 产物**：`MusicFlow-{run_number}-android.apk` + `MusicFlow-{run_number}-windows.zip`，
+  发布到 tag `latest`（每次构建覆盖上一版）。
+- **本地开发允许**：`flutter pub get` / `flutter analyze` / `flutter test` 可以在本地运行，
+  但**产出二进制文件的 `flutter build` 命令禁止在本地执行**。
+
 ---
 
 ## 二、项目架构
@@ -275,8 +289,7 @@ lib/
 
 - `flutter analyze` 0 错误
 - `flutter test` 全绿
-- `flutter build apk` 成功（Android）
-- `flutter build windows` 成功（Windows，需 Windows 环境）
+- APK / Windows 可执行文件**只在 CI 构建**（见 §1.6），本地禁止 `flutter build`。
 
 ---
 
@@ -297,6 +310,7 @@ lib/
 11. **禁止**任何库列表绕过 §2.4 的窗口化加载（新增列表必须接
     `WindowedPaginatedList` + `WindowedListView`）。
 12. **禁止**客户端自行实现 SSDP/SOAP 推流；投屏一律走后端 peers API。
+13. **禁止**在本地机器上执行 `flutter build`（apk/windows 等），构建产物只由 CI 产出。
 
 ---
 
@@ -326,7 +340,6 @@ flutter analyze
 # 测试
 flutter test
 
-# 构建
-flutter build apk      # Android
-flutter build windows  # Windows
+# 构建：禁止本地执行！必须通过 GitHub Actions CI 构建。
+# 触发方式：push 到 main 分支 或手动 workflow_dispatch。
 ```

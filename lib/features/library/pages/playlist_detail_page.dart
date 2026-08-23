@@ -24,9 +24,20 @@ import '../widgets/playlist_manage_dialogs.dart';
 import '../widgets/playlist_options_sheet.dart';
 
 class PlaylistDetailPage extends ConsumerStatefulWidget {
-  const PlaylistDetailPage({super.key, required this.playlistId});
+  const PlaylistDetailPage({
+    super.key,
+    required this.playlistId,
+    this.initialName,
+    this.initialSongCount,
+    this.initialCoverArt,
+  });
 
   final String playlistId;
+
+  /// 预加载数据：点击歌单时从列表/卡片直接传入，避免打开后白屏等待网络。
+  final String? initialName;
+  final int? initialSongCount;
+  final String? initialCoverArt;
 
   @override
   ConsumerState<PlaylistDetailPage> createState() => _PlaylistDetailPageState();
@@ -286,7 +297,13 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 ),
               );
             },
-            loading: () => const MediaDetailLoadingView(),
+            loading: () => widget.initialName != null
+                ? _PlaylistLoadingPreview(
+                    name: widget.initialName!,
+                    songCount: widget.initialSongCount ?? 0,
+                    coverArt: widget.initialCoverArt,
+                  )
+                : const MediaDetailLoadingView(),
             error: (error, stackTrace) => EchoErrorState(
               title: '歌单加载失败',
               description: '无法读取歌单详情。请检查网络后重试。',
@@ -985,6 +1002,80 @@ class _PlaylistIdentityHeader extends StatelessWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// 歌单详情加载中的占位预览：利用列表传入的预加载数据立即展示封面+标题，
+/// 避免用户点击后看到白屏 loading spinner。
+class _PlaylistLoadingPreview extends StatelessWidget {
+  const _PlaylistLoadingPreview({
+    required this.name,
+    required this.songCount,
+    this.coverArt,
+  });
+
+  final String name;
+  final int songCount;
+  final String? coverArt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverToBoxAdapter(
+              child: MediaDetailHeaderSurface(
+                coverArtId: coverArt,
+                child: Padding(
+                  padding: EdgeInsets.all(context.echoSpacing.lg),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      SizedBox.square(
+                        dimension: 120,
+                        child: MediaDetailArtwork(
+                          coverArtId: coverArt,
+                          semanticLabel: '$name 封面',
+                          heroTag: 'playlist-cover-$name',
+                          requestSize: 480,
+                        ),
+                      ),
+                      SizedBox(width: context.echoSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(name, style: context.echoTypography.display),
+                            SizedBox(height: context.echoSpacing.sm),
+                            Text(
+                              '$songCount 首',
+                              style: context.echoTypography.metadata.copyWith(
+                                color: context.echoColors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

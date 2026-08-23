@@ -125,11 +125,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         ),
                         children: <Widget>[
                           const RandomSongsSection(),
-                          SizedBox(height: context.echoSpacing.xl),
+                          SizedBox(height: context.echoSpacing.sm),
                           const RecentPlaylistsSection(),
-                          SizedBox(height: context.echoSpacing.xl),
+                          SizedBox(height: context.echoSpacing.sm),
                           const FixedRecommendSection(),
-                          SizedBox(height: context.echoSpacing.xl),
+                          SizedBox(height: context.echoSpacing.sm),
                           const PlatformRecommendSection(),
                         ],
                       ),
@@ -307,14 +307,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(
-            horizontal: context.echoPageHorizontalPadding,
+            horizontal: context.echoSpacing.xs,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               for (var col = 0; col < (songs.length / 3).ceil(); col++)
                 Padding(
-                  padding: EdgeInsets.only(right: context.echoSpacing.md),
+                  padding: EdgeInsets.only(right: context.echoSpacing.sm),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -336,7 +336,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
                             ),
                           ),
                         ),
-                        if (row < 2) SizedBox(height: context.echoSpacing.xxs),
+                        if (row < 2) SizedBox(height: 2),
                       ],
                     ],
                   ),
@@ -362,7 +362,10 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
         border: Border.all(color: context.echoColors.divider),
       ),
       child: Padding(
-        padding: EdgeInsets.all(context.echoSpacing.md),
+        padding: EdgeInsets.symmetric(
+          horizontal: context.echoSpacing.sm,
+          vertical: context.echoSpacing.xs,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -385,7 +388,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
                 ],
               ),
             ),
-            SizedBox(height: context.echoSpacing.md),
+            SizedBox(height: context.echoSpacing.xs),
             content,
           ],
         ),
@@ -414,7 +417,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
             onPressed: () => ref.invalidate(recentPlaylistsProvider),
           ),
         ),
-        SizedBox(height: context.echoSpacing.xs),
+        SizedBox(height: context.echoSpacing.xxs),
         playlistsAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
@@ -452,8 +455,12 @@ class RecentPlaylistsSection extends ConsumerWidget {
                       Navigator.of(context).push<void>(
                         EchoPageRoute<void>(
                           context: context,
-                          builder: (context) =>
-                              PlaylistDetailPage(playlistId: pl.id),
+                          builder: (context) => PlaylistDetailPage(
+                            playlistId: pl.id,
+                            initialName: pl.name,
+                            initialSongCount: pl.songCount,
+                            initialCoverArt: pl.coverArt,
+                          ),
                         ),
                       );
                     },
@@ -503,7 +510,7 @@ class FixedRecommendSection extends ConsumerWidget {
         EchoSectionHeader(
           title: '固定推荐',
         ),
-        SizedBox(height: context.echoSpacing.xs),
+        SizedBox(height: context.echoSpacing.xxs),
         cardsAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
@@ -545,6 +552,11 @@ class FixedRecommendSection extends ConsumerWidget {
                           context: context,
                           builder: (context) => PlaylistDetailPage(
                             playlistId: card.playlistId,
+                            initialName: card.playlistName.isNotEmpty
+                                ? card.playlistName
+                                : card.name,
+                            initialSongCount: card.songCount,
+                            initialCoverArt: card.coverArt,
                           ),
                         ),
                       );
@@ -644,7 +656,7 @@ class PlatformRecommendSection extends ConsumerWidget {
         EchoSectionHeader(
           title: '平台推荐',
         ),
-        SizedBox(height: context.echoSpacing.xs),
+        SizedBox(height: context.echoSpacing.xxs),
         channelsAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,

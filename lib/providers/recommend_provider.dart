@@ -73,3 +73,15 @@ final recommendProviderIdProvider = Provider<AsyncValue<String>>((ref) {
       .watch(recommendChannelsProvider)
       .whenData((r) => r.providerId);
 });
+
+/// 每日推荐插件控制的首页歌单数(含今日漫游+随机歌单,默认 8,范围 1~24)。
+final homePlaylistCountProvider = FutureProvider<int>((ref) async {
+  final client = ref.watch(subsonicApiClientProvider);
+  try {
+    await ref.read(ensureActiveAddressProvider.future);
+    final data = await client.getRaw('/rest/api/v1/home/playlist-count');
+    return (data['count'] as num?)?.toInt() ?? 8;
+  } catch (_) {
+    return 8;
+  }
+});
