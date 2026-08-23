@@ -68,7 +68,15 @@ class SearchSong {
     this.isLocal = false,
   });
 
-  factory SearchSong.fromRemoteJson(Map<String, dynamic> json) {
+  /// 远程搜索结果解析。
+  /// [providerId] 可选覆盖:后端 search/items 返回的歌曲条目**不带 providerId**,
+  /// 但 /rest/stream-remote 与导入接口都必须带 provider。由仓库层在解析时
+  /// 用请求参数里的 providerId 补齐,否则 buildRemoteSong 拼出的流 URL
+  /// provider 为空 → 后端返回 Missing provider/source/id → 试听/入库全挂。
+  factory SearchSong.fromRemoteJson(
+    Map<String, dynamic> json, {
+    String? providerId,
+  }) {
     return SearchSong(
       id: json['id'] as String? ?? '',
       source: json['source'] as String? ?? '',
@@ -79,7 +87,7 @@ class SearchSong {
       cover: json['cover'] as String? ?? '',
       suffix: json['suffix'] as String? ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: json['providerId'] as String? ?? '',
+      providerId: providerId ?? json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
     );
   }
@@ -129,7 +137,10 @@ class SearchAlbum {
     this.isLocal = false,
   });
 
-  factory SearchAlbum.fromRemoteJson(Map<String, dynamic> json) {
+  factory SearchAlbum.fromRemoteJson(
+    Map<String, dynamic> json, {
+    String? providerId,
+  }) {
     return SearchAlbum(
       id: json['id'] as String? ?? '',
       source: json['source'] as String? ?? '',
@@ -140,7 +151,7 @@ class SearchAlbum {
       year: json['year']?.toString() ?? '',
       link: json['link'] as String? ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: json['providerId'] as String? ?? '',
+      providerId: providerId ?? json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
     );
   }
@@ -174,7 +185,10 @@ class SearchArtist {
     this.isLocal = false,
   });
 
-  factory SearchArtist.fromRemoteJson(Map<String, dynamic> json) {
+  factory SearchArtist.fromRemoteJson(
+    Map<String, dynamic> json, {
+    String? providerId,
+  }) {
     return SearchArtist(
       id: json['id'] as String? ?? '',
       source: json['source'] as String? ?? '',
@@ -184,7 +198,7 @@ class SearchArtist {
       albumCount: json['albumCount']?.toString() ?? '',
       songCount: json['songCount']?.toString() ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: json['providerId'] as String? ?? '',
+      providerId: providerId ?? json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
     );
   }
@@ -220,7 +234,10 @@ class SearchPlaylist {
     this.isLocal = false,
   });
 
-  factory SearchPlaylist.fromRemoteJson(Map<String, dynamic> json) {
+  factory SearchPlaylist.fromRemoteJson(
+    Map<String, dynamic> json, {
+    String? providerId,
+  }) {
     return SearchPlaylist(
       id: json['id'] as String? ?? '',
       source: json['source'] as String? ?? '',
@@ -230,7 +247,7 @@ class SearchPlaylist {
       trackCount: json['trackCount']?.toString() ?? '',
       link: json['link'] as String? ?? '',
       platformLabel: json['platformLabel'] as String? ?? json['source'] as String? ?? '',
-      providerId: json['providerId'] as String? ?? '',
+      providerId: providerId ?? json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
       imported: json['imported'] as bool? ?? false,
     );

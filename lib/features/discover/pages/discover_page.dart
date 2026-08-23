@@ -320,44 +320,47 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
         final itemWidth =
             (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(
-            horizontal: context.echoSpacing.xs,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              for (var col = 0; col < (songs.length / 3).ceil(); col++)
-                Padding(
-                  padding: EdgeInsets.only(right: context.echoSpacing.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      for (var row = 0;
-                          row < 3 && col * 3 + row < songs.length;
-                          row++) ...<Widget>[
-                        SizedBox(
-                          width: itemWidth,
-                          child: DiscoverSongTile(
-                            song: songs[col * 3 + row],
-                            onPressed: () {
-                              ref
-                                  .read(playerProvider.notifier)
-                                  .playQueue(songs, startIndex: col * 3 + row);
-                            },
-                            onOpenActions: () => showSongOptionsSheet(
-                              context: context,
+        return HoverableHorizontalScroll(
+          builder: (context, controller) => SingleChildScrollView(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: context.echoSpacing.xs,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (var col = 0; col < (songs.length / 3).ceil(); col++)
+                  Padding(
+                    padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        for (var row = 0;
+                            row < 3 && col * 3 + row < songs.length;
+                            row++) ...<Widget>[
+                          SizedBox(
+                            width: itemWidth,
+                            child: DiscoverSongTile(
                               song: songs[col * 3 + row],
+                              onPressed: () {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .playQueue(songs, startIndex: col * 3 + row);
+                              },
+                              onOpenActions: () => showSongOptionsSheet(
+                                context: context,
+                                song: songs[col * 3 + row],
+                              ),
                             ),
                           ),
-                        ),
-                        if (row < 2) SizedBox(height: 2),
+                          if (row < 2) SizedBox(height: 2),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -450,38 +453,41 @@ class RecentPlaylistsSection extends ConsumerWidget {
                     : null,
               );
             }
-            return SizedBox(
-              height: playlistRailHeight(context),
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.symmetric(
-                  horizontal: context.echoPageHorizontalPadding,
-                ),
-                itemCount: playlists.length,
-                separatorBuilder: (context, index) =>
-                    SizedBox(width: context.echoSpacing.sm),
-                itemBuilder: (context, index) {
-                  final pl = playlists[index];
-                  return DiscoverPlaylistCard(
-                    width: _playlistCardWidth,
-                    title: pl.name,
-                    subtitle: '${pl.songCount} 首',
-                    coverArtId: pl.coverArt,
-                    onPressed: () {
-                      Navigator.of(context).push<void>(
-                        EchoPageRoute<void>(
-                          context: context,
-                          builder: (context) => PlaylistDetailPage(
-                            playlistId: pl.id,
-                            initialName: pl.name,
-                            initialSongCount: pl.songCount,
-                            initialCoverArt: pl.coverArt,
+            return HoverableHorizontalScroll(
+              builder: (context, controller) => SizedBox(
+                height: playlistRailHeight(context),
+                child: ListView.separated(
+                  controller: controller,
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.echoPageHorizontalPadding,
+                  ),
+                  itemCount: playlists.length,
+                  separatorBuilder: (context, index) =>
+                      SizedBox(width: context.echoSpacing.sm),
+                  itemBuilder: (context, index) {
+                    final pl = playlists[index];
+                    return DiscoverPlaylistCard(
+                      width: _playlistCardWidth,
+                      title: pl.name,
+                      subtitle: '${pl.songCount} 首',
+                      coverArtId: pl.coverArt,
+                      onPressed: () {
+                        Navigator.of(context).push<void>(
+                          EchoPageRoute<void>(
+                            context: context,
+                            builder: (context) => PlaylistDetailPage(
+                              playlistId: pl.id,
+                              initialName: pl.name,
+                              initialSongCount: pl.songCount,
+                              initialCoverArt: pl.coverArt,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             );
           },
@@ -543,42 +549,45 @@ class FixedRecommendSection extends ConsumerWidget {
                     : null,
               );
             }
-            return SizedBox(
-              height: playlistRailHeight(context),
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.symmetric(
-                  horizontal: context.echoPageHorizontalPadding,
-                ),
-                itemCount: cards.length,
-                separatorBuilder: (context, index) =>
-                    SizedBox(width: context.echoSpacing.sm),
-                itemBuilder: (context, index) {
-                  final card = cards[index];
-                  return DiscoverPlaylistCard(
-                    width: _playlistCardWidth,
-                    title: card.playlistName.isNotEmpty
-                        ? card.playlistName
-                        : card.name,
-                    subtitle: '${card.songCount} 首',
-                    coverArtId: card.coverArt,
-                    onPressed: () {
-                      Navigator.of(context).push<void>(
-                        EchoPageRoute<void>(
-                          context: context,
-                          builder: (context) => PlaylistDetailPage(
-                            playlistId: card.playlistId,
-                            initialName: card.playlistName.isNotEmpty
-                                ? card.playlistName
-                                : card.name,
-                            initialSongCount: card.songCount,
-                            initialCoverArt: card.coverArt,
+            return HoverableHorizontalScroll(
+              builder: (context, controller) => SizedBox(
+                height: playlistRailHeight(context),
+                child: ListView.separated(
+                  controller: controller,
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.echoPageHorizontalPadding,
+                  ),
+                  itemCount: cards.length,
+                  separatorBuilder: (context, index) =>
+                      SizedBox(width: context.echoSpacing.sm),
+                  itemBuilder: (context, index) {
+                    final card = cards[index];
+                    return DiscoverPlaylistCard(
+                      width: _playlistCardWidth,
+                      title: card.playlistName.isNotEmpty
+                          ? card.playlistName
+                          : card.name,
+                      subtitle: '${card.songCount} 首',
+                      coverArtId: card.coverArt,
+                      onPressed: () {
+                        Navigator.of(context).push<void>(
+                          EchoPageRoute<void>(
+                            context: context,
+                            builder: (context) => PlaylistDetailPage(
+                              playlistId: card.playlistId,
+                              initialName: card.playlistName.isNotEmpty
+                                  ? card.playlistName
+                                  : card.name,
+                              initialSongCount: card.songCount,
+                              initialCoverArt: card.coverArt,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             );
           },
@@ -707,37 +716,40 @@ class PlatformRecommendSection extends ConsumerWidget {
                     SizedBox(height: context.echoSpacing.xxs),
                   ],
                   if (channel.playlists.isNotEmpty)
-                    SizedBox(
-                      height: playlistRailHeight(context),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: context.echoPageHorizontalPadding,
+                    HoverableHorizontalScroll(
+                      builder: (context, controller) => SizedBox(
+                        height: playlistRailHeight(context),
+                        child: ListView.separated(
+                          controller: controller,
+                          scrollDirection: Axis.horizontal,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: context.echoPageHorizontalPadding,
+                          ),
+                          itemCount: channel.playlists.length,
+                          separatorBuilder: (context, index) =>
+                              SizedBox(width: context.echoSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final pl = channel.playlists[index];
+                            final isImporting = importingId == pl.id;
+                            return DiscoverPlaylistCard(
+                              width: _playlistCardWidth,
+                              title: pl.name,
+                              subtitle: pl.trackCount.isNotEmpty
+                                  ? '${pl.trackCount} 首'
+                                  : null,
+                              coverUrl: pl.cover,
+                              loading: isImporting,
+                              onPressed: isImporting
+                                  ? () {}
+                                  : () => _openRecommendPlaylist(
+                                        context,
+                                        ref,
+                                        providerId,
+                                        pl,
+                                      ),
+                            );
+                          },
                         ),
-                        itemCount: channel.playlists.length,
-                        separatorBuilder: (context, index) =>
-                            SizedBox(width: context.echoSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final pl = channel.playlists[index];
-                          final isImporting = importingId == pl.id;
-                          return DiscoverPlaylistCard(
-                            width: _playlistCardWidth,
-                            title: pl.name,
-                            subtitle: pl.trackCount.isNotEmpty
-                                ? '${pl.trackCount} 首'
-                                : null,
-                            coverUrl: pl.cover,
-                            loading: isImporting,
-                            onPressed: isImporting
-                                ? () {}
-                                : () => _openRecommendPlaylist(
-                                      context,
-                                      ref,
-                                      providerId,
-                                      pl,
-                                    ),
-                          );
-                        },
                       ),
                     ),
                 ],

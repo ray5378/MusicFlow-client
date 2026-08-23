@@ -56,20 +56,28 @@ class SearchRepository {
         case SearchEntityKind.song:
           return SearchOutcome(
             songs: items
-                .map((e) => SearchSong.fromRemoteJson(e as Map<String, dynamic>))
+                .map((e) => SearchSong.fromRemoteJson(
+                      e as Map<String, dynamic>,
+                      providerId: providerId,
+                    ))
                 .toList(),
           );
         case SearchEntityKind.album:
           return SearchOutcome(
             albums: items
-                .map((e) => SearchAlbum.fromRemoteJson(e as Map<String, dynamic>))
+                .map((e) => SearchAlbum.fromRemoteJson(
+                      e as Map<String, dynamic>,
+                      providerId: providerId,
+                    ))
                 .toList(),
           );
         case SearchEntityKind.artist:
           return SearchOutcome(
             artists: items
-                .map((e) =>
-                    SearchArtist.fromRemoteJson(e as Map<String, dynamic>))
+                .map((e) => SearchArtist.fromRemoteJson(
+                      e as Map<String, dynamic>,
+                      providerId: providerId,
+                    ))
                 .toList(),
           );
         case SearchEntityKind.playlist:
@@ -77,8 +85,10 @@ class SearchRepository {
           final plList = playlists.isNotEmpty ? playlists : items;
           return SearchOutcome(
             playlists: plList
-                .map((e) =>
-                    SearchPlaylist.fromRemoteJson(e as Map<String, dynamic>))
+                .map((e) => SearchPlaylist.fromRemoteJson(
+                      e as Map<String, dynamic>,
+                      providerId: providerId,
+                    ))
                 .toList(),
           );
       }
@@ -110,7 +120,10 @@ class SearchRepository {
     );
     final songs = data['items'] as List? ?? [];
     return songs
-        .map((e) => SearchSong.fromRemoteJson(e as Map<String, dynamic>))
+        .map((e) => SearchSong.fromRemoteJson(
+              e as Map<String, dynamic>,
+              providerId: providerId,
+            ))
         .map((s) => buildRemoteSong(s))
         .toList();
   }
@@ -126,7 +139,10 @@ class SearchRepository {
     );
     final songs = data['items'] as List? ?? [];
     return songs
-        .map((e) => SearchSong.fromRemoteJson(e as Map<String, dynamic>))
+        .map((e) => SearchSong.fromRemoteJson(
+              e as Map<String, dynamic>,
+              providerId: providerId,
+            ))
         .map((s) => buildRemoteSong(s))
         .toList();
   }

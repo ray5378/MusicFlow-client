@@ -3,12 +3,7 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
-
-static const UINT WM_TRAY_COMMAND = WM_USER + 2;
-static const UINT TRAY_PLAY_PAUSE = 1003;
-static const UINT TRAY_PREV = 1004;
-static const UINT TRAY_NEXT = 1005;
-static const UINT TRAY_LYRICS = 1006;
+#include "tray.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -58,6 +53,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (result) {
       return *result;
     }
+  }
+
+  // 托盘图标点击(WM_TRAYICON)与托盘菜单命令(WM_COMMAND)在窗口过程层处理：
+  // 由 DispatchMessage 稳定投递，不依赖 main 消息循环的 GetMessage 过滤
+  //（过滤版本在部分 Windows 环境左右键完全不响应）。
+  if (TrayHandleMessage(hwnd, message, wparam, lparam)) {
+    return 0;
   }
 
   switch (message) {

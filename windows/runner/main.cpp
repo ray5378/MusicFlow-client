@@ -3,19 +3,8 @@
 #include <windows.h>
 
 #include "flutter_window.h"
+#include "tray.h"
 #include "utils.h"
-
-// System tray constants
-static const UINT WM_TRAYICON = WM_USER + 1;
-static const UINT TRAY_SHOW = 1001;
-static const UINT TRAY_QUIT = 1002;
-static const UINT TRAY_PLAY_PAUSE = 1003;
-static const UINT TRAY_PREV = 1004;
-static const UINT TRAY_NEXT = 1005;
-static const UINT TRAY_LYRICS = 1006;
-static const UINT TRAY_ICON_ID = 1;
-// Custom message to forward tray commands to Flutter window
-static const UINT WM_TRAY_COMMAND = WM_USER + 2;
 
 static NOTIFYICONDATAW g_nid = {};
 static HMENU g_tray_menu = nullptr;
@@ -53,10 +42,66 @@ static void ShowTrayMenu(HWND hwnd) {
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_QUIT, L"退出(&X)");
 
+  // 先把窗口设为前台再弹菜单，否则 Windows 前台规则会立刻关闭弹出菜单。
   SetForegroundWindow(hwnd);
   TrackPopupMenu(g_tray_menu, TPM_RIGHTALIGN | TPM_BOTTOMALIGN,
                  pt.x, pt.y, 0, hwnd, nullptr);
   PostMessage(hwnd, WM_NULL, 0, 0);
+}
+
+void TrayInit(HWND hwnd) {
+  AddTrayIcon(hwnd);
+}
+
+void TrayShutdown() {
+  RemoveTrayIcon();
+  if (g_tray_menu) {
+    DestroyMenu(g_tray_menu);
+    g_tray_menu = nullptr;
+  }
+}
+
+bool TrayHandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+  if (message == WM_TRAYICON) {
+    if (lParam == WM_LBUTTONUP || lParam == WM_LBUTTONDBLCLK) {
+      // 从托盘恢复：窗口可能在托盘中隐藏(SW_HIDE)或最小化，统一 SW_RESTORE。
+      if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+      }
+      SetForegroundWindow(hwnd);
+    } else if (lParam == WM_RBUTTONUP) {
+      ShowTrayMenu(hwnd);
+    }
+    return true;
+  }
+
+  if (message == WM_COMMAND) {
+    WORD cmd = LOWORD(wParam);
+    switch (cmd) {
+      case TRAY_SHOW:
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+        return true;
+      case TRAY_PLAY_PAUSE:
+      case TRAY_PREV:
+      case TRAY_NEXT:
+      case TRAY_LYRICS:
+        // Forward to Flutter window as custom message.
+        PostMessage(hwnd, WM_TRAY_COMMAND, cmd, 0);
+        return true;
+      case TRAY_QUIT:
+        TrayShutdown();
+        // SetQuitOnClose(false) 时 WM_DESTROY 不会自动 PostQuitMessage，
+        // 必须手动结束消息循环，否则进程残留。
+        DestroyWindow(hwnd);
+        PostQuitMessage(0);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  return false;
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -84,48 +129,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   window.SetQuitOnClose(false);
 
   HWND hwnd = window.GetHandle();
-  AddTrayIcon(hwnd);
+  TrayInit(hwnd);
 
+  // 托盘图标消息(WM_TRAYICON)与托盘菜单命令(WM_COMMAND)统一在窗口过程
+  // (flutter_window.cpp)里处理；这里只做标准消息泵，不再在 GetMessage 层
+  // 过滤拦截——过滤版本在部分 Windows 环境下左右键完全不响应。
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
-    if (msg.message == WM_TRAYICON) {
-      if (msg.lParam == WM_LBUTTONUP || msg.lParam == WM_LBUTTONDBLCLK) {
-        // 从托盘恢复：窗口可能在托盘中隐藏(SW_HIDE)或最小化，统一 SW_RESTORE。
-        if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) {
-          ShowWindow(hwnd, SW_RESTORE);
-        }
-        SetForegroundWindow(hwnd);
-      } else if (msg.lParam == WM_RBUTTONUP) {
-        ShowTrayMenu(hwnd);
-      }
-    } else if (msg.message == WM_COMMAND) {
-      WORD cmd = LOWORD(msg.wParam);
-      switch (cmd) {
-        case TRAY_SHOW:
-          ShowWindow(hwnd, SW_RESTORE);
-          SetForegroundWindow(hwnd);
-          break;
-        case TRAY_PLAY_PAUSE:
-        case TRAY_PREV:
-        case TRAY_NEXT:
-        case TRAY_LYRICS:
-          // Forward to Flutter window as custom message
-          PostMessage(hwnd, WM_TRAY_COMMAND, cmd, 0);
-          break;
-        case TRAY_QUIT:
-          RemoveTrayIcon();
-          if (g_tray_menu) DestroyMenu(g_tray_menu);
-          // SetQuitOnClose(false) 时 WM_DESTROY 不会自动 PostQuitMessage，
-          // 必须手动退出消息循环，否则进程残留。
-          DestroyWindow(hwnd);
-          PostQuitMessage(0);
-          break;
-      }
-    } else {
-      ::TranslateMessage(&msg);
-      ::DispatchMessage(&msg);
-    }
+    ::TranslateMessage(&msg);
+    ::DispatchMessage(&msg);
   }
+
+  TrayShutdown();
 
   ::CoUninitialize();
   return EXIT_SUCCESS;
