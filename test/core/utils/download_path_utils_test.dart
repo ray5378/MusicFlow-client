@@ -4,7 +4,7 @@ import 'package:path/path.dart' as p;
 
 void main() {
   group('buildDownloadFilePath', () {
-    final root = p.join('downloads', 'Echoes');
+    final root = p.join('downloads', 'MusicFlow');
 
     test('keeps safe inputs unchanged under the download root', () {
       final path = buildDownloadFilePath(

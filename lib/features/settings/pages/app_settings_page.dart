@@ -69,9 +69,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         XFile.fromData(
           utf8.encode(logContent),
           mimeType: 'text/plain',
-          name: 'echoes_log_$timestamp.txt',
+          name: 'musicflow_log_$timestamp.txt',
         ),
-      ], subject: 'echoes 日志导出 $timestamp');
+      ], subject: 'MusicFlow 日志导出 $timestamp');
 
       Logger.infoWithTag(
         'LOG_EXPORT',
