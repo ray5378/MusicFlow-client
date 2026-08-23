@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/playlist.dart';
 import '../../../data/models/search.dart';
+import '../../../data/models/song.dart';
 import '../../../features/discover/widgets/discover_media_widgets.dart';
 import '../../../features/library/widgets/windowed_list_view.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
+import '../../../features/search/widgets/search_result_card.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../library/pages/playlist_detail_page.dart';
@@ -39,6 +44,14 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
   void initState() {
     super.initState();
     _list.load('');
+  }
+
+  /// 播放本地歌单：拉取歌单详情歌曲后统一入口播放。
+  Future<void> _playLocalPlaylist(WidgetRef ref, Playlist playlist) async {
+    final detail = await ref.read(playlistDetailProvider(playlist.id).future);
+    final songs = detail?.songs ?? const <Song>[];
+    if (songs.isEmpty || !mounted) return;
+    await playEffectiveQueue(ref, songs);
   }
 
   @override
@@ -87,12 +100,10 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
             return repository.getPlaylistsPage(1, 12, query: _searchQuery);
           },
           grid: true,
-          itemBuilder: (context, playlist, width) => DiscoverPlaylistCard(
-            width: width,
-            title: playlist.name,
-            subtitle: '${playlist.songCount} 首',
-            coverArtId: playlist.coverArt,
-            onPressed: () => Navigator.of(context).push<void>(
+          itemBuilder: (context, playlist, _) => SearchPlaylistCard(
+            playlist: SearchPlaylist.fromLocal(playlist),
+            onPlay: () => unawaited(_playLocalPlaylist(ref, playlist)),
+            onOpen: () => Navigator.of(context).push<void>(
               EchoPageRoute<void>(
                 context: context,
                 builder: (_) => PlaylistDetailPage(

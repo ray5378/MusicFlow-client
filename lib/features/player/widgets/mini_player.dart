@@ -16,6 +16,7 @@ import '../../../providers/player_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../pages/full_player_page.dart';
 import 'player_hero_helpers.dart';
+import 'play_queue_sheet.dart';
 
 /// Stable bridge between the application shell and the immersive player.
 class MiniPlayer extends ConsumerWidget {
@@ -45,6 +46,13 @@ class MiniPlayer extends ConsumerWidget {
     );
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
     final lyricLine = ref.watch(currentLyricLineProvider);
+    // 播放模式(对齐主项目前端 playMode:order|one|all|shuffle)。
+    // 投屏态以后端 playMode 为准;本机以本地 shuffleEnabled + loopMode 推导。
+    final mode = isCasting
+        ? cast.playMode
+        : (player.shuffleEnabled
+              ? 'shuffle'
+              : (player.loopMode == LoopMode.one ? 'one' : 'all'));
 
     return MiniPlayerView(
       playerState: playerState,
@@ -61,8 +69,13 @@ class MiniPlayer extends ConsumerWidget {
       onNext: () => isCasting
           ? ref.read(castPeerControllerProvider.notifier).next()
           : ref.read(playerProvider.notifier).next(),
-      onToggleShuffle: () => ref.read(playerProvider.notifier).toggleShuffle(),
-      onToggleRepeat: () => ref.read(playerProvider.notifier).toggleLoopMode(),
+      playMode: mode,
+      onTogglePlayMode: () => isCasting
+          ? ref.read(castPeerControllerProvider.notifier).cyclePlayMode()
+          : ref.read(playerProvider.notifier).cyclePlaybackMode(),
+      onToggleFavorite: () =>
+          ref.read(playerProvider.notifier).toggleFavorite(),
+      onOpenQueue: () => showPlayQueueSheet(context: context),
       currentPlayerName: currentPlayerName(cast),
       isCasting: isCasting,
     );
@@ -122,7 +135,9 @@ class MiniPlayer extends ConsumerWidget {
 
   /// 电脑端「切换播放器」小弹窗：以 Overlay 呈现，播放控件上方小窗，
   /// 点击弹窗外任意位置关闭；切换完成后弹出右上角 Toast 反馈。
-  static void _showDesktopPlayerSwitcherPopover({required BuildContext context}) {
+  static void _showDesktopPlayerSwitcherPopover({
+    required BuildContext context,
+  }) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
     late final OverlayEntry entry;
@@ -130,12 +145,8 @@ class MiniPlayer extends ConsumerWidget {
       builder: (entryContext) => PlayerSwitcherPopover(
         onSwitched: (message) {
           if (entry.mounted) entry.remove();
-          if (context.mounted) {
-            showEchoToast(
-              context,
-              message,
-              kind: EchoMessageKind.success,
-            );
+          if (message != null && context.mounted) {
+            showEchoToast(context, message, kind: EchoMessageKind.success);
           }
         },
       ),
@@ -157,8 +168,10 @@ class MiniPlayerView extends StatefulWidget {
     required this.onSwitchPlayer,
     this.onPrevious,
     this.onNext,
-    this.onToggleShuffle,
-    this.onToggleRepeat,
+    this.playMode = 'all',
+    this.onTogglePlayMode,
+    this.onToggleFavorite,
+    this.onOpenQueue,
     this.currentPlayerName = '本机',
     this.isCasting = false,
     this.lyricLine,
@@ -190,8 +203,18 @@ class MiniPlayerView extends StatefulWidget {
   /// 桌面端专属回调(手机端不使用)。
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
-  final VoidCallback? onToggleShuffle;
-  final VoidCallback? onToggleRepeat;
+
+  /// 桌面端播放模式(对齐主项目前端 playMode:order|one|all|shuffle)。
+  final String playMode;
+
+  /// 桌面端模式切换:单一按钮循环切换模式并变换图标。
+  final VoidCallback? onTogglePlayMode;
+
+  /// 桌面端喜欢(红心)按钮:切换当前歌曲收藏状态。
+  final VoidCallback? onToggleFavorite;
+
+  /// 桌面端「当前播放列表」按钮:打开播放队列面板。
+  final VoidCallback? onOpenQueue;
 
   final Widget? progressLayer;
 
@@ -228,25 +251,22 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     unawaited(widget.onTogglePlayPause());
   }
 
-  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 随机 / 循环 / 音量 / 投屏。
+  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 播放模式 / 音量 / 投屏。
   /// 每个按钮包一层 Tooltip（悬停显示文字注释，对齐主项目前端），
-  /// 随机/循环带激活态反馈（选中高亮 + 文案随状态变化）。
+  /// 播放模式为单一按钮,点击循环切换模式并变换图标(对齐主项目前端 cyclePlayMode)。
   List<Widget> _buildDesktopControls(BuildContext context) {
-    final loopMode = _playerState.loopMode;
-    final repeatActive = loopMode != LoopMode.off;
-    final repeatLabel = switch (loopMode) {
-      LoopMode.one => '单曲循环',
-      LoopMode.all => '列表循环',
-      LoopMode.off => '循环播放',
-    };
+    final isFav = _playerState.currentSong?.starred ?? false;
     return <Widget>[
-      Tooltip(message: '上一首', child: EchoIconButton(
-        icon: AppIcons.previous,
-        label: '上一首',
-        foregroundColor: context.echoColors.ink,
-        backgroundColor: Colors.transparent,
-        onPressed: widget.onPrevious,
-      )),
+      Tooltip(
+        message: '上一首',
+        child: EchoIconButton(
+          icon: AppIcons.previous,
+          label: '上一首',
+          foregroundColor: context.echoColors.ink,
+          backgroundColor: Colors.transparent,
+          onPressed: widget.onPrevious,
+        ),
+      ),
       Tooltip(
         message: _playerState.isPlaying ? '暂停' : '播放',
         child: EchoIconButton(
@@ -257,31 +277,37 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
           onPressed: _togglePlayPause,
         ),
       ),
-      Tooltip(message: '下一首', child: EchoIconButton(
-        icon: AppIcons.next,
-        label: '下一首',
-        foregroundColor: context.echoColors.ink,
-        backgroundColor: Colors.transparent,
-        onPressed: widget.onNext,
-      )),
       Tooltip(
-        message: _playerState.shuffleEnabled ? '随机播放中，点击关闭' : '随机播放',
+        message: '下一首',
         child: EchoIconButton(
-          icon: AppIcons.shuffle,
-          label: _playerState.shuffleEnabled ? '随机播放中' : '随机播放',
-          selected: _playerState.shuffleEnabled,
-          onPressed: widget.onToggleShuffle,
+          icon: AppIcons.next,
+          label: '下一首',
+          foregroundColor: context.echoColors.ink,
+          backgroundColor: Colors.transparent,
+          onPressed: widget.onNext,
+        ),
+      ),
+      _PlayModeButton(
+        mode: widget.playMode,
+        onPressed: widget.onTogglePlayMode,
+      ),
+      Tooltip(
+        message: isFav ? '取消红心' : '红心',
+        child: EchoIconButton(
+          icon: isFav ? AppIcons.heart : AppIcons.heartOutline,
+          label: isFav ? '取消红心' : '红心',
+          selected: isFav,
+          onPressed: widget.onToggleFavorite,
         ),
       ),
       Tooltip(
-        message: repeatActive ? '$repeatLabel，点击切换' : '循环播放，点击开启',
+        message: '当前播放列表',
         child: EchoIconButton(
-          icon: repeatActive && loopMode == LoopMode.one
-              ? AppIcons.repeatOne
-              : AppIcons.repeat,
-          label: repeatLabel,
-          selected: repeatActive,
-          onPressed: widget.onToggleRepeat,
+          icon: AppIcons.queue,
+          label: '当前播放列表',
+          foregroundColor: context.echoColors.ink,
+          backgroundColor: Colors.transparent,
+          onPressed: widget.onOpenQueue,
         ),
       ),
       const _VolumeButton(),
@@ -651,7 +677,9 @@ class _MiniPlayerTrack extends StatelessWidget {
     final album = song.album?.trim() ?? '';
     // 歌名 - 歌手 同一行（无歌手回退专辑名），歌词另起一行。
     final artistLine = artist.isNotEmpty ? artist : album;
-    final lyric = lyricLine?.trim().isNotEmpty == true ? lyricLine!.trim() : null;
+    final lyric = lyricLine?.trim().isNotEmpty == true
+        ? lyricLine!.trim()
+        : null;
     final cover = _MiniPlayerCover(song: song);
     final title = _MiniPlayerTitle(
       song: song,
@@ -685,8 +713,7 @@ class _MiniPlayerTrack extends StatelessWidget {
               else
                 title,
               // 当前歌词行：黄色高亮显示（对齐主项目前端歌词配色）。
-              if (lyric != null)
-                _MiniPlayerLyric(text: lyric),
+              if (lyric != null) _MiniPlayerLyric(text: lyric),
             ],
           ),
         ),
@@ -846,6 +873,44 @@ class _MiniPlayerLyric extends StatelessWidget {
   }
 }
 
+/// 桌面端播放模式切换按钮(单一按钮,对齐主项目前端 cyclePlayMode):
+/// 点击循环切换 order→one→all→shuffle,图标与文案随模式变换。
+class _PlayModeButton extends StatelessWidget {
+  const _PlayModeButton({required this.mode, required this.onPressed});
+
+  final String mode;
+
+  /// null 时按钮禁用(未提供回调)。
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final modeIcon = switch (mode) {
+      'shuffle' => AppIcons.shuffle,
+      'one' => AppIcons.repeatOne,
+      'order' => AppIcons.queue,
+      _ => AppIcons.repeat,
+    };
+    final modeLabel = switch (mode) {
+      'shuffle' => '随机播放，点击切换到顺序播放',
+      'one' => '单曲循环，点击切换到列表循环',
+      'order' => '顺序播放，点击切换到单曲循环',
+      _ => '列表循环，点击切换到随机播放',
+    };
+    // 仅 随机/单曲 为「非常规顺序」态,高亮提示(对齐主项目前端 type=primary)。
+    final selected = mode != 'all' && mode != 'order';
+    return Tooltip(
+      message: modeLabel,
+      child: EchoIconButton(
+        icon: modeIcon,
+        label: modeLabel,
+        selected: selected,
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
 /// 桌面端音量控制按钮：点击弹出滑块调节音量。
 /// 对齐主项目前端 setVolume：
 /// - 投屏(选中远端 peer) → POST /peers/:id/volume {volume:0-100}；
@@ -889,17 +954,14 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
     if (_lastLocalVolumeSend != null &&
         now.difference(_lastLocalVolumeSend!).inMilliseconds < 80) {
       // 距上次发送不足 80ms：记录最新值，由定时器统一发送。
-      _localVolumeThrottleTimer ??= Timer(
-        const Duration(milliseconds: 80),
-        () {
-          _localVolumeThrottleTimer = null;
-          final pending = _pendingLocalVolume;
-          if (pending != null) {
-            _lastLocalVolumeSend = DateTime.now();
-            ref.read(playerProvider.notifier).setVolumeLive(pending);
-          }
-        },
-      );
+      _localVolumeThrottleTimer ??= Timer(const Duration(milliseconds: 80), () {
+        _localVolumeThrottleTimer = null;
+        final pending = _pendingLocalVolume;
+        if (pending != null) {
+          _lastLocalVolumeSend = DateTime.now();
+          ref.read(playerProvider.notifier).setVolumeLive(pending);
+        }
+      });
       return;
     }
     _lastLocalVolumeSend = now;
@@ -991,8 +1053,9 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
                               .clamp(0.0, 1.0)
                               .toDouble();
                         } else {
-                          sourceVolume = ref
-                              .watch(playerProvider.select((s) => s.volume));
+                          sourceVolume = ref.watch(
+                            playerProvider.select((s) => s.volume),
+                          );
                         }
                         // 拖动中显示拖动值，否则显示真实值。
                         final volume = _dragValue ?? sourceVolume;
@@ -1054,12 +1117,19 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
   Widget build(BuildContext context) {
     final volume = _dragValue ?? _effectiveVolume();
     final percent = (volume * 100).round();
-    return EchoIconButton(
-      icon: AppIcons.speaker,
-      label: '音量 $percent%',
-      foregroundColor: context.echoColors.ink,
-      backgroundColor: Colors.transparent,
-      onPressed: _toggleOverlay,
+    // 对齐主项目前端音量按钮:音量>0 显示扬声器+声波,=0 显示静音;
+    // 弹窗展开时高亮(对应前端 vol-active)。
+    final icon = volume > 0 ? AppIcons.volumeHigh : AppIcons.volumeMute;
+    return Tooltip(
+      message: '音量 $percent%',
+      child: EchoIconButton(
+        icon: icon,
+        label: '音量 $percent%',
+        selected: _overlayEntry != null,
+        foregroundColor: context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: _toggleOverlay,
+      ),
     );
   }
 }
@@ -1108,7 +1178,8 @@ class PlayerSwitcherSheet extends ConsumerStatefulWidget {
   const PlayerSwitcherSheet({super.key});
 
   @override
-  ConsumerState<PlayerSwitcherSheet> createState() => _PlayerSwitcherSheetState();
+  ConsumerState<PlayerSwitcherSheet> createState() =>
+      _PlayerSwitcherSheetState();
 }
 
 class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
@@ -1185,23 +1256,22 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                     title: peer.name,
                     subtitle: <String>[
                       peer.kindLabel,
-                      if (peer.queueTotal > 0)
-                        peer.queueLabel,
+                      if (peer.queueTotal > 0) peer.queueLabel,
                     ].join(' · '),
                     selected: cast.activePeer?.peerId == peer.peerId,
                     onPressed: () async {
-                            final navigator = Navigator.of(context);
-                            final ok = await controller.switchTo(peer);
-                            if (!ok && context.mounted) {
-                              showEchoMessage(
-                                context,
-                                '切换到「${peer.name}」失败,请检查设备是否在线',
-                                kind: EchoMessageKind.error,
-                              );
-                              return;
-                            }
-                            navigator.pop();
-                          },
+                      final navigator = Navigator.of(context);
+                      final ok = await controller.switchTo(peer);
+                      if (!ok && context.mounted) {
+                        showEchoMessage(
+                          context,
+                          '切换到「${peer.name}」失败,请检查设备是否在线',
+                          kind: EchoMessageKind.error,
+                        );
+                        return;
+                      }
+                      navigator.pop();
+                    },
                   )
               else
                 Padding(
@@ -1209,9 +1279,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                     vertical: context.echoSpacing.sm,
                   ),
                   child: Text(
-                    _peers == null
-                        ? '正在获取可用播放器…'
-                        : '未发现其他可用播放器。',
+                    _peers == null ? '正在获取可用播放器…' : '未发现其他可用播放器。',
                     style: context.echoTypography.body.copyWith(
                       color: context.echoColors.muted,
                     ),
@@ -1296,138 +1364,139 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
         ),
         Positioned(
           // 播放控件(MiniPlayer)上方的小弹窗。
-          bottom: isDesktop
-              ? MiniPlayer.height + 24
-              : 80,
+          bottom: isDesktop ? MiniPlayer.height + 24 : 80,
           right: 16,
           child: Material(
             color: Colors.transparent,
-            child: EchoSurface(
-              level: EchoSurfaceLevel.floating,
-              borderRadius: context.echoRadii.scene,
+            child: Container(
               width: 320,
               constraints: const BoxConstraints(maxHeight: 380),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      context.echoSpacing.sm,
-                      context.echoSpacing.xs,
-                      context.echoSpacing.xs,
-                      context.echoSpacing.xxs,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '选择播放器',
-                            style: context.echoTypography.headline,
-                          ),
-                        ),
-                        EchoIconButton(
-                          icon: AppIcons.close,
-                          label: '关闭',
-                          onPressed: () => _close(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Flexible(
-                    child: SingleChildScrollView(
+              child: EchoSurface(
+                level: EchoSurfaceLevel.floating,
+                borderRadius: context.echoRadii.scene,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Padding(
                       padding: EdgeInsets.fromLTRB(
+                        context.echoSpacing.sm,
                         context.echoSpacing.xs,
-                        0,
                         context.echoSpacing.xs,
-                        context.echoSpacing.xs,
+                        context.echoSpacing.xxs,
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                      child: Row(
                         children: <Widget>[
-                          EchoActionRow(
-                            icon: AppIcons.headphones,
-                            title: '本机播放',
-                            subtitle: cast.activePeer != null
-                                ? (cast.offline ? '设备离线,已暂停轮询' : '当前正在投屏')
-                                : '使用此设备扬声器',
-                            selected: cast.activePeer == null,
-                            onPressed: () async {
-                              await controller.backToLocal(resumeLocal: true);
-                              _close(toast: '已切换为本机播放');
-                            },
+                          Expanded(
+                            child: Text(
+                              '选择播放器',
+                              style: context.echoTypography.headline,
+                            ),
                           ),
-                          if (cast.activePeer != null)
-                            EchoActionRow(
-                              icon: AppIcons.close,
-                              title: '停止投屏',
-                              subtitle: '停止「${cast.activePeer!.name}」播放并清除控制',
-                              onPressed: () async {
-                                await controller.stopCasting();
-                                _close(toast: '已停止投屏');
-                              },
-                            ),
-                          if (remotePeers.isNotEmpty)
-                            for (final peer in remotePeers)
-                              EchoActionRow(
-                                icon: switch (peer.kind) {
-                                  'group' => AppIcons.people,
-                                  _ => AppIcons.signalTower,
-                                },
-                                title: peer.name,
-                                subtitle: <String>[
-                                  peer.kindLabel,
-                                  if (peer.queueTotal > 0) peer.queueLabel,
-                                ].join(' · '),
-                                selected: cast.activePeer?.peerId == peer.peerId,
-                                onPressed: () async {
-                                  final ok = await controller.switchTo(peer);
-                                  if (!ok) {
-                                    if (mounted) {
-                                      showEchoMessage(
-                                        context,
-                                        '切换到「${peer.name}」失败,请检查设备是否在线',
-                                        kind: EchoMessageKind.error,
-                                      );
-                                    }
-                                    return;
-                                  }
-                                  _close(toast: '正在投屏到「${peer.name}」');
-                                },
-                              )
-                          else
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                vertical: context.echoSpacing.sm,
-                              ),
-                              child: Text(
-                                _peers == null
-                                    ? '正在获取可用播放器…'
-                                    : '未发现其他可用播放器。',
-                                style: context.echoTypography.body.copyWith(
-                                  color: context.echoColors.muted,
-                                ),
-                              ),
-                            ),
-                          EchoActionRow(
-                            icon: AppIcons.refresh,
-                            title: '刷新播放器列表',
-                            trailing: cast.loadingPeers
-                                ? const SizedBox.square(
-                                    dimension: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : null,
-                            onPressed: cast.loadingPeers ? null : () => _reload(),
+                          EchoIconButton(
+                            icon: AppIcons.close,
+                            label: '关闭',
+                            onPressed: () => _close(),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                          context.echoSpacing.xs,
+                          0,
+                          context.echoSpacing.xs,
+                          context.echoSpacing.xs,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            EchoActionRow(
+                              icon: AppIcons.headphones,
+                              title: '本机播放',
+                              subtitle: cast.activePeer != null
+                                  ? (cast.offline ? '设备离线,已暂停轮询' : '当前正在投屏')
+                                  : '使用此设备扬声器',
+                              selected: cast.activePeer == null,
+                              onPressed: () async {
+                                await controller.backToLocal(resumeLocal: true);
+                                _close(toast: '已切换为本机播放');
+                              },
+                            ),
+                            if (cast.activePeer != null)
+                              EchoActionRow(
+                                icon: AppIcons.close,
+                                title: '停止投屏',
+                                subtitle: '停止「${cast.activePeer!.name}」播放并清除控制',
+                                onPressed: () async {
+                                  await controller.stopCasting();
+                                  _close(toast: '已停止投屏');
+                                },
+                              ),
+                            if (remotePeers.isNotEmpty)
+                              for (final peer in remotePeers)
+                                EchoActionRow(
+                                  icon: switch (peer.kind) {
+                                    'group' => AppIcons.people,
+                                    _ => AppIcons.signalTower,
+                                  },
+                                  title: peer.name,
+                                  subtitle: <String>[
+                                    peer.kindLabel,
+                                    if (peer.queueTotal > 0) peer.queueLabel,
+                                  ].join(' · '),
+                                  selected:
+                                      cast.activePeer?.peerId == peer.peerId,
+                                  onPressed: () async {
+                                    final ok = await controller.switchTo(peer);
+                                    if (!ok) {
+                                      if (context.mounted) {
+                                        showEchoMessage(
+                                          context,
+                                          '切换到「${peer.name}」失败,请检查设备是否在线',
+                                          kind: EchoMessageKind.error,
+                                        );
+                                      }
+                                      return;
+                                    }
+                                    _close(toast: '正在投屏到「${peer.name}」');
+                                  },
+                                )
+                            else
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: context.echoSpacing.sm,
+                                ),
+                                child: Text(
+                                  _peers == null ? '正在获取可用播放器…' : '未发现其他可用播放器。',
+                                  style: context.echoTypography.body.copyWith(
+                                    color: context.echoColors.muted,
+                                  ),
+                                ),
+                              ),
+                            EchoActionRow(
+                              icon: AppIcons.refresh,
+                              title: '刷新播放器列表',
+                              trailing: cast.loadingPeers
+                                  ? const SizedBox.square(
+                                      dimension: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : null,
+                              onPressed: cast.loadingPeers
+                                  ? null
+                                  : () => _reload(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

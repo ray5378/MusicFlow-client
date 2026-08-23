@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
 import '../../../core/utils/toast_notifier.dart';
@@ -12,7 +15,6 @@ import '../../../providers/api_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/metadata_cache_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
@@ -24,6 +26,11 @@ import '../widgets/media_detail_components.dart';
 import '../widgets/playlist_manage_dialogs.dart';
 import '../widgets/playlist_options_sheet.dart';
 
+/// 歌单详情 —— 窗口化分页加载(对齐主项目前端 useInfiniteList / 音乐库页):
+/// - 头部元数据走轻量接口([PlaylistRepository.getPlaylistMeta]),不再一次性拉全部曲目;
+/// - 曲目列表按 page/pageSize 分块拉取并窗口化渲染,滚动到哪拉到哪,内存峰值恒定;
+/// - 只有「播放全部 / 非默认排序 / 加入播放列表」等需要完整顺序表的操作,
+///   才在用户主动触发时后台逐页拉全量(渲染层仍保持窗口化)。
 class PlaylistDetailPage extends ConsumerStatefulWidget {
   const PlaylistDetailPage({
     super.key,
@@ -46,12 +53,43 @@ class PlaylistDetailPage extends ConsumerStatefulWidget {
 
 class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   SongSortOption _sortOption = SongSortOption.defaultOrder;
+
+  // ---- 轻量元数据 ----
+  Playlist? _meta;
+  bool _metaFailed = false;
+
+  // ---- 窗口化分页曲目列表(默认顺序) ----
+  late final WindowedPaginatedList<Song> _songList =
+      WindowedPaginatedList<Song>(
+        fetcher: (page, pageSize, query) async {
+          final repository = ref.read(playlistRepositoryProvider);
+          if (repository == null) return (items: <Song>[], total: 0);
+          return repository.getPlaylistTracksPage(
+            widget.playlistId,
+            page,
+            pageSize,
+          );
+        },
+      );
+
+  // ---- 全量模式(非默认排序:一次拉全量后本地排序) ----
+  bool _fullMode = false;
+  List<_PlaylistSongEntry> _fullEntries = const <_PlaylistSongEntry>[];
+  bool _fullLoading = false;
+  bool _fullFailed = false;
+
+  // ---- 选择/移除 ----
   final Set<int> _selectedSongIndexes = <int>{};
   bool _selectionMode = false;
   bool _isRemovingSongs = false;
-  int? _selectionRevision;
-  bool _selectionResetScheduled = false;
   int _mutationGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMeta();
+    _songList.load('');
+  }
 
   @override
   void didUpdateWidget(covariant PlaylistDetailPage oldWidget) {
@@ -61,30 +99,81 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     _selectionMode = false;
     _selectedSongIndexes.clear();
     _isRemovingSongs = false;
-    _selectionRevision = null;
-    _selectionResetScheduled = false;
+    _meta = null;
+    _metaFailed = false;
+    _fullMode = false;
+    _fullEntries = const <_PlaylistSongEntry>[];
+    _sortOption = SongSortOption.defaultOrder;
+    _loadMeta();
+    _songList.load('');
+  }
+
+  @override
+  void dispose() {
+    _songList.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMeta() async {
+    setState(() => _metaFailed = false);
+    final repository = ref.read(playlistRepositoryProvider);
+    if (repository == null) {
+      setState(() => _metaFailed = true);
+      return;
+    }
+    try {
+      await ref.read(ensureActiveAddressProvider.future);
+      final meta = await repository.getPlaylistMeta(widget.playlistId);
+      if (!mounted) return;
+      setState(() {
+        _meta = meta;
+        _metaFailed = meta == null;
+      });
+    } catch (error, stackTrace) {
+      Logger.warnWithTag('PLAYLIST', 'playlist meta load failed', error);
+      Logger.debugWithTag(
+        'PLAYLIST',
+        'playlist meta stackTrace',
+        null,
+        stackTrace,
+      );
+      if (!mounted) return;
+      // 元数据拉取失败但列表可能已加载:退化为用初始参数拼出的占位元数据,
+      // 仍能展示封面+标题,列表独立加载不受影响。
+      setState(() => _metaFailed = true);
+    }
+  }
+
+  Playlist? get _displayMeta {
+    if (_meta != null) return _meta;
+    if (widget.initialName == null) return null;
+    return Playlist(
+      id: widget.playlistId,
+      name: widget.initialName!,
+      songCount: widget.initialSongCount ?? 0,
+      duration: 0,
+      coverArt: widget.initialCoverArt,
+    );
+  }
+
+  int get _totalCount {
+    if (_fullMode) return _fullEntries.length;
+    if (_songList.total > 0) return _songList.total;
+    return _meta?.songCount ?? widget.initialSongCount ?? 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final playlistAsync = ref.watch(playlistDetailProvider(widget.playlistId));
-    final loadFailed = ref.watch(
-      playlistDetailLoadFailedProvider(widget.playlistId),
-    );
-    final currentPlaylist = playlistAsync.valueOrNull;
-    _scheduleSelectionResetIfStale(currentPlaylist);
+    final displayMeta = _displayMeta;
+    final currentSongCount = _totalCount;
+    final allSongsSelected =
+        currentSongCount > 0 && _selectedSongIndexes.length >= currentSongCount;
     final hasActiveLibrary = ref.watch(
       authStateProvider.select((state) {
         return (state.currentLibrary?.id ?? '').isNotEmpty;
       }),
     );
-    final currentSongCount = currentPlaylist?.songs?.length ?? 0;
-    final allSongsSelected =
-        currentSongCount > 0 &&
-        _selectedSongIndexes.length == currentSongCount &&
-        _selectedSongIndexes.every(
-          (originalIndex) => originalIndex < currentSongCount,
-        );
+
     final topBar = _selectionMode
         ? EchoTopBar(
             title: '已选 ${_selectedSongIndexes.length} 首',
@@ -98,12 +187,9 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 icon: allSongsSelected ? AppIcons.clearAll : AppIcons.selectAll,
                 label: allSongsSelected ? '取消全选歌曲' : '全选歌曲',
                 selected: allSongsSelected,
-                onPressed:
-                    currentPlaylist == null ||
-                        currentSongCount == 0 ||
-                        _isRemovingSongs
+                onPressed: currentSongCount == 0 || _isRemovingSongs
                     ? null
-                    : () => _toggleSelectAll(currentPlaylist),
+                    : () => _toggleSelectAll(currentSongCount),
               ),
             ],
           )
@@ -114,29 +200,21 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
               EchoIconButton(
                 icon: AppIcons.selectAll,
                 label: '管理歌单歌曲',
-                onPressed:
-                    currentPlaylist == null ||
-                        currentSongCount == 0 ||
-                        _isRemovingSongs
+                onPressed: currentSongCount == 0 || _isRemovingSongs
                     ? null
-                    : () => _enterSelectionMode(currentPlaylist),
+                    : _enterSelectionMode,
               ),
               EchoIconButton(
                 icon: AppIcons.sort,
                 label: '歌曲排序：${_sortOption.label}',
-                onPressed: currentPlaylist == null || _isRemovingSongs
-                    ? null
-                    : _selectSortOption,
+                onPressed: _isRemovingSongs ? null : _selectSortOption,
               ),
               EchoIconButton(
                 icon: AppIcons.more,
                 label: '歌单操作',
-                onPressed: currentPlaylist == null || _isRemovingSongs
+                onPressed: _meta == null || _isRemovingSongs
                     ? null
-                    : () => _showPlaylistActions(
-                        currentPlaylist,
-                        hasActiveLibrary,
-                      ),
+                    : () => _showPlaylistActions(_meta!, hasActiveLibrary),
               ),
             ],
           );
@@ -151,170 +229,266 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       child: VisibleRemoteRetryScope(
         branchIndex: libraryBranchIndex,
         debugLabel: 'playlist_detail_page',
-        shouldRetry: (ref) => loadFailed || playlistAsync.hasError,
-        onRetry: (ref) =>
-            ref.invalidate(playlistDetailProvider(widget.playlistId)),
+        shouldRetry: (ref) => _metaFailed || _songList.hasError,
+        onRetry: (ref) => _retry(),
         child: EchoScaffold(
           topBar: topBar,
-          bottomBar: _selectionMode && currentPlaylist != null
+          bottomBar: _selectionMode
               ? _PlaylistSelectionBar(
                   selectedCount: _selectedSongIndexes.length,
                   removing: _isRemovingSongs,
                   onRemove: _selectedSongIndexes.isEmpty
                       ? null
-                      : () => _confirmBatchRemoval(currentPlaylist),
+                      : () => _confirmBatchRemoval(),
                 )
               : null,
-          body: playlistAsync.when(
-            data: (playlist) {
-              if (playlist == null) {
-                return loadFailed
-                    ? EchoErrorState(
-                        title: '歌单加载失败',
-                        description: '无法读取歌单详情。请检查网络后重试。',
-                        actionLabel: '重试',
-                        onAction: _retry,
-                      )
-                    : const EchoEmptyState(
-                        title: '歌单不存在',
-                        description: '这个歌单可能已经被删除，或当前服务器不再提供它。',
-                        icon: AppIcons.playlist,
-                      );
-              }
+          body: _body(displayMeta),
+        ),
+      ),
+    );
+  }
 
-              final entries = _sortPlaylistEntries(
-                playlist.songs ?? const <Song>[],
-                _sortOption,
-              );
-              final songs = entries
-                  .map((entry) => entry.song)
-                  .toList(growable: false);
-              return Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1400),
-                  child: CustomScrollView(
-                    slivers: <Widget>[
-                      SliverToBoxAdapter(
-                        child: _PlaylistIdentityHeader(
-                          playlist: playlist,
-                          songs: songs,
-                          onPlay: songs.isEmpty
-                              ? null
-                              : () => playEffectiveQueue(ref, songs),
-                        ),
-                      ),
-                      if (loadFailed)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              context.echoSpacing.md,
-                              context.echoSpacing.md,
-                              context.echoSpacing.md,
-                              0,
-                            ),
-                            child: MediaLoadNotice(
-                              message: '网络连接异常，当前可能显示缓存的歌单内容。',
-                              onRetry: _retry,
-                            ),
-                          ),
-                        ),
-                      SliverToBoxAdapter(
-                        child: EchoSectionHeader(
-                          title: '歌曲',
-                          description: _selectionMode
-                              ? '轻触歌曲选择要从歌单移除的条目'
-                              : songs.isEmpty
-                              ? '歌单中暂时没有歌曲'
-                              : '${songs.length} 首 · ${_sortOption.label}',
-                          padding: EdgeInsets.fromLTRB(
-                            context.echoSpacing.md,
-                            context.echoSpacing.lg,
-                            context.echoSpacing.md,
-                            context.echoSpacing.xs,
-                          ),
-                        ),
-                      ),
-                      if (songs.isEmpty)
-                        const SliverToBoxAdapter(
-                          child: EchoEmptyState(
-                            title: '歌单还是空的',
-                            description: '通过歌曲操作菜单把喜欢的内容加入这个歌单。',
-                            icon: AppIcons.playlistAdd,
-                            padding: EdgeInsets.all(32),
-                          ),
-                        )
-                      else
-                        SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final entry = entries[index];
-                            final song = entry.song;
-                            return SongListItem(
-                              key: ValueKey<String>(
-                                'playlist-song-${entry.originalIndex}',
-                              ),
-                              song: song,
-                              index: index,
-                              variant: SongListItemVariant.standard,
-                              selectionMode: _selectionMode,
-                              selected: _selectedSongIndexes.contains(
-                                entry.originalIndex,
-                              ),
-                              onToggleSelected: () => _toggleSongSelection(
-                                playlist,
-                                entry.originalIndex,
-                              ),
-                              onTap: () => playEffectiveQueue(
-                                ref,
-                                songs,
-                                startIndex: index,
-                              ),
-                              onLongPress: () => _enterSelectionMode(
-                                playlist,
-                                originalIndex: entry.originalIndex,
-                              ),
-                              onMorePressed: () =>
-                                  _showSongActions(playlist, entry),
-                            );
-                          }, childCount: songs.length),
-                        ),
-                      SliverToBoxAdapter(
-                        child: SizedBox(
-                          key: const ValueKey<String>(
-                            'playlist-detail-bottom-spacer',
-                          ),
-                          height:
-                              context.echoSpacing.xxl +
-                              (_selectionMode
-                                  ? 0
-                                  : context.echoShellBottomObstruction),
-                        ),
-                      ),
-                    ],
+  Widget _body(Playlist? displayMeta) {
+    if (displayMeta == null) {
+      if (_metaFailed) {
+        return EchoErrorState(
+          title: '歌单加载失败',
+          description: '无法读取歌单详情。请检查网络后重试。',
+          actionLabel: '重试',
+          onAction: _retry,
+        );
+      }
+      return widget.initialName != null
+          ? _PlaylistLoadingPreview(
+              name: widget.initialName!,
+              songCount: widget.initialSongCount ?? 0,
+              coverArt: widget.initialCoverArt,
+            )
+          : const MediaDetailLoadingView();
+    }
+
+    final playlist = displayMeta;
+    final currentSongCount = _totalCount;
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: AnimatedBuilder(
+          animation: _songList,
+          builder: (context, _) => CustomScrollView(
+            slivers: <Widget>[
+              SliverToBoxAdapter(
+                child: _PlaylistIdentityHeader(
+                  playlist: playlist,
+                  songCount: currentSongCount,
+                  onPlay: currentSongCount == 0
+                      ? null
+                      : () => unawaited(_playAll()),
+                ),
+              ),
+              if (_songList.hasError && currentSongCount == 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      context.echoSpacing.md,
+                      context.echoSpacing.md,
+                      context.echoSpacing.md,
+                      0,
+                    ),
+                    child: MediaLoadNotice(
+                      message: '网络连接异常，当前可能显示缓存的歌单内容。',
+                      onRetry: _retry,
+                    ),
                   ),
                 ),
-              );
-            },
-            loading: () => widget.initialName != null
-                ? _PlaylistLoadingPreview(
-                    name: widget.initialName!,
-                    songCount: widget.initialSongCount ?? 0,
-                    coverArt: widget.initialCoverArt,
-                  )
-                : const MediaDetailLoadingView(),
-            error: (error, stackTrace) => EchoErrorState(
-              title: '歌单加载失败',
-              description: '无法读取歌单详情。请检查网络后重试。',
-              actionLabel: '重试',
-              onAction: _retry,
-            ),
+              SliverToBoxAdapter(
+                child: EchoSectionHeader(
+                  title: '歌曲',
+                  description: _selectionMode
+                      ? '轻触歌曲选择要从歌单移除的条目'
+                      : currentSongCount == 0
+                      ? '歌单中暂时没有歌曲'
+                      : '$currentSongCount 首 · ${_sortOption.label}',
+                  padding: EdgeInsets.fromLTRB(
+                    context.echoSpacing.md,
+                    context.echoSpacing.lg,
+                    context.echoSpacing.md,
+                    context.echoSpacing.xs,
+                  ),
+                ),
+              ),
+              if (currentSongCount == 0)
+                const SliverToBoxAdapter(
+                  child: EchoEmptyState(
+                    title: '歌单还是空的',
+                    description: '通过歌曲操作菜单把喜欢的内容加入这个歌单。',
+                    icon: AppIcons.playlistAdd,
+                    padding: EdgeInsets.all(32),
+                  ),
+                )
+              else if (_fullMode)
+                ..._buildFullListSlivers()
+              else if (_songList.hasError && _songList.total == 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: EchoButton.secondary(
+                        label: '加载失败，点击重试',
+                        onPressed: _retry,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ..._buildWindowedSongSlivers(),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  key: const ValueKey<String>('playlist-detail-bottom-spacer'),
+                  height:
+                      context.echoSpacing.xxl +
+                      (_selectionMode ? 0 : context.echoShellBottomObstruction),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  /// 默认顺序:窗口化分页渲染,滚动到哪拉到哪。
+  List<Widget> _buildWindowedSongSlivers() {
+    final total = _songList.total > 0 ? _songList.total : _songList.pageSize;
+    return <Widget>[
+      SliverPadding(
+        padding: EdgeInsets.symmetric(
+          horizontal: context.echoPageHorizontalPadding,
+        ),
+        sliver: SliverList.builder(
+          itemCount: total,
+          itemBuilder: (context, index) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _songList.ensureRange(index, index),
+            );
+            final item = _songList[index];
+            if (item == null) {
+              return SizedBox(
+                height: 72,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  child: EchoSkeleton(
+                    width: double.infinity,
+                    height: 56,
+                    borderRadius: context.echoRadii.detail,
+                  ),
+                ),
+              );
+            }
+            return _buildSongRow(context, index, item);
+          },
+        ),
+      ),
+      if (_songList.loading)
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+    ];
+  }
+
+  /// 非默认排序:使用一次拉取的全量列表本地排序后渲染。
+  List<Widget> _buildFullListSlivers() {
+    if (_fullLoading) {
+      return const <Widget>[
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+    if (_fullFailed) {
+      return <Widget>[
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: EchoButton.secondary(
+                label: '加载失败，点击重试',
+                onPressed: () => _applySortOption(_sortOption),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    return <Widget>[
+      SliverPadding(
+        padding: EdgeInsets.symmetric(
+          horizontal: context.echoPageHorizontalPadding,
+        ),
+        sliver: SliverList.builder(
+          itemCount: _fullEntries.length,
+          itemBuilder: (context, index) {
+            final entry = _fullEntries[index];
+            return _buildSongRow(context, index, entry.song);
+          },
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildSongRow(BuildContext context, int index, Song song) {
+    return KeyedSubtree(
+      key: ValueKey<String>('playlist-song-$index'),
+      child: SongListItem(
+        song: song,
+        index: index,
+        variant: SongListItemVariant.standard,
+        selectionMode: _selectionMode,
+        selected: _selectedSongIndexes.contains(index),
+        onToggleSelected: () => _toggleSongSelection(index),
+        onTap: () => unawaited(_playAt(index)),
+        onLongPress: () => _enterSelectionMode(originalIndex: index),
+        onMorePressed: () => _showSongActions(song, index),
+      ),
+    );
+  }
+
+  Future<void> _playAll() async {
+    final repository = ref.read(playlistRepositoryProvider);
+    if (repository == null) return;
+    try {
+      final all = await repository.getAllPlaylistSongs(widget.playlistId);
+      if (!mounted) return;
+      await playEffectiveQueue(ref, all, startIndex: 0);
+    } catch (_) {
+      if (mounted) NetworkErrorNotifier.show('网络异常，无法播放歌单');
+    }
+  }
+
+  Future<void> _playAt(int index) async {
+    final repository = ref.read(playlistRepositoryProvider);
+    if (repository == null) return;
+    try {
+      final all = await repository.getAllPlaylistSongs(widget.playlistId);
+      if (!mounted) return;
+      await playEffectiveQueue(
+        ref,
+        all,
+        startIndex: index.clamp(0, all.length - 1),
+      );
+    } catch (_) {
+      final song = _songList[index];
+      if (song == null || !mounted) return;
+      await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
+    }
   }
 
   Future<void> _selectSortOption() async {
@@ -323,26 +497,70 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       current: _sortOption,
     );
     if (!mounted || option == null || option == _sortOption) return;
-    setState(() => _sortOption = option);
+    await _applySortOption(option);
+  }
+
+  Future<void> _applySortOption(SongSortOption option) async {
+    if (option == SongSortOption.defaultOrder) {
+      setState(() {
+        _sortOption = option;
+        _fullMode = false;
+        _fullEntries = const <_PlaylistSongEntry>[];
+        _fullFailed = false;
+      });
+      _songList.load('');
+      return;
+    }
+    setState(() {
+      _sortOption = option;
+      _fullMode = true;
+      _fullLoading = true;
+      _fullFailed = false;
+      _fullEntries = const <_PlaylistSongEntry>[];
+    });
+    final repository = ref.read(playlistRepositoryProvider);
+    if (repository == null) {
+      if (mounted) setState(() => _fullFailed = true);
+      return;
+    }
+    try {
+      final all = await repository.getAllPlaylistSongs(widget.playlistId);
+      if (!mounted) return;
+      setState(() {
+        _fullEntries = _sortPlaylistEntries(all, option);
+        _fullLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _fullLoading = false;
+        _fullFailed = true;
+      });
+    }
+  }
+
+  Future<List<Song>> _loadAllSortedSongs() async {
+    if (_fullMode) {
+      return _fullEntries.map((entry) => entry.song).toList(growable: false);
+    }
+    final repository = ref.read(playlistRepositoryProvider);
+    if (repository == null) return const <Song>[];
+    final all = await repository.getAllPlaylistSongs(widget.playlistId);
+    return _sortPlaylistEntries(
+      all,
+      _sortOption,
+    ).map((entry) => entry.song).toList(growable: false);
   }
 
   void _retry() {
-    ref.invalidate(playlistDetailProvider(widget.playlistId));
+    _loadMeta();
+    _songList.load('');
   }
 
-  void _enterSelectionMode(Playlist playlist, {int? originalIndex}) {
-    if (_isRemovingSongs ||
-        (playlist.songs?.isEmpty ?? true) ||
-        playlist.id != widget.playlistId) {
-      return;
-    }
-    final revision = _playlistRevision(playlist);
+  void _enterSelectionMode({int? originalIndex}) {
+    if (_isRemovingSongs) return;
     setState(() {
-      if (_selectionRevision != revision) {
-        _selectedSongIndexes.clear();
-      }
       _selectionMode = true;
-      _selectionRevision = revision;
       if (originalIndex != null) {
         _selectedSongIndexes.add(originalIndex);
       }
@@ -354,16 +572,11 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     setState(() {
       _selectionMode = false;
       _selectedSongIndexes.clear();
-      _selectionRevision = null;
     });
   }
 
-  void _toggleSongSelection(Playlist playlist, int originalIndex) {
+  void _toggleSongSelection(int originalIndex) {
     if (_isRemovingSongs) return;
-    if (!_selectionMatches(playlist)) {
-      _resetStaleSelection();
-      return;
-    }
     setState(() {
       if (!_selectedSongIndexes.add(originalIndex)) {
         _selectedSongIndexes.remove(originalIndex);
@@ -371,51 +584,42 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     });
   }
 
-  void _toggleSelectAll(Playlist playlist) {
-    if (_isRemovingSongs) return;
-    if (!_selectionMatches(playlist)) {
-      _resetStaleSelection();
-      return;
-    }
-    final songCount = playlist.songs?.length ?? 0;
+  void _toggleSelectAll(int totalCount) {
+    if (_isRemovingSongs || totalCount <= 0) return;
     setState(() {
-      final allSelected =
-          songCount > 0 && _selectedSongIndexes.length == songCount;
+      final allSelected = _selectedSongIndexes.length >= totalCount;
       if (allSelected) {
         _selectedSongIndexes.clear();
       } else {
         _selectedSongIndexes
           ..clear()
-          ..addAll(Iterable<int>.generate(songCount));
+          ..addAll(Iterable<int>.generate(totalCount));
       }
     });
   }
 
-  Future<void> _showSongActions(Playlist playlist, _PlaylistSongEntry entry) {
+  Future<void> _showSongActions(Song song, int originalIndex) {
     return showSongOptionsSheet(
       context: context,
-      song: entry.song,
+      song: song,
       extraActions: <SongOptionsExtraAction>[
         SongOptionsExtraAction(
           icon: AppIcons.removeCircle,
           title: '从歌单移除',
           isDestructive: true,
           onPressed: () => _removeSongEntries(
-            playlist: playlist,
-            originalIndexes: <int>[entry.originalIndex],
-            successMessage: '已从歌单移除《${entry.song.title}》',
+            originalIndexes: <int>[originalIndex],
+            successMessage: '已从歌单移除《${song.title}》',
           ),
         ),
       ],
     );
   }
 
-  Future<void> _confirmBatchRemoval(Playlist playlist) async {
+  Future<void> _confirmBatchRemoval() async {
     if (_selectedSongIndexes.isEmpty || _isRemovingSongs) return;
-    if (!_selectionMatches(playlist)) {
-      _resetStaleSelection();
-      return;
-    }
+    final playlist = _displayMeta;
+    if (playlist == null) return;
     final count = _selectedSongIndexes.length;
     final confirmed = await showEchoBottomSheet<bool>(
       context: context,
@@ -456,44 +660,29 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    if (_selectedSongIndexes.isEmpty || !_selectionMatchesLatest(playlist)) {
-      _resetStaleSelection();
-      return;
-    }
+    if (_selectedSongIndexes.isEmpty) return;
     await _removeSongEntries(
-      playlist: playlist,
       originalIndexes: Set<int>.of(_selectedSongIndexes),
       successMessage: '已移除 $count 首歌曲',
     );
   }
 
   Future<void> _removeSongEntries({
-    required Playlist playlist,
     required Iterable<int> originalIndexes,
     required String successMessage,
   }) async {
-    if (_isRemovingSongs || playlist.id != widget.playlistId) return;
-    final latestPlaylist = ref
-        .read(playlistDetailProvider(playlist.id))
-        .valueOrNull;
-    if (latestPlaylist == null ||
-        _playlistRevision(latestPlaylist) != _playlistRevision(playlist)) {
-      _resetStaleSelection();
-      return;
-    }
+    if (_isRemovingSongs) return;
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
       NetworkErrorNotifier.show('未选择音乐库');
       return;
     }
-    final cache = ref.read(metadataCacheRepositoryProvider);
-    final libraryId = ref.read(authStateProvider).currentLibrary?.id ?? '';
     final ensureAddress = ref.read(ensureActiveAddressProvider.future);
 
-    final songCount = latestPlaylist.songs?.length ?? 0;
+    final totalCount = _totalCount;
     final indexes =
         originalIndexes
-            .where((index) => index >= 0 && index < songCount)
+            .where((index) => index >= 0 && index < totalCount)
             .toSet()
             .toList()
           ..sort((left, right) => right.compareTo(left));
@@ -503,55 +692,26 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     setState(() => _isRemovingSongs = true);
     try {
       await ensureAddress;
-      if (!_isCurrentMutation(mutationToken, playlist.id)) return;
+      if (!_isCurrentMutation(mutationToken)) return;
       await repository.updatePlaylist(
-        playlistId: playlist.id,
+        playlistId: widget.playlistId,
         songIndexesToRemove: indexes,
       );
-      if (libraryId.isNotEmpty) {
-        try {
-          await cache.cachePlaylistSongRemoval(
-            libraryId: libraryId,
-            playlist: latestPlaylist,
-            removedIndexes: indexes.toSet(),
-          );
-        } catch (error, stackTrace) {
-          Logger.warnWithTag(
-            'PLAYLIST',
-            'failed to repair playlist caches after song removal',
-            error,
-          );
-          Logger.debugWithTag(
-            'PLAYLIST',
-            'playlist cache repair stackTrace',
-            null,
-            stackTrace,
-          );
-          try {
-            await cache.clearPlaylistCaches(libraryId, playlist.id);
-          } catch (clearError) {
-            Logger.warnWithTag(
-              'PLAYLIST',
-              'failed to clear stale playlist caches',
-              clearError,
-            );
-          }
-        }
-      }
       if (mounted) {
         ref.invalidate(playlistsProvider);
-        ref.invalidate(playlistDetailProvider(playlist.id));
       }
-      if (!_isCurrentMutation(mutationToken, playlist.id)) return;
+      if (!_isCurrentMutation(mutationToken)) return;
       setState(() {
         _isRemovingSongs = false;
         _selectionMode = false;
         _selectedSongIndexes.clear();
-        _selectionRevision = null;
       });
+      // 窗口化列表与元数据一并刷新:先重新拉轻量元数据再重载分页列表。
+      _loadMeta();
+      _songList.load('');
       ToastNotifier.show(successMessage, kind: EchoMessageKind.success);
     } catch (error) {
-      if (!_isCurrentMutation(mutationToken, playlist.id)) return;
+      if (!_isCurrentMutation(mutationToken)) return;
       setState(() => _isRemovingSongs = false);
       if (error is SubsonicException && error.code == 50) {
         NetworkErrorNotifier.show('无权修改该歌单，或该歌单不支持移除歌曲');
@@ -566,96 +726,33 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     }
   }
 
-  bool _selectionMatches(Playlist playlist) {
-    return _selectionMode &&
-        playlist.id == widget.playlistId &&
-        _selectionRevision == _playlistRevision(playlist);
-  }
-
-  bool _selectionMatchesLatest(Playlist snapshot) {
-    if (!_selectionMatches(snapshot)) return false;
-    final latest = ref.read(playlistDetailProvider(snapshot.id)).valueOrNull;
-    return latest != null && _selectionRevision == _playlistRevision(latest);
-  }
-
-  void _scheduleSelectionResetIfStale(Playlist? playlist) {
-    final selectionRevision = _selectionRevision;
-    if (!_selectionMode ||
-        selectionRevision == null ||
-        playlist == null ||
-        playlist.id != widget.playlistId ||
-        _playlistRevision(playlist) == selectionRevision ||
-        _selectionResetScheduled) {
-      return;
-    }
-
-    final playlistId = widget.playlistId;
-    _selectionResetScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _selectionResetScheduled = false;
-      if (!mounted ||
-          widget.playlistId != playlistId ||
-          !_selectionMode ||
-          _selectionRevision != selectionRevision) {
-        return;
-      }
-      final latest = ref.read(playlistDetailProvider(playlistId)).valueOrNull;
-      if (latest == null || _playlistRevision(latest) == selectionRevision) {
-        return;
-      }
-      _resetStaleSelection();
-    });
-  }
-
-  void _resetStaleSelection() {
-    if (!mounted) return;
-    final hadSelectionMode = _selectionMode;
-    setState(() {
-      _selectionMode = false;
-      _selectedSongIndexes.clear();
-      _selectionRevision = null;
-    });
-    if (hadSelectionMode) {
-      ToastNotifier.show('歌单内容已更新，请重新选择');
-    } else {
-      ToastNotifier.show('歌单内容已更新，请重试');
-    }
-  }
-
-  bool _isCurrentMutation(int token, String playlistId) {
-    return mounted &&
-        widget.playlistId == playlistId &&
-        _mutationGeneration == token;
+  bool _isCurrentMutation(int token) {
+    return mounted && _mutationGeneration == token;
   }
 
   Future<void> _showPlaylistActions(
     Playlist playlist,
     bool hasActiveLibrary,
   ) async {
-    final sortedSongs = sortSongs(
-      playlist.songs ?? const <Song>[],
-      _sortOption,
-    );
     final action = await showPlaylistOptionsSheet(
       context: context,
       playlist: playlist,
       canDownload: hasActiveLibrary,
-      hasSongs: sortedSongs.isNotEmpty,
+      hasSongs: _totalCount > 0,
     );
     if (!mounted || action == null) return;
-    await _onMoreActionSelected(playlist, action, sortedSongs);
+    await _onMoreActionSelected(playlist, action);
   }
 
   Future<void> _onMoreActionSelected(
     Playlist playlist,
     PlaylistOptionsAction action,
-    List<Song> songs,
   ) async {
     switch (action) {
       case PlaylistOptionsAction.download:
-        await _downloadPlaylist(songs);
+        await _downloadPlaylist();
       case PlaylistOptionsAction.addToQueue:
-        _addPlaylistToQueue(songs);
+        await _addPlaylistToQueue();
       case PlaylistOptionsAction.edit:
         await _editPlaylist(playlist);
       case PlaylistOptionsAction.delete:
@@ -663,14 +760,15 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     }
   }
 
-  Future<void> _downloadPlaylist(List<Song> songs) async {
-    if (songs.isEmpty) {
-      NetworkErrorNotifier.show('歌单暂无可用歌曲');
-      return;
-    }
+  Future<void> _downloadPlaylist() async {
     final libraryId = ref.read(authStateProvider).currentLibrary?.id ?? '';
     if (libraryId.isEmpty) {
       NetworkErrorNotifier.show('未选择音乐库');
+      return;
+    }
+    final songs = await _loadAllSortedSongs();
+    if (songs.isEmpty) {
+      NetworkErrorNotifier.show('歌单暂无可用歌曲');
       return;
     }
 
@@ -685,7 +783,8 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     }
   }
 
-  void _addPlaylistToQueue(List<Song> songs) {
+  Future<void> _addPlaylistToQueue() async {
+    final songs = await _loadAllSortedSongs();
     if (songs.isEmpty) {
       NetworkErrorNotifier.show('歌单暂无可用歌曲');
       return;
@@ -729,7 +828,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         public: formResult.isPublic,
       );
       ref.invalidate(playlistsProvider);
-      ref.invalidate(playlistDetailProvider(playlist.id));
+      _loadMeta();
       if (mounted) {
         ToastNotifier.show(
           '已更新歌单「${formResult.name}」',
@@ -758,7 +857,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       await ref.read(ensureActiveAddressProvider.future);
       await repository.deletePlaylist(playlist.id);
       ref.invalidate(playlistsProvider);
-      ref.invalidate(playlistDetailProvider(playlist.id));
       if (mounted) {
         Navigator.of(context).pop();
         ToastNotifier.show(
@@ -777,27 +875,6 @@ class _PlaylistSongEntry {
 
   final Song song;
   final int originalIndex;
-}
-
-int _playlistRevision(Playlist playlist) {
-  final songs = playlist.songs ?? const <Song>[];
-  return Object.hash(
-    playlist.id,
-    playlist.changed?.microsecondsSinceEpoch,
-    playlist.songCount,
-    playlist.duration,
-    Object.hashAll(
-      songs.map(
-        (song) => Object.hash(
-          song.id,
-          song.title,
-          song.artistId,
-          song.albumId,
-          song.duration,
-        ),
-      ),
-    ),
-  );
 }
 
 List<_PlaylistSongEntry> _sortPlaylistEntries(
@@ -900,18 +977,17 @@ class _PlaylistSelectionBar extends StatelessWidget {
 class _PlaylistIdentityHeader extends StatelessWidget {
   const _PlaylistIdentityHeader({
     required this.playlist,
-    required this.songs,
+    required this.songCount,
     required this.onPlay,
   });
 
   final Playlist playlist;
-  final List<Song> songs;
+  final int songCount;
   final VoidCallback? onPlay;
 
   @override
   Widget build(BuildContext context) {
     final comment = playlist.comment?.trim();
-    final owner = playlist.owner?.trim();
 
     return MediaDetailHeaderSurface(
       coverArtId: playlist.coverArt,
@@ -949,7 +1025,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                   runSpacing: context.echoSpacing.xxs,
                   children: <Widget>[
                     Text(
-                      '${songs.length} 首',
+                      '$songCount 首',
                       style: context.echoTypography.metadata.copyWith(
                         color: context.echoColors.muted,
                       ),
@@ -960,13 +1036,6 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                         color: context.echoColors.muted,
                       ),
                     ),
-                    if (owner != null && owner.isNotEmpty)
-                      Text(
-                        '创建者 $owner',
-                        style: context.echoTypography.metadata.copyWith(
-                          color: context.echoColors.muted,
-                        ),
-                      ),
                     Text(
                       playlist.public ? '公开歌单' : '私人歌单',
                       style: context.echoTypography.metadata.copyWith(

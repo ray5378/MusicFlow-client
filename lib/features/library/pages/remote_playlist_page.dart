@@ -26,8 +26,7 @@ class RemotePlaylistPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<RemotePlaylistPage> createState() =>
-      _RemotePlaylistPageState();
+  ConsumerState<RemotePlaylistPage> createState() => _RemotePlaylistPageState();
 }
 
 class _RemotePlaylistPageState extends ConsumerState<RemotePlaylistPage> {
@@ -97,28 +96,23 @@ class _RemotePlaylistPageState extends ConsumerState<RemotePlaylistPage> {
                 )
               else
                 SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final song = songs[index];
-                      return SongListItem(
-                        key: ValueKey<String>('remote-song-${song.id}-$index'),
-                        song: song,
-                        index: index,
-                        variant: SongListItemVariant.standard,
-                        isPreview: song.isPreview,
-                        onTap: () => playEffectiveQueue(
-                          ref,
-                          songs,
-                          startIndex: index,
-                        ),
-                      );
-                    },
-                    childCount: songs.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final song = songs[index];
+                    return SongListItem(
+                      key: ValueKey<String>('remote-song-${song.id}-$index'),
+                      song: song,
+                      index: index,
+                      variant: SongListItemVariant.standard,
+                      isPreview: song.isPreview,
+                      onTap: () =>
+                          playEffectiveQueue(ref, songs, startIndex: index),
+                    );
+                  }, childCount: songs.length),
                 ),
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: context.echoSpacing.xxl +
+                  height:
+                      context.echoSpacing.xxl +
                       context.echoShellBottomObstruction,
                 ),
               ),
@@ -186,7 +180,6 @@ class _Header extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       <String>[
-                        if (playlist.creator.isNotEmpty) playlist.creator,
                         if (playlist.trackCount.isNotEmpty)
                           '${playlist.trackCount} 首'
                         else if (songCount > 0)
@@ -196,8 +189,9 @@ class _Header extends StatelessWidget {
                       ].where((e) => e.isNotEmpty).join(' · '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: context.echoTypography.metadata
-                          .copyWith(color: context.echoColors.muted),
+                      style: context.echoTypography.metadata.copyWith(
+                        color: context.echoColors.muted,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     Row(

@@ -77,11 +77,13 @@ class Playlist {
     };
   }
 
-  /// 获取时长字符串
+  /// 获取时长字符串(对齐主项目前端:xx时xx分 / xx分)。
   String get durationString {
-    final minutes = duration ~/ 60;
-    final seconds = duration % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final hours = duration ~/ 3600;
+    final minutes = (duration % 3600) ~/ 60;
+    if (hours > 0 && minutes > 0) return '$hours时$minutes分';
+    if (hours > 0) return '$hours时';
+    return '$minutes分';
   }
 }
 
@@ -91,9 +93,7 @@ DateTime? _parseDate(dynamic value) {
   if (value == null) return null;
   if (value is DateTime) return value;
   if (value is num) {
-    final ms = value.abs() > 1e12
-        ? value.toInt()
-        : (value * 1000).toInt();
+    final ms = value.abs() > 1e12 ? value.toInt() : (value * 1000).toInt();
     return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
   }
   final s = value.toString().trim();

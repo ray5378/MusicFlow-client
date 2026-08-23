@@ -49,6 +49,10 @@ abstract final class AppIcons {
   static const headphones = Remix.headphone_fill;
   static const speaker = Remix.speaker_2_line;
   static const speakerFilled = Remix.speaker_2_fill;
+  // 音量状态图标(对齐主项目前端 volume-2 / volume-x):
+  // 有音量时扬声器+声波,静音/0 时扬声器+关闭。
+  static const volumeHigh = Remix.volume_up_line;
+  static const volumeMute = Remix.volume_mute_line;
 
   // Media and collection state.
   static const album = Remix.disc_fill;

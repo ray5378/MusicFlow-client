@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/search.dart';
+import '../../../data/models/song.dart';
 import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
+import '../../../features/search/widgets/search_result_card.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
@@ -44,6 +48,14 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
   }
 
   void _reload() => _list.load(_searchQuery);
+
+  /// 播放本地专辑：拉取专辑详情歌曲后统一入口播放。
+  Future<void> _playLocalAlbum(WidgetRef ref, Album album) async {
+    final detail = await ref.read(albumDetailProvider(album.id).future);
+    final songs = detail?.songs ?? const <Song>[];
+    if (songs.isEmpty || !mounted) return;
+    await playEffectiveQueue(ref, songs);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +100,18 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
             return repository.getAlbumsPage(1, 12, query: _searchQuery);
           },
           grid: true,
-          itemBuilder: (context, album, _) => _buildTile(0, album),
+          itemBuilder: (context, album, _) => SearchAlbumCard(
+            album: SearchAlbum.fromLocal(album),
+            onPlay: () => unawaited(_playLocalAlbum(ref, album)),
+            onImport: () {},
+            onOpen: () => Navigator.of(context).push<void>(
+              EchoPageRoute<void>(
+                context: context,
+                builder: (_) => AlbumDetailPage(albumId: album.id),
+              ),
+            ),
+            showImport: false, // 本地专辑无需入库
+          ),
           emptyText: '本地库无匹配专辑',
         ),
       );

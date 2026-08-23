@@ -1430,7 +1430,7 @@ class PlaybackControls extends ConsumerWidget {
 /// - 投屏态：实时（节流）下发所选播放器 volume，并随后端 status 回读；
 /// - 本机：实时 setVolumeLive，松手后由 setVolume 防抖落盘。
 class _PlayerVolumeBar extends ConsumerStatefulWidget {
-  const _PlayerVolumeBar({super.key});
+  const _PlayerVolumeBar();
 
   @override
   ConsumerState<_PlayerVolumeBar> createState() => _PlayerVolumeBarState();

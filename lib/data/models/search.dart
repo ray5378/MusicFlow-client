@@ -2,6 +2,9 @@
 /// 四类目(歌曲/专辑/艺术家/歌单)共用同一套「聚合/本地/插件」搜索范式。
 library;
 
+import 'album.dart';
+import 'artist.dart';
+import 'playlist.dart';
 import 'song.dart';
 
 /// 搜索类目
@@ -163,6 +166,18 @@ class SearchAlbum {
       providerName: json['providerName'] as String? ?? '',
     );
   }
+
+  /// 由本地库 Album 构造(本地搜索结果,与全网卡片共用同一视觉)
+  factory SearchAlbum.fromLocal(Album album) {
+    return SearchAlbum(
+      id: album.id,
+      name: album.name,
+      artist: album.artist ?? '',
+      cover: album.coverArt ?? '',
+      trackCount: album.songCount.toString(),
+      isLocal: true,
+    );
+  }
 }
 
 /// 远程艺术家(仅展示,无入库)。isLocal 时 id 为本地库艺术家 id。
@@ -212,6 +227,17 @@ class SearchArtist {
           ? (json['providerId'] as String? ?? '')
           : providerId,
       providerName: json['providerName'] as String? ?? '',
+    );
+  }
+
+  /// 由本地库 Artist 构造(本地搜索结果,与全网卡片共用同一视觉)
+  factory SearchArtist.fromLocal(Artist artist) {
+    return SearchArtist(
+      id: artist.id,
+      name: artist.name,
+      avatar: artist.coverArt ?? '',
+      albumCount: artist.albumCount?.toString() ?? '',
+      isLocal: true,
     );
   }
 }
@@ -266,6 +292,17 @@ class SearchPlaylist {
           : providerId,
       providerName: json['providerName'] as String? ?? '',
       imported: json['imported'] as bool? ?? false,
+    );
+  }
+
+  /// 由本地库 Playlist 构造(本地搜索结果,与全网卡片共用同一视觉)
+  factory SearchPlaylist.fromLocal(Playlist playlist) {
+    return SearchPlaylist(
+      id: playlist.id,
+      name: playlist.name,
+      cover: playlist.coverArt ?? '',
+      trackCount: playlist.songCount.toString(),
+      isLocal: true,
     );
   }
 }

@@ -48,8 +48,7 @@ class PlaylistRepository {
     ) as Map<String, dynamic>;
 
     // 兼容两种返回:直接 entries 数组 或 {items,total}。
-    Object? rawItems = data['entries'];
-    if (rawItems == null) rawItems = data['items'];
+    Object? rawItems = data['entries'] ?? data['items'];
     final list = (rawItems as List? ?? [])
         .whereType<Map<String, dynamic>>()
         .map((e) => Song.fromJson((e['song'] as Map<String, dynamic>?) ?? e))
@@ -58,6 +57,33 @@ class PlaylistRepository {
         (data['matched'] as num?)?.toInt() ??
         list.length;
     return (items: list, total: total);
+  }
+
+  /// 轻量歌单元数据(不含曲目列表):走 tracks 分页接口 page=1&pageSize=1,
+  /// 只取响应里的 playlist 元数据(name/songCount/duration/coverArt/public/owner),
+  /// 避免为打开歌单头部而一次性拉取全部曲目(对齐音乐库页的窗口化加载)。
+  Future<Playlist?> getPlaylistMeta(String playlistId) async {
+    final data = await _apiClient.getRaw(
+      '/rest/api/v1/playlists/$playlistId/tracks',
+      queryParameters: <String, String>{'page': '1', 'pageSize': '1'},
+    ) as Map<String, dynamic>;
+    final meta = data['playlist'] as Map<String, dynamic>?;
+    if (meta == null) return null;
+    return Playlist.fromJson(meta);
+  }
+
+  /// 拉取歌单全部曲目(逐页循环,pageSize=200):供「播放全部 / 非默认排序 /
+  /// 加入播放列表」等需要完整顺序表的操作使用,渲染层仍保持窗口化不回退全量。
+  Future<List<Song>> getAllPlaylistSongs(String playlistId) async {
+    final songs = <Song>[];
+    var page = 1;
+    while (true) {
+      final res = await getPlaylistTracksPage(playlistId, page, 200);
+      songs.addAll(res.items);
+      if (songs.length >= res.total || res.items.isEmpty) break;
+      page++;
+    }
+    return songs;
   }
 
   /// 获取所有歌单

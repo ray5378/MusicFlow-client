@@ -34,7 +34,7 @@ class SearchResultList extends ConsumerWidget {
           context,
           ref,
           outcome.albums
-              .map((a) => _AlbumView(
+              .map((a) => SearchAlbumCard(
                     album: a,
                     onPlay: () => playRemoteSearchCollection(
                       context,
@@ -61,7 +61,7 @@ class SearchResultList extends ConsumerWidget {
           context,
           ref,
           outcome.artists
-              .map((a) => _ArtistView(
+              .map((a) => SearchArtistCard(
                     artist: a,
                     onPlay: () => playRemoteSearchCollection(
                       context,
@@ -87,7 +87,7 @@ class SearchResultList extends ConsumerWidget {
           context,
           ref,
           outcome.playlists
-              .map((p) => _PlaylistView(
+              .map((p) => SearchPlaylistCard(
                     playlist: p,
                     onPlay: () => playRemoteSearchCollection(
                       context,
@@ -195,16 +195,23 @@ class SearchResultList extends ConsumerWidget {
       );
 }
 
-class _AlbumView extends StatelessWidget {
+/// 专辑卡片：全网(远端)与本地搜索结果共用同一视觉。
+/// [showImport] 仅在远端可入库时显示「加入库」按钮；[showPlay] 控制播放按钮。
+class SearchAlbumCard extends StatelessWidget {
   final SearchAlbum album;
   final VoidCallback onPlay;
   final VoidCallback onImport;
   final VoidCallback onOpen;
-  const _AlbumView({
+  final bool showImport;
+  final bool showPlay;
+  const SearchAlbumCard({
+    super.key,
     required this.album,
     required this.onPlay,
     required this.onImport,
     required this.onOpen,
+    this.showImport = true,
+    this.showPlay = true,
   });
 
   @override
@@ -236,23 +243,26 @@ class _AlbumView extends StatelessWidget {
                         ),
                         child: const Center(child: Icon(AppIcons.album)),
                       ),
-                Positioned(
-                  right: 4,
-                  bottom: 4,
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        icon: const Icon(Remix.play_circle_fill, size: 24),
-                        color: context.echoColors.accent,
-                        onPressed: onPlay,
-                      ),
-                      IconButton(
-                        icon: const Icon(Remix.add_circle_line, size: 22),
-                        onPressed: onImport,
-                      ),
-                    ],
+                if (showPlay || showImport)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: Row(
+                      children: <Widget>[
+                        if (showPlay)
+                          IconButton(
+                            icon: const Icon(Remix.play_circle_fill, size: 24),
+                            color: context.echoColors.accent,
+                            onPressed: onPlay,
+                          ),
+                        if (showImport)
+                          IconButton(
+                            icon: const Icon(Remix.add_circle_line, size: 22),
+                            onPressed: onImport,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -271,14 +281,18 @@ class _AlbumView extends StatelessWidget {
   }
 }
 
-class _ArtistView extends StatelessWidget {
+/// 艺术家卡片：全网(远端)与本地搜索结果共用同一视觉。
+class SearchArtistCard extends StatelessWidget {
   final SearchArtist artist;
   final VoidCallback onPlay;
   final VoidCallback onOpen;
-  const _ArtistView({
+  final bool showPlay;
+  const SearchArtistCard({
+    super.key,
     required this.artist,
     required this.onPlay,
     required this.onOpen,
+    this.showPlay = true,
   });
 
   @override
@@ -309,15 +323,16 @@ class _ArtistView extends StatelessWidget {
                         ),
                         child: const Center(child: Icon(AppIcons.profile)),
                       ),
-                Positioned(
-                  right: 4,
-                  bottom: 4,
-                  child: IconButton(
-                    icon: const Icon(Remix.play_circle_fill, size: 24),
-                    color: context.echoColors.accent,
-                    onPressed: onPlay,
+                if (showPlay)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: IconButton(
+                      icon: const Icon(Remix.play_circle_fill, size: 24),
+                      color: context.echoColors.accent,
+                      onPressed: onPlay,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -336,14 +351,18 @@ class _ArtistView extends StatelessWidget {
   }
 }
 
-class _PlaylistView extends StatelessWidget {
+/// 歌单卡片：全网(远端)与本地搜索结果共用同一视觉。
+class SearchPlaylistCard extends StatelessWidget {
   final SearchPlaylist playlist;
   final VoidCallback onPlay;
   final VoidCallback onOpen;
-  const _PlaylistView({
+  final bool showPlay;
+  const SearchPlaylistCard({
+    super.key,
     required this.playlist,
     required this.onPlay,
     required this.onOpen,
+    this.showPlay = true,
   });
 
   @override
@@ -376,15 +395,16 @@ class _PlaylistView extends StatelessWidget {
                         ),
                         child: const Center(child: Icon(AppIcons.playlist)),
                       ),
-                Positioned(
-                  right: 4,
-                  bottom: 4,
-                  child: IconButton(
-                    icon: const Icon(Remix.play_circle_fill, size: 24),
-                    color: context.echoColors.accent,
-                    onPressed: onPlay,
+                if (showPlay)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: IconButton(
+                      icon: const Icon(Remix.play_circle_fill, size: 24),
+                      color: context.echoColors.accent,
+                      onPressed: onPlay,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

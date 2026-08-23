@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/artist.dart';
 import '../../../data/models/search.dart';
+import '../../../data/models/song.dart';
 import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
+import '../../../features/search/widgets/search_result_card.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
@@ -38,6 +43,14 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
   void initState() {
     super.initState();
     _list.load('');
+  }
+
+  /// 播放本地歌手歌曲：拉取歌手详情歌曲后统一入口播放。
+  Future<void> _playLocalArtist(WidgetRef ref, Artist artist) async {
+    final detail = await ref.read(artistDetailProvider(artist.id).future);
+    final songs = detail?.songs ?? const <Song>[];
+    if (songs.isEmpty || !mounted) return;
+    await playEffectiveQueue(ref, songs);
   }
 
   @override
@@ -82,16 +95,11 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
             }
             return repository.getArtistsPage(1, 12, query: _searchQuery);
           },
-          itemBuilder: (context, artist, _) => EchoArtistRow(
-            key: ValueKey('local-artist-${artist.id}'),
-            artist: artist,
-            contentPadding: EdgeInsetsDirectional.fromSTEB(
-              context.echoPageHorizontalPadding,
-              context.echoSpacing.xs,
-              context.echoPageHorizontalPadding,
-              context.echoSpacing.xs,
-            ),
-            onPressed: () => Navigator.of(context).push<void>(
+          grid: true,
+          itemBuilder: (context, artist, _) => SearchArtistCard(
+            artist: SearchArtist.fromLocal(artist),
+            onPlay: () => unawaited(_playLocalArtist(ref, artist)),
+            onOpen: () => Navigator.of(context).push<void>(
               EchoPageRoute<void>(
                 context: context,
                 builder: (_) => ArtistDetailPage(artistId: artist.id),
