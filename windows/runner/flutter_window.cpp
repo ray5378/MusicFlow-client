@@ -65,6 +65,16 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       ShowWindow(hwnd, SW_HIDE);
       return 0;
 
+    case WM_SYSCOMMAND:
+      // 拦截「最小化」：让窗口缩到系统托盘(SW_HIDE)，而不是停在任务栏。
+      // 否则点最小化按钮只是普通任务栏最小化，与托盘「缩小状态」割裂，
+      // 用户感知为「托盘缩小完全无法使用」。
+      if ((wparam & 0xFFF0) == SC_MINIMIZE) {
+        ShowWindow(hwnd, SW_HIDE);
+        return 0;
+      }
+      break;
+
     case WM_TRAY_COMMAND: {
       // Forward tray commands to Dart via platform channel
       std::string method;

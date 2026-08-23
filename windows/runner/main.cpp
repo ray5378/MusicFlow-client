@@ -89,8 +89,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     if (msg.message == WM_TRAYICON) {
-      if (msg.lParam == WM_LBUTTONUP) {
-        ShowWindow(hwnd, SW_RESTORE);
+      if (msg.lParam == WM_LBUTTONUP || msg.lParam == WM_LBUTTONDBLCLK) {
+        // 从托盘恢复：窗口可能在托盘中隐藏(SW_HIDE)或最小化，统一 SW_RESTORE。
+        if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) {
+          ShowWindow(hwnd, SW_RESTORE);
+        }
         SetForegroundWindow(hwnd);
       } else if (msg.lParam == WM_RBUTTONUP) {
         ShowTrayMenu(hwnd);

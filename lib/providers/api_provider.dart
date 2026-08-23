@@ -7,6 +7,7 @@ import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/network/fallback_interceptor.dart';
 import 'package:musicflow_client/core/network/health_checker.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
 
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
@@ -124,9 +125,12 @@ final addressPoolProvider = Provider<AddressPool>((ref) {
         // But we can use 'ref.read(dioProvider)'.
         // However, 'dioProvider' returns a Dio.
         final mainDio = ref.read(dioProvider);
-        if (mainDio.options.baseUrl != addr.url) {
-          mainDio.options.baseUrl = addr.url;
-          Logger.infoWithTag('API', 'switched base URL to: ${addr.url}');
+        // 归一化去尾斜杠：封面/流 URL 复用 dio.options.baseUrl 做手工拼接,
+        // 带尾斜杠会拼出 '//rest/...'（服务端返回 200 + SPA HTML → 静默全挂）。
+        final normalized = normalizeServerBaseUrl(addr.url);
+        if (mainDio.options.baseUrl != normalized) {
+          mainDio.options.baseUrl = normalized;
+          Logger.infoWithTag('API', 'switched base URL to: $normalized');
         }
       }
     },

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/fallback_interceptor.dart';
+import '../../core/utils/server_url_security.dart';
 import '../../core/utils/subsonic_auth.dart';
 import '../../core/utils/logger.dart';
 import '../models/music_library.dart';
@@ -178,7 +179,9 @@ class SubsonicApiClient {
       params['size'] = size.toString();
     }
 
-    final uri = Uri.parse(baseUrl + ApiConstants.getCoverArt);
+    // 必须用 joinServerUrl：baseUrl 带尾斜杠时直接相加会产生 '//rest/getCoverArt',
+    // 服务端对此返回 200 + SPA index.html,图片解码静默失败 → 封面全不显示。
+    final uri = Uri.parse(joinServerUrl(baseUrl, ApiConstants.getCoverArt));
     final urlWithParams = uri.replace(queryParameters: params);
     return urlWithParams.toString();
   }
@@ -209,7 +212,9 @@ class SubsonicApiClient {
     }
 
     // 流式播放始终使用 /rest/stream（包括转码）
-    final uri = Uri.parse(baseUrl + ApiConstants.stream);
+    // joinServerUrl 防双斜杠：'//rest/stream' 会返回 200 + HTML,播放器拿到 HTML
+    // 后无法解码 → 所有歌曲都放不出声，且没有任何报错。
+    final uri = Uri.parse(joinServerUrl(baseUrl, ApiConstants.stream));
     final urlWithParams = uri.replace(queryParameters: params);
     return urlWithParams.toString();
   }
@@ -243,7 +248,7 @@ class SubsonicApiClient {
     if (duration != null) params['duration'] = duration.toString();
     if (cover != null && cover.isNotEmpty) params['cover'] = cover;
 
-    final uri = Uri.parse(baseUrl + '/rest/stream-remote');
+    final uri = Uri.parse(joinServerUrl(baseUrl, '/rest/stream-remote'));
     return uri.replace(queryParameters: params).toString();
   }
 
@@ -257,7 +262,7 @@ class SubsonicApiClient {
     _addAuthParamsMap(params);
     params['id'] = songId;
 
-    final uri = Uri.parse(baseUrl + ApiConstants.download);
+    final uri = Uri.parse(joinServerUrl(baseUrl, ApiConstants.download));
     final urlWithParams = uri.replace(queryParameters: params);
     return urlWithParams.toString();
   }

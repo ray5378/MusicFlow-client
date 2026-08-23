@@ -29,6 +29,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isDetecting = false;
   String? _confirmedInsecureHttpUrl;
 
+  /// 来源级归一化：去掉用户输入的空白与尾部斜杠 / query / fragment，
+  /// 从源头避免 `baseUrl + '/rest/...'` 拼接出双斜杠 URL（会导致封面/播放全部静默失败）。
+  String get _normalizedServerUrl =>
+      normalizeServerBaseUrl(_serverUrlController.text.trim());
+
   @override
   void dispose() {
     _serverUrlController.dispose();
@@ -48,7 +53,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     try {
       final repository = ref.read(authRepositoryProvider);
       final capabilities = await repository.detectServerCapabilities(
-        _serverUrlController.text.trim(),
+        _normalizedServerUrl,
       );
       if (!mounted) return;
       setState(() {
@@ -68,7 +73,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (!await _confirmInsecureHttpIfNeeded()) return;
 
     final authNotifier = ref.read(authStateProvider.notifier);
-    final serverUrl = _serverUrlController.text.trim();
+    final serverUrl = _normalizedServerUrl;
     final username = _usernameController.text.trim();
     final libraryName = _libraryNameController.text.trim();
     final addressLabel = _addressLabelController.text.trim();
@@ -95,7 +100,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<bool> _confirmInsecureHttpIfNeeded() async {
-    final serverUrl = _serverUrlController.text.trim();
+    final serverUrl = _normalizedServerUrl;
     if (!isInsecureHttpUrl(serverUrl)) return true;
     if (_confirmedInsecureHttpUrl == serverUrl) return true;
 

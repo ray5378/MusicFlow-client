@@ -16,6 +16,7 @@ import '../core/network/connectivity_monitor.dart';
 import '../core/platform/platform_file_bridge.dart';
 import '../core/utils/logger.dart';
 import '../core/utils/network_error_notifier.dart';
+import '../core/utils/server_url_security.dart';
 import '../core/services/audio_handler_service.dart';
 
 import 'music_provider.dart';
@@ -1497,9 +1498,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (active == null) return null;
 
     final dio = _apiClient.dio;
-    if (dio.options.baseUrl != active.url) {
-      dio.options.baseUrl = active.url;
-      Logger.infoWithTag('API', 'switched base URL to: ${active.url}');
+    // 归一化去尾斜杠：getStreamUrl/getCoverArtUrl 手工拼接 baseUrl,带尾斜杠
+    // 会拼出 '//rest/stream'（服务端返回 200 + SPA HTML → 一首都放不了）。
+    final normalized = normalizeServerBaseUrl(active.url);
+    if (dio.options.baseUrl != normalized) {
+      dio.options.baseUrl = normalized;
+      Logger.infoWithTag('API', 'switched base URL to: $normalized');
     }
     _playDbg(
       'sid=$session active_address_ready '
@@ -1523,9 +1527,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final ensured = await _ref.read(ensureActiveAddressProvider.future);
       final dio = _apiClient.dio;
-      if (dio.options.baseUrl != ensured.url) {
-        dio.options.baseUrl = ensured.url;
-        Logger.infoWithTag('API', 'switched base URL to: ${ensured.url}');
+      final normalizedEnsured = normalizeServerBaseUrl(ensured.url);
+      if (dio.options.baseUrl != normalizedEnsured) {
+        dio.options.baseUrl = normalizedEnsured;
+        Logger.infoWithTag('API', 'switched base URL to: $normalizedEnsured');
       }
       _playDbg(
         'sid=$session active_address_ready '

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
 
 class FallbackInterceptor extends Interceptor {
@@ -17,7 +18,9 @@ class FallbackInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final active = _addressPool.activeAddress;
     if (active != null) {
-      options.baseUrl = active.url;
+      // 归一化去尾斜杠：baseUrl 会被封面/流 URL 手工拼接复用，带尾斜杠会
+      // 拼出 '//rest/...'（服务端返回 200 + SPA HTML，导致静默全挂）。
+      options.baseUrl = normalizeServerBaseUrl(active.url);
     }
     Logger.debugWithTag(
       _tag,

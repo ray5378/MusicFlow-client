@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
 
 /// 地址池：管理一个音乐库的多个地址
 class AddressPool {
@@ -118,7 +119,7 @@ class AddressPool {
 
   Future<ServerAddress> probeAddress(ServerAddress address) async {
     final start = DateTime.now();
-    final uri = Uri.parse('${address.url}/rest/ping');
+    final uri = Uri.parse(joinServerUrl(address.url, '/rest/ping'));
     final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
     Logger.debugWithTag(
       _tag,
