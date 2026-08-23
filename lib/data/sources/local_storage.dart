@@ -19,6 +19,7 @@ class LocalStorage {
   static const String _keyMaxCacheSizeBytes = 'max_cache_size_bytes';
   static const String _keyHasLaunchedBefore = 'has_launched_before';
   static const String _keyCrossfadeDurationMs = 'crossfade_duration_ms';
+  static const String _keyPlayerVolume = 'player_volume';
 
   /// 是否曾经启动过（用于判断是否显示开屏动画）
   static Future<bool> hasLaunchedBefore() async {
@@ -337,5 +338,22 @@ class LocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyCrossfadeDurationMs, ms);
     Logger.infoWithTag(_logTag, 'crossfadeDurationMs saved: $ms');
+  }
+
+  /// 读取本机播放音量（0.0~1.0，默认 0.8）
+  static Future<double> getPlayerVolume() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getDouble(_keyPlayerVolume);
+    final volume = value == null ? 0.8 : value.clamp(0.0, 1.0).toDouble();
+    Logger.debugWithTag(_logTag, 'playerVolume loaded: $volume');
+    return volume;
+  }
+
+  /// 保存本机播放音量（0.0~1.0）
+  static Future<void> setPlayerVolume(double volume) async {
+    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyPlayerVolume, clamped);
+    Logger.infoWithTag(_logTag, 'playerVolume saved: $clamped');
   }
 }

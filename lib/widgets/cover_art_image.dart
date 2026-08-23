@@ -24,6 +24,10 @@ class CoverArtImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 监听活跃地址变化：地址池探测/切线路完成后 baseUrl 就绪，封面 URL 依赖
+    // dio.options.baseUrl，必须随地址重建，否则首屏占位后永不刷新（30da0e7 回归）。
+    ref.watch(activeAddressProvider);
+
     final raw = coverArtId?.trim() ?? '';
     if (raw.isEmpty) {
       return _buildPlaceholder(context);

@@ -156,10 +156,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   static const int _maxFailStreak = 5;
 
   /// 预探测缓存：songId -> 是否可用（session 级别，重启失效）。
+  /// 带上限（FIFO 逐出），防止常驻无界增长（SPEC §1.5 内存红线）。
   final Map<String, bool> _probeCache = <String, bool>{};
+  static const int _probeCacheMaxEntries = 500;
 
-  /// 预探测确认不可播的歌曲 ID 集合，播放前自动跳过。
+  /// 预探测确认不可播的歌曲 ID 集合，播放前自动跳过（与 _probeCache 同步带上限）。
   final Set<String> _deadSongs = <String>{};
+  static const int _deadSongsMaxEntries = 200;
 
   /// 防止并发预探测。
   bool _probing = false;
@@ -430,6 +433,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     await _restorePlaybackMode();
     await _restorePlaybackSession();
+    await _restorePlayerVolume();
   }
 
   void _initConnectivityRetryHandling() {
@@ -1687,6 +1691,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       Logger.warnWithTag(_playerLogTag, '连续失败过多,停止自动跳过');
       _failStreak = 0;
       state = state.copyWith(isPlaying: false);
+      // 给用户可见反馈，避免"点了播放没反应"的假象（Windows 排查关键）。
+      NetworkErrorNotifier.show(
+        '连续播放失败，请检查服务器连接与音频源是否可用',
+      );
       return;
     }
     next();
@@ -1701,12 +1709,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final currentIndex = state.currentIndex;
     final cands = <String>[];
 
+    // 远程歌(未入库,走 /rest/stream-remote)跳过预探测:后端 probe 按 DB songId
+    // 判可用性,远程歌不入库,后端没有该 songId 会误判为不可播(对齐主项目前端
+    // probeUpcoming 的 !s.streamUrl 排除)。试听歌同理不走 probe。
+    bool isRemoteSong(Song s) => s.isPreview || s.id.startsWith('remote:');
+
     // 收集接下来 _probeWindow 首未探测过的非远程歌曲 ID
     for (var i = 1; i <= _probeWindow; i++) {
       final idx = currentIndex + i;
       if (idx < queue.length) {
         final s = queue[idx];
-        if (s.id.isNotEmpty && !_probeCache.containsKey(s.id)) {
+        if (s.id.isNotEmpty &&
+            !isRemoteSong(s) &&
+            !_probeCache.containsKey(s.id)) {
           cands.add(s.id);
         }
       } else if (idx >= queue.length && state.loopMode != LoopMode.off) {
@@ -1714,7 +1729,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final wrap = idx % queue.length;
         if (wrap != currentIndex) {
           final s = queue[wrap];
-          if (s.id.isNotEmpty && !_probeCache.containsKey(s.id)) {
+          if (s.id.isNotEmpty &&
+              !isRemoteSong(s) &&
+              !_probeCache.containsKey(s.id)) {
             cands.add(s.id);
           }
         }
@@ -1725,16 +1742,28 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _probing = true;
     try {
       final client = _apiClient;
-      final results = await client.post(
+      // 业务 API（非 OpenSubsonic）→ 必须用 postRaw，post 会按 subsonic-response
+      // 解包返回 null，导致下面的 results['results'] 每次都抛错、预探测永不生效。
+      final results = await client.postRaw(
         '/rest/api/v1/stream/probe',
         data: {'songIds': cands},
       );
-      final items = (results['results'] as List?) ?? [];
-      for (final r in items) {
-        final songId = r['songId'] as String? ?? '';
+      final items = (results is Map ? (results['results'] as List?) : null) ??
+          const [];
+      for (final r in items.whereType<Map>()) {
+        final songId = (r['songId'] as String?) ?? '';
+        if (songId.isEmpty) continue;
         final ok = r['ok'] == true;
+        // 带上限：超限时整体重置（一次性清空），避免无界增长。
+        if (_probeCache.length >= _probeCacheMaxEntries) {
+          _probeCache.clear();
+          _deadSongs.clear();
+        }
         _probeCache[songId] = ok;
         if (!ok) {
+          if (_deadSongs.length >= _deadSongsMaxEntries) {
+            _deadSongs.clear();
+          }
           _deadSongs.add(songId);
           Logger.warnWithTag(
             _playerLogTag,
@@ -1770,7 +1799,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // 淡入淡出
   // ---------------------------------------------------------------------------
 
-  /// 取消正在进行的淡入淡出动画并将音量恢复为 1.0
+  /// 取消正在进行的淡入淡出动画并将音量恢复为用户设置值（state.volume）。
   void _cancelFade() {
     _fadeTimer?.cancel();
     _fadeTimer = null;
@@ -1779,7 +1808,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (completer != null && !completer.isCompleted) {
       completer.complete();
     }
-    _audioPlayer?.setVolume(1.0);
+    _audioPlayer?.setVolume(state.volume);
   }
 
   /// 淡出当前正在播放的歌曲。
@@ -1795,8 +1824,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final fadeMs = durationMs ~/ 2;
     const stepMs = 20;
     final steps = (fadeMs / stepMs).ceil().clamp(1, 500);
-    final volumeStep = 1.0 / steps;
-    var currentVolume = 1.0;
+    // 从用户设置音量淡出到 0（不覆盖用户音量）
+    final volumeStep = state.volume / steps;
+    var currentVolume = state.volume;
 
     _playDbg('sid=$session fadeOut start durationMs=$fadeMs steps=$steps');
 
@@ -1830,12 +1860,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     return completer.future;
   }
 
-  /// 淡入新歌曲：从 0.0 渐变到 1.0
+  /// 淡入新歌曲：从 0.0 渐变到用户设置音量（state.volume）
   void _fadeIn() {
     _cancelFade();
     final durationMs = _ref.read(crossfadeDurationMsProvider);
     if (durationMs <= 0) {
-      _audioPlayer?.setVolume(1.0);
+      _audioPlayer?.setVolume(state.volume);
       return;
     }
     final player = _audioPlayer;
@@ -1845,7 +1875,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final fadeMs = durationMs ~/ 2;
     const stepMs = 20;
     final steps = (fadeMs / stepMs).ceil().clamp(1, 500);
-    final volumeStep = 1.0 / steps;
+    final volumeStep = state.volume / steps;
     var currentVolume = 0.0;
     player.setVolume(0.0);
 
@@ -1856,12 +1886,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (_playDebugSession != session) {
         timer.cancel();
         _fadeTimer = null;
-        player.setVolume(1.0);
+        player.setVolume(state.volume);
         return;
       }
-      currentVolume = (currentVolume + volumeStep).clamp(0.0, 1.0);
+      currentVolume = (currentVolume + volumeStep).clamp(0.0, state.volume);
       player.setVolume(currentVolume);
-      if (currentVolume >= 1.0) {
+      if (currentVolume >= state.volume) {
         timer.cancel();
         _fadeTimer = null;
         _playDbg('sid=$session fadeIn complete');
@@ -2072,6 +2102,41 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  /// 设置本机播放音量（0.0~1.0，对齐主项目前端 setVolume）。
+  /// 立即作用于 just_audio 并持久化，供下次启动恢复。
+  Future<void> setVolume(double volume) async {
+    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    if (mounted) {
+      state = state.copyWith(volume: clamped);
+    }
+    _audioPlayer?.setVolume(clamped);
+    unawaited(
+      LocalStorage.setPlayerVolume(clamped).catchError((Object e) {
+        Logger.warnWithTag(
+          _playerLogTag,
+          'failed to persist player volume: $clamped',
+          e,
+        );
+      }),
+    );
+  }
+
+  /// 启动时恢复本机音量（默认 0.8）。
+  Future<void> _restorePlayerVolume() async {
+    try {
+      final saved = await LocalStorage.getPlayerVolume();
+      if (!mounted) return;
+      state = state.copyWith(volume: saved);
+      _audioPlayer?.setVolume(saved);
+      Logger.infoWithTag(
+        _playerLogTag,
+        'restored player volume: $saved',
+      );
+    } catch (e) {
+      Logger.warnWithTag(_playerLogTag, 'failed to restore player volume', e);
+    }
+  }
+
   /// 暂停（带淡出）
   Future<void> pause() async {
     final playbackSession = _playDebugSession;
@@ -2111,13 +2176,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final fadeMs = durationMs ~/ 2;
     const stepMs = 20;
     final steps = (fadeMs / stepMs).ceil().clamp(1, 500);
-    final volumeStep = 1.0 / steps;
-    var currentVolume = 1.0;
+    // 从用户设置音量淡出到 0（暂停后 play() 恢复用户音量）
+    final volumeStep = state.volume / steps;
+    var currentVolume = state.volume;
 
     final completer = Completer<void>();
     _fadeCompleter = completer;
     _fadeTimer = Timer.periodic(const Duration(milliseconds: stepMs), (timer) {
-      currentVolume = (currentVolume - volumeStep).clamp(0.0, 1.0);
+      currentVolume = (currentVolume - volumeStep).clamp(0.0, state.volume);
       player.setVolume(currentVolume);
       if (currentVolume <= 0.0) {
         timer.cancel();

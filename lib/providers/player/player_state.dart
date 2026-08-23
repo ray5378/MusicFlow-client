@@ -41,6 +41,9 @@ class PlayerState {
   final int currentBitRateKbps;
   final Duration bufferedPosition;
 
+  /// 本机播放音量（0.0~1.0，对齐主项目前端 volume 语义）。
+  final double volume;
+
   PlayerState({
     this.currentSong,
     this.queue = const [],
@@ -56,6 +59,7 @@ class PlayerState {
     this.playbackSource,
     this.currentBitRateKbps = 0,
     this.bufferedPosition = Duration.zero,
+    this.volume = 1.0,
   });
 
   PlayerState copyWith({
@@ -73,6 +77,7 @@ class PlayerState {
     PlaybackSource? playbackSource,
     int? currentBitRateKbps,
     Duration? bufferedPosition,
+    double? volume,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -89,6 +94,7 @@ class PlayerState {
       playbackSource: playbackSource ?? this.playbackSource,
       currentBitRateKbps: currentBitRateKbps ?? this.currentBitRateKbps,
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
+      volume: volume ?? this.volume,
     );
   }
 

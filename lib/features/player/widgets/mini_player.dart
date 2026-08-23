@@ -705,16 +705,44 @@ class _MiniPlayerSubtitle extends StatelessWidget {
 }
 
 /// 桌面端音量控制按钮：点击弹出滑块调节音量。
-class _VolumeButton extends StatefulWidget {
+/// 对齐主项目前端 setVolume：
+/// - 投屏(选中远端 peer) → POST /peers/:id/volume {volume:0-100}；
+/// - 本机 → just_audio setVolume(0-1)，并持久化供下次启动恢复。
+class _VolumeButton extends ConsumerStatefulWidget {
   const _VolumeButton();
 
   @override
-  State<_VolumeButton> createState() => _VolumeButtonState();
+  ConsumerState<_VolumeButton> createState() => _VolumeButtonState();
 }
 
-class _VolumeButtonState extends State<_VolumeButton> {
+class _VolumeButtonState extends ConsumerState<_VolumeButton> {
   OverlayEntry? _overlayEntry;
-  double _volume = 1.0;
+
+  /// 当前控制目标音量（0.0~1.0）：投屏取 peer status.volume(0-100)，
+  /// 本机取 playerState.volume。peer 未回报音量时回退本机音量。
+  double _effectiveVolume() {
+    final cast = ref.watch(castPeerControllerProvider);
+    if (cast.activePeer != null && cast.status.volume != null) {
+      return (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
+    }
+    return ref.watch(playerProvider.select((s) => s.volume));
+  }
+
+  void _applyVolume(double v) {
+    final clamped = v.clamp(0.0, 1.0).toDouble();
+    final cast = ref.read(castPeerControllerProvider);
+    if (cast.activePeer != null) {
+      // 投屏：命令后端控制设备音量
+      unawaited(
+        ref
+            .read(castPeerControllerProvider.notifier)
+            .setVolume((clamped * 100).round()),
+      );
+    } else {
+      // 本机：just_audio 音量 + 持久化
+      unawaited(ref.read(playerProvider.notifier).setVolume(clamped));
+    }
+  }
 
   void _toggleOverlay() {
     if (_overlayEntry != null) {
@@ -735,11 +763,24 @@ class _VolumeButtonState extends State<_VolumeButton> {
               height: 160,
               child: RotatedBox(
                 quarterTurns: -1,
-                child: Slider(
-                  value: _volume,
-                  onChanged: (v) {
-                    setState(() => _volume = v);
-                    // TODO: 接入 just_audio 音量控制
+                // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final cast = ref.watch(castPeerControllerProvider);
+                    final double volume;
+                    if (cast.activePeer != null &&
+                        cast.status.volume != null) {
+                      volume =
+                          (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
+                    } else {
+                      volume =
+                          ref.watch(playerProvider.select((s) => s.volume));
+                    }
+                    return Slider(
+                      value: volume,
+                      onChangeEnd: _applyVolume,
+                      onChanged: _applyVolume,
+                    );
                   },
                 ),
               ),
@@ -764,9 +805,11 @@ class _VolumeButtonState extends State<_VolumeButton> {
 
   @override
   Widget build(BuildContext context) {
+    final volume = _effectiveVolume();
+    final percent = (volume * 100).round();
     return EchoIconButton(
       icon: AppIcons.speaker,
-      label: '音量',
+      label: '音量 $percent%',
       foregroundColor: context.echoColors.ink,
       backgroundColor: Colors.transparent,
       onPressed: _toggleOverlay,

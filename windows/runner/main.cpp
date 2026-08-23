@@ -28,7 +28,10 @@ static void AddTrayIcon(HWND hwnd) {
   g_nid.uCallbackMessage = WM_TRAYICON;
   g_nid.hIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(101));
   wcscpy_s(g_nid.szTip, L"MusicFlow");
-  Shell_NotifyIconW(NIM_ADD, &g_nid);
+  if (!Shell_NotifyIconW(NIM_ADD, &g_nid)) {
+    // 已有同 ID 图标（重启后残留）时用 NIM_MODIFY 接管，避免托盘无图标。
+    Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+  }
 }
 
 static void RemoveTrayIcon() {
@@ -109,7 +112,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
         case TRAY_QUIT:
           RemoveTrayIcon();
           if (g_tray_menu) DestroyMenu(g_tray_menu);
+          // SetQuitOnClose(false) 时 WM_DESTROY 不会自动 PostQuitMessage，
+          // 必须手动退出消息循环，否则进程残留。
           DestroyWindow(hwnd);
+          PostQuitMessage(0);
           break;
       }
     } else {
