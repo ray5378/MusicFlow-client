@@ -5,7 +5,6 @@ import '../../../core/design/echo_design.dart';
 import '../../../data/models/playlist.dart';
 import '../../../data/models/search.dart';
 import '../../../features/discover/widgets/discover_media_widgets.dart';
-import '../../../features/library/widgets/library_collection_components.dart';
 import '../../../features/library/widgets/windowed_list_view.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../features/search/widgets/aggregate_search_results.dart';

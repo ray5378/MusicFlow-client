@@ -142,7 +142,7 @@ class AggregateLocalBlock<T> extends StatelessWidget {
             child: EchoMediaListSkeleton(count: 3),
           );
         }
-        final items = snapshot.data?.items ?? const <T>[];
+        final items = snapshot.data?.items ?? <T>[];
         if (items.isEmpty) {
           return Padding(
             padding: EdgeInsets.fromLTRB(
