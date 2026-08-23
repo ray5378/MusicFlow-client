@@ -374,8 +374,6 @@ void main() {
           albumColor: const Color(0xFF556F60),
           onOpenPlayer: () {},
           onTogglePlayPause: () async {},
-          onPrevious: () async => true,
-          onNext: () async => true,
           onSeek: (_) async {},
           onSwitchPlayer: () {},
         ),

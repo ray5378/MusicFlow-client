@@ -2,7 +2,8 @@
 
 > 本文件是 MusicFlow-client 仓库内 **AI 协作者必须遵守的技术契约**。任何改动（新功能 / 修 bug / 重构）都必须先对照本规范划定边界。
 
-> 版本：v1（2026-08-21）｜ 维护：ray（仓库 owner）｜ AI 改动本文档需经 ray 确认
+> 版本：v2（2026-08-23）｜ 维护：ray（仓库 owner）｜ AI 改动本文档需经 ray 确认
+> v2 变更：长列表窗口化加载规范、切换播放器改走后端 peers、聚合搜索定版、移除 A-Z 索引
 
 ---
 
@@ -143,85 +144,80 @@ lib/
 **补充 API（MusicFlow 自有）**：
 
 | 端点 | 用途 |
-|------|------|
+|
+
+### 2.4 长列表加载规范（全库强制）
+
+所有库类长列表（歌曲 / 专辑 / 艺术家 / 歌单 / 歌单曲目）**统一**采用：
+
+1. **服务端分页**：`GET /rest/api/v1/{songs|albums|artists|playlists}`，
+   参数 `page` / `pageSize`(≤200) / `query`；歌单曲目用 `/playlists/:id/tracks`。
+   **禁止一次性全表拉取后前端过滤**（例外：收藏页 `getStarred2` 无分页端点，
+   允许一次拉取 + ListView.builder 虚拟化渲染）。
+2. **虚拟滚动 + 窗口化渲染**：渲染层只构建视口内(含 cacheExtent)的行；
+   数据层使用 `WindowedPaginatedList<T>`（全长稀疏槽位缓存 + 按块预取 +
+   窗口外剪枝），UI 使用 `WindowedListView<T>`（列表/网格双形态）。
+3. **视口渐进式加载**：builder 每次触达行号即推进预取窗口
+   （`ensureRange(index,index)`，帧末调度避免同帧 notify）；未到达槽位渲染
+   骨架占位，形成"没有终点"的滚动体验。
+4. 内存红线：常驻缓存必须带上限或剪枝（见 §1.5）；浏览过的旧块超窗即置空。
+5. 与排序/搜索的关系：
+   - 排序仅提供后端支持的档位（歌曲：标题 A-Z / `recentAdded`）；
+   - 本地搜索把关键词透传给服务端 `query`，不做全量前端过滤；
+   - 聚合/插件搜索走 §2.5 的 entity-search 端点，与本地列表互斥展示。
+
+### 2.5 搜索（全部对齐主项目聚合端点）
+
+- 本地曲库辅助：`search3`（Subsonic）或上述分页接口的 `query`。
+- 在线聚合（默认模式）：`POST /rest/api/v1/{song|album|artist|playlist}-search/aggregate/search`
+  body `{q}` → `{items:[…], providers:[…]}`；条目带 `providerId/providerName/platformLabel`。
+- 在线歌曲直接播放：`GET /rest/stream-remote?provider&source&id&title&artist&album&duration&cover`
+  （免入库，对齐主项目前端"不入库直接播放"）。
+- 入库导入：`POST /v1/song-search/:pid/import` 等（异步任务，任务轮询 `/v1/tasks/:id`）。
+
+------|------|
 | `GET /v1/recommend/home-cards` | 首页推荐卡片 |
 | `GET /v1/daily-recommend` | 每日推荐 |
 | `GET /v1/genres` | 风格列表 |
 
 ---
 
-## 三、DLNA 投屏模块（核心新增）
+## 三、投屏与「切换播放器」
 
-### 3.1 模块结构
+> ⚠️ **v2 变更**：客户端本地的 SSDP/SOAP/HTTP 中继推流模块（原 3.1~3.6，
+> `lib/core/dlna/*`、`lib/providers/dlna_provider.dart`）**已停用**，仅保留代码存档。
+> 现行投屏完全由**主项目后端**管理，客户端只做「切换播放器」控制面，见 §3.7。
 
-```
-lib/core/dlna/
-├── ssdp_discovery.dart       # SSDP 多播设备发现
-├── device_description.dart   # 设备描述 XML 解析
-├── soap_control.dart         # SOAP AVTransport/RenderingControl 控制
-├── local_relay.dart          # 本地 HTTP 中继（流代理）
-├── dlna_manager.dart         # 统一管理（发现+控制+中继）
-├── dlna_models.dart          # 设备/会话/状态数据模型
-└── dlna_repository.dart      # 设备持久化（Drift）
-```
+### 3.1 切换播放器（现行实现，本项目特色功能）
 
-### 3.2 SSDP 设备发现
+**语义对齐主项目前端**：面板列出后端所有可用播放器，选中即把后续控制目标
+切到该播放器；对 DLNA/AirPlay/群组 peer，由**后端 QueueController 向设备投流**，
+客户端不再自行推流。
 
-- 发送 `M-SEARCH * HTTP/1.1` 到 `239.255.255.250:1900`
-- 解析 `LOCATION` 响应头，获取设备描述 URL
-- 抓取 `description.xml`，提取 `friendlyName`、`UDN`、`AVTransport` 控制 URL
-- 支持 `NOTIFY` 被动监听（设备上下线实时通知）
-- 设备超时 10 分钟未收到 SSDP 消息 → 标记离线
+数据源与命令（均为 `/rest/api/v1/peers*`，鉴权同 Subsonic）：
 
-### 3.3 SOAP 控制
+| 用途 | 端点 | 说明 |
+|------|------|------|
+| 列表 | `GET /peers` | `{peerId,name,kind:local/dlna/airplay/group,available,queue}` |
+| 推队列 | `POST /:id/queue/play` | body `{items:[songToQueueItem 形状],startIndex}` |
+| 控制 | `POST /:id/{play,pause,next,prev}` | – |
+| 进度 | `POST /:id/seek` / `GET /:id/status` | seek body `{seconds}`;status 含 state/position/duration/volume/muted |
+| 音量 | `POST /:id/volume` | body `{volume:0-100}` |
+| 队列同步 | `GET /:id/queue` | `currentIndex` 回写本地游标，UI 曲目/歌词跟随设备 |
 
-**AVTransport 服务**：
-- `Stop` → 停止播放（容错，设备可能已停止）
-- `SetAVTransportURI` → 设置流地址 + DIDL-Lite 元数据
-- `Play` → 开始播放
-- `Pause` → 暂停
-- `Seek` → 跳转进度（REL_TIME 格式 HH:MM:SS）
-- `GetTransportInfo` → 获取播放状态
-- `GetPositionInfo` → 获取当前进度/时长
-- `SetNextAVTransportURI` → 预加载下一首（无缝切歌，设备支持时使用）
+权限：非 admin 仅可见/可控 `local:<uid>`（后端强制，面板自然呈现）。
 
-**RenderingControl 服务**：
-- `SetVolume` → 设置音量（0-100）
-- `GetVolume` → 获取音量
-- `SetMute` → 静音开关
-- `GetMute` → 获取静音状态
-
-**错误处理**：
-- SOAP 调用超时 8 秒
-- 单个设备连续 3 次 SOAP 失败 → 标记不可用
-- 所有 SOAP 错误只记日志，不阻断主流程
-
-### 3.4 本地 HTTP 中继
-
-**原理**：
-```
-MusicFlow 服务端 ──(带鉴权)──▶ 客户端 App ──(本地 HTTP)──▶ DLNA 设备
-```
-
-- 客户端在本地 LAN 启动 `HttpServer`（默认端口 46401）
-- 设备收到的流地址格式：`http://<客户端局域网IP>:46401/stream?token=<sessionToken>`
-- 客户端收到请求后，从 MusicFlow 服务端拉流（带 API Key 或 Token），转发给设备
-- 支持 Range 请求（设备 seek 时需要）
-- 单个流会话最多持续 6 小时
-
-### 3.5 设备状态轮询
-
-- 投屏时每 2 秒轮询一次 `GetTransportInfo` + `GetPositionInfo`
-- 更新播放状态（播放/暂停/停止）和进度条
-- 设备离线（SOAP 调用失败）→ 自动断开投屏，恢复本地播放
-
-### 3.6 本机 ↔ 设备切换
-
-- 用户可在播放器切换输出设备（本机 / DLNA 设备）
-- 投屏时暂停本地播放，切回时恢复
-- 投屏状态持久化（设备 ID + 会话 token）
+客户端行为约定：
+- 实现于 `lib/providers/cast_peer_provider.dart`（CastPeerController）+
+  `lib/providers/effective_playback_provider.dart`（有效状态门面）；
+- 投屏期间本地 just_audio 保持暂停；状态轮询 2s；设备离线自动回本机提示；
+- **手机端迷你条定版两键**：`播放/暂停` + `投屏控制(切换播放器)`——
+  不放上一首/下一首（切歌在全屏页与队列面板完成）；
+- 反馈三要素：① 面板当前项 ✓ 高亮 ② 入口按钮投屏态变色(signalTower)+语义携带设备名
+  ③ 切换成功 toast（`正在投屏到「xxx」` / `已切换为本机播放`），失败 toast 报错。
 
 ---
+
 
 ## 四、UI 设计规范
 
@@ -236,9 +232,9 @@ MusicFlow 服务端 ──(带鉴权)──▶ 客户端 App ──(本地 HTTP)
 
 | 屏幕宽度 | 布局 |
 |----------|------|
-| < 600dp | 单列 + 底部导航 + 底部播放条 |
-| 600-839dp | 双列 + 底部导航 + 底部播放条 |
-| ≥ 840dp | 左侧导航栏 + 底部播放条（桌面模式） |
+| < 600dp | 单列 + 迷你播放条 |
+| 600-839dp | 中屏：紧凑导航轨 + 迷你播放条 |
+| ≥ 840dp | **Windows 布局**：左侧栏(音乐流 + 曲库快捷入口:艺术家/专辑/歌曲/歌单/喜爱) + 内容区 + 宽播放条(进度/音量/投屏态) |
 
 ### 4.3 核心页面
 
@@ -298,6 +294,9 @@ MusicFlow 服务端 ──(带鉴权)──▶ 客户端 App ──(本地 HTTP)
 8. **禁止**在 catch 块中吞异常——必须打日志含上下文。
 9. **禁止**删除/修改 Echo 已有的测试文件——只新增。
 10. **禁止**私自提交 / push / 打 tag（提交与发布流程由 ray 控制）。
+11. **禁止**任何库列表绕过 §2.4 的窗口化加载（新增列表必须接
+    `WindowedPaginatedList` + `WindowedListView`）。
+12. **禁止**客户端自行实现 SSDP/SOAP 推流；投屏一律走后端 peers API。
 
 ---
 

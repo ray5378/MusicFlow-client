@@ -1,10 +1,37 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/design/echo_design.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/data/models/music_library.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/providers/api_provider.dart';
+import 'package:musicflow_client/providers/library_provider.dart';
 import 'package:musicflow_client/widgets/cover_art_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// 绑定一个带 baseUrl 的客户端：可信直链封面需经服务端代理,
+/// 未绑库时 getCoverArtUrl 返回空、组件退回占位符。
+Widget scopeWithBoundClient({required Widget child}) {
+  final now = DateTime(2026, 7, 15);
+  final library = MusicLibrary(
+    id: 'library-cover',
+    name: 'Cover Library',
+    createdAt: now,
+    updatedAt: now,
+  );
+  final client = SubsonicApiClient(
+    dio: Dio(BaseOptions(baseUrl: 'https://music.example.test')),
+  )..setLibrary(library);
+  return ProviderScope(
+    overrides: <Override>[
+      activeLibraryProvider.overrideWithValue(library),
+      subsonicApiClientProvider.overrideWithValue(client),
+    ],
+    child: child,
+  );
+}
 
 void main() {
   Widget buildSubject(String? coverArtId) {
@@ -34,8 +61,10 @@ void main() {
 
   testWidgets('allows trusted direct cover url refs', (tester) async {
     await tester.pumpWidget(
-      buildSubject(
-        toTrustedCoverUrlRef('https://img.example.com/cover.jpg?size=800'),
+      scopeWithBoundClient(
+        child: buildSubject(
+          toTrustedCoverUrlRef('https://img.example.com/cover.jpg?size=800'),
+        ),
       ),
     );
     await tester.pump();
@@ -70,15 +99,17 @@ void main() {
       required Widget Function(Widget) layout,
       required String id,
     }) {
-      return ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(
-            body: layout(
-              CoverArtImage(
-                coverArtId: toTrustedCoverUrlRef(
-                  'https://img.example.com/$id.jpg',
+      return scopeWithBoundClient(
+        child: ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: layout(
+                CoverArtImage(
+                  coverArtId: toTrustedCoverUrlRef(
+                    'https://img.example.com/$id.jpg',
+                  ),
+                  semanticLabel: '$id 封面',
                 ),
-                semanticLabel: '$id 封面',
               ),
             ),
           ),

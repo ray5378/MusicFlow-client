@@ -11,7 +11,7 @@ import '../../../data/models/audio_quality.dart';
 import '../../../data/models/embed_service_config.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/audio_quality_provider.dart';
-import '../../../providers/dlna_provider.dart';
+import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
@@ -1438,7 +1438,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
         ),
       ),
     );
-    final cast = ref.watch(dlnaCastProvider);
+    final cast = ref.watch(castPeerControllerProvider);
     final mode = state.shuffleEnabled
         ? PlaybackMode.shuffle
         : state.loopMode == LoopMode.one
@@ -1508,10 +1508,10 @@ class _PlayerUtilityBar extends ConsumerWidget {
       builder: (sheetContext) => const PlayerSwitcherSheet(),
     );
     if (!context.mounted) return;
-    final cast = ref.read(dlnaCastProvider);
+    final cast = ref.read(castPeerControllerProvider);
     showEchoMessage(
       context,
-      cast.isCasting
+      cast.activePeer != null
           ? '正在投屏到「${currentPlayerName(cast)}」'
           : '已切换为本机播放',
       kind: EchoMessageKind.success,

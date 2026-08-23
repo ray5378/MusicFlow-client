@@ -18,6 +18,7 @@ class EchoAppShell extends StatelessWidget {
     this.networkStatus = EchoNetworkStatus.online,
     this.onOpenDrawer,
     this.showNavigationBar = true,
+    this.libraryEntries = const <EchoSidebarLibraryEntry>[],
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -31,6 +32,7 @@ class EchoAppShell extends StatelessWidget {
   final EchoNetworkStatus networkStatus;
   final VoidCallback? onOpenDrawer;
   final bool showNavigationBar;
+  final List<EchoSidebarLibraryEntry> libraryEntries;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +67,7 @@ class EchoAppShell extends StatelessWidget {
           miniPlayer: miniPlayer,
           showMiniPlayer: showMiniPlayer,
           networkStatusBar: networkStatusBar,
+          libraryEntries: libraryEntries,
         ),
       },
       bottomNavigationBar: windowClass == EchoWindowClass.compact
@@ -178,6 +181,7 @@ class _WideShellBody extends StatelessWidget {
     required this.miniPlayer,
     required this.showMiniPlayer,
     required this.networkStatusBar,
+    required this.libraryEntries,
   });
 
   final EchoWindowClass windowClass;
@@ -189,6 +193,7 @@ class _WideShellBody extends StatelessWidget {
   final Widget miniPlayer;
   final bool showMiniPlayer;
   final Widget networkStatusBar;
+  final List<EchoSidebarLibraryEntry> libraryEntries;
 
   @override
   Widget build(BuildContext context) {

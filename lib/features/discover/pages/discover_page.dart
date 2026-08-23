@@ -25,6 +25,12 @@ import 'search_page.dart';
 
 const double _playlistCardWidth = 152;
 
+/// 歌单卡片行高度:随文本缩放自适应,避免大字号下溢出。
+double playlistRailHeight(BuildContext context) {
+  final scale = MediaQuery.textScalerOf(context).scale(1);
+  return _playlistCardWidth + 56 + ((scale - 1) * 44).clamp(0.0, 64.0);
+}
+
 /// 音乐流首页 - Tab 1
 class DiscoverPage extends ConsumerStatefulWidget {
   const DiscoverPage({super.key});
@@ -426,7 +432,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
               );
             }
             return SizedBox(
-              height: _playlistCardWidth + 56,
+              height: playlistRailHeight(context),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.symmetric(
@@ -457,7 +463,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
             );
           },
           loading: () => SizedBox(
-            height: _playlistCardWidth + 56,
+            height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(
@@ -515,7 +521,7 @@ class FixedRecommendSection extends ConsumerWidget {
               );
             }
             return SizedBox(
-              height: _playlistCardWidth + 56,
+              height: playlistRailHeight(context),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.symmetric(
@@ -549,7 +555,7 @@ class FixedRecommendSection extends ConsumerWidget {
             );
           },
           loading: () => SizedBox(
-            height: _playlistCardWidth + 56,
+            height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(
@@ -674,7 +680,7 @@ class PlatformRecommendSection extends ConsumerWidget {
                   ],
                   if (channel.playlists.isNotEmpty)
                     SizedBox(
-                      height: _playlistCardWidth + 56,
+                      height: playlistRailHeight(context),
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         padding: EdgeInsets.symmetric(
@@ -711,7 +717,7 @@ class PlatformRecommendSection extends ConsumerWidget {
             );
           },
           loading: () => SizedBox(
-            height: _playlistCardWidth + 56,
+            height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(

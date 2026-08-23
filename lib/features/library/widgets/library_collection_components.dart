@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:azlistview/azlistview.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/design/echo_design.dart';
@@ -442,57 +441,6 @@ class _EchoAzIndexRevealState extends State<EchoAzIndexReveal> {
       },
     );
   }
-}
-
-IndexBarOptions echoIndexBarOptions(
-  BuildContext context, {
-  required double opacity,
-}) {
-  final colors = context.echoColors;
-  final typography = context.echoTypography;
-  final textScale = MediaQuery.textScalerOf(context).scale(1);
-  final indexSize = 11 / textScale;
-  final hintSize = (typography.headline.fontSize ?? 24) / textScale;
-  return IndexBarOptions(
-    needRebuild: true,
-    ignoreDragCancel: true,
-    decoration: BoxDecoration(
-      color: colors.surface.withValues(alpha: 0.96 * opacity),
-      borderRadius: context.echoRadii.pill,
-      border: Border.all(color: colors.divider.withValues(alpha: opacity)),
-    ),
-    downDecoration: BoxDecoration(
-      color: colors.raised.withValues(alpha: opacity),
-      borderRadius: context.echoRadii.pill,
-    ),
-    textStyle: typography.metadata.copyWith(
-      fontSize: indexSize,
-      height: 1,
-      color: colors.muted.withValues(alpha: opacity),
-    ),
-    downTextStyle: typography.label.copyWith(
-      fontSize: indexSize,
-      height: 1,
-      color: colors.accent.withValues(alpha: opacity),
-    ),
-    downItemDecoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: colors.accent.withValues(alpha: 0.14 * opacity),
-    ),
-    indexHintWidth: 60,
-    indexHintHeight: 50,
-    indexHintDecoration: BoxDecoration(
-      color: colors.ink.withValues(alpha: 0.92),
-      borderRadius: context.echoRadii.control,
-    ),
-    indexHintTextStyle: typography.headline.copyWith(
-      fontSize: hintSize,
-      color: colors.canvas,
-    ),
-    indexHintAlignment: Alignment.centerRight,
-    indexHintChildAlignment: const Alignment(-0.25, 0),
-    indexHintOffset: const Offset(-20, 0),
-  );
 }
 
 class EchoMediaListSkeleton extends StatelessWidget {

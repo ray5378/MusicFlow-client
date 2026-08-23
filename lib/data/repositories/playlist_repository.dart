@@ -1,6 +1,7 @@
 import '../../core/constants/api_constants.dart';
 import '../../core/utils/logger.dart';
 import '../models/playlist.dart';
+import '../models/song.dart';
 import '../sources/subsonic_api_client.dart';
 
 /// 歌单仓库
@@ -8,6 +9,56 @@ class PlaylistRepository {
   final SubsonicApiClient _apiClient;
 
   PlaylistRepository(this._apiClient);
+
+  /// 单页歌单(窗口化加载):对齐 Web 前端 useCardGrid 的 RangeFetcher,
+  /// 走 /rest/api/v1/playlists 服务端分页(page/pageSize/query/local/favorite)。
+  Future<({List<Playlist> items, int total})> getPlaylistsPage(
+    int page,
+    int pageSize, {
+    String query = '',
+  }) async {
+    final data = await _apiClient.getRaw(
+      '/rest/api/v1/playlists',
+      queryParameters: <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        if (query.isNotEmpty) 'query': query,
+      },
+    ) as Map<String, dynamic>;
+    final items = ((data['items'] ?? data['playlists']) as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(Playlist.fromJson)
+        .toList();
+    final total = (data['total'] as num?)?.toInt() ?? items.length;
+    return (items: items, total: total);
+  }
+
+  /// 单页歌单曲目(窗口化加载):走 /rest/api/v1/playlists/:id/tracks 分页。
+  Future<({List<Song> items, int total})> getPlaylistTracksPage(
+    String playlistId,
+    int page,
+    int pageSize,
+  ) async {
+    final data = await _apiClient.getRaw(
+      '/rest/api/v1/playlists/$playlistId/tracks',
+      queryParameters: <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      },
+    ) as Map<String, dynamic>;
+
+    // 兼容两种返回:直接 entries 数组 或 {items,total}。
+    Object? rawItems = data['entries'];
+    if (rawItems == null) rawItems = data['items'];
+    final list = (rawItems as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map((e) => Song.fromJson((e['song'] as Map<String, dynamic>?) ?? e))
+        .toList();
+    final total = (data['total'] as num?)?.toInt() ??
+        (data['matched'] as num?)?.toInt() ??
+        list.length;
+    return (items: list, total: total);
+  }
 
   /// 获取所有歌单
   Future<List<Playlist>> getPlaylists() async {

@@ -5,8 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
-import '../../../providers/dlna_provider.dart';
+import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
@@ -24,57 +25,33 @@ class MiniPlayer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final player = ref.watch(playerProvider);
-    final cast = ref.watch(dlnaCastProvider);
-    final isCasting = cast.isCasting;
-    final castStatus = cast.status;
+    final cast = ref.watch(castPeerControllerProvider);
+    final isCasting = cast.activePeer != null;
 
     final currentSong = player.currentSong;
     if (currentSong == null) return const SizedBox.shrink();
 
-    // 投屏(切换播放器)激活时,迷你播放器反映远端设备的实时状态:正在播放的曲目即本地
-    // 正在投屏的曲目,进度/播放态取自设备上报(DlnaManager SOAP 轮询),从而与
-    // 主项目前端「切换播放器后控件控制该播放器、显示其正在播放内容与进度」对齐。
-    final effectiveIsPlaying = isCasting
-        ? castStatus.state == 'PLAYING'
-        : player.isPlaying;
-    final effectivePosition = isCasting
-        ? Duration(seconds: castStatus.position)
-        : player.position;
-    final effectiveDuration = isCasting
-        ? Duration(seconds: castStatus.duration)
-        : player.duration;
-
+    // 投屏(切换播放器)激活时,迷你条反映后端 peer 的实时状态:
+    // 曲目经队列 currentIndex 回写同步,进度/播放态取自 /peers/:id/status。
     final playerState = PlayerState(
       currentSong: currentSong,
       queue: player.queue,
       currentIndex: player.currentIndex,
-      isPlaying: effectiveIsPlaying,
+      isPlaying: ref.watch(effectiveIsPlayingProvider),
       shuffleEnabled: player.shuffleEnabled,
-      position: effectivePosition,
-      duration: effectiveDuration,
+      position: ref.watch(effectivePositionProvider),
+      duration: ref.watch(effectiveDurationProvider),
     );
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
     final lyricLine = ref.watch(currentLyricLineProvider);
-
-    Future<void> togglePlayPause() async {
-      await toggleEffectivePlayback(ref);
-    }
 
     return MiniPlayerView(
       playerState: playerState,
       mediaVisuals: visuals,
       lyricLine: lyricLine,
       onOpenPlayer: () => _openFullPlayer(context),
-      onTogglePlayPause: togglePlayPause,
-      onPrevious: () => previousEffectivePlayback(ref),
-      onNext: () => nextEffectivePlayback(ref),
-      onSeek: (position) async {
-        if (isCasting) {
-          ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
-        } else {
-          await ref.read(playerProvider.notifier).seek(position);
-        }
-      },
+      onTogglePlayPause: () => toggleEffectivePlayback(ref),
+      onSeek: (position) => seekEffectivePlayback(ref, position),
       progressLayer: const _ProviderMiniPlayerProgress(),
       onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
       currentPlayerName: currentPlayerName(cast),
@@ -112,10 +89,10 @@ class MiniPlayer extends ConsumerWidget {
       builder: (sheetContext) => const PlayerSwitcherSheet(),
     );
     if (context.mounted) {
-      final cast = ref.read(dlnaCastProvider);
+      final cast = ref.read(castPeerControllerProvider);
       showEchoMessage(
         context,
-        cast.isCasting
+        cast.activePeer != null
             ? '正在投屏到「${currentPlayerName(cast)}」'
             : '已切换为本机播放',
         kind: EchoMessageKind.success,
@@ -133,8 +110,6 @@ class MiniPlayerView extends StatefulWidget {
     required this.playerState,
     required this.onOpenPlayer,
     required this.onTogglePlayPause,
-    required this.onPrevious,
-    required this.onNext,
     required this.onSeek,
     required this.onSwitchPlayer,
     this.currentPlayerName = '本机',
@@ -162,8 +137,6 @@ class MiniPlayerView extends StatefulWidget {
   final Color? albumColor;
   final VoidCallback onOpenPlayer;
   final Future<void> Function() onTogglePlayPause;
-  final Future<bool> Function() onPrevious;
-  final Future<bool> Function() onNext;
   final Future<void> Function(Duration position) onSeek;
   final VoidCallback onSwitchPlayer;
   final Widget? progressLayer;
@@ -187,11 +160,6 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
   void _togglePlayPause() {
     HapticFeedback.selectionClick();
     unawaited(widget.onTogglePlayPause());
-  }
-
-  void _skip({required bool forward}) {
-    HapticFeedback.selectionClick();
-    unawaited(forward ? widget.onNext() : widget.onPrevious());
   }
 
   void _handleVerticalDragStart(DragStartDetails details) {
@@ -289,14 +257,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                               ),
                             ),
                           ),
-                          EchoIconButton(
-                            key: const Key('mini-player-previous'),
-                            icon: AppIcons.previous,
-                            label: '上一首',
-                            foregroundColor: context.echoColors.ink,
-                            backgroundColor: Colors.transparent,
-                            onPressed: () => _skip(forward: false),
-                          ),
+                          // 手机端两键布局(产品定版):播放暂停 + 投屏控制。
                           EchoIconButton(
                             icon: _playerState.isPlaying
                                 ? AppIcons.pause
@@ -305,14 +266,6 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                             foregroundColor: context.echoColors.ink,
                             backgroundColor: Colors.transparent,
                             onPressed: _togglePlayPause,
-                          ),
-                          EchoIconButton(
-                            key: const Key('mini-player-next'),
-                            icon: AppIcons.next,
-                            label: '下一首',
-                            foregroundColor: context.echoColors.ink,
-                            backgroundColor: Colors.transparent,
-                            onPressed: () => _skip(forward: true),
                           ),
                           EchoIconButton(
                             icon: widget.isCasting
@@ -695,24 +648,45 @@ class _MiniPlayerScrubBubble extends StatelessWidget {
   }
 }
 
-/// 「切换播放器」底部弹层，对齐主项目前端播放条的「选择播放器」。
-/// 列出本机播放与已发现的 DLNA 设备，选中即把播放目标切换到该设备。
-/// 迷你播放条与全屏播放器共用。
-class PlayerSwitcherSheet extends ConsumerWidget {
+/// 「切换播放器」底部弹层 —— 对齐主项目前端「选择播放器」。
+/// 数据源为主项目后端 GET /rest/api/v1/peers(本机 + DLNA/AirPlay/群组);
+/// 选中远端 peer 即把当前队列交给**后端投流**,客户端仅保留控制与状态轮询。
+class PlayerSwitcherSheet extends ConsumerStatefulWidget {
   const PlayerSwitcherSheet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cast = ref.watch(dlnaCastProvider);
-    final devicesState = ref.watch(dlnaDevicesProvider);
-    final currentSong = ref.watch(
-      playerProvider.select((state) => state.currentSong),
+  ConsumerState<PlayerSwitcherSheet> createState() => _PlayerSwitcherSheetState();
+}
+
+class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
+  List<PeerInfo>? _peers;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
+  }
+
+  Future<void> _reload() async {
+    final peers = await ref.read(castPeerControllerProvider.notifier).loadPeers();
+    if (mounted) setState(() => _peers = peers);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cast = ref.watch(castPeerControllerProvider);
+    final controller = ref.read(castPeerControllerProvider.notifier);
+    final hasSong = ref.watch(
+      playerProvider.select((state) => state.currentSong != null),
     );
-    final hasSong = currentSong != null;
+    final peers = _peers;
+    final remotePeers = (peers ?? const <PeerInfo>[])
+        .where((p) => !p.isLocal)
+        .toList();
 
     return EchoBottomSheet(
       title: '选择播放器',
-      subtitle: '切换播放器仅改变当前控制目标，不会停止其他播放器。',
+      subtitle: '切换播放器仅改变当前控制目标,不会停止其他播放器。',
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.6,
@@ -725,66 +699,54 @@ class PlayerSwitcherSheet extends ConsumerWidget {
               EchoActionRow(
                 icon: AppIcons.headphones,
                 title: '本机播放',
-                subtitle: cast.isCasting ? '当前正在投屏' : '使用此设备扬声器',
-                selected: !cast.isCasting,
+                subtitle: cast.activePeer != null ? '当前正在投屏' : '使用此设备扬声器',
+                selected: cast.activePeer == null,
                 onPressed: () async {
-                  final notifier = ref.read(dlnaCastProvider.notifier);
-                  if (ref.read(dlnaCastProvider).isCasting) {
-                    await notifier.stopCast();
-                  }
-                  if (!ref.read(playerProvider).isPlaying) {
-                    ref.read(playerProvider.notifier).play();
-                  }
+                  await controller.backToLocal(resumeLocal: true);
                   if (context.mounted) Navigator.of(context).pop();
                 },
               ),
-              if (devicesState.devices.isNotEmpty) ...<Widget>[
-                for (final device in devicesState.devices)
+              if (remotePeers.isNotEmpty)
+                for (final peer in remotePeers)
                   EchoActionRow(
-                    icon: AppIcons.signalTower,
-                    title: device.displayName,
-                    subtitle: device.disabled
-                        ? '已禁用'
-                        : device.available
-                        ? '可用'
-                        : '离线',
-                    selected: cast.isCasting &&
-                        cast.currentDevice?.id == device.id,
-                          onPressed: !hasSong || device.disabled || !device.available
-                              ? null
-                              : () async {
-                                  final song =
-                                      ref.read(playerProvider).currentSong;
-                                  if (song == null) return;
-                                  final navigator = Navigator.of(context);
-                                  final ok = await ref
-                                      .read(dlnaCastProvider.notifier)
-                                      .startCast(device, song.id);
-                                  if (!ok) {
-                                    if (context.mounted) {
-                                      showEchoMessage(
-                                        context,
-                                        '投屏「${device.displayName}」失败，请重试',
-                                        kind: EchoMessageKind.error,
-                                      );
-                                    }
-                                    return;
-                                  }
-                                  await ref
-                                      .read(playerProvider.notifier)
-                                      .pause();
-                                  navigator.pop();
-                                },
-                  ),
-              ] else
+                    icon: switch (peer.kind) {
+                      'group' => AppIcons.people,
+                      'airplay' => AppIcons.signalTower,
+                      _ => AppIcons.signalTower,
+                    },
+                    title: peer.name,
+                    subtitle: <String>[
+                      peer.kindLabel,
+                      if (!peer.available) '离线',
+                      if (peer.queueTotal > 0)
+                        peer.queueLabel,
+                    ].join(' · '),
+                    selected: cast.activePeer?.peerId == peer.peerId,
+                    onPressed: !hasSong || !peer.available
+                        ? null
+                        : () async {
+                            final navigator = Navigator.of(context);
+                            final ok = await controller.switchTo(peer);
+                            if (!ok && context.mounted) {
+                              showEchoMessage(
+                                context,
+                                '切换到「' + peer.name + '」失败,请重试',
+                                kind: EchoMessageKind.error,
+                              );
+                              return;
+                            }
+                            navigator.pop();
+                          },
+                  )
+              else
                 Padding(
                   padding: EdgeInsets.symmetric(
                     vertical: context.echoSpacing.sm,
                   ),
                   child: Text(
-                    devicesState.isScanning
-                        ? '正在扫描可用播放器…'
-                        : '未发现其他播放器，可点击下方按钮重新扫描。',
+                    _peers == null
+                        ? '正在获取可用播放器…'
+                        : '未发现其他播放器,可点击下方按钮重新扫描。',
                     style: context.echoTypography.body.copyWith(
                       color: context.echoColors.muted,
                     ),
@@ -793,17 +755,13 @@ class PlayerSwitcherSheet extends ConsumerWidget {
               EchoActionRow(
                 icon: AppIcons.refresh,
                 title: '重新扫描播放器',
-                trailing: devicesState.isScanning
+                trailing: cast.loadingPeers
                     ? const SizedBox.square(
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : null,
-                onPressed: devicesState.isScanning
-                    ? null
-                    : () => ref
-                        .read(dlnaDevicesProvider.notifier)
-                        .scan(),
+                onPressed: cast.loadingPeers ? null : () => _reload(),
               ),
             ],
           ),

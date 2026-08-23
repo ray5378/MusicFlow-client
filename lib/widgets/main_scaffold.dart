@@ -9,6 +9,11 @@ import '../core/design/echo_design.dart';
 import '../core/network/connectivity_monitor.dart';
 import '../core/utils/logger.dart';
 import '../data/models/server_address.dart';
+import '../features/library/pages/album_list_page.dart';
+import '../features/library/pages/artist_list_page.dart';
+import '../features/library/pages/playlist_search_page.dart';
+import '../features/library/pages/song_list_page.dart';
+import '../features/library/pages/starred_page.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../providers/api_provider.dart';
 import '../providers/navigation_provider.dart';
@@ -344,7 +349,47 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         networkStatus: networkStatus,
         showNavigationBar: false,
         onOpenDrawer: openEchoAppDrawer,
+        // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
+        libraryEntries: _libraryEntries(context),
       ),
     );
   }
+}
+
+/// 侧栏「曲库」快捷入口(宽屏)。点击直接打开对应列表页,
+/// 页面内部为窗口化分页加载。
+List<EchoSidebarLibraryEntry> _libraryEntries(BuildContext context) {
+  Future<void> open(Widget page) async {
+    Navigator.of(context).push<void>(
+      EchoPageRoute<void>(context: context, builder: (_) => page),
+    );
+  }
+
+  return <EchoSidebarLibraryEntry>[
+    EchoSidebarLibraryEntry(
+      label: '艺术家',
+      icon: AppIcons.profile,
+      onTap: () => unawaited(open(const ArtistListPage())),
+    ),
+    EchoSidebarLibraryEntry(
+      label: '专辑',
+      icon: AppIcons.album,
+      onTap: () => unawaited(open(const AlbumListPage())),
+    ),
+    EchoSidebarLibraryEntry(
+      label: '歌曲',
+      icon: AppIcons.music,
+      onTap: () => unawaited(open(const SongListPage())),
+    ),
+    EchoSidebarLibraryEntry(
+      label: '歌单',
+      icon: AppIcons.playlist,
+      onTap: () => unawaited(open(const PlaylistSearchPage())),
+    ),
+    EchoSidebarLibraryEntry(
+      label: '喜爱',
+      icon: AppIcons.heart,
+      onTap: () => unawaited(open(const StarredPage())),
+    ),
+  ];
 }

@@ -58,8 +58,6 @@ void main() {
   MiniPlayerView view({
     required PlayerState state,
     Future<void> Function()? onToggle,
-    Future<bool> Function()? onPrevious,
-    Future<bool> Function()? onNext,
     Future<void> Function(Duration)? onSeek,
     VoidCallback? onOpen,
     VoidCallback? onSwitchPlayer,
@@ -71,8 +69,6 @@ void main() {
       playerState: state,
       onOpenPlayer: onOpen ?? () {},
       onTogglePlayPause: onToggle ?? () async {},
-      onPrevious: onPrevious ?? () async => true,
-      onNext: onNext ?? () async => true,
       onSeek: onSeek ?? (_) async {},
       onSwitchPlayer: onSwitchPlayer ?? () {},
       currentPlayerName: currentPlayerName,
@@ -81,7 +77,7 @@ void main() {
     );
   }
 
-  testWidgets('stays 72dp, keeps four visible actions, and survives 200% text', (
+  testWidgets('stays 72dp, keeps two visible actions, and survives 200% text', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -96,34 +92,29 @@ void main() {
       tester.getSize(find.byKey(const Key('mini-player-surface'))).height,
       MiniPlayer.height,
     );
-    // 对齐主项目前端迷你条:上一首 / 播放暂停 / 下一首 / 切换播放器。
-    expect(find.byType(EchoIconButton), findsNWidgets(4));
+    // 产品定版:手机端两键 = 播放暂停 + 投屏控制(切换播放器)。
+    expect(find.byType(EchoIconButton), findsNWidgets(2));
     expect(find.bySemanticsLabel('播放'), findsOneWidget);
-    expect(find.bySemanticsLabel('上一首'), findsOneWidget);
-    expect(find.bySemanticsLabel('下一首'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('切换播放器')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('transport buttons drive previous / toggle / next / switcher', (
-    tester,
-  ) async {
+  testWidgets('mini bar exposes no prev/next buttons by design', (tester) async {
+    await tester.pumpWidget(appFor(view(state: playerState())));
+    await tester.pump();
+
+    expect(find.bySemanticsLabel('上一首'), findsNothing);
+    expect(find.bySemanticsLabel('下一首'), findsNothing);
+  });
+
+  testWidgets('transport buttons drive toggle and switcher', (tester) async {
     var toggles = 0;
-    var previous = 0;
-    var next = 0;
     var switches = 0;
     await tester.pumpWidget(
       appFor(
         view(
           state: playerState(),
           onToggle: () async => toggles += 1,
-          onPrevious: () async {
-            previous += 1;
-            return true;
-          },
-          onNext: () async {
-            next += 1;
-            return true;
-          },
           onSwitchPlayer: () => switches += 1,
         ),
       ),
@@ -132,16 +123,10 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('播放'));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('上一首'));
-    await tester.pump();
-    await tester.tap(find.bySemanticsLabel('下一首'));
-    await tester.pump();
     await tester.tap(find.bySemanticsLabel(RegExp('切换播放器')));
     await tester.pump();
 
     expect(toggles, 1);
-    expect(previous, 1);
-    expect(next, 1);
     expect(switches, 1);
   });
 

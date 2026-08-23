@@ -98,7 +98,7 @@ void main() {
       );
 
       // 宽屏侧栏可见;重选当前分支 → 重置到分支根(对齐主项目行为)。
-      await tester.tap(find.bySemanticsLabel('音乐流'));
+      await tester.tap(find.text('音乐流'));
       await tester.pumpAndSettle();
       expect(find.text('Home root'), findsOneWidget);
       expect(find.text('Home detail'), findsNothing);

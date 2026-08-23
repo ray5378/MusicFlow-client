@@ -1,28 +1,27 @@
 import 'dart:async';
-import 'dart:math' as math;
 
-import 'package:azlistview/azlistview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
+import '../../../features/library/widgets/windowed_list_view.dart';
+import '../../../features/library/widgets/windowed_paginated_list.dart';
+import '../../../features/player/widgets/song_options_sheet.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
 import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/search_provider.dart';
-import '../../../utils/az_item.dart';
-import '../../../utils/pinyin_helper.dart';
-import '../utils/library_sorting.dart';
-import '../widgets/library_collection_components.dart';
-import '../../player/widgets/song_options_sheet.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
+import '../widgets/library_collection_components.dart';
 
+/// 歌曲库 —— 窗口化分页加载(对齐主项目前端 useInfiniteList):
+/// 渲染层虚拟滚动、数据层按 page/pageSize 分块拉取并剪枝;
+/// 排序仅提供后端支持的两种:标题 A-Z / 最近入库。
 class SongListPage extends ConsumerStatefulWidget {
   const SongListPage({super.key});
 
@@ -30,152 +29,74 @@ class SongListPage extends ConsumerStatefulWidget {
   ConsumerState<SongListPage> createState() => _SongListPageState();
 }
 
+enum _SongSort { titleAsc, recentAdded }
+
 class _SongListPageState extends ConsumerState<SongListPage> {
-  List<AzItem<Song>> _azSongs = [];
-  List<Song> _displaySongs = [];
-  SongSortOption _sortOption = SongSortOption.alphabeticalAsc;
-  int _songsSignature = 0;
+  _SongSort _sort = _SongSort.titleAsc;
   SearchMode _searchMode = SearchMode.aggregate;
   String _searchProviderId = '';
   String _searchQuery = '';
-  late final ItemPositionsListener _itemPositionsListener;
-  int _coverLoadStart = 0;
-  int _coverLoadEnd = -1;
+
+  late final WindowedPaginatedList<Song> _list = WindowedPaginatedList<Song>(
+    fetcher: (page, pageSize, query) async {
+      final repository = ref.read(musicRepositoryProvider);
+      if (repository == null) return (items: <Song>[], total: 0);
+      return repository.getSongsPage(
+        page,
+        pageSize,
+        query: query,
+        sort: _sort == _SongSort.recentAdded ? 'recentAdded' : '',
+      );
+    },
+  );
 
   @override
   void initState() {
     super.initState();
-    _itemPositionsListener = ItemPositionsListener.create();
-    _itemPositionsListener.itemPositions.addListener(_onItemPositionsChanged);
+    _list.load('');
   }
 
-  @override
-  void dispose() {
-    _itemPositionsListener.itemPositions.removeListener(
-      _onItemPositionsChanged,
-    );
-    super.dispose();
-  }
-
-  void _onItemPositionsChanged() {
-    if (!mounted || _displaySongs.isEmpty) return;
-    final positions = _itemPositionsListener.itemPositions.value;
-    if (positions.isEmpty) return;
-
-    // Only count items that are currently visible in the viewport.
-    final visible = positions
-        .where((p) => p.itemTrailingEdge > 0 && p.itemLeadingEdge < 1)
-        .toList();
-    if (visible.isEmpty) return;
-
-    final minVisibleIndex = visible
-        .map((e) => e.index)
-        .reduce((a, b) => math.min(a, b));
-    final maxVisibleIndex = visible
-        .map((e) => e.index)
-        .reduce((a, b) => math.max(a, b));
-
-    final visibleCount = maxVisibleIndex - minVisibleIndex + 1;
-    // Preload roughly one viewport of covers around the visible range.
-    final extraTotal = math.max(1, visibleCount);
-    final extraBefore = extraTotal ~/ 2;
-    final extraAfter = extraTotal - extraBefore;
-
-    final nextStart = math.max(0, minVisibleIndex - extraBefore);
-    final nextEnd = math.min(
-      _displaySongs.length - 1,
-      maxVisibleIndex + extraAfter,
-    );
-
-    if (nextStart == _coverLoadStart && nextEnd == _coverLoadEnd) return;
-
-    setState(() {
-      _coverLoadStart = nextStart;
-      _coverLoadEnd = nextEnd;
-    });
-  }
-
-  int _buildSongsSignature(List<Song> songs) {
-    return Object.hash(
-      _sortOption,
-      Object.hashAll(
-        songs.map(
-          (song) => Object.hash(
-            song.id,
-            song.title,
-            song.artist,
-            song.album,
-            song.duration,
-            song.created,
-            song.starred,
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _processSongs(List<Song> songs, int signature) {
-    if (_sortOption.usesAlphabeticalIndexBar) {
-      _azSongs = songs.map((song) {
-        final tag = PinyinUtils.getFirstChar(song.title);
-        final pinyin = PinyinUtils.getPinyin(song.title);
-        return AzItem(data: song, tag: tag, namePinyin: pinyin);
-      }).toList();
-
-      SuspensionUtil.sortListBySuspensionTag(_azSongs);
-      SuspensionUtil.setShowSuspensionStatus(_azSongs);
-      _displaySongs = _azSongs.map((item) => item.data).toList();
-    } else {
-      _displaySongs = sortSongs(songs, _sortOption);
-      _azSongs = const [];
-    }
-    _songsSignature = signature;
+  void _reload() {
+    _list.load(_searchQuery.isEmpty ? '' : _searchQuery);
   }
 
   Future<void> _showSortSheet() async {
-    final selected = await showEchoBottomSheet<SongSortOption>(
+    final selected = await showEchoBottomSheet<_SongSort>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => EchoBottomSheet(
         title: '歌曲排序',
-        subtitle: '当前：${_sortOption.label}',
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.62,
-          ),
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: selectableSongSortOptionsWithoutDefault.length,
-            itemBuilder: (context, index) {
-              final option = selectableSongSortOptionsWithoutDefault[index];
-              return EchoActionRow(
-                icon: option == _sortOption ? AppIcons.check : AppIcons.sort,
-                title: option.label,
-                selected: option == _sortOption,
+        subtitle: '窗口化加载模式下支持以下排序',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            for (final option in _SongSort.values)
+              EchoActionRow(
+                icon: option == _sort ? AppIcons.check : AppIcons.sort,
+                title: switch (option) {
+                  _SongSort.titleAsc => '标题 A-Z',
+                  _SongSort.recentAdded => '最近入库',
+                },
+                selected: option == _sort,
                 onPressed: () => Navigator.of(sheetContext).pop(option),
-              );
-            },
-          ),
+              ),
+          ],
         ),
       ),
     );
-    if (!mounted || selected == null || selected == _sortOption) return;
-    setState(() {
-      _sortOption = selected;
-    });
+    if (!mounted || selected == null || selected == _sort) return;
+    setState(() => _sort = selected);
+    _reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    final songsAsync = ref.watch(allSongsProvider);
-    final loadFailed = ref.watch(allSongsLoadFailedProvider);
-
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
       debugLabel: 'song_list_page',
-      shouldRetry: (ref) => loadFailed || songsAsync.hasError,
-      onRetry: (ref) => ref.invalidate(allSongsProvider),
+      shouldRetry: (ref) => _list.hasError,
+      onRetry: (ref) => _list.retry(),
       child: EchoScaffold(
         topBar: EchoTopBar.back(
           context: context,
@@ -184,7 +105,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             if (_searchQuery.isEmpty)
               EchoIconButton(
                 icon: AppIcons.sort,
-                label: '歌曲排序：${_sortOption.label}',
+                label: '歌曲排序',
                 onPressed: () => unawaited(_showSortSheet()),
               ),
           ],
@@ -201,172 +122,116 @@ class _SongListPageState extends ConsumerState<SongListPage> {
                 _searchMode = source.mode;
                 _searchProviderId = source.providerId;
               }),
-              onQueryChanged: (query) => setState(() => _searchQuery = query),
+              onQueryChanged: (query) {
+                setState(() => _searchQuery = query);
+                if (_searchMode == SearchMode.local) _reload();
+              },
             ),
             SizedBox(height: context.echoSpacing.xs),
-            Expanded(
-              child: _searchBody(songsAsync, loadFailed),
-            ),
+            Expanded(child: _body()),
           ],
         ),
       ),
     );
   }
 
-  Widget _searchBody(AsyncValue<List<Song>> songsAsync, bool loadFailed) {
-    if (_searchQuery.isEmpty) {
-      return songsAsync.when(
-        data: (songs) => _localList(songs, loadFailed),
-        loading: () => const EchoMediaListSkeleton(count: 10),
-        error: (error, stackTrace) => _errorState(),
-      );
-    }
-    if (_searchMode == SearchMode.local) {
-      return songsAsync.when(
-        data: (songs) {
-          final filtered = songs.where((s) => _matches(s, _searchQuery)).toList();
-          if (filtered.isEmpty) return _emptyResults();
-          final signature = _buildSongsSignature(filtered);
-          final processedLength = _sortOption.usesAlphabeticalIndexBar
-              ? _azSongs.length
-              : _displaySongs.length;
-          if (signature != _songsSignature ||
-              processedLength != filtered.length) {
-            _processSongs(filtered, signature);
-          }
-          return _buildSongCollection();
-        },
-        loading: () => const EchoMediaListSkeleton(count: 10),
-        error: (error, stackTrace) => _errorState(),
-      );
-    }
-    final results = ref.watch(
-      searchResultsProvider(
-        SearchRequest(
-          kind: SearchEntityKind.song,
-          mode: _searchMode,
-          query: _searchQuery,
-          providerId: _searchProviderId,
+  Widget _body() {
+    if (_searchQuery.isNotEmpty && _searchMode != SearchMode.local) {
+      // 聚合/在线搜索走主项目聚合端点。
+      final results = ref.watch(
+        searchResultsProvider(
+          SearchRequest(
+            kind: SearchEntityKind.song,
+            mode: _searchMode,
+            query: _searchQuery,
+            providerId: _searchProviderId,
+          ),
         ),
-      ),
-    );
-    return results.when(
-      data: (outcome) => outcome.songs.isEmpty
-          ? _emptyResults()
-          : SearchResultList(kind: SearchEntityKind.song, outcome: outcome),
-      loading: () => const EchoMediaListSkeleton(count: 10),
-      error: (error, stackTrace) => _errorState(),
-    );
-  }
-
-  bool _matches(Song song, String query) {
-    final lower = query.toLowerCase();
-    return (song.title.toLowerCase().contains(lower)) ||
-        (song.artist?.toLowerCase().contains(lower) ?? false) ||
-        (song.album?.toLowerCase().contains(lower) ?? false);
-  }
-
-  Widget _localList(List<Song> songs, bool loadFailed) {
-    if (songs.isEmpty) {
-      if (loadFailed) return _errorState();
-      return const EchoEmptyState(
-        title: '暂无歌曲',
-        description: '同步音乐库后，歌曲会显示在这里。',
-        icon: AppIcons.music,
+      );
+      return results.when(
+        data: (outcome) => outcome.songs.isEmpty
+            ? const EchoEmptyState(
+                title: '未找到结果',
+                description: '换个关键词或切换搜索来源试试。',
+                icon: AppIcons.search,
+              )
+            : SearchResultList(
+                kind: SearchEntityKind.song,
+                outcome: outcome,
+              ),
+        loading: () => const EchoMediaListSkeleton(count: 10),
+        error: (e, _) => EchoErrorState(
+          title: '搜索失败',
+          description: '$e',
+          actionLabel: '重试',
+          onAction: () =>
+              ref.invalidate(searchResultsProvider(SearchRequest(
+            kind: SearchEntityKind.song,
+            mode: _searchMode,
+            query: _searchQuery,
+            providerId: _searchProviderId,
+          ))),
+        ),
       );
     }
-    final signature = _buildSongsSignature(songs);
-    final processedLength = _sortOption.usesAlphabeticalIndexBar
-        ? _azSongs.length
-        : _displaySongs.length;
-    if (signature != _songsSignature || processedLength != songs.length) {
-      _processSongs(songs, signature);
-    }
-    return _buildSongCollection();
-  }
 
-  Widget _emptyResults() => const EchoEmptyState(
-        title: '未找到结果',
-        description: '换个关键词或切换搜索来源试试。',
-        icon: AppIcons.search,
-      );
-
-  Widget _errorState() => EchoErrorState(
-        title: '加载失败',
-        description: '请检查网络或服务器状态后重试。',
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(allSongsProvider),
-      );
-
-  Widget _buildSongCollection() {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1400),
-        child: _sortOption.usesAlphabeticalIndexBar
-            ? EchoAzIndexReveal(
-                builder: (context, opacity, _) => AzListView(
-                  key: const ValueKey<String>('song-list-alphabetical-scroll'),
-                  data: _azSongs,
-                  itemCount: _azSongs.length,
-                  padding: EdgeInsets.only(
-                    bottom:
-                        context.echoSpacing.xxl +
-                        context.echoShellBottomObstruction,
-                  ),
-                  itemPositionsListener: _itemPositionsListener,
-                  itemBuilder: (context, index) => _buildSongListItem(index),
-                  indexBarData: SuspensionUtil.getTagIndexList(_azSongs),
-                  indexBarWidth: 24,
-                  indexBarMargin: EdgeInsetsDirectional.only(
-                    end: context.echoSpacing.xxs,
-                  ),
-                  indexBarOptions: echoIndexBarOptions(
-                    context,
-                    opacity: opacity,
-                  ),
-                ),
-              )
-            : ScrollablePositionedList.builder(
-                key: const ValueKey<String>('song-list-sorted-scroll'),
-                itemCount: _displaySongs.length,
-                padding: EdgeInsets.only(
-                  bottom:
-                      context.echoSpacing.xxl +
-                      context.echoShellBottomObstruction,
-                ),
-                itemPositionsListener: _itemPositionsListener,
-                itemBuilder: (context, index) => _buildSongListItem(index),
-              ),
+        child: AnimatedBuilder(
+          animation: _list,
+          builder: (context, _) => WindowedListView<Song>(
+            controller: _list,
+            placeholderExtent: 72,
+            padding: EdgeInsets.only(
+              left: context.echoPageHorizontalPadding,
+              right: context.echoPageHorizontalPadding,
+              top: context.echoSpacing.xs,
+              bottom:
+                  context.echoSpacing.xxl + context.echoShellBottomObstruction,
+            ),
+            emptyTitle: '暂无歌曲',
+            emptyDescription: '同步音乐库后，歌曲会显示在这里。',
+            itemBuilder: (context, index, item) =>
+                _buildRow(index, item!),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSongListItem(int index) {
-    final song = _displaySongs[index];
-    final shouldLoadCover = index >= _coverLoadStart && index <= _coverLoadEnd;
-
-    return SongListItem(
-      song: song,
-      index: index,
-      variant: SongListItemVariant.standard,
-      coverArtId: shouldLoadCover ? song.coverArt : null,
-      contentPadding: EdgeInsetsDirectional.fromSTEB(
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.xs,
-        _sortOption.usesAlphabeticalIndexBar
-            ? 44
-            : context.echoPageHorizontalPadding,
-        context.echoSpacing.xs,
+  Widget _buildRow(int index, Song song) {
+    return KeyedSubtree(
+      key: ValueKey('song-row-${song.id}'),
+      child: SongListItem(
+        song: song,
+        index: index,
+        variant: SongListItemVariant.standard,
+        contentPadding: EdgeInsetsDirectional.fromSTEB(
+          context.echoPageHorizontalPadding,
+          context.echoSpacing.xs,
+          context.echoPageHorizontalPadding,
+          context.echoSpacing.xs,
+        ),
+        onTap: () async {
+          // 播放队列需要完整顺序表:后台一次性拉全量构建队列(仅用户主动播放时),
+          // 渲染层仍保持窗口化,不回退到全量渲染。
+          try {
+            final all =
+                await ref.read(musicRepositoryProvider)!.getAllSongs();
+            if (!mounted) return;
+            await ref
+                .read(playerProvider.notifier)
+                .playQueue(all, startIndex: index.clamp(0, all.length - 1));
+          } catch (_) {
+            await ref
+                .read(playerProvider.notifier)
+                .playQueue(<Song>[song], startIndex: 0);
+          }
+        },
+        onLongPress: () => showSongOptionsSheet(context: context, song: song),
       ),
-      onTap: () {
-        ref
-            .read(playerProvider.notifier)
-            .playQueue(_displaySongs, startIndex: index);
-      },
-      onLongPress: () {
-        showSongOptionsSheet(context: context, song: song);
-      },
     );
   }
 }

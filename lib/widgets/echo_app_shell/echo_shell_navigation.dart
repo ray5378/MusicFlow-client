@@ -137,6 +137,20 @@ class EchoMediumNavigationRail extends StatelessWidget {
   }
 }
 
+/// 侧栏「曲库」快捷入口(非分支,点击直接打开对应列表页),
+/// 对齐箭头音乐 Windows 版左侧栏。
+class EchoSidebarLibraryEntry {
+  const EchoSidebarLibraryEntry({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+}
+
 class EchoExpandedNavigationSidebar extends StatelessWidget {
   const EchoExpandedNavigationSidebar({
     super.key,
@@ -144,12 +158,14 @@ class EchoExpandedNavigationSidebar extends StatelessWidget {
     required this.selectedBranchIndex,
     required this.onDestinationSelected,
     required this.onOpenDrawer,
+    this.libraryEntries = const <EchoSidebarLibraryEntry>[],
   });
 
   final List<EchoShellDestination> destinations;
   final int selectedBranchIndex;
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onOpenDrawer;
+  final List<EchoSidebarLibraryEntry> libraryEntries;
 
   @override
   Widget build(BuildContext context) {
@@ -203,8 +219,21 @@ class EchoExpandedNavigationSidebar extends StatelessWidget {
                       horizontal: spacing.sm,
                       vertical: spacing.md,
                     ),
-                    itemCount: destinations.length,
+                    itemCount:
+                        destinations.length + libraryEntries.length,
                     itemBuilder: (context, index) {
+                      if (index >= destinations.length) {
+                        final entry =
+                            libraryEntries[index - destinations.length];
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: spacing.xxs),
+                          child: _SidebarActionEntry(
+                            label: entry.label,
+                            icon: entry.icon,
+                            onPressed: entry.onTap,
+                          ),
+                        );
+                      }
                       final destination = destinations[index];
                       return Padding(
                         padding: EdgeInsets.only(bottom: spacing.xxs),
@@ -542,6 +571,73 @@ class _AnimatedDestinationLabel extends StatelessWidget {
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
         textAlign: textAlign,
+      ),
+    );
+  }
+}
+
+/// 侧栏动作型条目(曲库快捷入口),样式与分支目的地一致。
+class _SidebarActionEntry extends StatelessWidget {
+  const _SidebarActionEntry({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.echoColors;
+    final spacing = context.echoSpacing;
+
+    return EchoPressable(
+      semanticLabel: label,
+      onPressed: onPressed,
+      enableHaptics: true,
+      minimumSize: const Size(double.infinity, 64),
+      borderRadius: context.echoRadii.detail,
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(
+          spacing.xxs,
+          spacing.xs,
+          spacing.xs,
+          spacing.xs,
+        ),
+        child: Row(
+          children: <Widget>[
+            SizedBox.square(
+              dimension: context.echoInteraction.minimumTouchTarget,
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: context.echoInteraction.iconSize,
+                  color: colors.muted,
+                ),
+              ),
+            ),
+            SizedBox(width: spacing.xxs),
+            Expanded(
+              child: AnimatedDefaultTextStyle(
+                duration: context.echoMotion.resolve(
+                  context,
+                  context.echoMotion.state,
+                ),
+                style: context.echoTypography.title.copyWith(
+                  color: colors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

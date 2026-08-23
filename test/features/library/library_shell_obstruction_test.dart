@@ -1,4 +1,3 @@
-import 'package:azlistview/azlistview.dart';
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/design/echo_design.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
@@ -14,8 +13,9 @@ import 'package:musicflow_client/features/library/pages/album_list_page.dart';
 import 'package:musicflow_client/features/library/pages/artist_detail_page.dart';
 import 'package:musicflow_client/features/library/pages/artist_list_page.dart';
 import 'package:musicflow_client/features/library/pages/playlist_detail_page.dart';
+import 'package:musicflow_client/features/library/pages/playlist_search_page.dart';
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
-import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/music_provider.dart';
 import 'package:musicflow_client/providers/playlist_provider.dart';
@@ -23,8 +23,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+
 const _obstruction = 120.0;
-final _expectedBottomSpace = EchoSpacing.standard.xxl + _obstruction;
 
 final _song = Song(
   id: 'song-1',
@@ -52,7 +52,6 @@ final _playlist = Playlist(
   name: 'Playlist',
   songCount: 1,
   duration: 180,
-  songs: <Song>[_song],
 );
 
 Future<void> _pumpPage(
@@ -72,6 +71,15 @@ Future<void> _pumpPage(
     ProviderScope(
       overrides: <Override>[
         connectivityMonitorProvider.overrideWithValue(connectivityMonitor),
+        // 立即返回假地址,避免 ensureActiveAddress 的 6s 探测轮询挂起计时器。
+        ensureActiveAddressProvider.overrideWith((ref) async => const ServerAddress(
+              id: 'addr-test',
+              libraryId: 'lib-test',
+              label: 'test',
+              url: 'https://music.test',
+              priority: 0,
+              status: ServerAddressStatus.ok,
+            )),
         ...overrides,
       ],
       child: MaterialApp(
@@ -81,23 +89,8 @@ Future<void> _pumpPage(
     ),
   );
   await tester.pumpAndSettle();
-}
-
-void _expectSpacer(WidgetTester tester, String key) {
-  final spacer = tester.widget<SizedBox>(find.byKey(ValueKey<String>(key)));
-  expect(spacer.height, _expectedBottomSpace);
-  expect(tester.takeException(), isNull);
-}
-
-void _expectAzCollection(WidgetTester tester, String key) {
-  final list = tester.widget<AzListView>(find.byKey(ValueKey<String>(key)));
-  final decoration = list.indexBarOptions.decoration! as BoxDecoration;
-  expect(list.padding, EdgeInsets.only(bottom: _expectedBottomSpace));
-  expect(list.indexBarWidth, 24);
-  expect(list.indexBarHeight, isNull);
-  expect(decoration.color!.a, 0);
-  expect(find.byType(EchoAzIndexReveal), findsOneWidget);
-  expect(tester.takeException(), isNull);
+  // 冲掉 ensureActiveAddress / 搜索防抖等一次性计时器。
+  await tester.pump(const Duration(milliseconds: 250));
 }
 
 void main() {
@@ -114,7 +107,10 @@ void main() {
       ],
     );
 
-    _expectSpacer(tester, 'album-detail-bottom-spacer');
+    final spacer =
+        tester.widget<SizedBox>(find.byKey(const ValueKey<String>('album-detail-bottom-spacer')));
+    expect(spacer.height, EchoSpacing.standard.xxl + _obstruction);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('artist detail keeps its base spacer above shell chrome', (
@@ -137,7 +133,10 @@ void main() {
       ],
     );
 
-    _expectSpacer(tester, 'artist-detail-bottom-spacer');
+    final spacer =
+        tester.widget<SizedBox>(find.byKey(const ValueKey<String>('artist-detail-bottom-spacer')));
+    expect(spacer.height, EchoSpacing.standard.xxl + _obstruction);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('playlist detail keeps its base spacer above shell chrome', (
@@ -153,48 +152,40 @@ void main() {
       ],
     );
 
-    _expectSpacer(tester, 'playlist-detail-bottom-spacer');
+    final spacer =
+        tester.widget<SizedBox>(find.byKey(const ValueKey<String>('playlist-detail-bottom-spacer')));
+    expect(spacer.height, EchoSpacing.standard.xxl + _obstruction);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('album collection adds the shell obstruction to list padding', (
+  testWidgets('windowed collections reserve the shell obstruction', (
     tester,
   ) async {
-    await _pumpPage(
-      tester,
-      page: const AlbumListPage(),
-      overrides: <Override>[
-        allAlbumsProvider.overrideWith((ref) async => <Album>[_album]),
-      ],
-    );
+    Future<void> assertPage(Widget page) async {
+      await _pumpPage(tester, page: page, overrides: const <Override>[]);
+      // 泛型运行时类型不同(Album/Song/...),按 runtimeType 前缀匹配。
+      final views = find
+          .byWidgetPredicate(
+            (w) => w.runtimeType.toString().startsWith('WindowedListView<'),
+          )
+          .evaluate()
+          .toList();
+      expect(views, hasLength(1));
+      final padding = (views.single.widget as dynamic).padding as EdgeInsets?;
+      expect(padding, isNotNull);
+      expect(
+        padding!.bottom,
+        EchoSpacing.standard.xxl + _obstruction,
+      );
+      expect(tester.takeException(), isNull);
+    }
 
-    _expectAzCollection(tester, 'album-list-scroll');
-  });
+    await assertPage(const AlbumListPage());
+    await assertPage(const SongListPage());
+    await assertPage(const ArtistListPage());
+    await assertPage(const PlaylistSearchPage());
 
-  testWidgets('artist collection uses the shared auto-hiding A-Z rail', (
-    tester,
-  ) async {
-    await _pumpPage(
-      tester,
-      page: const ArtistListPage(),
-      overrides: <Override>[
-        allArtistsProvider.overrideWith((ref) async => <Artist>[_artist]),
-      ],
-    );
-
-    _expectAzCollection(tester, 'artist-list-scroll');
-  });
-
-  testWidgets('song collection uses the shared auto-hiding A-Z rail', (
-    tester,
-  ) async {
-    await _pumpPage(
-      tester,
-      page: const SongListPage(),
-      overrides: <Override>[
-        allSongsProvider.overrideWith((ref) async => <Song>[_song]),
-      ],
-    );
-
-    _expectAzCollection(tester, 'song-list-alphabetical-scroll');
+    // 冲掉 EntitySearchBar 的输入防抖计时器,避免测试结束时挂起 Timer。
+    await tester.pump(const Duration(milliseconds: 350));
   });
 }
