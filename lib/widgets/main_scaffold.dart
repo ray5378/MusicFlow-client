@@ -16,6 +16,8 @@ import '../features/library/pages/song_list_page.dart';
 import '../features/library/pages/starred_page.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../providers/api_provider.dart';
+import '../providers/cast_peer_provider.dart';
+import '../providers/effective_playback_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import 'app_drawer.dart';
@@ -133,6 +135,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   static const MethodChannel _appLifecycleChannel = MethodChannel(
     'com.musicflow.app/app_lifecycle',
   );
+  static const BasicMessageChannel<String> _trayChannel =
+      BasicMessageChannel<String>('com.musicflow.app/tray', StringCodec());
   int? _lastSyncedBranchIndex;
   StreamSubscription<NetworkType>? _networkTypeSubscription;
   Timer? _initialNetworkStateTimer;
@@ -145,6 +149,28 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     if (widget.networkStatusOverride == null) {
       _startNetworkObservation();
     }
+    _initTrayListener();
+  }
+
+  void _initTrayListener() {
+    _trayChannel.setMessageHandler((message) async {
+      if (!mounted || message == null) return '';
+      switch (message) {
+        case 'toggle_play_pause':
+          await toggleEffectivePlayback(ref);
+          break;
+        case 'previous':
+          await ref.read(castPeerControllerProvider.notifier).previous();
+          break;
+        case 'next':
+          await ref.read(castPeerControllerProvider.notifier).next();
+          break;
+        case 'toggle_status_lyrics':
+          // TODO: 状态栏歌词开关
+          break;
+      }
+      return '';
+    });
   }
 
   @override

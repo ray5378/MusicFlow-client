@@ -9,7 +9,13 @@
 static const UINT WM_TRAYICON = WM_USER + 1;
 static const UINT TRAY_SHOW = 1001;
 static const UINT TRAY_QUIT = 1002;
+static const UINT TRAY_PLAY_PAUSE = 1003;
+static const UINT TRAY_PREV = 1004;
+static const UINT TRAY_NEXT = 1005;
+static const UINT TRAY_LYRICS = 1006;
 static const UINT TRAY_ICON_ID = 1;
+// Custom message to forward tray commands to Flutter window
+static const UINT WM_TRAY_COMMAND = WM_USER + 2;
 
 static NOTIFYICONDATAW g_nid = {};
 static HMENU g_tray_menu = nullptr;
@@ -35,11 +41,15 @@ static void ShowTrayMenu(HWND hwnd) {
 
   if (g_tray_menu) DestroyMenu(g_tray_menu);
   g_tray_menu = CreatePopupMenu();
-  AppendMenuW(g_tray_menu, MF_STRING, TRAY_SHOW, L"显示主窗口(&S)");
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_PLAY_PAUSE, L"暂停/播放(&P)");
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_PREV, L"上一首(&V)");
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_NEXT, L"下一首(&N)");
+  AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_SHOW, L"显示窗口(&S)");
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_LYRICS, L"显示状态栏歌词(&L)");
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_QUIT, L"退出(&X)");
 
-  // Required for tray menus to work correctly
   SetForegroundWindow(hwnd);
   TrackPopupMenu(g_tray_menu, TPM_RIGHTALIGN | TPM_BOTTOMALIGN,
                  pt.x, pt.y, 0, hwnd, nullptr);
@@ -68,7 +78,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     return EXIT_FAILURE;
   }
 
-  // 不在关闭时退出——由托盘图标控制退出
   window.SetQuitOnClose(false);
 
   HWND hwnd = window.GetHandle();
@@ -77,7 +86,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     if (msg.message == WM_TRAYICON) {
-      if (msg.lParam == WM_LBUTTONDBLCLK) {
+      if (msg.lParam == WM_LBUTTONUP) {
         ShowWindow(hwnd, SW_RESTORE);
         SetForegroundWindow(hwnd);
       } else if (msg.lParam == WM_RBUTTONUP) {
@@ -85,14 +94,23 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       }
     } else if (msg.message == WM_COMMAND) {
       WORD cmd = LOWORD(msg.wParam);
-      if (cmd == TRAY_SHOW) {
-        ShowWindow(hwnd, SW_RESTORE);
-        SetForegroundWindow(hwnd);
-      } else if (cmd == TRAY_QUIT) {
-        RemoveTrayIcon();
-        if (g_tray_menu) DestroyMenu(g_tray_menu);
-        DestroyWindow(hwnd);
-        break;
+      switch (cmd) {
+        case TRAY_SHOW:
+          ShowWindow(hwnd, SW_RESTORE);
+          SetForegroundWindow(hwnd);
+          break;
+        case TRAY_PLAY_PAUSE:
+        case TRAY_PREV:
+        case TRAY_NEXT:
+        case TRAY_LYRICS:
+          // Forward to Flutter window as custom message
+          PostMessage(hwnd, WM_TRAY_COMMAND, cmd, 0);
+          break;
+        case TRAY_QUIT:
+          RemoveTrayIcon();
+          if (g_tray_menu) DestroyMenu(g_tray_menu);
+          DestroyWindow(hwnd);
+          break;
       }
     } else {
       ::TranslateMessage(&msg);

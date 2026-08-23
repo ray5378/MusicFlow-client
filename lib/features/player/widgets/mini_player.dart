@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
+import '../../../providers/api_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
@@ -193,7 +194,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     unawaited(widget.onTogglePlayPause());
   }
 
-  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 随机 / 循环 / 投屏
+  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 随机 / 循环 / 音量 / 投屏
   List<Widget> _buildDesktopControls(BuildContext context) {
     return <Widget>[
       EchoIconButton(
@@ -233,6 +234,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         backgroundColor: Colors.transparent,
         onPressed: widget.onToggleRepeat,
       ),
+      _VolumeButton(),
       EchoIconButton(
         icon: widget.isCasting ? AppIcons.signalTower : AppIcons.headphones,
         label: '切换播放器，当前：${widget.currentPlayerName}',
@@ -702,6 +704,76 @@ class _MiniPlayerSubtitle extends StatelessWidget {
   }
 }
 
+/// 桌面端音量控制按钮：点击弹出滑块调节音量。
+class _VolumeButton extends StatefulWidget {
+  const _VolumeButton();
+
+  @override
+  State<_VolumeButton> createState() => _VolumeButtonState();
+}
+
+class _VolumeButtonState extends State<_VolumeButton> {
+  OverlayEntry? _overlayEntry;
+  double _volume = 1.0;
+
+  void _toggleOverlay() {
+    if (_overlayEntry != null) {
+      _removeOverlay();
+      return;
+    }
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 80,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: EchoSurface(
+            level: EchoSurfaceLevel.floating,
+            padding: EdgeInsets.all(context.echoSpacing.sm),
+            child: SizedBox(
+              width: 40,
+              height: 160,
+              child: RotatedBox(
+                quarterTurns: -1,
+                child: Slider(
+                  value: _volume,
+                  onChanged: (v) {
+                    setState(() => _volume = v);
+                    // TODO: 接入 just_audio 音量控制
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return EchoIconButton(
+      icon: AppIcons.speaker,
+      label: '音量',
+      foregroundColor: context.echoColors.ink,
+      backgroundColor: Colors.transparent,
+      onPressed: _toggleOverlay,
+    );
+  }
+}
+
 class _MiniPlayerScrubBubble extends StatelessWidget {
   const _MiniPlayerScrubBubble({
     required this.progress,
@@ -758,7 +830,15 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
   }
 
   Future<void> _reload() async {
-    final peers = await ref.read(castPeerControllerProvider.notifier).loadPeers();
+    final controller = ref.read(castPeerControllerProvider.notifier);
+    // 先触发 DLNA 扫描（对齐主项目前端 scanDlnaDevices）
+    try {
+      final client = ref.read(subsonicApiClientProvider);
+      await client.post('/rest/api/v1/dlna/scan');
+    } catch (_) {
+      // 扫描失败不阻塞，直接加载列表
+    }
+    final peers = await controller.loadPeers();
     if (mounted) setState(() => _peers = peers);
   }
 
