@@ -612,11 +612,15 @@ class _MiniPlayerTrack extends StatelessWidget {
   Widget build(BuildContext context) {
     final artist = song.artist?.trim() ?? '';
     final album = song.album?.trim() ?? '';
-    // 歌名-歌手：歌手行永远显示（无歌手时回退专辑名），歌词另起一行。
+    // 歌名 - 歌手 同一行（无歌手回退专辑名），歌词另起一行。
     final artistLine = artist.isNotEmpty ? artist : album;
     final lyric = lyricLine?.trim().isNotEmpty == true ? lyricLine!.trim() : null;
     final cover = _MiniPlayerCover(song: song);
-    final title = _MiniPlayerTitle(song: song);
+    final title = _MiniPlayerTitle(
+      song: song,
+      showArtist: showSubtitle,
+      artistText: showSubtitle ? artistLine : '',
+    );
 
     return Row(
       children: <Widget>[
@@ -643,16 +647,6 @@ class _MiniPlayerTrack extends StatelessWidget {
                 )
               else
                 title,
-              if (showSubtitle && artistLine.isNotEmpty)
-                if (useHero)
-                  Hero(
-                    tag: playerSubtitleHeroTag,
-                    createRectTween: playerLinearRectTween,
-                    flightShuttleBuilder: playerTextFlightShuttleBuilder,
-                    child: _MiniPlayerSubtitle(text: artistLine),
-                  )
-                else
-                  _MiniPlayerSubtitle(text: artistLine),
               // 当前歌词行：黄色高亮显示（对齐主项目前端歌词配色）。
               if (lyric != null)
                 _MiniPlayerLyric(text: lyric),
@@ -687,40 +681,49 @@ class _MiniPlayerCover extends StatelessWidget {
 }
 
 class _MiniPlayerTitle extends StatelessWidget {
-  const _MiniPlayerTitle({required this.song});
+  const _MiniPlayerTitle({
+    required this.song,
+    this.showArtist = false,
+    this.artistText = '',
+  });
 
   final Song song;
+  final bool showArtist;
+  final String artistText;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      type: MaterialType.transparency,
-      child: Text(
-        song.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: context.echoTypography.title,
-      ),
-    );
-  }
-}
-
-class _MiniPlayerSubtitle extends StatelessWidget {
-  const _MiniPlayerSubtitle({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      type: MaterialType.transparency,
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: context.echoTypography.metadata.copyWith(
-          color: context.echoColors.muted,
+    final title = song.title.trim();
+    final artist = artistText.trim();
+    if (!showArtist || artist.isEmpty) {
+      return Material(
+        type: MaterialType.transparency,
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: context.echoTypography.title,
         ),
+      );
+    }
+    // 歌名 - 歌手 同一行：歌名大、歌手小（muted），超宽时省略号截断，
+    // 歌名在前优先保留。
+    return Material(
+      type: MaterialType.transparency,
+      child: Text.rich(
+        TextSpan(
+          children: <TextSpan>[
+            TextSpan(text: title, style: context.echoTypography.title),
+            TextSpan(
+              text: ' - $artist',
+              style: context.echoTypography.metadata.copyWith(
+                color: context.echoColors.muted,
+              ),
+            ),
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
