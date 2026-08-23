@@ -195,49 +195,20 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   // ==================== 切换播放器 ====================
 
-  /// 切到指定 peer:推送当前队列给后端并开始投流;本机则停轮询恢复本地。
-  /// 失败返回 false(投屏失败回滚:保持本机,无脏状态)。
+  /// 切换播放器 = **纯 UI 控制目标切换**(对齐主项目前端 switchPeer):
+  /// 只改控制目标,不推本地队列、不停止任何播放器;
+  /// 选中远端 peer 时开始状态轮询,由轮询拉取其队列让 UI 镜像设备当前播放。
+  /// 之后在客户端点歌/专辑/歌单会走 [playQueueOnPeer]/[playSongOnPeer]
+  /// 命令**后端**在该设备播放,客户端此时仅是后端的远程遥控器。
   Future<bool> switchTo(PeerInfo peer) async {
-    final client = _ref.read(subsonicApiClientProvider);
-    final player = _ref.read(playerProvider.notifier);
-    final playerState = _ref.read(playerProvider);
-
     if (peer.isLocal) {
       await backToLocal();
       return true;
     }
-    if (playerState.queue.isEmpty || playerState.currentSong == null) {
-      return false;
-    }
-
-    final items = playerState.queue.map(songToQueueItem).toList();
-    final startIndex = playerState.currentIndex.clamp(0, items.length - 1);
-    final ok = await client.postRaw(
-      '/rest/api/v1/peers/${Uri.encodeComponent(peer.peerId)}/queue/play',
-      data: <String, dynamic>{'items': items, 'startIndex': startIndex},
-    );
-    final success = ok is Map && ok['success'] == true;
-    if (!success) return false;
-
-    // 同步本地播放模式到后端(对齐前端 pushCastQueueToBackend)。
-    final mode = mapLocalPlayMode(player.playbackMode);
-    try {
-      await client.postRaw(
-        '/rest/api/v1/peers/${Uri.encodeComponent(peer.peerId)}/play-mode',
-        data: <String, dynamic>{'mode': mode},
-      );
-    } catch (_) {
-      // 播放模式同步失败不影响投屏主流程。
-    }
-
-    // 后端已接管:暂停本地,记录投屏队列快照,启动状态轮询。
-    await player.pause();
     state = state.copyWith(
       activePeer: peer,
       status: const PeerStatus(state: 'BUFFERING'),
-      playMode: mode,
-      castQueue: items,
-      castIndex: startIndex,
+      playMode: state.playMode,
       smoothPositionSeconds: 0,
       offline: false,
     );
@@ -351,6 +322,90 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   }
 
   // ==================== 投屏队列操作 ====================
+
+  /// 投屏中播放专辑/歌单/列表:命令**后端**以该队列在设备上播放(对齐前端 castPlayQueue)。
+  /// 客户端此时是后端的远程遥控器,不在本机播放。
+  Future<bool> playQueueOnPeer(
+    List<Song> songs, {
+    int startIndex = 0,
+  }) async {
+    final peerId = state.activePeer?.peerId;
+    if (peerId == null || songs.isEmpty) return false;
+    final items = songs.map(songToQueueItem).toList();
+    final start = startIndex.clamp(0, items.length - 1);
+    return _pushQueueAndPlay(peerId, items, start);
+  }
+
+  /// 投屏中点歌(无队列上下文):对齐前端 castPlaySong ——
+  /// 已在该设备队列则跳播,否则追加并播放。
+  Future<bool> playSongOnPeer(
+    Song song, {
+    List<Song>? queue,
+    int? index,
+  }) async {
+    final peerId = state.activePeer?.peerId;
+    if (peerId == null) return false;
+
+    final List<Map<String, dynamic>> items;
+    final int start;
+    if (queue != null && queue.isNotEmpty) {
+      // 携带队列上下文(如列表页点击某行)按整队播放。
+      items = queue.map(songToQueueItem).toList();
+      start = (index ?? 0).clamp(0, items.length - 1);
+    } else {
+      final existing = state.castQueue;
+      final found = existing.indexWhere((it) => it['songId'] == song.id);
+      if (found >= 0) {
+        items = existing;
+        start = found;
+      } else {
+        items = <Map<String, dynamic>>[...existing, songToQueueItem(song)];
+        start = items.length - 1;
+      }
+    }
+    return _pushQueueAndPlay(peerId, items, start);
+  }
+
+  /// 把队列交给后端 queue/play 并在该设备开始播放;成功后乐观镜像队列/游标。
+  Future<bool> _pushQueueAndPlay(
+    String peerId,
+    List<Map<String, dynamic>> items,
+    int startIndex,
+  ) async {
+    final client = _ref.read(subsonicApiClientProvider);
+    try {
+      final resp = await client
+          .postRaw(
+            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue/play',
+            data: <String, dynamic>{'items': items, 'startIndex': startIndex},
+          )
+          .timeout(const Duration(seconds: 8));
+      final success = resp is Map && resp['success'] == true;
+      if (!success) return false;
+
+      // 同步该设备播放模式(队列替换后保持设备当前模式,对齐 pushCastQueueToBackend)。
+      final mode = state.playMode;
+      try {
+        await client.postRaw(
+          '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/play-mode',
+          data: <String, dynamic>{'mode': mode},
+        );
+      } catch (_) {}
+
+      // 乐观镜像:本地队列/游标立即跟随设备,不等轮询回写。
+      _ref.read(playerProvider.notifier).syncQueueForCast(items, startIndex);
+      state = state.copyWith(
+        castQueue: items,
+        castIndex: startIndex,
+        smoothPositionSeconds: 0,
+        offline: false,
+      );
+      unawaited(pollOnce());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// 投屏中加歌:追加到后端队列(不影响当前播放)。
   Future<void> enqueueSongs(List<dynamic> songs) async {
@@ -472,15 +527,17 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       if (snap is Map) {
         final si = (snap['currentIndex'] as num?)?.toInt() ?? -1;
         final total = (snap['total'] as num?)?.toInt() ?? 0;
-        if (si >= 0 && si < total) {
-          idx = si;
-          _ref.read(playerProvider.notifier).syncCursorForCast(index: si);
-        }
         final sm = snap['playMode'];
         if (sm is String && sm.isNotEmpty) mode = sm;
         final raw = snap['items'];
         if (raw is List) {
           items = raw.whereType<Map<String, dynamic>>().toList();
+        }
+        if (si >= 0 && si < total && items.isNotEmpty) {
+          idx = si;
+          // 后端权威:镜像整队 + 游标到本地,迷你条/歌词/相邻关系跟随设备。
+          // 投屏期间本地保持暂停,不触发本地播放。
+          _ref.read(playerProvider.notifier).syncQueueForCast(items, si);
         }
       }
 
