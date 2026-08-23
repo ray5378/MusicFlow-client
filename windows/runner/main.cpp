@@ -5,16 +5,53 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+// System tray constants
+static const UINT WM_TRAYICON = WM_USER + 1;
+static const UINT TRAY_SHOW = 1001;
+static const UINT TRAY_QUIT = 1002;
+static const UINT TRAY_ICON_ID = 1;
+
+static NOTIFYICONDATAW g_nid = {};
+static HMENU g_tray_menu = nullptr;
+
+static void AddTrayIcon(HWND hwnd) {
+  g_nid.cbSize = sizeof(NOTIFYICONDATAW);
+  g_nid.hWnd = hwnd;
+  g_nid.uID = TRAY_ICON_ID;
+  g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+  g_nid.uCallbackMessage = WM_TRAYICON;
+  g_nid.hIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(101));
+  wcscpy_s(g_nid.szTip, L"MusicFlow");
+  Shell_NotifyIconW(NIM_ADD, &g_nid);
+}
+
+static void RemoveTrayIcon() {
+  Shell_NotifyIconW(NIM_DELETE, &g_nid);
+}
+
+static void ShowTrayMenu(HWND hwnd) {
+  POINT pt;
+  GetCursorPos(&pt);
+
+  if (g_tray_menu) DestroyMenu(g_tray_menu);
+  g_tray_menu = CreatePopupMenu();
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_SHOW, L"显示主窗口(&S)");
+  AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_QUIT, L"退出(&X)");
+
+  // Required for tray menus to work correctly
+  SetForegroundWindow(hwnd);
+  TrackPopupMenu(g_tray_menu, TPM_RIGHTALIGN | TPM_BOTTOMALIGN,
+                 pt.x, pt.y, 0, hwnd, nullptr);
+  PostMessage(hwnd, WM_NULL, 0, 0);
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  // Attach to console when present (e.g., 'flutter run') or create a
-  // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
   }
 
-  // Initialize COM, so that it is available for use in the library and/or
-  // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
@@ -27,15 +64,40 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"echoes", origin, size)) {
+  if (!window.Create(L"MusicFlow", origin, size)) {
     return EXIT_FAILURE;
   }
-  window.SetQuitOnClose(true);
+
+  // 不在关闭时退出——由托盘图标控制退出
+  window.SetQuitOnClose(false);
+
+  HWND hwnd = window.GetHandle();
+  AddTrayIcon(hwnd);
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
-    ::TranslateMessage(&msg);
-    ::DispatchMessage(&msg);
+    if (msg.message == WM_TRAYICON) {
+      if (msg.lParam == WM_LBUTTONDBLCLK) {
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+      } else if (msg.lParam == WM_RBUTTONUP) {
+        ShowTrayMenu(hwnd);
+      }
+    } else if (msg.message == WM_COMMAND) {
+      WORD cmd = LOWORD(msg.wParam);
+      if (cmd == TRAY_SHOW) {
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+      } else if (cmd == TRAY_QUIT) {
+        RemoveTrayIcon();
+        if (g_tray_menu) DestroyMenu(g_tray_menu);
+        DestroyWindow(hwnd);
+        break;
+      }
+    } else {
+      ::TranslateMessage(&msg);
+      ::DispatchMessage(&msg);
+    }
   }
 
   ::CoUninitialize();

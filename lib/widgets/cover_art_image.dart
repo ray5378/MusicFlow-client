@@ -24,8 +24,6 @@ class CoverArtImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(activeAddressProvider);
-
     final raw = coverArtId?.trim() ?? '';
     if (raw.isEmpty) {
       return _buildPlaceholder(context);

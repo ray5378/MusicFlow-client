@@ -150,6 +150,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _pendingRetryIsPreview = false;
   bool _pendingRetryAutoPlay = true;
 
+  // ── 播放失败自动跳过 + 预探测 ──────────────────────────────────────────
+  /// 连续播放失败计数；达到上限后停止自动跳过，避免整队不可播时死循环。
+  int _failStreak = 0;
+  static const int _maxFailStreak = 5;
+
+  /// 预探测缓存：songId -> 是否可用（session 级别，重启失效）。
+  final Map<String, bool> _probeCache = <String, bool>{};
+
+  /// 预探测确认不可播的歌曲 ID 集合，播放前自动跳过。
+  final Set<String> _deadSongs = <String>{};
+
+  /// 防止并发预探测。
+  bool _probing = false;
+
+  /// 预探测窗口大小：提前探测接下来几首。
+  static const int _probeWindow = 3;
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   late final FavoriteScrobbleHandler _favoriteHandler;
   late final CacheManagerHandler _cacheHandler;
@@ -362,6 +379,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         unawaited(_applyPendingSeekIfNeeded());
       }
 
+      // 播放成功：重置连续失败计数（与主项目前端 onplay 回调一致）。
+      if (playerState.processingState == ProcessingState.ready &&
+          playerState.playing) {
+        _failStreak = 0;
+      }
+
       if (playerState.processingState != ProcessingState.completed) {
         _isHandlingCompletion = false;
         _completionHandlingSongId = null;
@@ -559,6 +582,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         index: playIndex,
         autoPlay: autoPlay,
       );
+      return;
+    }
+
+    // 跳过预探测确认不可播的歌曲（与主项目前端 deadSongs 跳过一致）。
+    if (_deadSongs.contains(song.id) && playQueue.length > 1) {
+      Logger.warnWithTag(
+        _playerLogTag,
+        '跳过已确认不可播的歌曲: ${song.title} (${song.id})',
+      );
+      // 尝试下一首
+      final nextIdx = playIndex + 1;
+      if (nextIdx < playQueue.length) {
+        await playSong(
+          playQueue[nextIdx],
+          queue: playQueue,
+          index: nextIdx,
+          recordShuffleHistory: recordShuffleHistory,
+          clearShuffleForwardHistory: clearShuffleForwardHistory,
+          autoPlay: autoPlay,
+        );
+      }
       return;
     }
 
@@ -1103,6 +1147,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // 预缓存下一首
       if (autoPlay) {
         _preCacheNextSong();
+        // 预探测接下来可能播放的歌曲是否可用（与主项目前端 probeUpcoming 一致）
+        unawaited(_probeUpcoming());
       }
     } catch (e) {
       Logger.error('Failed to play song', e);
@@ -1616,13 +1662,93 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _startPlayback({bool fadeIn = true}) {
     final player = _audioPlayer;
     if (player == null) return;
+    final songId = state.currentSong?.id;
     unawaited(
       player.play().catchError((error) {
         Logger.warn('Failed to start playback', error);
+        _handlePlaybackError(songId);
       }),
     );
     if (fadeIn) {
       _fadeIn();
+    }
+  }
+
+  /// 播放失败自动跳过：与主项目前端 localHandlePlaybackError 一致。
+  /// 累计连续失败达上限后停止，避免整队不可播时死循环。
+  void _handlePlaybackError(String? songId) {
+    if (!mounted) return;
+    _failStreak++;
+    Logger.warnWithTag(
+      _playerLogTag,
+      '播放失败(${_failStreak}/$_maxFailStreak) songId=$songId, 自动跳过',
+    );
+    if (_failStreak >= _maxFailStreak) {
+      Logger.warnWithTag(_playerLogTag, '连续失败过多,停止自动跳过');
+      _failStreak = 0;
+      state = state.copyWith(isPlaying: false);
+      return;
+    }
+    next();
+  }
+
+  /// 预探测接下来可能播放的歌曲是否可用（与主项目前端 probeUpcoming 一致）。
+  /// 后端 POST /rest/api/v1/stream/probe 对本地歌曲零开销,
+  /// 对 web 歌曲做 Range 探测并自动换源写回 DB；不可用的歌提前标记跳过。
+  Future<void> _probeUpcoming() async {
+    if (_probing || state.queue.isEmpty) return;
+    final queue = state.queue;
+    final currentIndex = state.currentIndex;
+    final cands = <String>[];
+
+    // 收集接下来 _probeWindow 首未探测过的非远程歌曲 ID
+    for (var i = 1; i <= _probeWindow; i++) {
+      final idx = currentIndex + i;
+      if (idx < queue.length) {
+        final s = queue[idx];
+        if (s.id.isNotEmpty && !_probeCache.containsKey(s.id)) {
+          cands.add(s.id);
+        }
+      } else if (idx >= queue.length && state.loopMode != LoopMode.off) {
+        // 循环模式下回绕
+        final wrap = idx % queue.length;
+        if (wrap != currentIndex) {
+          final s = queue[wrap];
+          if (s.id.isNotEmpty && !_probeCache.containsKey(s.id)) {
+            cands.add(s.id);
+          }
+        }
+      }
+    }
+    if (cands.isEmpty) return;
+
+    _probing = true;
+    try {
+      final client = _apiClient;
+      final results = await client.post(
+        '/rest/api/v1/stream/probe',
+        data: {'songIds': cands},
+      );
+      final items = (results['results'] as List?) ?? [];
+      for (final r in items) {
+        final songId = r['songId'] as String? ?? '';
+        final ok = r['ok'] == true;
+        _probeCache[songId] = ok;
+        if (!ok) {
+          _deadSongs.add(songId);
+          Logger.warnWithTag(
+            _playerLogTag,
+            '预探测不可播,提前跳过: $songId (${r['reason'] ?? '无可用音源'})',
+          );
+        } else {
+          _deadSongs.remove(songId);
+        }
+      }
+    } catch (e) {
+      // 探测失败不阻塞播放：交给播放时的失败兜底
+      Logger.debugWithTag(_playerLogTag, '预探测失败: $e');
+    } finally {
+      _probing = false;
     }
   }
 

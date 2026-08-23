@@ -54,6 +54,14 @@ class MiniPlayer extends ConsumerWidget {
       onSeek: (position) => seekEffectivePlayback(ref, position),
       progressLayer: const _ProviderMiniPlayerProgress(),
       onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
+      onPrevious: () => isCasting
+          ? ref.read(castPeerControllerProvider.notifier).previous()
+          : ref.read(playerProvider.notifier).previous(),
+      onNext: () => isCasting
+          ? ref.read(castPeerControllerProvider.notifier).next()
+          : ref.read(playerProvider.notifier).next(),
+      onToggleShuffle: () => ref.read(playerProvider.notifier).toggleShuffle(),
+      onToggleRepeat: () => ref.read(playerProvider.notifier).toggleLoopMode(),
       currentPlayerName: currentPlayerName(cast),
       isCasting: isCasting,
     );
@@ -112,6 +120,10 @@ class MiniPlayerView extends StatefulWidget {
     required this.onTogglePlayPause,
     required this.onSeek,
     required this.onSwitchPlayer,
+    this.onPrevious,
+    this.onNext,
+    this.onToggleShuffle,
+    this.onToggleRepeat,
     this.currentPlayerName = '本机',
     this.isCasting = false,
     this.lyricLine,
@@ -139,6 +151,13 @@ class MiniPlayerView extends StatefulWidget {
   final Future<void> Function() onTogglePlayPause;
   final Future<void> Function(Duration position) onSeek;
   final VoidCallback onSwitchPlayer;
+
+  /// 桌面端专属回调(手机端不使用)。
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+  final VoidCallback? onToggleShuffle;
+  final VoidCallback? onToggleRepeat;
+
   final Widget? progressLayer;
 
   @override
@@ -152,6 +171,18 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
 
   PlayerState get _playerState => widget.playerState;
 
+  /// 桌面端(Windows/macOS/Linux):显示全控件。
+  bool get _isDesktop {
+    switch (Theme.of(context).platform) {
+      case TargetPlatform.windows:
+      case TargetPlatform.macOS:
+      case TargetPlatform.linux:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   @override
   void didUpdateWidget(covariant MiniPlayerView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -160,6 +191,80 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
   void _togglePlayPause() {
     HapticFeedback.selectionClick();
     unawaited(widget.onTogglePlayPause());
+  }
+
+  /// 桌面端全控件：上一首 / 播放暂停 / 下一首 / 随机 / 循环 / 投屏
+  List<Widget> _buildDesktopControls(BuildContext context) {
+    return <Widget>[
+      EchoIconButton(
+        icon: AppIcons.previous,
+        label: '上一首',
+        foregroundColor: context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: widget.onPrevious,
+      ),
+      EchoIconButton(
+        icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
+        label: _playerState.isPlaying ? '暂停' : '播放',
+        foregroundColor: context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: _togglePlayPause,
+      ),
+      EchoIconButton(
+        icon: AppIcons.next,
+        label: '下一首',
+        foregroundColor: context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: widget.onNext,
+      ),
+      EchoIconButton(
+        icon: AppIcons.shuffle,
+        label: _playerState.shuffleEnabled ? '随机播放中' : '随机播放',
+        foregroundColor: _playerState.shuffleEnabled
+            ? context.echoColors.accent
+            : context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: widget.onToggleShuffle,
+      ),
+      EchoIconButton(
+        icon: AppIcons.repeat,
+        label: '循环播放',
+        foregroundColor: context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: widget.onToggleRepeat,
+      ),
+      EchoIconButton(
+        icon: widget.isCasting ? AppIcons.signalTower : AppIcons.headphones,
+        label: '切换播放器，当前：${widget.currentPlayerName}',
+        foregroundColor: widget.isCasting
+            ? context.echoColors.accent
+            : context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: widget.onSwitchPlayer,
+      ),
+    ];
+  }
+
+  /// 手机端简略版：播放暂停 + 投屏控制
+  List<Widget> _buildMobileControls(BuildContext context) {
+    return <Widget>[
+      EchoIconButton(
+        icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
+        label: _playerState.isPlaying ? '暂停' : '播放',
+        foregroundColor: context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: _togglePlayPause,
+      ),
+      EchoIconButton(
+        icon: widget.isCasting ? AppIcons.signalTower : AppIcons.headphones,
+        label: '切换播放器，当前：${widget.currentPlayerName}',
+        foregroundColor: widget.isCasting
+            ? context.echoColors.accent
+            : context.echoColors.ink,
+        backgroundColor: Colors.transparent,
+        onPressed: widget.onSwitchPlayer,
+      ),
+    ];
   }
 
   void _handleVerticalDragStart(DragStartDetails details) {
@@ -257,27 +362,12 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                               ),
                             ),
                           ),
-                          // 手机端两键布局(产品定版):播放暂停 + 投屏控制。
-                          EchoIconButton(
-                            icon: _playerState.isPlaying
-                                ? AppIcons.pause
-                                : AppIcons.play,
-                            label: _playerState.isPlaying ? '暂停' : '播放',
-                            foregroundColor: context.echoColors.ink,
-                            backgroundColor: Colors.transparent,
-                            onPressed: _togglePlayPause,
-                          ),
-                          EchoIconButton(
-                            icon: widget.isCasting
-                                ? AppIcons.signalTower
-                                : AppIcons.headphones,
-                            label: '切换播放器，当前：${widget.currentPlayerName}',
-                            foregroundColor: widget.isCasting
-                                ? context.echoColors.accent
-                                : context.echoColors.ink,
-                            backgroundColor: Colors.transparent,
-                            onPressed: widget.onSwitchPlayer,
-                          ),
+                          // 桌面端(Windows/macOS/Linux)全控件:上一首/播放暂停/下一首/随机/循环/投屏
+                          // 手机端简略版:播放暂停 + 投屏控制
+                          if (_isDesktop)
+                            ..._buildDesktopControls(context)
+                          else
+                            ..._buildMobileControls(context),
                         ],
                       ),
                     ),

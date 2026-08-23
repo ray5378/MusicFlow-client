@@ -270,7 +270,6 @@ class AddressPool {
     final changed =
         newActive?.id != oldActive?.id ||
         newActive?.status != oldActive?.status ||
-        newActive?.lastLatencyMs != oldActive?.lastLatencyMs ||
         newActive?.url != oldActive?.url;
     if (!changed) return;
 

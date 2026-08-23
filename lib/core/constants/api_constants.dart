@@ -42,4 +42,7 @@ class ApiConstants {
   // 歌词 API（v0.3.0）
   static const String getLyricsBySongId = '/rest/getLyricsBySongId';
   static const String getLyrics = '/rest/getLyrics';
+
+  // 流预探测
+  static const String streamProbe = '/rest/api/v1/stream/probe';
 }

@@ -21,6 +21,7 @@ import '../../library/pages/song_list_page.dart';
 import '../../library/pages/starred_page.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../widgets/discover_media_widgets.dart';
+import '../widgets/hoverable_horizontal_scroll.dart';
 import 'search_page.dart';
 
 const double _playlistCardWidth = 152;
@@ -113,24 +114,32 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1400),
-                      child: ListView(
+                      child: CustomScrollView(
                         cacheExtent: 1500,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: EdgeInsets.fromLTRB(
-                          context.echoPageHorizontalPadding,
-                          context.echoSpacing.xs,
-                          context.echoPageHorizontalPadding,
-                          context.echoSpacing.xxl +
-                              context.echoShellBottomObstruction,
-                        ),
-                        children: <Widget>[
-                          const RandomSongsSection(),
-                          SizedBox(height: context.echoSpacing.sm),
-                          const RecentPlaylistsSection(),
-                          SizedBox(height: context.echoSpacing.sm),
-                          const FixedRecommendSection(),
-                          SizedBox(height: context.echoSpacing.sm),
-                          const PlatformRecommendSection(),
+                        slivers: <Widget>[
+                          SliverPadding(
+                            padding: EdgeInsets.fromLTRB(
+                              context.echoPageHorizontalPadding,
+                              context.echoSpacing.xs,
+                              context.echoPageHorizontalPadding,
+                              context.echoSpacing.xxl +
+                                  context.echoShellBottomObstruction,
+                            ),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate(
+                                <Widget>[
+                                  const RandomSongsSection(),
+                                  SizedBox(height: context.echoSpacing.sm),
+                                  const RecentPlaylistsSection(),
+                                  SizedBox(height: context.echoSpacing.sm),
+                                  const FixedRecommendSection(),
+                                  SizedBox(height: context.echoSpacing.sm),
+                                  const PlatformRecommendSection(),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -245,6 +254,7 @@ class RandomSongsSection extends ConsumerStatefulWidget {
 class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   bool _autoContinue = false;
   int _roundToken = 0;
+  final ScrollController _scrollCtrl = ScrollController();
 
   Future<void> _playRound() async {
     final songs = ref.read(randomSongsProvider).valueOrNull;
@@ -266,6 +276,12 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     _autoContinue = false;
     _roundToken++;
     ref.invalidate(randomSongsProvider);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   @override

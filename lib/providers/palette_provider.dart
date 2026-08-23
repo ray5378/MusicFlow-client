@@ -213,7 +213,7 @@ _MediaPaletteResource? _resolvePaletteResource(
   if (coverArtId == null) return null;
 
   final activeLibrary = ref.watch(activeLibraryProvider);
-  final activeAddress = ref.watch(activeAddressProvider);
+  final activeAddress = ref.read(activeAddressProvider);
   final client = ref.watch(subsonicApiClientProvider);
   final imageUrl = client.getCoverArtUrl(coverArtId, size: 300);
   if (imageUrl.isEmpty) return null;

@@ -357,7 +357,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
 }
 
 /// 侧栏「曲库」快捷入口(宽屏)。点击直接打开对应列表页,
-/// 页面内部为窗口化分页加载。
+/// 页面内部为窗口化分页加载。对标主项目 web 端侧栏。
 List<EchoSidebarLibraryEntry> _libraryEntries(BuildContext context) {
   Future<void> open(Widget page) async {
     Navigator.of(context).push<void>(
@@ -366,6 +366,16 @@ List<EchoSidebarLibraryEntry> _libraryEntries(BuildContext context) {
   }
 
   return <EchoSidebarLibraryEntry>[
+    EchoSidebarLibraryEntry(
+      label: '歌单',
+      icon: AppIcons.playlist,
+      onTap: () => unawaited(open(const PlaylistSearchPage())),
+    ),
+    EchoSidebarLibraryEntry(
+      label: '音乐',
+      icon: AppIcons.headphones,
+      onTap: () => unawaited(open(const SongListPage())),
+    ),
     EchoSidebarLibraryEntry(
       label: '艺术家',
       icon: AppIcons.profile,
@@ -377,17 +387,7 @@ List<EchoSidebarLibraryEntry> _libraryEntries(BuildContext context) {
       onTap: () => unawaited(open(const AlbumListPage())),
     ),
     EchoSidebarLibraryEntry(
-      label: '歌曲',
-      icon: AppIcons.music,
-      onTap: () => unawaited(open(const SongListPage())),
-    ),
-    EchoSidebarLibraryEntry(
-      label: '歌单',
-      icon: AppIcons.playlist,
-      onTap: () => unawaited(open(const PlaylistSearchPage())),
-    ),
-    EchoSidebarLibraryEntry(
-      label: '喜爱',
+      label: '我喜欢',
       icon: AppIcons.heart,
       onTap: () => unawaited(open(const StarredPage())),
     ),
