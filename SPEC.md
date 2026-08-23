@@ -189,7 +189,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 ### 3.3 状态轮询与平滑进度（对齐前端）
 
 - **轮询节奏**：远端 peer 每 **2s** 轮询 `GET /peers/:peerId/status` + `GET /peers/:peerId/queue`；队列快照用于回写 `currentIndex`，让 UI 曲目/歌词跟随设备。
-- **平滑进度**：主项目前端用 **250ms tick** 在两次 2s 轮询间本地插值推进进度条，轮询结果修正漂移。客户端必须实现同款插值（当前仅显示 2s 采样值，进度跳变，是待办项）。
+- **平滑进度**：主项目前端用 **250ms tick** 在两次 2s 轮询间本地插值推进进度条，轮询结果修正漂移。客户端已实现同款插值（250/500ms tick + 轮询回写修正，`cast_peer_provider._advanceSmooth`）。
 - 轮询期间对远端 peer 执行控制命令后应立即 `pollOnce()` 刷新，避免 UI 滞后。
 - 定时器生命周期：`dispose`/`backToLocal`/退出时全部取消（§1.5 内存红线）。
 - **WS 增强（可选）**：订阅 `/ws?token=` 播放状态/队列/设备事件，REST 轮询降为兜底（主项目前端已用 WS）。
