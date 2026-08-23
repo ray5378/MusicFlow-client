@@ -747,7 +747,8 @@ class _MiniPlayerLyric extends StatelessWidget {
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: context.echoTypography.metadata.copyWith(
+          // 歌词用 body(13) 而非 metadata(11)：现状偏小，适当放大。
+          style: context.echoTypography.body.copyWith(
             color: _lyricYellow,
             fontWeight: FontWeight.w500,
           ),
