@@ -282,9 +282,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 child: _PlaylistIdentityHeader(
                   playlist: playlist,
                   songCount: currentSongCount,
-                  onPlay: currentSongCount == 0
-                      ? null
-                      : () => unawaited(_playAll()),
                 ),
               ),
               if (_songList.hasError && currentSongCount == 0)
@@ -310,6 +307,13 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                       : currentSongCount == 0
                       ? '歌单中暂时没有歌曲'
                       : '$currentSongCount 首 · ${_sortOption.label}',
+                  trailing: EchoButton.primary(
+                    label: '播放全部',
+                    leadingIcon: AppIcons.play,
+                    onPressed: currentSongCount == 0
+                        ? null
+                        : () => unawaited(_playAll()),
+                  ),
                   padding: EdgeInsets.fromLTRB(
                     context.echoSpacing.md,
                     context.echoSpacing.lg,
@@ -978,12 +982,10 @@ class _PlaylistIdentityHeader extends StatelessWidget {
   const _PlaylistIdentityHeader({
     required this.playlist,
     required this.songCount,
-    required this.onPlay,
   });
 
   final Playlist playlist;
   final int songCount;
-  final VoidCallback? onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -1043,12 +1045,6 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                SizedBox(height: context.echoSpacing.lg),
-                EchoButton.primary(
-                  label: '播放全部',
-                  leadingIcon: AppIcons.play,
-                  onPressed: onPlay,
                 ),
               ],
             );

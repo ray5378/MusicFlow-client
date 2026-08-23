@@ -1531,7 +1531,7 @@ class _PlayerVolumeBarState extends ConsumerState<_PlayerVolumeBar> {
     return Row(
       children: <Widget>[
         Icon(
-          AppIcons.speaker,
+          volume > 0 ? AppIcons.volumeHigh : AppIcons.volumeMute,
           size: 18,
           color: context.echoColors.muted,
         ),
@@ -1649,7 +1649,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
               },
             ),
             _PlayerIconButton(
-              icon: cast.isCasting ? AppIcons.signalTower : AppIcons.speaker,
+              icon: AppIcons.speaker,
               label: '切换播放器，当前：${currentPlayerName(cast)}',
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),

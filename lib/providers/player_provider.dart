@@ -110,6 +110,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final List<ShuffleHistoryEntry> _shuffleBackHistory = <ShuffleHistoryEntry>[];
   final List<ShuffleHistoryEntry> _shuffleForwardHistory =
       <ShuffleHistoryEntry>[];
+  // 随机模式「一轮内不重复」:记录本轮已播放的歌曲 id(与主项目洗牌序列语义一致,
+  // 播完一轮才重新洗牌)。随机取下一首时优先从未播过的歌中选。
+  final Set<String> _shuffleRoundPlayedIds = <String>{};
   Duration? _pendingSeekPosition;
   String? _pendingSeekSongId;
   bool _usingLockCachingSource = false;
@@ -2880,6 +2883,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return;
     }
 
+    // 随机模式:记录本轮已播放的歌曲(同一轮内不重复,播完一轮才重新洗牌)。
+    if (nextSong.id.isNotEmpty) {
+      _shuffleRoundPlayedIds.add(nextSong.id);
+    }
+
     if (recordHistory) {
       final currentEntry = _currentShuffleEntry(
         queue: state.queue,
@@ -2991,6 +2999,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _resetShuffleHistory({bool updateState = true}) {
     _shuffleBackHistory.clear();
     _shuffleForwardHistory.clear();
+    _shuffleRoundPlayedIds.clear();
     if (updateState) {
       _syncShuffleHistoryState();
     }
@@ -3024,18 +3033,29 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     final nonDuplicateCandidates = <int>[];
     final fallbackCandidates = <int>[];
+    final unplayedCandidates = <int>[];
 
     for (var i = 0; i < queue.length; i++) {
       if (i == currentIndex) continue;
       fallbackCandidates.add(i);
+      if (!_shuffleRoundPlayedIds.contains(queue[i].id)) {
+        unplayedCandidates.add(i);
+      }
       if (currentSongId == null || queue[i].id != currentSongId) {
         nonDuplicateCandidates.add(i);
       }
     }
 
-    final candidates = nonDuplicateCandidates.isNotEmpty
-        ? nonDuplicateCandidates
-        : fallbackCandidates;
+    // 主项目随机语义对齐:优先取「本轮未播过」的歌;本轮已播完(全部播过)则
+    // 清空本轮标记重新洗牌,且避开当前曲(不立刻重播)。
+    var candidates = unplayedCandidates;
+    if (candidates.isEmpty && nonDuplicateCandidates.isNotEmpty) {
+      _shuffleRoundPlayedIds.clear();
+      candidates = nonDuplicateCandidates;
+    }
+    if (candidates.isEmpty) {
+      candidates = fallbackCandidates;
+    }
     if (candidates.isEmpty) return null;
 
     return candidates[_random.nextInt(candidates.length)];

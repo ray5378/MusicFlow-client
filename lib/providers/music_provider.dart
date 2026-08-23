@@ -3,12 +3,14 @@ import '../data/models/album.dart';
 import '../data/models/artist.dart';
 import '../data/models/song.dart';
 import '../data/repositories/music_repository.dart';
+import '../core/constants/api_constants.dart';
 import '../core/utils/network_error_notifier.dart';
 import '../core/utils/logger.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 
 import 'api_provider.dart';
 import 'metadata_cache_provider.dart';
+import 'playlist_provider.dart';
 
 const _musicLogTag = 'MUSIC';
 
@@ -97,18 +99,19 @@ Future<T> _fetchWithCacheFallback<T>({
 // ---------------------------------------------------------------------------
 
 /// 随机歌曲 Provider（保持数据，不自动释放）。
-/// 数量由每日推荐插件 homeCount 控制(默认 8,范围 1~24),
-/// 多取一些以保证首页展示充足;播完自动换下一轮。
+/// 读取主项目「随机歌曲」内置插件的固定歌单 pl-random-songs(默认 48 首,
+/// 由插件配置控制数量)。后端在该歌单被读取时惰性刷新,客户端播完一轮再来
+/// 拉取时歌单必然已刷新好 → 无「现场生成导致的空白等待」。
 final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final repository = ref.watch(musicRepositoryProvider);
+  final plRepo = ref.watch(playlistRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);
   final libraryId = ref.watch(activeLibraryProvider)?.id;
-  if (repository == null || libraryId == null || libraryId.isEmpty) return [];
+  if (plRepo == null || libraryId == null || libraryId.isEmpty) return [];
 
   return _fetchWithCacheFallback(
     ref: ref,
     label: 'randomSongs',
-    fetch: () => repository.getRandomSongs(size: 24),
+    fetch: () => plRepo.getAllPlaylistSongs(ApiConstants.randomSongsPlaylistId),
     cacheWrite: (songs) => cache.cacheRandomSongs(libraryId, songs),
     cacheRead: () => cache.getRandomSongs(libraryId),
     failedProvider: randomSongsLoadFailedProvider,

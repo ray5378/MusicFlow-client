@@ -26,6 +26,10 @@ class ApiConstants {
   static const String search3 = '/rest/search3';
   static const String getPlaylists = '/rest/getPlaylists';
   static const String getPlaylist = '/rest/getPlaylist';
+
+  // 主项目「随机歌曲」内置插件的固定歌单 id(客户端随心听读取该歌单,
+  // 后端会惰性刷新保证播放一轮后内容已更新)。
+  static const String randomSongsPlaylistId = 'pl-random-songs';
   static const String getMusicFolders = '/rest/getMusicFolders';
   static const String createPlaylist = '/rest/createPlaylist';
   static const String updatePlaylist = '/rest/updatePlaylist';
