@@ -13,9 +13,26 @@ import 'music_repository.dart';
 class MetadataCacheRepository {
   static const _tag = 'META_CACHE';
   static const String _prefix = 'metadata_cache_v1';
+  static const String _lastLibraryKey = 'metadata_cache_v1_last_library';
 
   String _key(String libraryId, String scope) =>
       '${_prefix}_${libraryId}_$scope';
+
+  /// 记录最近使用的库 ID。冷启动时活跃库尚未从 drift 就绪（libraryId 为 null），
+  /// 缓存先行需据此定位上次会话的元数据缓存。
+  Future<void> setLastLibraryId(String libraryId) async {
+    if (libraryId.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastLibraryKey, libraryId);
+  }
+
+  /// 读取最近使用的库 ID（冷启动缓存先行用），无则返回 null。
+  Future<String?> getLastLibraryId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_lastLibraryKey);
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
 
   Future<void> _saveMap(
     String libraryId,
@@ -52,6 +69,7 @@ class MetadataCacheRepository {
       'songs': songs.map((e) => e.toJson()).toList(),
       'cachedAt': DateTime.now().millisecondsSinceEpoch,
     });
+    await setLastLibraryId(libraryId);
   }
 
   Future<List<Song>?> getRandomSongs(String libraryId) async {
@@ -60,6 +78,27 @@ class MetadataCacheRepository {
     final list = map['songs'] as List?;
     if (list == null) return null;
     return list.map((e) => Song.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 读取随机歌曲缓存及其写入时间。冷启动时用于缓存先行：
+  /// 命中缓存立即返回，同时据此判断是否需要后台拉取最新。
+  Future<({List<Song> songs, DateTime cachedAt})?> getRandomSongsWithMeta(
+    String libraryId,
+  ) async {
+    final map = await _readMap(libraryId, 'home_random_songs');
+    if (map == null) return null;
+    final list = map['songs'] as List?;
+    if (list == null) return null;
+    final cachedAtMs = map['cachedAt'] as num?;
+    final cachedAt = DateTime.fromMillisecondsSinceEpoch(
+      cachedAtMs?.toInt() ?? 0,
+    );
+    return (
+      songs: list
+          .map((e) => Song.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      cachedAt: cachedAt,
+    );
   }
 
   Future<void> cacheRecentAlbums(String libraryId, List<Album> albums) async {

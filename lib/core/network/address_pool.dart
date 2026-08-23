@@ -44,10 +44,41 @@ class AddressPool {
       _activeAddress = null;
     }
 
-    // 不立即选定 active，而是触发探测让 probeAll 选最优可达地址
+    // 冷启动加速：不依赖全量探测（慢网/无网时单地址探测可拖到 5s+），
+    // 先用上次会话持久化下来的「已知可用」地址立即激活，让首屏请求/封面
+    // 第一时间就能用 baseUrl 发起。随后后台 probeAll 校验，若该地址已失效，
+    // 探测结果会自动切换到其它可用线路。
     if (_activeAddress == null && _addresses.isNotEmpty) {
-      Logger.debugWithTag(_tag, 'no active address, probing all candidates');
+      _restoreActiveAddressFromPool();
       probeAll();
+    }
+  }
+
+  /// 从持久化状态恢复上次可用的活跃地址。
+  /// 优先手动锁定地址，其次上次状态为 ok 的最高优先级地址。
+  void _restoreActiveAddressFromPool() {
+    if (_activeAddress != null || _addresses.isEmpty) return;
+
+    final locked = _addresses.where((a) => a.isLocked).firstOrNull;
+    if (locked != null) {
+      _setActiveAddress(locked);
+      Logger.infoWithTag(
+        _tag,
+        'restored locked active address: ${locked.label}',
+      );
+      return;
+    }
+
+    final okAddress = _addresses
+        .where((a) => a.status == ServerAddressStatus.ok)
+        .firstOrNull;
+    if (okAddress != null) {
+      _setActiveAddress(okAddress);
+      Logger.infoWithTag(
+        _tag,
+        'restored last-known-good active: ${okAddress.label} '
+        'lat=${okAddress.lastLatencyMs ?? -1}ms',
+      );
     }
   }
 

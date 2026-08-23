@@ -276,11 +276,16 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   }
 
   /// 先读本地缓存的随机歌曲,让区块立即有内容可展示,不等远程。
+  /// 冷启动时活跃库可能尚未从 drift 就绪(libraryId 为 null),
+  /// 回退到最近使用的库 ID 读取缓存,避免首屏一直空等网络/探测。
   Future<void> _loadCachedSongs() async {
     try {
       final cache = ref.read(metadataCacheRepositoryProvider);
-      final libraryId = ref.read(activeLibraryProvider)?.id;
-      if (cache == null || libraryId == null || libraryId.isEmpty) return;
+      var libraryId = ref.read(activeLibraryProvider)?.id;
+      if (libraryId == null || libraryId.isEmpty) {
+        libraryId = await cache.getLastLibraryId();
+      }
+      if (libraryId == null || libraryId.isEmpty) return;
       final cached = await cache.getRandomSongs(libraryId);
       if (!mounted || cached == null || cached.isEmpty) return;
       // 远程数据已就绪时不再用旧缓存覆盖,避免「新内容 → 旧缓存」的闪回。
@@ -395,6 +400,12 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
           _lastKnownSongs = songs;
         }
         if (songs.isEmpty) {
+          // 活跃库未就绪时 provider 会先给空列表:若有本地缓存,先展示缓存
+          // 避免冷启动空数据闪屏,待库就绪 + 远程数据到达后自然替换。
+          final fallback = _lastKnownSongs;
+          if (fallback != null && fallback.isNotEmpty) {
+            return _buildSongsContent(fallback);
+          }
           return DiscoverSectionMessage(
             title: loadFailed ? '随心听暂时不可用' : '还没有可播放的歌曲',
             description: loadFailed
