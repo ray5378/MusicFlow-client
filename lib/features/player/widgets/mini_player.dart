@@ -1084,86 +1084,100 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
       _removeOverlay();
       return;
     }
+    // 弹出面板挂在根 Overlay 上,位于播放器 EchoMediaColorScope 之外,
+    // 直接使用根主题色会造成音量条与播放控件底色脱节。这里在打开时
+    // 捕获本控件所在子树的**媒体自适应配色**(mini / stage 各自已按底色适配),
+    // 让弹出的音量面板也用同一套配色渲染(见 _overlayTheme 与 Slider 配色)。
+    final mediaColors = context.echoColors;
     _overlayEntry = OverlayEntry(
-      builder: (context) => Stack(
-        children: <Widget>[
-          // 点击弹窗外部任意位置自动关闭。
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _removeOverlay,
+      builder: (context) => _OverlayHost(
+        mediaColors: mediaColors,
+        child: Stack(
+          children: <Widget>[
+            // 点击弹窗外部任意位置自动关闭。
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _removeOverlay,
+              ),
             ),
-          ),
-          Positioned(
-            bottom: widget.anchorTop ? null : 80,
-            top: widget.anchorTop ? 16 : null,
-            right: 16,
-            child: GestureDetector(
-              // 抢占命中：点击弹窗内部不触发外部关闭。
-              behavior: HitTestBehavior.opaque,
-              onTap: () {},
-              child: Material(
-                color: Colors.transparent,
-                child: EchoSurface(
-                  level: EchoSurfaceLevel.floating,
-                  padding: EdgeInsets.all(context.echoSpacing.sm),
-                  child: SizedBox(
-                    width: 64,
-                    height: 184,
-                    // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
-                    child: Consumer(
-                      builder: (context, ref, _) {
-                        final cast = ref.watch(castPeerControllerProvider);
-                        final double sourceVolume;
-                        if (cast.activePeer != null &&
-                            cast.status.volume != null) {
-                          sourceVolume = (cast.status.volume! / 100)
-                              .clamp(0.0, 1.0)
-                              .toDouble();
-                        } else {
-                          sourceVolume = ref.watch(
-                            playerProvider.select((s) => s.volume),
-                          );
-                        }
-                        // 拖动中显示拖动值，否则显示真实值。
-                        final volume = _dragValue ?? sourceVolume;
-                        final percent = (volume * 100).round();
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 实时显示当前音量数值（拖动时随状态刷新）。
-                            Text(
-                              '$percent%',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: context.echoColors.ink,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: 40,
-                              height: 140,
-                              child: RotatedBox(
-                                quarterTurns: -1,
-                                child: Slider(
-                                  value: volume,
-                                  onChanged: _onSliderChanged,
-                                  onChangeEnd: _onSliderCommit,
+            Positioned(
+              bottom: widget.anchorTop ? null : 80,
+              top: widget.anchorTop ? 16 : null,
+              right: 16,
+              child: GestureDetector(
+                // 抢占命中：点击弹窗内部不触发外部关闭。
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: Material(
+                  color: Colors.transparent,
+                  child: EchoSurface(
+                    level: EchoSurfaceLevel.floating,
+                    padding: EdgeInsets.all(context.echoSpacing.sm),
+                    child: SizedBox(
+                      width: 64,
+                      height: 184,
+                      // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final cast = ref.watch(castPeerControllerProvider);
+                          final double sourceVolume;
+                          if (cast.activePeer != null &&
+                              cast.status.volume != null) {
+                            sourceVolume = (cast.status.volume! / 100)
+                                .clamp(0.0, 1.0)
+                                .toDouble();
+                          } else {
+                            sourceVolume = ref.watch(
+                              playerProvider.select((s) => s.volume),
+                            );
+                          }
+                          // 拖动中显示拖动值，否则显示真实值。
+                          final volume = _dragValue ?? sourceVolume;
+                          final percent = (volume * 100).round();
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 实时显示当前音量数值（拖动时随状态刷新）。
+                              Text(
+                                '$percent%',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: context.echoColors.ink,
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: 40,
+                                height: 140,
+                                child: RotatedBox(
+                                  quarterTurns: -1,
+                                  child: Slider(
+                                    value: volume,
+                                    // 音量条配色跟随播放控件底色:
+                                    // 已激活段用控件强调色,未激活段用弱化前景,
+                                    // 与播放控件的按钮/文字色一致。
+                                    activeColor: mediaColors.accent,
+                                    inactiveColor: mediaColors.muted
+                                        .withValues(alpha: 0.38),
+                                    onChanged: _onSliderChanged,
+                                    onChangeEnd: _onSliderCommit,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
     Overlay.of(context).insert(_overlayEntry!);
@@ -1198,6 +1212,31 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
         backgroundColor: Colors.transparent,
         onPressed: _toggleOverlay,
       ),
+    );
+  }
+}
+
+/// 音量弹窗宿主：Overlay 位于播放器 EchoMediaColorScope 之外，这里把
+/// 打开时捕获的媒体自适应配色重新装回本子树，使面板背景、文字与
+/// 音量条全部沿用「播放控件底色」渲染。
+class _OverlayHost extends StatelessWidget {
+  const _OverlayHost({
+    required this.mediaColors,
+    required this.child,
+  });
+
+  final EchoColors mediaColors;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context);
+    final extensions = List<ThemeExtension<dynamic>>.of(base.extensions.values)
+      ..removeWhere((extension) => extension is EchoColors)
+      ..add(mediaColors);
+    return Theme(
+      data: base.copyWith(extensions: extensions),
+      child: child,
     );
   }
 }

@@ -137,10 +137,6 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: utility, matching: find.byIcon(AppIcons.lyrics)),
-      findsOneWidget,
-    );
-    expect(
       find.descendant(of: utility, matching: find.byIcon(AppIcons.queue)),
       findsOneWidget,
     );
@@ -194,7 +190,6 @@ void main() {
     );
     expect(find.byIcon(AppIcons.chevronDown), findsOneWidget);
     expect(find.byIcon(AppIcons.pause), findsOneWidget);
-    expect(find.byIcon(AppIcons.lyrics), findsOneWidget);
     expect(find.byIcon(AppIcons.queue), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('full_player_portrait_layout')),

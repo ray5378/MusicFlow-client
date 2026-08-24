@@ -423,7 +423,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         ),
         SizedBox(height: spacing.sm),
         // 播放控件:独立占位,始终可见。
-        _buildControlPanel(song, compact: true, showLyricsToggle: false),
+        _buildControlPanel(song, compact: true),
       ],
     );
   }
@@ -554,10 +554,15 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                 children: <Widget>[
                   SizedBox(height: topSpace),
                   if (currentCoverSize > 0.5)
-                    _buildCoverHero(
-                      song,
-                      currentCoverSize,
-                      opacity: 1 - progress,
+                    // 点击封面打开歌词(播放控件已不再放歌词按钮)。
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _toggleLyrics,
+                      child: _buildCoverHero(
+                        song,
+                        currentCoverSize,
+                        opacity: 1 - progress,
+                      ),
                     ),
                   SizedBox(height: coverGap),
                   if (shouldBuildLyrics) ...<Widget>[
@@ -575,7 +580,12 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                         child: Align(
                           alignment: Alignment.topCenter,
                           heightFactor: progress,
-                          child: const _PlayerLyricsPane(),
+                          // 点击歌词区域恢复封面。
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _toggleLyrics,
+                            child: const _PlayerLyricsPane(),
+                          ),
                         ),
                       ),
                     ),
@@ -677,7 +687,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     );
   }
 
-  Widget _buildControlPanel(Song song, {bool compact = false, bool showLyricsToggle = true}) {
+  Widget _buildControlPanel(Song song, {bool compact = false}) {
     final spacing = context.echoSpacing;
     final content = Column(
       key: const ValueKey<String>('full_player_control_panel'),
@@ -693,9 +703,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         _PlayerUtilityBar(
           key: const ValueKey<String>('full_player_utility_bar'),
           currentSong: song,
-          showLyrics: _showLyrics,
-          onToggleLyrics: _toggleLyrics,
-          showLyricsToggle: showLyricsToggle,
           onOpenQueue: () {
             // 移动端:打开底部弹窗(可下滑/叉号关闭);桌面端:右侧面板点开/点关切换。
             if (context.echoWindowClass == EchoWindowClass.compact) {
@@ -1451,17 +1458,11 @@ class _PlayerUtilityBar extends ConsumerWidget {
   const _PlayerUtilityBar({
     super.key,
     required this.currentSong,
-    required this.showLyrics,
-    required this.onToggleLyrics,
     required this.onOpenQueue,
-    this.showLyricsToggle = true,
   });
 
   final Song currentSong;
-  final bool showLyrics;
-  final VoidCallback onToggleLyrics;
   final VoidCallback onOpenQueue;
-  final bool showLyricsToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1515,13 +1516,6 @@ class _PlayerUtilityBar extends ConsumerWidget {
                 }
               },
             ),
-            if (showLyricsToggle)
-              _PlayerIconButton(
-                icon: showLyrics ? AppIcons.lyricsFilled : AppIcons.lyrics,
-                label: showLyrics ? '显示封面' : '显示歌词',
-                selected: showLyrics,
-                onPressed: onToggleLyrics,
-              ),
             _PlayerIconButton(
               icon: AppIcons.queue,
               label: '播放队列',
