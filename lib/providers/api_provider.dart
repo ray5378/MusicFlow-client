@@ -41,7 +41,9 @@ final dioProvider = Provider<Dio>((ref) {
 final activeAddressProvider = StateProvider<ServerAddress?>((ref) => null);
 
 /// Ensure an active address is ready before making network requests.
-/// Waits briefly for startup synchronization to avoid transient false negatives.
+/// 冷启动加速:活跃地址在 AddressPool.setAddresses 时已从持久化状态立即恢复,
+/// 这里只做极短兜底(≤2s)等待探测结果;超时直接报错让调用方回退本地缓存,
+/// 不再等待可能拖满 5s 的全量探测,避免把首屏拖到 5-6s。
 final ensureActiveAddressProvider = FutureProvider<ServerAddress>((ref) async {
   final active = ref.read(activeAddressProvider);
   if (active != null) return active;
@@ -52,7 +54,7 @@ final ensureActiveAddressProvider = FutureProvider<ServerAddress>((ref) async {
 
   final start = DateTime.now();
   var ticks = 0;
-  while (DateTime.now().difference(start) < const Duration(seconds: 6)) {
+  while (DateTime.now().difference(start) < const Duration(seconds: 2)) {
     final current = ref.read(activeAddressProvider);
     if (current != null) return current;
 
@@ -64,10 +66,11 @@ final ensureActiveAddressProvider = FutureProvider<ServerAddress>((ref) async {
     await Future.delayed(const Duration(milliseconds: 200));
   }
 
-  final probed = await pool.probeAll();
-  if (probed != null) return probed;
-
-  Logger.errorWithTag('API', 'failed to acquire active server address');
+  // 未在预算内拿到活跃地址:直接报错,由调用方(缓存先行/回退)接管,不再等慢探测。
+  Logger.errorWithTag(
+    'API',
+    'failed to acquire active server address within budget',
+  );
   throw StateError('No active server address available');
 });
 
