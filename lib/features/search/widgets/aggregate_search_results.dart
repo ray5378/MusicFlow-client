@@ -168,20 +168,37 @@ class AggregateLocalBlock<T> extends StatelessWidget {
             ],
           );
         }
-        // 卡片网格：与全网结果的 SearchResultList._cardGrid 完全一致
-        // (GridView.count / 3 列 / childAspectRatio 0.8 / 同间距)，保证
-        // 本地结果与全网结果排列方式一致。
+        // 卡片网格:与全网结果的 SearchResultList._cardGrid 完全一致
+        // (桌面端自适应列数 / 移动端三列 / childAspectRatio 0.8 / 同间距),
+        // 保证本地结果与全网结果排列方式一致。
+        final padding = EdgeInsets.only(
+          left: context.echoPageHorizontalPadding,
+          right: context.echoPageHorizontalPadding,
+          top: context.echoSpacing.xs,
+          bottom: context.echoSpacing.sm,
+        );
+        if (context.echoWindowClass != EchoWindowClass.compact) {
+          return GridView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: padding,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 158,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.8,
+            ),
+            children: <Widget>[
+              for (final item in shown) itemBuilder(context, item, 0),
+            ],
+          );
+        }
         return GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: 3,
           childAspectRatio: 0.8,
-          padding: EdgeInsets.only(
-            left: context.echoPageHorizontalPadding,
-            right: context.echoPageHorizontalPadding,
-            top: context.echoSpacing.xs,
-            bottom: context.echoSpacing.sm,
-          ),
+          padding: padding,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           children: <Widget>[

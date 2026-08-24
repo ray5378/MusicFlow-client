@@ -167,17 +167,35 @@ class SearchResultList extends ConsumerWidget {
     List<Widget> children,
   ) {
     if (children.isEmpty) return const SizedBox.shrink();
+    final padding = EdgeInsets.only(
+      left: context.echoPageHorizontalPadding,
+      right: context.echoPageHorizontalPadding,
+      bottom: context.echoSpacing.xxl + context.echoShellBottomObstruction,
+    );
+    // 桌面端(medium/expanded):改为**自适应列数**网格,单格宽度收敛到 ~158,
+    // 封面随之收敛到与主页面歌单封面(DiscoverPlaylistCard, 152 宽方封面,
+    // 标题在下、副标题在最下的排列)一致,不再固定三列放大占满整窗。
+    if (context.echoWindowClass != EchoWindowClass.compact) {
+      return GridView(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: padding,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 158,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.8,
+        ),
+        children: children,
+      );
+    }
+    // 移动端(compact):维持原三列网格,不做改动。
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 3,
       childAspectRatio: 0.8,
-      padding: EdgeInsets.only(
-        left: context.echoPageHorizontalPadding,
-        right: context.echoPageHorizontalPadding,
-        bottom:
-            context.echoSpacing.xxl + context.echoShellBottomObstruction,
-      ),
+      padding: padding,
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
       children: children,
@@ -267,7 +285,7 @@ class SearchAlbumCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(album.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(album.name, maxLines: 2, overflow: TextOverflow.ellipsis),
           Text(
             album.artist.isNotEmpty ? album.artist : album.platformLabel,
             maxLines: 1,
@@ -337,7 +355,7 @@ class SearchArtistCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(artist.name, maxLines: 2, overflow: TextOverflow.ellipsis),
           Text(
             artist.platformLabel,
             maxLines: 1,
@@ -409,7 +427,7 @@ class SearchPlaylistCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(playlist.name, maxLines: 2, overflow: TextOverflow.ellipsis),
           Text(
             playlist.trackCount.isNotEmpty
                 ? '${playlist.trackCount} 首'
