@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/album.dart';
 import '../data/models/artist.dart';
@@ -98,10 +100,35 @@ Future<T> _fetchWithCacheFallback<T>({
 // Provider 定义
 // ---------------------------------------------------------------------------
 
-/// 随机歌曲 Provider（保持数据，不自动释放）。
+/// 随机歌曲歌单「变更推送」总线。
+///
+/// 设计目标:客户端**不再轮询**随机歌曲歌单。歌单由主项目(服务端)插件在
+/// 后台维护刷新;当歌单内容变动时,由插件主动发送信号到客户端,客户端监听方
+/// 收到信号后重新拉取并更新,避免「打开客户端 → 触发后端惰性重建 → 长时间等待」。
+///
+/// 接入方式(等服务端推送通道就绪后):
+/// - 若服务端提供 WebSocket/SSE 等推送,收到「random-songs-changed」事件时
+///   调用 [notifyRandomSongsChanged]();
+/// - 本地会改动歌单内容的操作(收藏变更/歌曲信息编辑等)也会调用它,保证客户端内一致。
+final StreamController<int> _randomSongsChangedController =
+    StreamController<int>.broadcast(sync: true);
+
+int _randomSongsVersion = 0;
+
+/// 订阅随机歌曲歌单变更信号。
+Stream<int> randomSongsChangedStream() => _randomSongsChangedController.stream;
+
+/// 通知所有监听方:随机歌曲歌单已变动,请重新拉取。
+void notifyRandomSongsChanged() {
+  _randomSongsVersion++;
+  _randomSongsChangedController.add(_randomSongsVersion);
+}
+
+/// 随机歌曲 Provider(保持数据,不自动释放)。
 /// 读取主项目「随机歌曲」内置插件的固定歌单 pl-random-songs(默认 48 首,
-/// 由插件配置控制数量)。后端在该歌单被读取时惰性刷新,客户端播完一轮再来
-/// 拉取时歌单必然已刷新好 → 无「现场生成导致的空白等待」。
+/// 由插件配置控制数量)。客户端只在「播放一批 / 手动刷新 / 收到歌单变更推送」
+/// 时按需拉取,**打开首页不再自动请求**,直接以本地缓存秒出展示,
+/// 由插件在后台维护歌单新鲜度,避免惰性重建带来的等待。
 final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
   final plRepo = ref.watch(playlistRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);

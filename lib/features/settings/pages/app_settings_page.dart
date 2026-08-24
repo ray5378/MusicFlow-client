@@ -470,6 +470,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       ref.read(authStateProvider.notifier).switchLibrary(library);
       ref.invalidate(playerProvider);
       ref.invalidate(randomSongsProvider);
+      // 广播变更信号,让随机歌曲区块按需重拉新库内容。
+      notifyRandomSongsChanged();
       ref.invalidate(recentAlbumsProvider);
       ref.invalidate(frequentAlbumsProvider);
       ref.invalidate(playlistsProvider);

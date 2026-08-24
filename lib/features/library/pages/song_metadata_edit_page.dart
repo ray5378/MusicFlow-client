@@ -635,6 +635,8 @@ class _SongMetadataEditPageState extends ConsumerState<SongMetadataEditPage> {
   Future<void> _refreshViews() async {
     ref.invalidate(allSongsProvider);
     ref.invalidate(randomSongsProvider);
+    // 广播变更信号,让随机歌曲区块按需重拉最新内容。
+    notifyRandomSongsChanged();
     if (widget.song.albumId != null && widget.song.albumId!.trim().isNotEmpty) {
       ref.invalidate(albumDetailProvider(widget.song.albumId!));
     }

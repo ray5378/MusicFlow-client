@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 import '../../../core/design/echo_design.dart';
 import '../../../core/utils/logger.dart';
 import '../../../data/models/recommend.dart';
+import '../../../data/models/music_library.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
@@ -50,14 +51,16 @@ class DiscoverPage extends ConsumerStatefulWidget {
 
 class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   Future<void> _refresh() async {
+    // 随机歌曲由区块按需拉取:这里只刷新其余区块,再广播「歌单变更」信号,
+    // 让区块自行重拉最新随机歌曲,避免整页刷新也触发随机歌单远程请求。
     await Future.wait<Object?>(<Future<Object?>>[
-      ref.refresh(randomSongsProvider.future),
       ref.refresh(playlistsProvider.future),
       ref.refresh(recentPlaylistsProvider.future),
       ref.refresh(homeCardsProvider.future),
       ref.refresh(homeRecommendSectionProvider.future),
       ref.refresh(recommendChannelsProvider.future),
     ]);
+    notifyRandomSongsChanged();
   }
 
   @override
@@ -87,6 +90,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         ref.invalidate(homeCardsProvider);
         ref.invalidate(homeRecommendSectionProvider);
         ref.invalidate(recommendChannelsProvider);
+        // 广播变更信号,让随机歌曲区块按需重拉(区块不再 watch provider)。
+        notifyRandomSongsChanged();
       },
       child: Scaffold(
         backgroundColor: context.echoColors.canvas,
@@ -265,6 +270,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   bool _autoContinue = false;
   int _roundToken = 0;
   final ScrollController _scrollCtrl = ScrollController();
+  StreamSubscription<int>? _randomSongsSubscription;
 
   /// 最近一次可展示的歌曲(本地缓存或远程结果)。打开首页时先用它秒出内容,
   /// 同时后台拉取远程最新结果,避免每次都阻塞在远程请求与后端惰性刷新上。
@@ -273,7 +279,21 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   @override
   void initState() {
     super.initState();
-    _loadCachedSongs();
+    unawaited(_loadCachedSongs());
+    // 监听随机歌曲歌单「变更推送」:主项目插件维护刷新歌单后主动发信号,
+    // 客户端收到后按需重拉,**不再轮询**,避免打开页面等待后端惰性重建。
+    _randomSongsSubscription = randomSongsChangedStream().listen((_) {
+      if (!mounted) return;
+      Logger.infoWithTag('DISCOVER', 'random songs changed, refreshing');
+      unawaited(_fetchLatestForDisplay());
+    });
+    // 活跃库就绪后若还没有内容(无缓存 + 首次冷启动),补一次缓存读取/后台拉取。
+    ref.listen<MusicLibrary?>(activeLibraryProvider, (prev, next) {
+      if (next == null) return;
+      if (prev != null && prev.id == next.id) return;
+      if (_lastKnownSongs != null) return;
+      unawaited(_loadCachedSongs());
+    });
     // 监听投屏队列自然播完:DLNA 设备整轮播放完毕后自动加载下一轮随机歌曲续播。
     ref.listen<CastPeerState>(castPeerControllerProvider, (prev, next) {
       if (!_autoContinue) return;
@@ -287,6 +307,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   /// 先读本地缓存的随机歌曲,让区块立即有内容可展示,不等远程。
   /// 冷启动时活跃库可能尚未从 drift 就绪(libraryId 为 null),
   /// 回退到最近使用的库 ID 读取缓存,避免首屏一直空等网络/探测。
+  /// 若本地也没有缓存,后台拉取一次填充(仅首次,不阻塞展示)。
   Future<void> _loadCachedSongs() async {
     try {
       final cache = ref.read(metadataCacheRepositoryProvider);
@@ -296,20 +317,46 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       }
       if (libraryId == null || libraryId.isEmpty) return;
       final cached = await cache.getRandomSongs(libraryId);
-      if (!mounted || cached == null || cached.isEmpty) return;
-      // 远程数据已就绪时不再用旧缓存覆盖,避免「新内容 → 旧缓存」的闪回。
-      if (_lastKnownSongs != null) return;
-      setState(() => _lastKnownSongs = cached);
+      if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        // 远程数据已就绪时不再用旧缓存覆盖,避免「新内容 → 旧缓存」的闪回。
+        if (_lastKnownSongs == null) {
+          setState(() => _lastKnownSongs = cached);
+        }
+        return;
+      }
+      // 无缓存:首次打开后台拉取一次,供首屏使用。
+      unawaited(_fetchLatestForDisplay());
     } catch (e) {
       Logger.warnWithTag('DISCOVER', 'random songs cache read failed', e);
     }
   }
 
+  /// 后台拉取最新随机歌曲并更新展示(不阻塞 UI,失败静默)。
+  Future<void> _fetchLatestForDisplay() async {
+    try {
+      final songs = await ref.refresh(randomSongsProvider.future);
+      if (!mounted) return;
+      if (songs.isNotEmpty) {
+        setState(() => _lastKnownSongs = songs);
+      }
+    } catch (e) {
+      Logger.warnWithTag('DISCOVER', 'fetch latest random songs failed', e);
+    }
+  }
+
   Future<void> _playRound() async {
-    final songs = ref.read(randomSongsProvider).valueOrNull ?? _lastKnownSongs;
-    if (songs == null || songs.isEmpty) return;
+    final token = ++_roundToken;
+    List<Song> songs;
+    try {
+      songs = await ref.refresh(randomSongsProvider.future);
+    } catch (_) {
+      songs = _lastKnownSongs ?? const <Song>[];
+    }
+    if (!mounted || token != _roundToken) return;
+    if (songs.isEmpty) return;
     _autoContinue = true;
-    _roundToken++;
+    setState(() => _lastKnownSongs = songs);
     await playEffectiveQueue(ref, songs);
   }
 
@@ -318,13 +365,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     final songs = await ref.refresh(randomSongsProvider.future);
     if (!mounted || token != _roundToken || !_autoContinue) return;
     if (songs.isEmpty) return;
+    setState(() => _lastKnownSongs = songs);
     await playEffectiveQueue(ref, songs);
   }
 
   void _refresh() {
     _autoContinue = false;
     _roundToken++;
-    ref.invalidate(randomSongsProvider);
+    unawaited(_fetchLatestForDisplay());
   }
 
   /// 歌曲横滑网格(每列 3 行),供数据态与缓存占位态共用,布局完全一致。
@@ -381,14 +429,16 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
 
   @override
   void dispose() {
+    _randomSongsSubscription?.cancel();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final randomSongsAsync = ref.watch(randomSongsProvider);
     final loadFailed = ref.watch(randomSongsLoadFailedProvider);
+    final knownSongs = _lastKnownSongs;
+    final hasContent = knownSongs != null && knownSongs.isNotEmpty;
 
     // 一轮(20 首)播完自动换下一轮
     ref.listen<PlayerState>(playerProvider, (prev, next) {
@@ -401,47 +451,21 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       }
     });
 
-    final content = randomSongsAsync.when(
-      skipLoadingOnRefresh: false,
-      skipLoadingOnReload: false,
-      data: (songs) {
-        if (songs.isNotEmpty) {
-          _lastKnownSongs = songs;
-        }
-        if (songs.isEmpty) {
-          // 活跃库未就绪时 provider 会先给空列表:若有本地缓存,先展示缓存
-          // 避免冷启动空数据闪屏,待库就绪 + 远程数据到达后自然替换。
-          final fallback = _lastKnownSongs;
-          if (fallback != null && fallback.isNotEmpty) {
-            return _buildSongsContent(fallback);
-          }
-          return DiscoverSectionMessage(
-            title: loadFailed ? '随心听暂时不可用' : '还没有可播放的歌曲',
-            description: loadFailed
-                ? '请检查网络或当前线路，然后重试。'
-                : '音乐库中有歌曲后，这里会准备一组随心选择。',
-            icon: loadFailed ? AppIcons.cloudOff : AppIcons.music,
-            onRetry: loadFailed
-                ? () => ref.invalidate(randomSongsProvider)
-                : null,
-          );
-        }
-
-        return _buildSongsContent(songs);
-      },
-      loading: () {
-        final cached = _lastKnownSongs;
-        return (cached != null && cached.isNotEmpty)
-            ? _buildSongsContent(cached)
-            : const _RandomSongsLoading();
-      },
-      error: (error, stackTrace) => DiscoverSectionMessage(
-        title: '随心听加载失败',
-        description: '请检查网络或切换线路后重试。',
+    // 打开页面不触发远程请求:先秒出本地缓存,只有播放/手动刷新/收到歌单变更
+    // 推送时才按需拉取,避免「打开客户端 → 后端惰性重建 → 长时间等待」。
+    final Widget content;
+    if (hasContent) {
+      content = _buildSongsContent(knownSongs!);
+    } else if (loadFailed) {
+      content = DiscoverSectionMessage(
+        title: '随心听暂时不可用',
+        description: '请检查网络或当前线路，然后重试。',
         icon: AppIcons.cloudOff,
-        onRetry: () => ref.invalidate(randomSongsProvider),
-      ),
-    );
+        onRetry: () => unawaited(_fetchLatestForDisplay()),
+      );
+    } else {
+      content = const _RandomSongsLoading();
+    }
 
     return DecoratedBox(
       key: const Key('discover-random-mix'),

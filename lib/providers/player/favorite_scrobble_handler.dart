@@ -126,6 +126,8 @@ class FavoriteScrobbleHandler {
   void invalidateFavoriteProviders({String? albumId}) {
     _ref.invalidate(starredProvider);
     _ref.invalidate(randomSongsProvider);
+    // 广播变更信号,让随机歌曲区块按需重拉最新内容。
+    notifyRandomSongsChanged();
     _ref.invalidate(allSongsProvider);
     if (albumId != null && albumId.isNotEmpty) {
       _ref.invalidate(albumDetailProvider(albumId));

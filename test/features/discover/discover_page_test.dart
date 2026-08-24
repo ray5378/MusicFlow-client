@@ -286,6 +286,9 @@ Future<void> _pumpDiscover(
     ),
   );
   await tester.pump();
+  // 随机歌曲区块不再随页面打开自动拉取(改为按需拉取)。测试通过广播
+  // 「歌单变更」信号触发一次按需拉取,与生产环境「插件推送更新」一致。
+  notifyRandomSongsChanged();
   await tester.pumpAndSettle();
 }
 
