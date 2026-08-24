@@ -248,21 +248,24 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!navigator.mounted) return;
       unawaited(
-        _showRouteSelectionSheet(navigator.context, onClosed: onReturnFocus),
+        showRouteSelectionSheet(navigator.context, onClosed: onReturnFocus),
       );
     });
   }
+}
 
-  Future<void> _showRouteSelectionSheet(
-    BuildContext hostContext, {
-    VoidCallback? onClosed,
-  }) async {
-    try {
-      await showEchoBottomSheet<void>(
-        context: hostContext,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        builder: (sheetContext) {
+/// 打开「切换线路」弹窗。桌面端为居中弹窗、移动端为底部弹窗，
+/// 供侧栏菜单与主界面下拉菜单共用。
+Future<void> showRouteSelectionSheet(
+  BuildContext hostContext, {
+  VoidCallback? onClosed,
+}) async {
+  try {
+    await showEchoBottomSheet<void>(
+      context: hostContext,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
           return Consumer(
             builder: (context, ref, child) {
               final authState = ref.watch(authStateProvider);
@@ -421,7 +424,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
       onClosed?.call();
     }
   }
-}
 
 @visibleForTesting
 String? resolveEchoDrawerAvatarUrl(MusicLibrary? library) {

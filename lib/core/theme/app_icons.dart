@@ -120,4 +120,5 @@ abstract final class AppIcons {
   static const time = Remix.time_fill;
   static const quality = Remix.speed_line;
   static const palette = Remix.paint_brush_line;
+  static const externalLink = Remix.external_link_line;
 }

@@ -617,6 +617,20 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 ),
               ),
               SizedBox(height: sheetContext.echoSpacing.md),
+              EchoActionRow(
+                icon: AppIcons.externalLink,
+                title: '项目主页',
+                subtitle: 'github.com/ray5378/MusicFlow-client',
+                trailing: Icon(
+                  AppIcons.chevronRight,
+                  size: 20,
+                  color: sheetContext.echoColors.muted,
+                ),
+                onPressed: () => _openUrl(
+                  'https://github.com/ray5378/MusicFlow-client',
+                ),
+              ),
+              SizedBox(height: sheetContext.echoSpacing.sm),
               Text(
                 '© 2026 MusicFlow',
                 style: sheetContext.echoTypography.metadata.copyWith(
