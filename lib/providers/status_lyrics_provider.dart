@@ -22,7 +22,7 @@ final statusLyricsControllerProvider = Provider<StatusLyricsController>((ref) {
 class StatusLyricsController {
   StatusLyricsController(this._ref) {
     _enabled = _ref.read(statusLyricsEnabledProvider);
-    _enabledSub = _ref.listenManual<bool>(
+    _enabledSub = _ref.listen<bool>(
       statusLyricsEnabledProvider,
       (_, next) {
         _enabled = next;
@@ -44,7 +44,7 @@ class StatusLyricsController {
   /// 仅在开启时订阅当前歌词行,避免在关闭状态下无谓触发歌词网络拉取。
   void _syncLyricsSubscription() {
     if (_enabled && _lyricsSub == null) {
-      _lyricsSub = _ref.listenManual<String?>(
+      _lyricsSub = _ref.listen<String?>(
         currentLyricLineProvider,
         (_, __) => _push(),
       );
