@@ -15,6 +15,8 @@ bool? _toBool(dynamic value) {
   return null;
 }
 
+import '../../core/utils/cover_ref_security.dart';
+
 /// 歌曲模型
 class Song {
   final String id;
@@ -100,15 +102,18 @@ class Song {
   /// 播放器和播放队列统一使用的封面引用。
   ///
   /// 试听歌曲优先使用已解析的远程封面 URL；正式歌曲继续使用服务端
-  /// coverArt ID。CoverArtImage 能同时处理这两种引用。
+  /// coverArt ID。返回值必须是 [CoverArtImage] 可直接消费的形式：
+  /// - 完整 `http(s)://` 链接 → 包装为 `trusted-url:` 引用走服务端代理；
+  /// - 服务端 coverArt ID → 原样返回走 `/rest/getCoverArt`。
+  /// 否则播放器/队列/试听的封面会因无法解析而显示占位图。
   String? get artworkReference {
     final previewCover = previewCoverUrl?.trim();
-    if (isPreview && previewCover != null && previewCover.isNotEmpty) {
-      return previewCover;
-    }
-
-    final serverCover = coverArt?.trim();
-    return serverCover == null || serverCover.isEmpty ? null : serverCover;
+    final source =
+        (isPreview && previewCover != null && previewCover.isNotEmpty)
+        ? previewCover
+        : coverArt?.trim();
+    if (source == null || source.isEmpty) return null;
+    return toCoverArtRef(source);
   }
 
   Song copyWith({

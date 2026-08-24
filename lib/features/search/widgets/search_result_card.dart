@@ -205,7 +205,7 @@ class SearchResultList extends ConsumerWidget {
   Widget _thumb(String url) => ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: CoverArtImage(
-          coverArtId: tryToTrustedCoverUrlRef(url) ?? '',
+          coverArtId: toCoverArtRef(url) ?? '',
           size: 48,
           requestSize: 96,
           fit: BoxFit.cover,

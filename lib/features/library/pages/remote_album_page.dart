@@ -153,7 +153,7 @@ class _Header extends StatelessWidget {
         ? ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CoverArtImage(
-              coverArtId: tryToTrustedCoverUrlRef(album.cover) ?? '',
+              coverArtId: toCoverArtRef(album.cover) ?? '',
               size: 120,
               requestSize: 240,
               fit: BoxFit.cover,

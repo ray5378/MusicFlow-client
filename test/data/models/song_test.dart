@@ -170,7 +170,10 @@ void main() {
         previewCoverUrl: ' https://images.example.test/preview.jpg ',
       );
 
-      expect(song.artworkReference, 'https://images.example.test/preview.jpg');
+      expect(
+        song.artworkReference,
+        'trusted-url:https://images.example.test/preview.jpg',
+      );
     });
 
     test('normal songs keep using the server cover reference', () {

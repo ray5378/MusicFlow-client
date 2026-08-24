@@ -144,7 +144,7 @@ class _Header extends StatelessWidget {
     final cover = artist.avatar.isNotEmpty
         ? ClipOval(
             child: CoverArtImage(
-              coverArtId: tryToTrustedCoverUrlRef(artist.avatar) ?? '',
+              coverArtId: toCoverArtRef(artist.avatar) ?? '',
               size: 120,
               requestSize: 240,
               fit: BoxFit.cover,
