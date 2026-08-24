@@ -121,11 +121,12 @@ class _WindowControlButton extends StatelessWidget {
       height: 40,
       child: Tooltip(
         message: tooltip,
-        child: InkWell(
-          onTap: onPressed,
-          hoverColor: isClose
-              ? colors.error.withValues(alpha: 0.16)
-              : colors.raised,
+        child: EchoPressable(
+          onPressed: onPressed,
+          borderRadius: BorderRadius.zero,
+          minimumSize: Size.zero,
+          hoverOverlayColor: isClose ? colors.error : colors.ink,
+          pressedOverlayColor: isClose ? colors.error : colors.ink,
           child: Icon(
             icon,
             size: 18,

@@ -73,8 +73,10 @@ class _EntitySearchBarState extends State<EntitySearchBar> {
           hintText: widget.hintText,
           prefixIcon: const Icon(AppIcons.search, size: 20),
           suffixIcon: _controller.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(AppIcons.close, size: 18),
+              ? EchoIconButton(
+                  icon: AppIcons.close,
+                  label: '清空搜索词',
+                  iconSize: 18,
                   onPressed: () {
                     _controller.clear();
                     widget.onQueryChanged('');

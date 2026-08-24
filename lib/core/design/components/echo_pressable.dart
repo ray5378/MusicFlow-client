@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -27,7 +28,11 @@ enum EchoPressableSemanticsMode {
 /// through Flutter's [Shortcuts] and [Actions] system, so a long-press-only
 /// target still has an accessible keyboard path without changing its pointer
 /// tap behavior.
-class EchoPressable extends StatelessWidget {
+///
+/// 统一交互反馈：按下时子组件按 [EchoInteraction.pressedScale] 轻微缩小、
+/// 松开/取消时回弹，全平台(触屏/鼠标/触控板)一律生效；鼠标右键/中键不触发。
+/// 禁用时(a11y 关闭动画)自动退化为瞬时过渡，不产生缩放。
+class EchoPressable extends StatefulWidget {
   const EchoPressable({
     super.key,
     required this.child,
@@ -41,6 +46,8 @@ class EchoPressable extends StatelessWidget {
     this.semanticsMode = EchoPressableSemanticsMode.singleNode,
     this.enableHaptics = false,
     this.autofocus = false,
+    this.hoverOverlayColor,
+    this.pressedOverlayColor,
   }) : assert(
          semanticsMode != EchoPressableSemanticsMode.explicitChildren ||
              semanticLabel != null,
@@ -59,67 +66,90 @@ class EchoPressable extends StatelessWidget {
   final bool enableHaptics;
   final bool autofocus;
 
+  /// 覆盖 hover 高亮色(默认取主题 accent)。供标题栏这类有特殊 hover 语义的
+  /// 控件使用，例如「关闭」按钮 hover 用错误色。
+  final Color? hoverOverlayColor;
+
+  /// 覆盖按下高亮色(默认取主题 accent)。
+  final Color? pressedOverlayColor;
+
+  @override
+  State<EchoPressable> createState() => _EchoPressableState();
+}
+
+class _EchoPressableState extends State<EchoPressable> {
   static const Map<ShortcutActivator, Intent> _shortcuts =
       <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
         SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
       };
 
+  /// 是否处于按压状态(驱动按压缩放动效)。
+  bool _depressed = false;
+
+  bool get _interactive =>
+      widget.onPressed != null || widget.onLongPress != null;
+
   @override
   Widget build(BuildContext context) {
-    final interactive = onPressed != null || onLongPress != null;
-    final radius = borderRadius ?? context.echoRadii.control;
+    final radius = widget.borderRadius ?? context.echoRadii.control;
     final motion = context.echoMotion;
     final colors = context.echoColors;
     final interaction = context.echoInteraction;
     final hasExplicitChildren =
-        semanticsMode == EchoPressableSemanticsMode.explicitChildren;
-    final exposesControlRole = !hasExplicitChildren || interactive;
-    final visuallyEnabled = interactive || hasExplicitChildren;
+        widget.semanticsMode == EchoPressableSemanticsMode.explicitChildren;
+    final exposesControlRole = !hasExplicitChildren || _interactive;
+    final visuallyEnabled = _interactive || hasExplicitChildren;
+    final hoverOverlay = widget.hoverOverlayColor ?? colors.accent;
+    final pressedOverlay = widget.pressedOverlayColor ?? colors.accent;
 
     Widget target = ConstrainedBox(
       constraints: BoxConstraints(
-        minWidth: minimumSize.width.isFinite ? minimumSize.width : 0,
-        minHeight: minimumSize.height.isFinite ? minimumSize.height : 0,
+        minWidth: widget.minimumSize.width.isFinite
+            ? widget.minimumSize.width
+            : 0,
+        minHeight: widget.minimumSize.height.isFinite
+            ? widget.minimumSize.height
+            : 0,
       ),
-      child: child,
+      child: widget.child,
     );
-    if (!minimumSize.width.isFinite) {
+    if (!widget.minimumSize.width.isFinite) {
       target = SizedBox(width: double.infinity, child: target);
     }
-    if (!minimumSize.height.isFinite) {
+    if (!widget.minimumSize.height.isFinite) {
       target = SizedBox(height: double.infinity, child: target);
     }
 
-    return Semantics(
+    final Widget pressable = Semantics(
       container: true,
       explicitChildNodes: hasExplicitChildren,
       excludeSemantics:
-          semanticLabel != null &&
-          semanticsMode == EchoPressableSemanticsMode.singleNode,
+          widget.semanticLabel != null &&
+          widget.semanticsMode == EchoPressableSemanticsMode.singleNode,
       button: exposesControlRole,
-      enabled: interactive ? true : (exposesControlRole ? false : null),
-      focusable: interactive,
-      selected: selected,
-      toggled: toggled,
-      label: semanticLabel,
-      onTap: onPressed,
-      onLongPress: onLongPress,
+      enabled: _interactive ? true : (exposesControlRole ? false : null),
+      focusable: _interactive,
+      selected: widget.selected,
+      toggled: widget.toggled,
+      label: widget.semanticLabel,
+      onTap: widget.onPressed,
+      onLongPress: widget.onLongPress,
       child: Shortcuts(
         shortcuts: _shortcuts,
         child: Actions(
           actions: <Type, Action<Intent>>{
             ActivateIntent: CallbackAction<ActivateIntent>(
               onInvoke: (intent) {
-                final action = onPressed ?? onLongPress;
+                final action = widget.onPressed ?? widget.onLongPress;
                 if (action != null) _invoke(action);
                 return null;
               },
             ),
           },
           child: _EchoPressableFocus(
-            canRequestFocus: interactive,
-            autofocus: autofocus && interactive,
+            canRequestFocus: _interactive,
+            autofocus: widget.autofocus && _interactive,
             builder: (focusContext, showFocusHighlight) {
               final focusColor = showFocusHighlight
                   ? colors.accent
@@ -142,31 +172,31 @@ class EchoPressable extends StatelessWidget {
                   child: Material(
                     type: MaterialType.transparency,
                     child: InkWell(
-                      onTap: onPressed == null
+                      onTap: widget.onPressed == null
                           ? null
-                          : () => _invoke(onPressed!),
-                      onLongPress: onLongPress == null
+                          : () => _invoke(widget.onPressed!),
+                      onLongPress: widget.onLongPress == null
                           ? null
-                          : () => _invoke(onLongPress!),
+                          : () => _invoke(widget.onLongPress!),
                       canRequestFocus: false,
                       excludeFromSemantics: true,
                       borderRadius: radius,
                       splashFactory: NoSplash.splashFactory,
-                      mouseCursor: interactive
+                      mouseCursor: _interactive
                           ? SystemMouseCursors.click
                           : SystemMouseCursors.basic,
-                      overlayColor: WidgetStateProperty.resolveWith<Color?>((
-                        states,
-                      ) {
-                        if (!interactive) return Colors.transparent;
-                        if (states.contains(WidgetState.pressed)) {
-                          return colors.accent.withValues(alpha: 0.14);
-                        }
-                        if (states.contains(WidgetState.hovered)) {
-                          return colors.accent.withValues(alpha: 0.08);
-                        }
-                        return Colors.transparent;
-                      }),
+                      overlayColor: WidgetStateProperty.resolveWith<Color?>(
+                        (states) {
+                          if (!_interactive) return Colors.transparent;
+                          if (states.contains(WidgetState.pressed)) {
+                            return pressedOverlay.withValues(alpha: 0.14);
+                          }
+                          if (states.contains(WidgetState.hovered)) {
+                            return hoverOverlay.withValues(alpha: 0.08);
+                          }
+                          return Colors.transparent;
+                        },
+                      ),
                       child: target,
                     ),
                   ),
@@ -177,10 +207,40 @@ class EchoPressable extends StatelessWidget {
         ),
       ),
     );
+
+    // 按压缩放反馈：用 raw 指针监听(透明、不参与手势竞技场,不吞事件、不干扰
+    // 滚动/拖拽)追踪按下/松开,配合 AnimatedScale 实现「按下微缩、松开回弹」。
+    // 桌面端鼠标 hover 不会触发按下,只有真正按下才缩放。
+    return Listener(
+      onPointerDown: _handlePointerDown,
+      onPointerUp: (_) => _setDepressed(false),
+      onPointerCancel: (_) => _setDepressed(false),
+      behavior: HitTestBehavior.deferToChild,
+      child: AnimatedScale(
+        scale: _depressed && _interactive ? interaction.pressedScale : 1.0,
+        duration: motion.resolve(context, motion.feedback),
+        curve: motion.easeOut,
+        child: pressable,
+      ),
+    );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!_interactive) return;
+    // 排除鼠标右键/中键：仅主键(触屏或鼠标左键)触发按压反馈。
+    if (event.buttons == kSecondaryButton || event.buttons == kMiddleButton) {
+      return;
+    }
+    _setDepressed(true);
+  }
+
+  void _setDepressed(bool value) {
+    if (_depressed == value) return;
+    setState(() => _depressed = value);
   }
 
   void _invoke(VoidCallback action) {
-    if (enableHaptics) HapticFeedback.selectionClick();
+    if (widget.enableHaptics) HapticFeedback.selectionClick();
     action();
   }
 }

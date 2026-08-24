@@ -33,6 +33,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Check interaction feedback compliance
+        run: dart run tool/check_interaction_feedback.dart
+
       - name: Run dart analyze
         run: dart analyze lib/
         continue-on-error: true
@@ -81,6 +84,9 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Check interaction feedback compliance
+        run: dart run tool/check_interaction_feedback.dart
 
       - name: Run dart analyze
         run: dart analyze lib/

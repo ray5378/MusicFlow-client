@@ -133,25 +133,48 @@ class SearchResultList extends ConsumerWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 4),
       itemBuilder: (context, index) {
         final s = songs[index];
-        return ListTile(
-          leading: s.cover.isNotEmpty
-              ? _thumb(s.cover)
-              : const Icon(AppIcons.music),
-          title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(
-            [s.artist, s.platformLabel].where((e) => e.isNotEmpty).join(' · '),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
             children: <Widget>[
-              IconButton(
-                icon: const Icon(Remix.play_circle_line, size: 22),
+              if (s.cover.isNotEmpty)
+                _thumb(s.cover)
+              else
+                const Icon(AppIcons.music, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      s.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [s.artist, s.platformLabel]
+                          .where((e) => e.isNotEmpty)
+                          .join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.echoTypography.metadata
+                          .copyWith(color: context.echoColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              EchoIconButton(
+                icon: Remix.play_circle_line,
+                label: '播放',
+                iconSize: 22,
                 onPressed: () => playRemoteSearchSong(context, ref, s),
               ),
-              IconButton(
-                icon: const Icon(Remix.add_circle_line, size: 22),
+              EchoIconButton(
+                icon: Remix.add_circle_line,
+                label: '加入库',
+                iconSize: 22,
                 onPressed: () => importSearchSong(context, ref, s),
               ),
             ],
@@ -234,8 +257,8 @@ class SearchAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onOpen,
+    return EchoPressable(
+      onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,14 +291,18 @@ class SearchAlbumCard extends StatelessWidget {
                     child: Row(
                       children: <Widget>[
                         if (showPlay)
-                          IconButton(
-                            icon: const Icon(Remix.play_circle_fill, size: 24),
-                            color: context.echoColors.accent,
+                          EchoIconButton(
+                            icon: Remix.play_circle_fill,
+                            label: '播放',
+                            iconSize: 24,
+                            foregroundColor: context.echoColors.accent,
                             onPressed: onPlay,
                           ),
                         if (showImport)
-                          IconButton(
-                            icon: const Icon(Remix.add_circle_line, size: 22),
+                          EchoIconButton(
+                            icon: Remix.add_circle_line,
+                            label: '加入库',
+                            iconSize: 22,
                             onPressed: onImport,
                           ),
                       ],
@@ -315,8 +342,8 @@ class SearchArtistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onOpen,
+    return EchoPressable(
+      onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,9 +372,11 @@ class SearchArtistCard extends StatelessWidget {
                   Positioned(
                     right: 4,
                     bottom: 4,
-                    child: IconButton(
-                      icon: const Icon(Remix.play_circle_fill, size: 24),
-                      color: context.echoColors.accent,
+                    child: EchoIconButton(
+                      icon: Remix.play_circle_fill,
+                      label: '播放',
+                      iconSize: 24,
+                      foregroundColor: context.echoColors.accent,
                       onPressed: onPlay,
                     ),
                   ),
@@ -385,8 +414,8 @@ class SearchPlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onOpen,
+    return EchoPressable(
+      onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -417,9 +446,11 @@ class SearchPlaylistCard extends StatelessWidget {
                   Positioned(
                     right: 4,
                     bottom: 4,
-                    child: IconButton(
-                      icon: const Icon(Remix.play_circle_fill, size: 24),
-                      color: context.echoColors.accent,
+                    child: EchoIconButton(
+                      icon: Remix.play_circle_fill,
+                      label: '播放',
+                      iconSize: 24,
+                      foregroundColor: context.echoColors.accent,
                       onPressed: onPlay,
                     ),
                   ),
