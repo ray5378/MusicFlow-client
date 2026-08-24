@@ -27,7 +27,7 @@ bool _isUnderDesign(String path) =>
     path.replaceAll('\\', '/').contains('/core/design/');
 
 void main() {
-  final libDir = Directory('${_repoRoot.path.absolute}/lib');
+  final libDir = Directory('${_repoRoot.absolute.path}/lib');
   if (!libDir.existsSync()) {
     stderr.writeln('check_interaction_feedback: 找不到 lib/ (repo=${_repoRoot.path})');
     exit(2);
