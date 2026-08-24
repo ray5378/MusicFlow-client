@@ -412,7 +412,7 @@ class _AlbumInformation extends StatelessWidget {
             style:
                 (compact
                         ? context.echoTypography.body.copyWith(
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           )
                         : context.echoTypography.title)
                     .copyWith(color: context.echoColors.muted),

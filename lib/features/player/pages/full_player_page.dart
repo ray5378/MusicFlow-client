@@ -16,7 +16,7 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
-import '../widgets/mini_player.dart' show PlayerSwitcherSheet;
+import '../widgets/mini_player.dart' show PlayerSwitcherSheet, VolumeButton;
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/player_hero_helpers.dart';
 import '../widgets/player_scrubber.dart';
@@ -326,15 +326,11 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       behavior: HitTestBehavior.translucent,
       child: Stack(
         children: <Widget>[
-          // 右上角「更多操作」:唯一悬浮操作,点击不缩小播放器。
+          // 右上角音量控制:点击弹出音量调节弹窗(替代原「更多」按钮)。
           Positioned(
             top: spacing.sm,
             right: spacing.sm,
-            child: _PlayerIconButton(
-              icon: AppIcons.more,
-              label: '${song.title} 操作',
-              onPressed: () => _showSongActions(song),
-            ),
+            child: const VolumeButton(anchorTop: true),
           ),
           // 主内容:整体垂直居中,不产生上沿白边。
           Center(

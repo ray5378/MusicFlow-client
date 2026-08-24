@@ -197,7 +197,7 @@ class MediaDetailSectionSwitcher extends StatelessWidget {
                               : context.echoColors.ink,
                           fontWeight: index == selectedIndex
                               ? FontWeight.w700
-                              : FontWeight.w600,
+                              : FontWeight.w500,
                         ),
                       ),
                     ),

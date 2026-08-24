@@ -110,6 +110,18 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # 全局中文字体：HarmonyOS Sans SC（笔画均匀、干净耐看，修复 Windows 端
+  # Segoe UI + 微软雅黑回退导致的部分字粗部分字细问题）。
+  fonts:
+    - family: HarmonyOS Sans SC
+      fonts:
+        - asset: assets/fonts/HarmonyOSSansSC-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/HarmonyOSSansSC-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/HarmonyOSSansSC-Bold.ttf
+          weight: 700
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

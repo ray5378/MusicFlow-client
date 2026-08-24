@@ -638,7 +638,7 @@ class _AnimatedDestinationLabel extends StatelessWidget {
       curve: motion.easeOut,
       style: (style ?? context.echoTypography.label).copyWith(
         color: color,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
       ),
       child: Text(
         label,
@@ -701,7 +701,7 @@ class _SidebarActionEntry extends StatelessWidget {
                 ),
                 style: context.echoTypography.title.copyWith(
                   color: colors.muted,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
                 child: Text(
                   label,

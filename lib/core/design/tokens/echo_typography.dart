@@ -21,12 +21,17 @@ class EchoTypography extends ThemeExtension<EchoTypography> {
   final TextStyle label;
   final TextStyle metadata;
 
+  /// 全局字体家族：与 pubspec.yaml 中注册的 HarmonyOS Sans SC 对应，
+  /// 笔画均匀统一，消除 Windows 端混排时部分字粗/部分字细的现象。
+  static const String fontFamily = 'HarmonyOS Sans SC';
+
   factory EchoTypography.standard(EchoColors colors) {
     // 字号规格对齐「箭头音乐」参考稿(/root/opencode/photo/ui.jpg):
     // 内容紧凑、层级分明 —— 大标题 26 / 区块标题 19 / 条目标题 15 /
     // 正文 13 / 标签 12 / 元数据 11。禁止在 UI 中硬编码字号,统一走本令牌。
     return EchoTypography(
       display: TextStyle(
+        fontFamily: fontFamily,
         color: colors.ink,
         fontSize: 26,
         fontWeight: FontWeight.w700,
@@ -34,6 +39,7 @@ class EchoTypography extends ThemeExtension<EchoTypography> {
         letterSpacing: -0.52,
       ),
       headline: TextStyle(
+        fontFamily: fontFamily,
         color: colors.ink,
         fontSize: 19,
         fontWeight: FontWeight.w700,
@@ -41,25 +47,31 @@ class EchoTypography extends ThemeExtension<EchoTypography> {
         letterSpacing: -0.19,
       ),
       title: TextStyle(
+        fontFamily: fontFamily,
         color: colors.ink,
         fontSize: 15,
-        fontWeight: FontWeight.w600,
+        // HarmonyOS Sans SC 无 600 字重,Medium=500 最贴近原 600 的层级意图。
+        fontWeight: FontWeight.w500,
         height: 1.3,
       ),
       body: TextStyle(
+        fontFamily: fontFamily,
         color: colors.ink,
         fontSize: 13,
         fontWeight: FontWeight.w400,
         height: 1.5,
       ),
       label: TextStyle(
+        fontFamily: fontFamily,
         color: colors.ink,
         fontSize: 12,
-        fontWeight: FontWeight.w600,
+        // 同 title,SC 最小 Medium=500,统一到真实字重保证渲染一致。
+        fontWeight: FontWeight.w500,
         height: 1.25,
         letterSpacing: 0.12,
       ),
       metadata: TextStyle(
+        fontFamily: fontFamily,
         color: colors.muted,
         fontSize: 11,
         fontWeight: FontWeight.w500,

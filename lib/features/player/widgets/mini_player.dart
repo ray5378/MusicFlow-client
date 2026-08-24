@@ -313,7 +313,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
           onPressed: widget.onOpenQueue,
         ),
       ),
-      const _VolumeButton(),
+      const VolumeButton(),
       Tooltip(
         message: '切换播放器，当前：${widget.currentPlayerName}',
         child: EchoIconButton(
@@ -971,14 +971,18 @@ class _PlayModeButton extends StatelessWidget {
 /// 对齐主项目前端 setVolume：
 /// - 投屏(选中远端 peer) → POST /peers/:id/volume {volume:0-100}；
 /// - 本机 → just_audio setVolume(0-1)，并持久化供下次启动恢复。
-class _VolumeButton extends ConsumerStatefulWidget {
-  const _VolumeButton();
+class VolumeButton extends ConsumerStatefulWidget {
+  const VolumeButton({super.key, this.anchorTop = false});
+
+  /// true 时音量弹窗贴近屏幕顶部(适用于全屏播放器右上角的音量按钮)；
+  /// false 时贴近底部(迷你播放条使用)。
+  final bool anchorTop;
 
   @override
-  ConsumerState<_VolumeButton> createState() => _VolumeButtonState();
+  ConsumerState<VolumeButton> createState() => VolumeButtonState();
 }
 
-class _VolumeButtonState extends ConsumerState<_VolumeButton> {
+class VolumeButtonState extends ConsumerState<VolumeButton> {
   OverlayEntry? _overlayEntry;
 
   /// 拖动中的临时音量（0.0~1.0）。拖动期间优先显示它，松手后置空。
@@ -1084,7 +1088,8 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
             ),
           ),
           Positioned(
-            bottom: 80,
+            bottom: widget.anchorTop ? null : 80,
+            top: widget.anchorTop ? 16 : null,
             right: 16,
             child: GestureDetector(
               // 抢占命中：点击弹窗内部不触发外部关闭。
@@ -1125,7 +1130,7 @@ class _VolumeButtonState extends ConsumerState<_VolumeButton> {
                               '$percent%',
                               style: TextStyle(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
                                 color: context.echoColors.ink,
                               ),
                             ),
