@@ -686,6 +686,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         currentBitRateKbps: 0,
       );
 
+      // 换队列/换歌即触发预探测（非阻塞）：尽早标记后续坏源歌曲。
+      // 即使当前首曲播放失败、未走到"播放成功"的预探测点，
+      // 也能提前把接下来几首的坏源标记为跳过（覆盖所有播放链路的兜底）。
+      unawaited(_probeUpcoming());
+
       // 更新通知栏媒体信息
       _updateMediaItem(song);
       _scheduleSongRemoteRefresh(song, debugSession);
@@ -1404,7 +1409,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
       // 有可用线路但转码仍失败 → 自动跳到下一首，避免"卡在第一首"。
-      // （对齐主项目前端 localHandlePlaybackError；连续失败会停止并提示。）
+      // （对齐主项目前端 localHandlePlaybackError；连续失败会继续向前跳过，
+      //  仅整队不可播时才停止并提示。）
       _handlePlaybackError(song.id);
     }
   }
@@ -1708,25 +1714,51 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// 播放失败自动跳过：与主项目前端 localHandlePlaybackError 一致。
-  /// 累计连续失败达上限后停止，避免整队不可播时死循环。
+  /// 连续失败过多时**不再硬停**，而是把失败歌曲记入死歌集合继续向前跳过，
+  /// 直到找到可播歌曲；仅当整队都已确认不可播时才停止并提示，
+  /// 避免"随机歌单/平台歌单连续坏源"时客户端卡在暂停。
   void _handlePlaybackError(String? songId) {
     if (!mounted) return;
     _failStreak++;
+    // 把本次失败歌曲记入死歌集合：后续队列项直接跳过，不反复尝试。
+    if (songId != null && songId.isNotEmpty) {
+      _markSongDead(songId);
+    }
     Logger.warnWithTag(
       _playerLogTag,
       '播放失败(${_failStreak}/$_maxFailStreak) songId=$songId, 自动跳过',
     );
-    if (_failStreak >= _maxFailStreak) {
-      Logger.warnWithTag(_playerLogTag, '连续失败过多,停止自动跳过');
+    // 整队都已确认不可播：停止并提示，避免整队坏源时无限跳过。
+    final queue = state.queue;
+    if (queue.isNotEmpty && queue.every((s) => _deadSongs.contains(s.id))) {
+      Logger.warnWithTag(_playerLogTag, '整队不可播,停止自动跳过');
       _failStreak = 0;
       state = state.copyWith(isPlaying: false);
       // 给用户可见反馈，避免"点了播放没反应"的假象（Windows 排查关键）。
       NetworkErrorNotifier.show(
-        '连续播放失败，请检查服务器连接与音频源是否可用',
+        '当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用',
       );
       return;
     }
+    if (_failStreak >= _maxFailStreak) {
+      // 连续失败过多：重置计数并继续向前跳过（长段坏源时不再中途停住）。
+      Logger.warnWithTag(_playerLogTag, '连续失败过多,继续向前跳过找可播歌曲');
+      _failStreak = 0;
+    }
     next();
+  }
+
+  /// 把歌曲标记为已确认不可播（与预探测结果共用 _deadSongs 集合，带上限）。
+  void _markSongDead(String songId) {
+    if (_probeCache.length >= _probeCacheMaxEntries) {
+      _probeCache.clear();
+      _deadSongs.clear();
+    }
+    _probeCache[songId] = false;
+    if (_deadSongs.length >= _deadSongsMaxEntries) {
+      _deadSongs.clear();
+    }
+    _deadSongs.add(songId);
   }
 
   /// 预探测接下来可能播放的歌曲是否可用（与主项目前端 probeUpcoming 一致）。
@@ -1960,7 +1992,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     } catch (e) {
       Logger.error('Failed to resolve preview song', e);
       if (_playDebugSession == debugSession) {
-        NetworkErrorNotifier.show('试听链接解析失败');
+        // 试听链接解析失败 → 记入死歌并在当前试听队列内自动跳下一首。
+        // 注意:此处 state 尚未切换到本试听队列,不能走 _handlePlaybackError
+        // (它的 next() 会推进旧队列),只能在本队列内就地跳转。
+        _markSongDead(song.id);
+        final nextIdx = index + 1;
+        if (nextIdx < queue.length) {
+          await playSong(
+            queue[nextIdx],
+            queue: queue,
+            index: nextIdx,
+            autoPlay: autoPlay,
+          );
+        } else {
+          NetworkErrorNotifier.show('试听链接解析失败');
+        }
       }
       return;
     }
@@ -2085,7 +2131,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         NetworkErrorNotifier.show('试听播放失败，当前无可用线路');
         return;
       }
-      NetworkErrorNotifier.show('试听播放失败');
+      // 有可用线路但试听仍失败 → 自动跳到下一首，避免"卡在试听首曲"。
+      // （对齐本机链路 localHandlePlaybackError；连续失败会继续向前跳过，
+      //  仅整队不可播时才停止并提示。）
+      _handlePlaybackError(resolvedSong.id);
     }
   }
 
