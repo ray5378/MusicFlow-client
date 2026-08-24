@@ -38,8 +38,8 @@ class StatusLyricsController {
   final Ref _ref;
   bool _enabled = false;
   String? _lastPushed;
-  StreamSubscription<bool>? _enabledSub;
-  StreamSubscription<String?>? _lyricsSub;
+  ProviderSubscription<bool>? _enabledSub;
+  ProviderSubscription<String?>? _lyricsSub;
 
   /// 仅在开启时订阅当前歌词行,避免在关闭状态下无谓触发歌词网络拉取。
   void _syncLyricsSubscription() {
