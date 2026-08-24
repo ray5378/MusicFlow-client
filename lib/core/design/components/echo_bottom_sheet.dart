@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_icons.dart';
 import '../echo_context.dart';
+import '../tokens/echo_breakpoints.dart';
 import '../tokens/echo_spacing.dart';
 import 'echo_icon_button.dart';
 import 'echo_pressable.dart';
@@ -18,33 +19,75 @@ Future<T?> showEchoBottomSheet<T>({
   final previousFocus = FocusManager.instance.primaryFocus;
   final motion = context.echoMotion;
   final duration = motion.resolve(context, motion.scene);
-  final result = await showModalBottomSheet<T>(
-    context: context,
-    useRootNavigator: useRootNavigator,
-    isScrollControlled: isScrollControlled,
-    isDismissible: isDismissible,
-    enableDrag: enableDrag,
-    // A scroll-controlled sheet can grow to the full viewport. Keep the
-    // route below system cut-outs even when large text makes it full-height.
-    useSafeArea: true,
-    requestFocus: true,
-    showDragHandle: false,
-    elevation: 0,
-    backgroundColor: Colors.transparent,
-    barrierColor: context.echoColors.scrim,
-    clipBehavior: Clip.none,
-    constraints: const BoxConstraints(maxWidth: 640),
-    sheetAnimationStyle: duration == Duration.zero
-        ? AnimationStyle.noAnimation
-        : AnimationStyle(
-            duration: duration,
-            reverseDuration: motion.resolve(context, motion.state),
+
+  final T? result;
+  if (context.echoWindowClass != EchoWindowClass.compact) {
+    // 桌面端(medium/expanded):不用安卓式底部抽屉,改用居中的模态弹窗,
+    // 更符合 Windows「对话框」交互习惯;淡入 + 轻微缩放,共享同一动效时长。
+    result = await showGeneralDialog<T>(
+      context: context,
+      useRootNavigator: useRootNavigator,
+      barrierDismissible: isDismissible,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierColor: context.echoColors.scrim,
+      transitionDuration: duration,
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1).animate(curved),
+            child: child,
           ),
-    builder: (sheetContext) => FocusTraversalGroup(
-      policy: OrderedTraversalPolicy(),
-      child: builder(sheetContext),
-    ),
-  );
+        );
+      },
+      pageBuilder: (dialogContext, animation, secondaryAnimation) => SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Material(
+              type: MaterialType.transparency,
+              child: FocusTraversalGroup(
+                policy: OrderedTraversalPolicy(),
+                child: builder(dialogContext),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  } else {
+    // 移动端(compact):保留安卓式底部抽屉,是手机端自然的交互。
+    result = await showModalBottomSheet<T>(
+      context: context,
+      useRootNavigator: useRootNavigator,
+      isScrollControlled: isScrollControlled,
+      isDismissible: isDismissible,
+      enableDrag: enableDrag,
+      useSafeArea: true,
+      requestFocus: true,
+      showDragHandle: false,
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      barrierColor: context.echoColors.scrim,
+      clipBehavior: Clip.none,
+      constraints: const BoxConstraints(maxWidth: 640),
+      sheetAnimationStyle: duration == Duration.zero
+          ? AnimationStyle.noAnimation
+          : AnimationStyle(
+              duration: duration,
+              reverseDuration: motion.resolve(context, motion.state),
+            ),
+      builder: (sheetContext) => FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: builder(sheetContext),
+      ),
+    );
+  }
 
   if (context.mounted && previousFocus?.canRequestFocus == true) {
     previousFocus!.requestFocus();

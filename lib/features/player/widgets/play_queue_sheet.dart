@@ -599,6 +599,7 @@ class CastQueueSheetView extends StatelessWidget {
                               onPressed: () => unawaited(onSelect(index)),
                               onMorePressed: () => onRemove(index),
                               moreSemanticLabel: '${song.title}，从投屏队列移除',
+                              showMoreButton: false,
                             ),
                           ),
                         );
@@ -751,6 +752,7 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
             widget.onOpenSongActions(context, i, song),
           ),
           moreSemanticLabel: '${song.title}，更多操作',
+          showMoreButton: false,
         );
         // 只在当前行挂 GlobalKey,供 ensureVisible 精确定位居中。
         return isCurrent ? KeyedSubtree(key: _currentKey, child: row) : row;
