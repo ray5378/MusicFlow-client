@@ -48,3 +48,20 @@ String? extractTrustedCoverUrl(String? value) {
 bool isTrustedCoverUrlRef(String? value) {
   return extractTrustedCoverUrl(value) != null;
 }
+
+/// 解析封面上报值，生成可直接交给 [CoverArtImage.coverArtId] 的引用。
+/// 兼容两种形式：
+/// - 完整 `http(s)://` 链接：包装成 `trusted-url:` 引用走服务端代理；
+/// - 服务端 coverArtId（如 `al-xxx` / `pl-xxx`）：原样返回走 `/rest/getCoverArt`。
+/// 两者都解析失败返回 null（不上传无效值，卡片显示封面占位）。
+String? toCoverArtRef(String? cover) {
+  final trimmed = cover?.trim() ?? '';
+  if (trimmed.isEmpty) return null;
+  if (trimmed.startsWith(_trustedCoverUrlPrefix)) {
+    return extractTrustedCoverUrl(trimmed) != null ? trimmed : null;
+  }
+  final trusted = tryToTrustedCoverUrlRef(trimmed);
+  if (trusted != null) return trusted;
+  if (sanitizeServerCoverArtId(trimmed) != null) return trimmed;
+  return null;
+}

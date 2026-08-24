@@ -230,7 +230,7 @@ class SearchAlbumCard extends StatelessWidget {
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: CoverArtImage(
-                          coverArtId: tryToTrustedCoverUrlRef(album.cover) ?? '',
+                          coverArtId: toCoverArtRef(album.cover) ?? '',
                           size: 120,
                           requestSize: 240,
                           fit: BoxFit.cover,
@@ -310,7 +310,7 @@ class SearchArtistCard extends StatelessWidget {
                 artist.avatar.isNotEmpty
                     ? ClipOval(
                         child: CoverArtImage(
-                          coverArtId: tryToTrustedCoverUrlRef(artist.avatar) ?? '',
+                          coverArtId: toCoverArtRef(artist.avatar) ?? '',
                           size: 120,
                           requestSize: 240,
                           fit: BoxFit.cover,
@@ -382,7 +382,7 @@ class SearchPlaylistCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         child: CoverArtImage(
                           coverArtId:
-                              tryToTrustedCoverUrlRef(playlist.cover) ?? '',
+                              toCoverArtRef(playlist.cover) ?? '',
                           size: 120,
                           requestSize: 240,
                           fit: BoxFit.cover,
