@@ -320,21 +320,34 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         ? spacing.md
         : context.echoPageHorizontalPadding;
 
-    return Column(
-      key: const ValueKey<String>('full_player_wide_layout'),
-      children: <Widget>[
-        _PlayerTopBar(
-          song: song,
-          onClose: _closeToMini,
-          onOpenActions: () => _showSongActions(song),
-        ),
-        Expanded(
-          child: Padding(
+    // 外层 GestureDetector 监听空白点击以关闭播放器。
+    // behavior: HitTestBehavior.translucent 允许点击事件穿透到子元素（如歌词、封面）
+    // 但子元素内部的 GestureDetector 会阻止事件继续冒泡到此外层。
+    return GestureDetector(
+      onTap: _closeToMini,
+      behavior: HitTestBehavior.translucent,
+      child: Stack(
+        children: <Widget>[
+          // 右上角更多操作按钮（替代原左上角的缩小按钮）
+          Positioned(
+            top: spacing.sm,
+            right: spacing.sm,
+            child: GestureDetector(
+              onTap: () {}, // 阻止冒泡
+              child: _PlayerIconButton(
+                icon: AppIcons.more,
+                label: '${song.title} 操作',
+                onPressed: () => _showSongActions(song),
+              ),
+            ),
+          ),
+          // 主要内容
+          Padding(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              0, // 去除顶部留白
+              spacing.md, // 给顶部留空间给右上角按钮
               horizontalPadding,
-              spacing.xs,
+              spacing.md,
             ),
             child: Center(
               child: ConstrainedBox(
@@ -348,10 +361,8 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                       final columnGap = spacing.lg;
                       final leftRightGap = spacing.xl;
 
-                      // 左半部分：封面 + 信息 + 控件 (Column)
+                      // 左半部分：封面 + 信息 + 控件
                       // 右半部分：歌词 (常驻面板)
-                      // 歌词宽度取「最舒服」的阅读区间(340~540)，大屏下不再无限拉宽，
-                      // 剩余空间全部留给左半部分，保证封面与控件不被挤压。
                       final availableWidth = constraints.maxWidth - columnGap - leftRightGap;
                       final rightPaneWidth = (availableWidth * 0.45)
                           .clamp(340.0, 540.0)
@@ -363,47 +374,53 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                           // 左侧：封面 + 信息 + 控件
                           SizedBox(
                             width: leftPaneWidth,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                // 上半部：封面 (居中)
-                                Expanded(
-                                  flex: 3,
-                                  child: _buildWideArtworkPane(song),
-                                ),
-                                SizedBox(height: spacing.sm),
-                                // 下半部：信息 + 控件 (Row)
-                                Expanded(
-                                  flex: 2,
-                                  child: LayoutBuilder(
-                                    builder: (context, innerConstraints) {
-                                      return Row(
-                                        crossAxisAlignment: CrossAxisAlignment.center,
+                            child: GestureDetector(
+                              onTap: () {}, // 阻止冒泡
+                              behavior: HitTestBehavior.translucent,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: <Widget>[
+                                  // 上半部：封面 (居中)
+                                  Expanded(
+                                    flex: 3,
+                                    child: _buildWideArtworkPane(song),
+                                  ),
+                                  SizedBox(height: spacing.sm),
+                                  // 下半部：信息 + 控件 (垂直排列)
+                                  Expanded(
+                                    flex: 2,
+                                    child: GestureDetector(
+                                      onTap: () {}, // 阻止冒泡
+                                      behavior: HitTestBehavior.translucent,
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
                                         children: <Widget>[
-                                          // 左侧信息
-                                          Expanded(
-                                            child: _buildWideDetailsPane(
-                                              song,
-                                              subtitle: subtitle,
-                                              showControls: false,
-                                            ),
+                                          // 歌曲信息
+                                          _buildWideDetailsPane(
+                                            song,
+                                            subtitle: subtitle,
+                                            showControls: false,
                                           ),
-                                          SizedBox(width: spacing.md),
-                                          // 右侧控件
+                                          SizedBox(height: spacing.sm),
+                                          // 播放控件（居中显示）
                                           _buildControlPanel(song, compact: true, showLyricsToggle: false),
                                         ],
-                                      );
-                                    },
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                           SizedBox(width: leftRightGap),
                           // 右侧：歌词 (常驻)
                           SizedBox(
                             width: rightPaneWidth,
-                            child: const _PlayerLyricsPane(),
+                            child: GestureDetector(
+                              onTap: () {}, // 阻止冒泡
+                              behavior: HitTestBehavior.translucent,
+                              child: const _PlayerLyricsPane(),
+                            ),
                           ),
                         ],
                       );
@@ -413,8 +430,8 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
