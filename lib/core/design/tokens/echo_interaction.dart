@@ -27,8 +27,9 @@ class EchoInteraction extends ThemeExtension<EchoInteraction> {
     iconSize: 24,
     smallIconSize: 22,
     focusRingWidth: 2,
-    // 按下缩放系数：0.96 提供清晰可感知的「按压缩放」反馈(全局 EchoPressable)。
-    pressedScale: 0.96,
+    // 按下缩放系数：0.94 配合高亮闪现,移动端与桌面端点击时都有清晰可感的
+    // 「按压缩放」反馈(全局 EchoPressable,由 AnimationController 驱动)。
+    pressedScale: 0.94,
     disabledOpacity: 0.56,
   );
 

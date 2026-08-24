@@ -77,18 +77,42 @@ class EchoPressable extends StatefulWidget {
   State<EchoPressable> createState() => _EchoPressableState();
 }
 
-class _EchoPressableState extends State<EchoPressable> {
+class _EchoPressableState extends State<EchoPressable>
+    with SingleTickerProviderStateMixin {
   static const Map<ShortcutActivator, Intent> _shortcuts =
       <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
         SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
       };
 
-  /// 是否处于按压状态(驱动按压缩放动效)。
-  bool _depressed = false;
+  /// 按压进入(按下→高亮/缩放达峰)时长。
+  static const Duration _pressIn = Duration(milliseconds: 70);
+  /// 按压退出(高亮渐淡消失、缩放回弹)时长。此渐变让「快速点按」也清晰可见。
+  static const Duration _pressOut = Duration(milliseconds: 240);
+  /// 按下高亮浓度上限,叠加在被按区域上。
+  static const double _pressHighlightAlpha = 0.30;
+
+  /// 按压动效控制器:0=静止,1=完全按下。高亮与缩放由同一控制器驱动,
+  /// 松开后经 [_pressOut] 渐淡回弹——移动端与桌面端在任何点击速度下都有可见反馈。
+  late final AnimationController _feedback;
+
+  /// 是否仍处于物理按下状态(决定松开后是从峰值回弹而非停在半途)。
+  bool _pressed = false;
 
   bool get _interactive =>
       widget.onPressed != null || widget.onLongPress != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _feedback = AnimationController(vsync: this, duration: _pressOut);
+  }
+
+  @override
+  void dispose() {
+    _feedback.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,10 +165,11 @@ class _EchoPressableState extends State<EchoPressable> {
           actions: <Type, Action<Intent>>{
             ActivateIntent: CallbackAction<ActivateIntent>(
               onInvoke: (intent) {
-                final action = widget.onPressed ?? widget.onLongPress;
-                if (action != null) _invoke(action);
-                return null;
-              },
+                  _activatePulse();
+                  final action = widget.onPressed ?? widget.onLongPress;
+                  if (action != null) _invoke(action);
+                  return null;
+                },
             ),
           },
           child: _EchoPressableFocus(
@@ -188,9 +213,8 @@ class _EchoPressableState extends State<EchoPressable> {
                       overlayColor: WidgetStateProperty.resolveWith<Color?>(
                         (states) {
                           if (!_interactive) return Colors.transparent;
-                          if (states.contains(WidgetState.pressed)) {
-                            return pressedOverlay.withValues(alpha: 0.14);
-                          }
+                          // 按下高亮由下方按压缩放反馈(Transform+前景色)统一绘制,
+                          // InkWell 仅保留 hover 高亮,避免叠加浑浊。
                           if (states.contains(WidgetState.hovered)) {
                             return hoverOverlay.withValues(alpha: 0.08);
                           }
@@ -208,19 +232,33 @@ class _EchoPressableState extends State<EchoPressable> {
       ),
     );
 
-    // 按压缩放反馈：用 raw 指针监听(透明、不参与手势竞技场,不吞事件、不干扰
-    // 滚动/拖拽)追踪按下/松开,配合 AnimatedScale 实现「按下微缩、松开回弹」。
-    // 桌面端鼠标 hover 不会触发按下,只有真正按下才缩放。
+    // 按压反馈：用 raw 指针监听(透明、不参与手势竞技场,不吞事件、不干扰滚动/
+    // 拖拽)追踪按下/松开,由 [_feedback] 控制器统一驱动「缩放 + 高亮闪现」。
+    // 点按后经 [_pressOut] 渐淡回弹,因此快速点按与桌面端鼠标左键都能看清反馈;
+    // 鼠标右键/中键与 hover 不触发。
     return Listener(
       onPointerDown: _handlePointerDown,
-      onPointerUp: (_) => _setDepressed(false),
-      onPointerCancel: (_) => _setDepressed(false),
+      onPointerUp: (_) => _handlePointerRelease(),
+      onPointerCancel: (_) => _handlePointerRelease(),
       behavior: HitTestBehavior.deferToChild,
-      child: AnimatedScale(
-        scale: _depressed && _interactive ? interaction.pressedScale : 1.0,
-        duration: motion.resolve(context, motion.feedback),
-        curve: motion.easeOut,
+      child: AnimatedBuilder(
+        animation: _feedback,
         child: pressable,
+        builder: (context, child) {
+          final v = _feedback.value;
+          return Transform.scale(
+            scale: 1.0 - (1.0 - interaction.pressedScale) * v,
+            child: Container(
+              foregroundDecoration: BoxDecoration(
+                borderRadius: radius,
+                color: pressedOverlay.withValues(
+                  alpha: _pressHighlightAlpha * v,
+                ),
+              ),
+              child: child,
+            ),
+          );
+        },
       ),
     );
   }
@@ -231,12 +269,22 @@ class _EchoPressableState extends State<EchoPressable> {
     if (event.buttons == kSecondaryButton || event.buttons == kMiddleMouseButton) {
       return;
     }
-    _setDepressed(true);
+    _pressed = true;
+    _feedback.forward(duration: _pressIn);
   }
 
-  void _setDepressed(bool value) {
-    if (_depressed == value) return;
-    setState(() => _depressed = value);
+  /// 松开/取消：从峰值按 [_pressOut] 渐淡回弹,使快速点按产生可见的「闪亮→消退」。
+  void _handlePointerRelease() {
+    if (!_pressed) return;
+    _pressed = false;
+    _feedback.reverse(duration: _pressOut);
+  }
+
+  /// 键盘激活(Enter/Space)时也闪现一次按压反馈,保证无障碍用户可见。
+  void _activatePulse() {
+    _feedback.forward(from: 0, duration: _pressIn).whenComplete(() {
+      if (mounted && !_pressed) _feedback.reverse(duration: _pressOut);
+    });
   }
 
   void _invoke(VoidCallback action) {
