@@ -28,7 +28,6 @@ import 'audio_quality_page.dart';
 import 'cache_management_page.dart';
 import 'cover_providers_page.dart';
 import 'lyrics_providers_page.dart';
-import 'playback_stats_page.dart';
 import 'theme_settings_page.dart';
 
 /// 全屏设置页
@@ -376,19 +375,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               SizedBox(height: context.echoSpacing.xl),
               EchoSettingsSection(
                 title: '存储与数据',
-                description: '管理本机缓存，并查看音乐库与播放统计。',
+                description: '管理本机缓存。',
                 children: <Widget>[
                   EchoSettingRow(
                     icon: AppIcons.storage,
                     title: '缓存管理',
                     description: '音频、图片与歌词缓存',
                     onPressed: () => _pushPage(const CacheManagementPage()),
-                  ),
-                  EchoSettingRow(
-                    icon: AppIcons.analytics,
-                    title: '统计信息',
-                    description: '音乐库、播放、收藏与缓存统计',
-                    onPressed: () => _pushPage(const PlaybackStatsPage()),
                   ),
                 ],
               ),

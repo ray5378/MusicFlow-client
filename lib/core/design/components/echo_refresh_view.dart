@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 
 import '../../theme/app_icons.dart';
@@ -94,6 +96,15 @@ class _EchoRefreshViewState extends State<EchoRefreshView> {
 
   @override
   Widget build(BuildContext context) {
+    // 安卓触屏端:滚动容器处于顶部时,任意轻微下拉都会进入 drag 阶段并弹出
+    // "下拉刷新"气泡,与正常向下滚动冲突(用户反馈"每次向下滚动都提示下拉刷新")。
+    // 这里在安卓端直接去掉下拉刷新手势与气泡,页面内容改为纯滚动。
+    final isAndroidTouch =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    if (isAndroidTouch) {
+      return widget.child;
+    }
+
     final motion = context.echoMotion;
     final colors = context.echoColors;
     final feedback = _RefreshFeedback.from(_phase);

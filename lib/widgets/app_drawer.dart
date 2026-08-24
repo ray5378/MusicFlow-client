@@ -6,7 +6,6 @@ import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/features/download/pages/download_manager_page.dart';
 import 'package:musicflow_client/features/offline/pages/offline_download_status_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
-import 'package:musicflow_client/features/settings/pages/playback_stats_page.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 import 'package:flutter/material.dart';
@@ -153,12 +152,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         onPressed: _closeDrawerAndShowRouteSelection,
       ),
       null,
-      _DrawerNavigationEntry(
-        icon: AppIcons.analytics,
-        title: '统计信息',
-        onPressed: () =>
-            _closeDrawerAndPushPage((context) => const PlaybackStatsPage()),
-      ),
       _DrawerNavigationEntry(
         icon: AppIcons.downloadOutline,
         title: '下载管理',
