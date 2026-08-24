@@ -49,7 +49,7 @@ class StatusLyricsController {
         (_, __) => _push(),
       );
     } else if (!_enabled && _lyricsSub != null) {
-      _lyricsSub!.cancel();
+      _lyricsSub!.close();
       _lyricsSub = null;
     }
   }
@@ -95,7 +95,7 @@ class StatusLyricsController {
   }
 
   void dispose() {
-    _enabledSub?.cancel();
-    _lyricsSub?.cancel();
+    _enabledSub?.close();
+    _lyricsSub?.close();
   }
 }
