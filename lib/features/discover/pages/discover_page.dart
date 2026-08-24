@@ -8,6 +8,7 @@ import '../../../core/design/echo_design.dart';
 import '../../../core/utils/logger.dart';
 import '../../../data/models/recommend.dart';
 import '../../../data/models/song.dart';
+import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/metadata_cache_provider.dart';
@@ -273,6 +274,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   void initState() {
     super.initState();
     _loadCachedSongs();
+    // 监听投屏队列自然播完:DLNA 设备整轮播放完毕后自动加载下一轮随机歌曲续播。
+    ref.listen<CastPeerState>(castPeerControllerProvider, (prev, next) {
+      if (!_autoContinue) return;
+      if (next.endOfQueueCount > (prev?.endOfQueueCount ?? -1)) {
+        Logger.infoWithTag('DISCOVER', 'cast queue ended, loading next round');
+        unawaited(_loadNextRound());
+      }
+    });
   }
 
   /// 先读本地缓存的随机歌曲,让区块立即有内容可展示,不等远程。

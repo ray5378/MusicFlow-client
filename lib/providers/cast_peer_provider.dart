@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
 
+import '../core/utils/logger.dart';
 import '../data/models/peer.dart';
 import '../data/models/song.dart';
 import 'api_provider.dart';
@@ -65,6 +66,7 @@ class CastPeerState {
     this.castQueue = const <Map<String, dynamic>>[],
     this.castIndex = -1,
     this.offline = false,
+    this.endOfQueueCount = 0,
   });
 
   /// null = 本机播放。
@@ -85,6 +87,11 @@ class CastPeerState {
   /// 远端连续轮询失败(离线/被移除)。
   final bool offline;
 
+  /// 队列**自然播完**计数:设备曾处于活跃播放,随后无任何客户端命令干预而
+  /// 跳变为非活跃(STOPPED/空)即判定队列到底,计数 +1。
+  /// 随机歌曲「播完自动换一批」等场景监听此值变化触发续播。
+  final int endOfQueueCount;
+
   bool get isCasting => activePeer != null;
 
   /// 设备是否真的在播(后端 state 判定)。
@@ -102,6 +109,7 @@ class CastPeerState {
     List<Map<String, dynamic>>? castQueue,
     int? castIndex,
     bool? offline,
+    int? endOfQueueCount,
   }) {
     return CastPeerState(
       activePeer: clearActivePeer ? null : (activePeer ?? this.activePeer),
@@ -112,6 +120,7 @@ class CastPeerState {
       castQueue: castQueue ?? this.castQueue,
       castIndex: castIndex ?? this.castIndex,
       offline: offline ?? this.offline,
+      endOfQueueCount: endOfQueueCount ?? this.endOfQueueCount,
     );
   }
 }
@@ -138,6 +147,13 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   /// 上次轮询读到的 position(用于「position 真实前进」播放态自愈判定)。
   double _lastPollPosition = -1;
+
+  /// 队列自然播完检测:设备上一轮是否处于活跃播放。
+  bool _wasActivePlaying = false;
+
+  /// 自设备开始播放以来,客户端是否发过传输命令(stop/pause/切歌/加歌等)。
+  /// 若设备从活跃播放跳变为非活跃且期间无用户命令,即判定为「队列自然播完」。
+  bool _userCommandSincePlaying = false;
 
   /// 离开本机时的本地播放状态快照(回本机时恢复,保证「切换前设备」逻辑不丢)。
   LocalPlaybackSnapshot? _localSnapshot;
@@ -317,6 +333,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final client = _ref.read(subsonicApiClientProvider);
     if (peerId != null) {
       final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
+      _markUserCommand();
       try {
         await client.postRaw('$base/stop').timeout(const Duration(seconds: 8));
       } catch (_) {}
@@ -461,6 +478,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     int startIndex,
   ) async {
     final client = _ref.read(subsonicApiClientProvider);
+    _markUserCommand();
     try {
       final resp = await client
           .postRaw(
@@ -548,6 +566,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final peerId = state.activePeer?.peerId;
     final client = _ref.read(subsonicApiClientProvider);
     if (peerId != null) {
+      _markUserCommand();
       try {
         await client
             .deleteRaw('/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue')
@@ -563,6 +582,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _stopTimers();
     _failureCount = 0;
     _pollInterval = const Duration(seconds: 2);
+    _wasActivePlaying = false;
+    _userCommandSincePlaying = false;
     unawaited(_tick(peerId));
     _schedulePoll(peerId);
     _tickTimer = Timer.periodic(
@@ -632,6 +653,22 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           ? next.copyWith(state: 'PLAYING', active: true)
           : next;
 
+      // 队列自然播完检测:设备曾处于活跃播放,随后无任何客户端命令干预而跳变为
+      // 非活跃(STOPPED/空)即判定整轮队列播放完毕,endOfQueueCount +1,
+      // 供随机歌曲「播完自动换一批」等场景监听触发续播。
+      if (effectiveStatus.active) {
+        _wasActivePlaying = true;
+        // 设备已在用户命令后恢复活跃播放:清除命令标记,恢复自然播完判定能力。
+        if (_userCommandSincePlaying) _userCommandSincePlaying = false;
+      } else {
+        if (_wasActivePlaying && !_userCommandSincePlaying) {
+          final ended = state.endOfQueueCount + 1;
+          state = state.copyWith(endOfQueueCount: ended);
+          Logger.infoWithTag('CAST', 'queue naturally ended, count=$ended');
+        }
+        _wasActivePlaying = false;
+      }
+
       // 队列权威在后端:同步 currentIndex/playMode/队列快照(UI 曲目/歌词/队列跟随设备)。
       final snap = await client
           .getRaw('$base/queue')
@@ -691,6 +728,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final peerId = state.activePeer?.peerId;
     final client = _ref.read(subsonicApiClientProvider);
     if (peerId == null) return null;
+    _markUserCommand();
     try {
       return await client
           .postRaw(
@@ -702,6 +740,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       return null;
     }
   }
+
+  /// 标记「客户端发出过传输命令」,抑制队列自然播完的误判。
+  void _markUserCommand() => _userCommandSincePlaying = true;
 
   @override
   void dispose() {
