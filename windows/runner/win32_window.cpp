@@ -207,6 +207,13 @@ Win32Window::MessageHandler(HWND hwnd,
 
       return 0;
     }
+    case WM_NCCALCSIZE:
+      // 无边框窗口：移除标题栏(WS_CAPTION)后，系统仍会因保留 WS_THICKFRAME
+      // 在窗口顶部绘制一条非客户区边框线(白/亮色细边，横贯整窗)。
+      // 让客户区铺满整个窗口、裁掉这条白边；WS_THICKFRAME 仍在，
+      // 调整大小的边缘热区不受影响。(Windows 11 下 DWM 仍提供圆角阴影。)
+      return 0;
+
     case WM_SIZE: {
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {
