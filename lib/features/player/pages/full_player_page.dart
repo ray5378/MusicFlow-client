@@ -23,6 +23,7 @@ import '../widgets/player_scrubber.dart';
 import '../widgets/song_options_sheet.dart';
 import '../widgets/synced_lyrics_view.dart';
 import '../widgets/vinyl_record_cover.dart';
+import '../../../widgets/windows_title_bar.dart';
 
 /// Echo's immersive now-playing scene.
 class FullPlayerPage extends ConsumerStatefulWidget {
@@ -325,6 +326,18 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       behavior: HitTestBehavior.translucent,
       child: Stack(
         children: <Widget>[
+          // Windows 大屏顶栏:与正常(非大屏)标题栏行为一致——长按/拖拽移动窗口,
+          // 双击最大化/还原。放在 Stack 最底层(最矮 z),上层的「更多」按钮与正文
+          // 仍可命中;仅当命中最上方空白区域时才落在这里,避免干扰正文交互。
+          // (MarcusFig 全屏播放走 rootNavigator 盖住系统/自绘标题栏,故需自建拖拽区)
+          if (isWindowsDesktop)
+            const Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              height: 36,
+              child: _WideDragBanner(),
+            ),
           // 右上角「更多操作」:唯一悬浮操作,点击不缩小播放器。
           Positioned(
             top: spacing.sm,
@@ -944,6 +957,30 @@ class _QualityDetailRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _WideDragBanner extends StatelessWidget {
+  const _WideDragBanner();
+
+  Future<void> _invoke(String method) async {
+    try {
+      await kWindowsWindowChannel.invokeMethod<void>(method);
+    } on PlatformException {
+      // 窗口控制失败不影响播放。
+    } on MissingPluginException {
+      // 非 Windows 平台无对应原生实现。
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onPanStart: (_) => _invoke('start_move'),
+      onDoubleTap: () => _invoke('maximize_toggle'),
+      child: const SizedBox.expand(),
     );
   }
 }
