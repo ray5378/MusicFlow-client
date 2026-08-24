@@ -176,9 +176,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String? _startupStuckSongId;
   int _startupReloadStreak = 0;
 
-  /// 近末尾守卫阈值：位置已进入最后一 1.5s 却迟迟不触发 completed，
-  /// 连续停滞满该 tick 数即视为播完并走正式完成流程。6 tick = 3 秒。
-  static const int _stagnantNearEndTicks = 6;
+  /// Windows 专项近末尾兜底计数阈值。
+  ///
+  /// Android 正常播完时 just_audio 会上报 completed，走常规完成流程；但
+  /// Windows(just_audio 走 media_kit 后端)对部分容器的表现是：解码到字节末
+  /// 后 position 顶到接近/等于声明的 duration，而 processing 却进入 buffering
+  /// 而非 completed——于是 `isReadyPlaying`(要求 processing==ready)恒为 false，
+  /// 导致上面的 `_stagnantPositionTicks` 每个 tick 都被清零，近末尾守卫与停滞
+  /// 看门狗对 Windows 全部失效 → 「某一首歌固定的末尾卡死」。
+  ///
+  /// 专用于本守卫的计数不与 processing 绑定：只要「确实在播(player.playing)
+  /// + 位置落在末段窗口内不再前进」就累计，到阈值即按播完处理(尊重随机/单曲
+  /// 循环/顺序)。进程真正比播放引擎更可靠地表达“用户还在播但要结束了”。
+  /// 5 tick ≈ 2.5s。暂停/前进/离开末段任一情况都会清零，避免误判。
+  static const int _nearEndStuckTicksThreshold = 5;
+  int _nearEndStuckTicks = 0;
   bool _syntheticPositionFallbackActive = false;
   int _playDebugSession = 0;
   bool _loggedDurationUnavailableForSong = false;
@@ -4033,6 +4045,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } else {
         _stagnantPositionTicks += 1;
       }
+
+      // Windows 专项近末尾计数：不依赖 processing==ready(见字段注释)。
+      // Windows 撞到容器 EOF 常把 processing 置于 buffering 而非 completed，
+      // 通用计数随之被清零，导致看门狗对 Windows 末尾卡死失效。这里只要
+      // 「确实在播 + 位置停在末段 2.5s 窗口内不再前进」就累计；暂停/前进/
+      // 离开末段任一情况立即清零，避免误判。
+      final inNearEndWindow =
+          state.duration > const Duration(seconds: 3) &&
+          state.duration - state.position <=
+              const Duration(milliseconds: 2500);
+      if (player.playing && inNearEndWindow && deltaFromLast <= 150) {
+        _nearEndStuckTicks += 1;
+      } else {
+        _nearEndStuckTicks = 0;
+      }
       _lastPolledPlayerPosition = sourcePlayerPos;
 
       // 0 秒卡死兜底看门狗：播放意图存在但长时间(≥阈值)卡在起点
@@ -4163,30 +4190,29 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           'stream=${_summarizeStreamUrl(_currentStreamUrl)}',
         );
       }
-      // 近末尾守卫：某些源尾段 position 会停在 duration 前一小段不再前推，
-      // 导致 completed 永不触发 → 最后一秒永久卡死。Windows 解码器(via
-      // just_audio / media_kit)对部分容器会把 position 顶到接近甚至恰好等于
-      // 声明的 duration，却迟迟不上报 completed；Android 同一源可正常触发完成。
-      // 这里一旦确认进入末段(≤2.5s，允许 position 恰好 == duration)却持续停滞，
-      // 就视为已播完并走正式完成流程(尊重 随机/单曲循环/顺序)。
-      // 去掉原来的严格 state.position < state.duration,否则 position 到达
-      // duration 被拦下后既不会走 completed 又不会被本守卫兜底 → 末尾卡死。
-      if (isReadyPlaying &&
+      // 近末尾守卫(Windows 专项增强)：某些源尾段 position 会停在 duration
+      // 前一小段不再前推，导致 completed 永不触发 → 最后一秒永久卡死。Windows
+      // 解码器(via just_audio/media_kit)撞到容器 EOF 常把 processing 置于
+      // buffering 而非 completed，`isReadyPlaying` 恒 false；因此这里使用与
+      // processing 无关的 `_nearEndStuckTicks`——只要「确实在播 + 位置停在
+      // 末段 2.5s 窗口内不前进」累计满阈值，即视为播完并走正式完成流程
+      // (尊重 随机/单曲循环/顺序)。同时允许 position 恰好 == duration 的场景。
+      if (player.playing &&
           !shouldUseSyntheticPosition &&
           state.duration > const Duration(seconds: 3) &&
           state.duration - state.position <=
               const Duration(milliseconds: 2500) &&
-          _stagnantPositionTicks >= _stagnantNearEndTicks) {
+          _nearEndStuckTicks >= _nearEndStuckTicksThreshold) {
         final doneSongId = state.currentSong?.id;
-        final hasPartialStuckTicks = _stagnantPositionTicks;
+        final hasPartialStuckTicks = _nearEndStuckTicks;
         if (doneSongId != null) {
-          _stagnantPositionTicks = 0;
+          _nearEndStuckTicks = 0;
           _isHandlingCompletion = true;
           _completionHandlingSongId = doneSongId;
           _seekDbg(
-            'near-end stuck -> treat as completed song=$doneSongId '
+            'near-end(win) stuck -> treat as completed song=$doneSongId '
             'pos=${state.position} dur=${state.duration} '
-            'ticks=$hasPartialStuckTicks',
+            'ticks=$hasPartialStuckTicks processing=${processing.name}',
           );
           unawaited(this._onSongCompleted(doneSongId));
           return;
