@@ -320,117 +320,108 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         ? spacing.md
         : context.echoPageHorizontalPadding;
 
-    // 外层 GestureDetector 监听空白点击以关闭播放器。
-    // behavior: HitTestBehavior.translucent 允许点击事件穿透到子元素（如歌词、封面）
-    // 但子元素内部的 GestureDetector 会阻止事件继续冒泡到此外层。
     return GestureDetector(
       onTap: _closeToMini,
       behavior: HitTestBehavior.translucent,
       child: Stack(
         children: <Widget>[
-          // 右上角更多操作按钮（替代原左上角的缩小按钮）
+          // 右上角「更多操作」:唯一悬浮操作,点击不缩小播放器。
           Positioned(
             top: spacing.sm,
             right: spacing.sm,
-            child: GestureDetector(
-              onTap: () {}, // 阻止冒泡
-              child: _PlayerIconButton(
-                icon: AppIcons.more,
-                label: '${song.title} 操作',
-                onPressed: () => _showSongActions(song),
-              ),
+            child: _PlayerIconButton(
+              icon: AppIcons.more,
+              label: '${song.title} 操作',
+              onPressed: () => _showSongActions(song),
             ),
           ),
-          // 主要内容
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                0, // 不保留顶部留白,杜绝大屏上沿白边
-                horizontalPadding,
-                spacing.md,
+          // 主内容:整体垂直居中,不产生上沿白边。
+          Center(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: context.echoBreakpoints.maxContentWidth * 1.2,
               ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: context.echoBreakpoints.maxContentWidth * 1.2, // 放大宽度以容纳右侧歌词
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final columnGap = spacing.lg;
-                      final leftRightGap = spacing.xl;
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: spacing.md,
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final columnGap = spacing.lg;
+                  final leftRightGap = spacing.xl;
+                  final availableWidth =
+                      constraints.maxWidth - columnGap - leftRightGap;
+                  final rightPaneWidth =
+                      (availableWidth * 0.44).clamp(320.0, 540.0).toDouble();
+                  final leftPaneWidth = availableWidth - rightPaneWidth;
 
-                      // 左半部分：封面 + 信息 + 控件
-                      // 右半部分：歌词 (常驻面板)
-                      final availableWidth = constraints.maxWidth - columnGap - leftRightGap;
-                      final rightPaneWidth = (availableWidth * 0.45)
-                          .clamp(340.0, 540.0)
-                          .toDouble();
-                      final leftPaneWidth = availableWidth - rightPaneWidth;
-
-                      return Row(
-                        children: <Widget>[
-                          // 左侧：封面 + 信息 + 控件
-                          SizedBox(
-                            width: leftPaneWidth,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                // 上半部：封面 (居中)
-                                Expanded(
-                                  flex: 3,
-                                  child: _buildWideArtworkPane(song),
-                                ),
-                                SizedBox(height: spacing.sm),
-                                // 下半部：信息 + 控件 (垂直排列)
-                                Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: <Widget>[
-                                      // 歌曲信息：占剩余空间,居中且可滚动防溢出
-                                      Expanded(
-                                        child: Center(
-                                          child: SingleChildScrollView(
-                                            child: _buildWideDetailsPane(
-                                              song,
-                                              subtitle: subtitle,
-                                              showControls: false,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(height: spacing.sm),
-                                      // 播放控件（始终显示）
-                                      _buildControlPanel(
-                                        song,
-                                        compact: true,
-                                        showLyricsToggle: false,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                  // crossAxisAlignment.stretch 让左右两栏都有界高,
+                  // 内部用 Expanded 分摊,杜绝无界高度导致控件溢出隐藏。
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      // 左栏:封面(上) + 信息/控件(下)
+                      SizedBox(
+                        width: leftPaneWidth,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            Expanded(
+                              flex: 5,
+                              child: _buildWideArtworkPane(song),
                             ),
+                            SizedBox(height: spacing.md),
+                            Expanded(
+                              flex: 3,
+                              child: _buildWideControlPane(
+                                song,
+                                subtitle: subtitle,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: leftRightGap),
+                      // 右栏:常驻歌词,顶部对齐
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: columnGap),
+                          child: const Align(
+                            alignment: Alignment.topCenter,
+                            child: _PlayerLyricsPane(),
                           ),
-                          SizedBox(width: leftRightGap),
-                          // 右侧：歌词 (常驻)
-                          SizedBox(
-                            width: rightPaneWidth,
-                            child: const _PlayerLyricsPane(),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// 大屏左栏下半部分:歌曲信息(吸收剩余空间) + 播放控件(始终占位显示)。
+  Widget _buildWideControlPane(Song song, {required String subtitle}) {
+    final spacing = context.echoSpacing;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // 信息区:Expanded 吸收多余高度,滚动兜底,绝不让控件溢出。
+        Expanded(
+          child: Center(
+            child: SingleChildScrollView(
+              child: _buildWideDetailsPane(song, subtitle: subtitle),
+            ),
+          ),
+        ),
+        SizedBox(height: spacing.sm),
+        // 播放控件:独立占位,始终可见。
+        _buildControlPanel(song, compact: true, showLyricsToggle: false),
+      ],
     );
   }
 
@@ -461,8 +452,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     );
   }
 
-  Widget _buildWideDetailsPane(Song song, {required String subtitle, bool showControls = true}) {
-    final spacing = context.echoSpacing;
+  Widget _buildWideDetailsPane(Song song, {required String subtitle}) {
     final titleStyle = context.echoTypography.headline.copyWith(
       color: context.echoColors.ink,
     );
@@ -487,10 +477,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             overflow: TextOverflow.ellipsis,
             scrollable: false,
           ),
-          if (showControls) ...[
-            SizedBox(height: spacing.xs),
-            _buildControlPanel(song, compact: true),
-          ],
         ],
       ),
     );
