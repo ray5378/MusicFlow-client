@@ -114,15 +114,16 @@ void FlutterWindow::HandleWindowMethod(
   if (method == "set_tray_tooltip") {
     // 任务栏/托盘歌词:把当前歌词行写进托盘 tooltip(空文本恢复默认应用名)。
     std::wstring tip;
-    // Flutter Windows 的 arguments() 返回右值,先绑定具名 const 引用(生命周期
-    // 延长到作用域结束)再访问 variant,避免 `&call.arguments()` 触发 C2102。
-    const flutter::EncodableValue& arguments = call.arguments();
-    if (std::holds_alternative<flutter::EncodableMap>(arguments)) {
-      const auto& argsMap = std::get<flutter::EncodableMap>(arguments);
-      const auto it = argsMap.find(flutter::EncodableValue("text"));
-      if (it != argsMap.end()) {
-        if (const auto* text = std::get_if<std::string>(&it->second)) {
-          tip = Utf8ToUtf16(*text);
+    // Flutter Windows 嵌入器的 MethodCall::arguments() 返回 const T*(指针),
+    // 需要先解引用再访问 variant;不能用 `&call.arguments()`(对临时指针取址 → C2102)。
+    if (const flutter::EncodableValue* arguments = call.arguments()) {
+      if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
+        const auto& argsMap = std::get<flutter::EncodableMap>(*arguments);
+        const auto it = argsMap.find(flutter::EncodableValue("text"));
+        if (it != argsMap.end()) {
+          if (const auto* text = std::get_if<std::string>(&it->second)) {
+            tip = Utf8ToUtf16(*text);
+          }
         }
       }
     }
