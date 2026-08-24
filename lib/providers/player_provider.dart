@@ -4044,7 +4044,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           'statePos=${state.position} '
           'processing=${processing.name} playing=${player.playing}',
         );
-        unawaited(next());
+        // 注意：本函数作用域内存在局部变量 `next`(Duration)，其声明在下方，
+        // Dart 中局部变量会遮蔽同名成员方法，故必须显式用 this.next() 调用跳歌方法。
+        unawaited(this.next());
         return;
       }
 
