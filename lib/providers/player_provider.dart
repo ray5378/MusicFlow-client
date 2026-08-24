@@ -143,6 +143,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
   /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
   static const int _stagnantSkipThresholdTicks = 10;
+
+  /// 近末尾守卫阈值：位置已进入最后一 1.5s 却迟迟不触发 completed，
+  /// 连续停滞满该 tick 数即视为播完并走正式完成流程。6 tick = 3 秒。
+  static const int _stagnantNearEndTicks = 6;
   bool _syntheticPositionFallbackActive = false;
   int _playDebugSession = 0;
   bool _loggedDurationUnavailableForSong = false;
@@ -4029,12 +4033,37 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           'stream=${_summarizeStreamUrl(_currentStreamUrl)}',
         );
       }
-      if (!shouldUseSyntheticPosition) return;
+      // 近末尾守卫：某些源尾段 position 会停在 duration 前一小段不再前推，
+      // 导致 completed 永不触发 → 最后一秒永久卡死。这里一旦确认进入末段
+      // 却持续停滞，就视为已播完并走正式完成流程(尊重 随机/单曲循环/顺序)。
+      if (isReadyPlaying &&
+          !shouldUseSyntheticPosition &&
+          state.duration > const Duration(seconds: 3) &&
+          state.position < state.duration &&
+          state.duration - state.position <=
+              const Duration(milliseconds: 1500) &&
+          _stagnantPositionTicks >= _stagnantNearEndTicks) {
+        final doneSongId = state.currentSong?.id;
+        final hasPartialStuckTicks = _stagnantPositionTicks;
+        if (doneSongId != null) {
+          _stagnantPositionTicks = 0;
+          _isHandlingCompletion = true;
+          _completionHandlingSongId = doneSongId;
+          _seekDbg(
+            'near-end stuck -> treat as completed song=$doneSongId '
+            'pos=${state.position} dur=${state.duration} '
+            'ticks=$hasPartialStuckTicks',
+          );
+          unawaited(this._onSongCompleted(doneSongId));
+          return;
+        }
+      }
 
-      // 停滞看门狗：就绪播放但进度持续不走(排除 lock-cache 合成进度场景，
-      // 那类音频其实在播放，跳了反而错)，达到阈值即自动跳下一首自愈。
-      // 统一作用于本机与远程试听(保持继续跳直到找到能前進的歌曲)。
-      if (!shouldUseSyntheticPosition &&
+      // 停滞看门狗：就绪播放但进度持续不走(非合成进度场景)，
+      // 达到阈值即自动跳下一首自愈。统一作用于本机与远程试听，
+      // 保持继续跳直到找到能前進的歌曲。
+      if (isReadyPlaying &&
+          !shouldUseSyntheticPosition &&
           _stagnantPositionTicks >= _stagnantSkipThresholdTicks) {
         final stuckTicks = _stagnantPositionTicks;
         _stagnantPositionTicks = 0;
@@ -4049,6 +4078,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         unawaited(this.next());
         return;
       }
+
+      // 非合成进度在此结束(两个守卫都要求非合成，不会在这里触发)；
+      // 合成进度才继续往下，按时间片推进 UI 进度。
+      if (!shouldUseSyntheticPosition) return;
 
       final next = _normalizeSeekPosition(
         state.position + const Duration(milliseconds: 500),
