@@ -3996,6 +3996,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final isReadyPlaying =
           player.playing && processing == ProcessingState.ready;
 
+      // 「确实在播」信号按平台归一化：
+      // - 移动端维持 isReadyPlaying(仅 processing==ready 累计)，避免长期缓冲
+      //   被误跳；这是原实现、不影响 Android/iOS。
+      // - Windows(media_kit 后端)对 processing 判定更“粗”：撞容器比特末或长时间
+      //   缓冲时会停留在 buffering 而非 ready，导致依赖 isReadyPlaying 的停滞
+      //   看门狗计数被恒清零 → 失效。故 Windows 上改用 player.playing(播放意图，
+      //   不会随 processing 变成 false) 作为停滞累计信号，与近末尾守卫同理。
+      // 注意：仍保留 delta>150 才前进即重置，避免把 Windows 正常的粗粒度位置
+      // 采样(每 500ms 报 150~300ms 前移)误当作停滞而误跳下一首。
+      final isWinDesktop = !kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.windows;
+      final stallSignal = isWinDesktop ? player.playing : isReadyPlaying;
+
       final deltaFromLast = (sourcePlayerPos - _lastPolledPlayerPosition)
           .inMilliseconds
           .abs();
@@ -4038,9 +4051,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _startupStuckSongId = null;
         }
       }
-      // 仅「就绪播放」状态累计停滞计数；暂停/缓冲/加载一律清零，
+      // 仅「确实在播」状态累计停滞计数；暂停/缓冲/加载一律清零，
       // 否则暂停很久后恢复会因计数已越阈值而被看门狗误跳下一首。
-      if (!isReadyPlaying || deltaFromLast > 150) {
+      // (stallSignal 在 Windows 上为 player.playing、移动端为 isReadyPlaying)
+      // 起点阶段(atStart)一律清零：0 秒卡死由 _startupStuckTicks 重载路径
+      // 负责；若这里也累计,Windows 上加载/buffering 阶段(playing 仍 true)会
+      // 提前攒到阈值,用「跳下一首」取代更温和的「重载自愈」+死歌判定。
+      if (atStart) {
+        _stagnantPositionTicks = 0;
+      } else if (!stallSignal || deltaFromLast > 150) {
         _stagnantPositionTicks = 0;
       } else {
         _stagnantPositionTicks += 1;
@@ -4219,10 +4238,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
-      // 停滞看门狗：就绪播放但进度持续不走(非合成进度场景)，
+      // 停滞看门狗：确实在播但进度持续不走(非合成进度场景)，
       // 达到阈值即自动跳下一首自愈。统一作用于本机与远程试听，
       // 保持继续跳直到找到能前進的歌曲。
-      if (isReadyPlaying &&
+      // (stallSignal 在 Windows 上为 player.playing、移动端为 isReadyPlaying，
+      //  避免 Windows 因 processing 卡在 buffering 而被看门狗漏判)
+      if (stallSignal &&
           !shouldUseSyntheticPosition &&
           _stagnantPositionTicks >= _stagnantSkipThresholdTicks) {
         final stuckTicks = _stagnantPositionTicks;
