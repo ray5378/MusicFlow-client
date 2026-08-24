@@ -49,13 +49,14 @@ jobs:
           ECHO_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ECHO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ECHO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        # --target-platform android-arm64:只构建 arm64-v8a(ARMv8 及以上),
-        # 显著减小安装包体积。gradle abiFilters 对 Flutter 打包不一定生效,
-        # 这里用 Flutter 官方 target-platform 参数确保只打包 arm64。
-        run: flutter build apk --release --target-platform android-arm64
+        # --target-platform android-arm64 + --split-per-abi:只打包 arm64-v8a(ARMv8 及以上)。
+        # --target-platform 只过滤 Flutter 自身产物(libapp.so/libflutter.so),
+        # 第三方 Maven AAR 原生库(如 libsqlite3.so)仍会带全 ABI;
+        # 配合 --split-per-abi 后每个 APK 只含 arm64 一种 ABI,彻底过滤其他架构。
+        run: flutter build apk --release --target-platform android-arm64 --split-per-abi
 
       - name: Rename APK for release
-        run: cp build/app/outputs/flutter-apk/app-release.apk "MusicFlow-${{ github.run_number }}-android.apk"
+        run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "MusicFlow-${{ github.run_number }}-android.apk"
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
