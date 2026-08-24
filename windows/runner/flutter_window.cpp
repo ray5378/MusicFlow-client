@@ -1,9 +1,28 @@
 #include "flutter_window.h"
 
+#include <flutter/standard_method_codec.h>
+
 #include <optional>
+#include <string>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "tray.h"
+
+namespace {
+
+// UTF-8 -> UTF-16 helper for forwarding tooltip text to the tray icon.
+std::wstring Utf8ToUtf16(const std::string& utf8) {
+  if (utf8.empty()) return L"";
+  const int size = MultiByteToWideChar(CP_UTF8, 0, utf8.data(),
+                                       static_cast<int>(utf8.size()), nullptr, 0);
+  if (size <= 0) return L"";
+  std::wstring result(size, L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()),
+                      &result[0], size);
+  return result;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +44,20 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // 窗口控制通道:客户端自绘标题栏(关闭/最小化/最大化/拖拽)与
+  // 托盘「状态栏歌词」tooltip 均通过该通道与原生层交互。
+  window_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "com.musicflow.app/window",
+          &flutter::StandardMethodCodec::GetInstance());
+  window_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        HandleWindowMethod(call, std::move(result));
+      });
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -40,6 +73,61 @@ void FlutterWindow::OnDestroy() {
   }
 
   Win32Window::OnDestroy();
+}
+
+void FlutterWindow::HandleWindowMethod(
+    const flutter::MethodCall<flutter::EncodableValue>& call,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  HWND hwnd = GetHandle();
+  const std::string& method = call.method_name();
+
+  if (method == "minimize") {
+    // 自绘标题栏的「缩小」按钮:缩到任务栏(不经过 WM_SYSCOMMAND SC_MINIMIZE,
+    // 那里被拦截为隐藏到托盘)。
+    ShowWindow(hwnd, SW_MINIMIZE);
+    result->Success();
+    return;
+  }
+  if (method == "maximize_toggle") {
+    if (IsZoomed(hwnd)) {
+      ShowWindow(hwnd, SW_RESTORE);
+    } else {
+      ShowWindow(hwnd, SW_MAXIMIZE);
+    }
+    result->Success();
+    return;
+  }
+  if (method == "close") {
+    // 关闭按钮:隐藏窗口到托盘(与 WM_CLOSE 现有行为一致,应用继续在后台播放)。
+    PostMessage(hwnd, WM_CLOSE, 0, 0);
+    result->Success();
+    return;
+  }
+  if (method == "start_move") {
+    // 无系统标题栏时,自绘标题栏拖拽需要手动进入 HTCAPTION 移动循环。
+    ReleaseCapture();
+    SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+    result->Success();
+    return;
+  }
+  if (method == "set_tray_tooltip") {
+    // 任务栏/托盘歌词:把当前歌词行写进托盘 tooltip(空文本恢复默认应用名)。
+    std::wstring tip;
+    const auto* args = std::get_if<flutter::EncodableMap>(&call.arguments());
+    if (args != nullptr) {
+      const auto it = args->find(flutter::EncodableValue("text"));
+      if (it != args->end()) {
+        if (const auto* text = std::get_if<std::string>(&it->second)) {
+          tip = Utf8ToUtf16(*text);
+        }
+      }
+    }
+    TraySetTooltip(tip);
+    result->Success();
+    return;
+  }
+
+  result->NotImplemented();
 }
 
 LRESULT

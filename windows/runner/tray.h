@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <string>
+
 // System tray constants shared between main.cpp (tray lifecycle) and
 // flutter_window.cpp (tray message handling in the window procedure).
 static constexpr UINT WM_TRAYICON = WM_USER + 1;
@@ -17,6 +19,11 @@ static constexpr UINT TRAY_ICON_ID = 1;
 // Tray lifecycle (defined in main.cpp).
 void TrayInit(HWND hwnd);
 void TrayShutdown();
+
+// Update the tray icon's tooltip text (used by the "状态栏歌词" feature).
+// An empty text restores the default app name. Callable from any thread that
+// created the tray icon (the Flutter platform thread).
+void TraySetTooltip(const std::wstring& tip);
 
 // Handles WM_TRAYICON (icon clicks) and WM_COMMAND (tray menu items) inside
 // the window procedure. Returns true if the message was consumed.

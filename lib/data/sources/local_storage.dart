@@ -21,6 +21,19 @@ class LocalStorage {
   static const String _keyHasLaunchedBefore = 'has_launched_before';
   static const String _keyCrossfadeDurationMs = 'crossfade_duration_ms';
   static const String _keyPlayerVolume = 'player_volume';
+  static const String _keyStatusLyricsEnabled = 'status_lyrics_enabled';
+
+  /// 是否开启 Windows 托盘/任务栏歌词(状态栏歌词)。
+  static Future<bool> getStatusLyricsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyStatusLyricsEnabled) ?? false;
+  }
+
+  /// 设置 Windows 托盘/任务栏歌词开关。
+  static Future<void> setStatusLyricsEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyStatusLyricsEnabled, value);
+  }
 
   /// 是否曾经启动过（用于判断是否显示开屏动画）
   static Future<bool> hasLaunchedBefore() async {

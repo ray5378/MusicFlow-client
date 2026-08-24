@@ -19,10 +19,13 @@ import '../providers/api_provider.dart';
 import '../providers/cast_peer_provider.dart';
 import '../providers/effective_playback_provider.dart';
 import '../providers/navigation_provider.dart';
+import '../providers/random_songs_push_provider.dart';
+import '../providers/status_lyrics_provider.dart';
 import 'app_drawer.dart';
 import 'echo_app_shell/echo_app_shell.dart';
 import 'echo_app_shell/echo_network_status_bar.dart';
 import 'echo_app_shell/echo_shell_navigation.dart';
+import 'windows_title_bar.dart';
 
 // GlobalKey used to access Scaffold state (e.g. opening drawer).
 final scaffoldKey = GlobalKey<ScaffoldState>();
@@ -149,6 +152,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       _startNetworkObservation();
     }
     _initTrayListener();
+    // 激活 Windows 托盘/任务栏歌词控制器(启动时恢复开关状态并监听歌词)。
+    ref.read(statusLyricsControllerProvider);
+    // 激活随机歌曲歌单「服务端推送」客户端:连接主项目 WebSocket,收到
+    // random-songs-changed 信号时通知客户端按需重拉,替代客户端轮询。
+    ref.read(randomSongsPushProvider);
   }
 
   void _initTrayListener() {
@@ -165,7 +173,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           await ref.read(castPeerControllerProvider.notifier).next();
           break;
         case 'toggle_status_lyrics':
-          // TODO: 状态栏歌词开关
+          // 托盘菜单「显示状态栏歌词」:与客户端设置页开关共用同一个入口。
+          await ref.read(statusLyricsControllerProvider).toggle();
           break;
       }
       return '';
@@ -351,29 +360,38 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         await _handleBackPressed();
         return true;
       },
-      child: EchoAppShell(
-        scaffoldKey: scaffoldKey,
-        drawer:
-            widget.drawerOverride ??
-            AppDrawer(onReturnFocus: _restoreEchoAppDrawerFocus),
-        body: widget.navigationShell,
-        destinations: destinations,
-        selectedBranchIndex: currentBranchIsVisible
-            ? currentBranchIndex
-            : discoverBranchIndex,
-        onDestinationSelected: (branchIndex) {
-          _goToBranch(
-            branchIndex,
-            initialLocation: branchIndex == currentBranchIndex,
-          );
-        },
-        miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
-        showMiniPlayer: hasMiniPlayer,
-        networkStatus: networkStatus,
-        showNavigationBar: false,
-        onOpenDrawer: openEchoAppDrawer,
-        // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-        libraryEntries: _libraryEntries(context),
+      child: Column(
+        key: const ValueKey<String>('main-scaffold-column'),
+        children: <Widget>[
+          // Windows 桌面端去掉系统标题栏后,顶部自绘标题栏(拖拽/最小化/最大化/关闭)。
+          const WindowsTitleBar(),
+          Expanded(
+            child: EchoAppShell(
+              scaffoldKey: scaffoldKey,
+              drawer:
+                  widget.drawerOverride ??
+                  AppDrawer(onReturnFocus: _restoreEchoAppDrawerFocus),
+              body: widget.navigationShell,
+              destinations: destinations,
+              selectedBranchIndex: currentBranchIsVisible
+                  ? currentBranchIndex
+                  : discoverBranchIndex,
+              onDestinationSelected: (branchIndex) {
+                _goToBranch(
+                  branchIndex,
+                  initialLocation: branchIndex == currentBranchIndex,
+                );
+              },
+              miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
+              showMiniPlayer: hasMiniPlayer,
+              networkStatus: networkStatus,
+              showNavigationBar: false,
+              onOpenDrawer: openEchoAppDrawer,
+              // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
+              libraryEntries: _libraryEntries(context),
+            ),
+          ),
+        ],
       ),
     );
   }

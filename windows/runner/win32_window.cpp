@@ -146,6 +146,16 @@ bool Win32Window::Create(const std::wstring& title,
 
   UpdateTheme(window);
 
+  // 任务2:去掉 Windows 系统标题栏(WS_CAPTION)。
+  // 保留 WS_THICKFRAME / WS_MINIMIZEBOX / WS_MAXIMIZEBOX,窗口仍可调整大小;
+  // 关闭/最小化按钮改由客户端页面内自绘标题栏(WindowsTitleBar)提供。
+  LONG_PTR style = GetWindowLongPtr(window, GWL_STYLE);
+  style &= ~WS_CAPTION;
+  SetWindowLongPtr(window, GWL_STYLE, style);
+  SetWindowPos(window, nullptr, 0, 0, 0, 0,
+               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOACTIVATE);
+
   return OnCreate();
 }
 

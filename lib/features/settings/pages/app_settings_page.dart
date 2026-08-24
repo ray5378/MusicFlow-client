@@ -20,7 +20,9 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
+import '../../../providers/status_lyrics_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../widgets/windows_title_bar.dart';
 import '../widgets/echo_settings_components.dart';
 import 'audio_quality_page.dart';
 import 'cache_management_page.dart';
@@ -217,6 +219,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     final autoFallback = ref.watch(autoFallbackProvider);
     final themeSettings = ref.watch(themeSettingsProvider);
     final crossfadeMs = ref.watch(crossfadeDurationMsProvider);
+    final statusLyricsEnabled = ref.watch(statusLyricsEnabledProvider);
     final availableLibraries = librariesAsync.valueOrNull;
     final switchDescription = librariesAsync.when(
       data: (libraries) => libraries.length > 1
@@ -347,6 +350,15 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       await LocalStorage.setAutoPlayOnLaunch(value);
                     },
                   ),
+                  if (isWindowsDesktop)
+                    EchoToggleSettingRow(
+                      icon: AppIcons.lyrics,
+                      title: '任务栏歌词',
+                      description: '开启后，系统托盘图标旁显示当前播放歌词。',
+                      value: statusLyricsEnabled,
+                      onChanged: (_) =>
+                          ref.read(statusLyricsControllerProvider).toggle(),
+                    ),
                   EchoSettingRow(
                     icon: AppIcons.lyrics,
                     title: '歌词提供商',

@@ -2,6 +2,8 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include <string>
+
 #include "flutter_window.h"
 #include "tray.h"
 #include "utils.h"
@@ -59,6 +61,18 @@ void TrayShutdown() {
     DestroyMenu(g_tray_menu);
     g_tray_menu = nullptr;
   }
+}
+
+void TraySetTooltip(const std::wstring& tip) {
+  if (!g_nid.hWnd) return;
+  // 空文本恢复默认应用名;非空时用于显示「状态栏歌词」当前行。
+  // szTip 是 WCHAR[128],超出部分截断,末尾补 '\0'。
+  const std::wstring& text = tip.empty() ? L"MusicFlow" : tip;
+  const size_t copy_len = text.size() < 127 ? text.size() : 127;
+  text.copy(g_nid.szTip, copy_len);
+  g_nid.szTip[copy_len] = L'\0';
+  g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+  Shell_NotifyIconW(NIM_MODIFY, &g_nid);
 }
 
 bool TrayHandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
