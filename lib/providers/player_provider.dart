@@ -3985,7 +3985,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           (processing == ProcessingState.loading ||
               processing == ProcessingState.buffering);
       final wantsPlaying = player.playing || _expectingAutoplay;
-      if (wantsPlaying && atStart && hasNoProgress && !_shouldPreserveSeekPosition()) {
+      // 合成进度兜底正在承担推进时(锁缓存流可能以 0 上报真实位置但音频在播),
+      // 不把“定位在起点”当作 0 秒卡死,否则看门狗会重载一首正常在播的歌。
+      final syntheticCarrying =
+          _usingLockCachingSource &&
+          _syntheticPositionFallbackActive &&
+          isReadyPlaying &&
+          sourcePlayerPos <= const Duration(milliseconds: 50);
+      if (wantsPlaying &&
+          atStart &&
+          hasNoProgress &&
+          !syntheticCarrying &&
+          !_shouldPreserveSeekPosition()) {
         _startupStuckTicks += 1;
       } else {
         _startupStuckTicks = 0;
