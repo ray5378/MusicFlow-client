@@ -434,50 +434,56 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   }
 
   /// 歌曲横滑网格(每列 3 行),供数据态与缓存占位态共用,布局完全一致。
+  /// 注意:这里必须用 SingleChildScrollView(horizontal),和 _RandomSongsLoading
+  /// 保持一致 —— 页面外层的 CustomScrollView 滑片给的是无界高度,横向
+  /// ListView 需要有界高度,直接放进 sliver 会让水平 viewport 高度异常,
+  /// 导致随机歌曲重叠、无法操作,并拖垮下方歌单区块的布局。
   Widget _buildSongsContent(List<Song> songs) {
     final itemWidth =
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
 
     return HoverableHorizontalScroll(
-      builder: (context, controller) => ListView.builder(
+      builder: (context, controller) => SingleChildScrollView(
         controller: controller,
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(
           horizontal: context.echoSpacing.xs,
         ),
-        itemCount: (songs.length / 3).ceil(),
-        // 懒构建可见列,避免把一整车随机歌曲的封面/资源一次性建出来
-        // (安卓弱内存设备上一次性构建 ~48 首封面会卡顿甚至 OOM)。
-        cacheExtent: itemWidth * 2,
-        itemBuilder: (context, col) => Padding(
-          padding: EdgeInsets.only(right: context.echoSpacing.sm),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              for (var row = 0;
-                  row < 3 && col * 3 + row < songs.length;
-                  row++) ...<Widget>[
-                SizedBox(
-                  width: itemWidth,
-                  child: DiscoverSongTile(
-                    song: songs[col * 3 + row],
-                    onPressed: () {
-                      playEffectiveQueue(
-                        ref,
-                        songs,
-                        startIndex: col * 3 + row,
-                      );
-                    },
-                    onOpenActions: () => showSongOptionsSheet(
-                      context: context,
-                      song: songs[col * 3 + row],
-                    ),
-                  ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (var col = 0; col * 3 < songs.length; col++)
+              Padding(
+                padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (var row = 0;
+                        row < 3 && col * 3 + row < songs.length;
+                        row++) ...<Widget>[
+                      SizedBox(
+                        width: itemWidth,
+                        child: DiscoverSongTile(
+                          song: songs[col * 3 + row],
+                          onPressed: () {
+                            playEffectiveQueue(
+                              ref,
+                              songs,
+                              startIndex: col * 3 + row,
+                            );
+                          },
+                          onOpenActions: () => showSongOptionsSheet(
+                            context: context,
+                            song: songs[col * 3 + row],
+                          ),
+                        ),
+                      ),
+                      if (row < 2) SizedBox(height: 2),
+                    ],
+                  ],
                 ),
-                if (row < 2) SizedBox(height: 2),
-              ],
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
