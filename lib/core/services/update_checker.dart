@@ -51,8 +51,8 @@ class ReleaseAsset {
 /// Service that checks for app updates via GitHub Releases API.
 class UpdateChecker {
   static const _logTag = 'UPDATE';
-  static const _owner = 'Azincc';
-  static const _repo = 'echo';
+  static const _owner = 'ray5378';
+  static const _repo = 'MusicFlow-client';
   static const _apiUrl =
       'https://api.github.com/repos/$_owner/$_repo/releases/latest';
 

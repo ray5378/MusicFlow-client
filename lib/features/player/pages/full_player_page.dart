@@ -8,14 +8,12 @@ import 'package:just_audio/just_audio.dart';
 import '../../../core/design/echo_design.dart';
 import '../../../core/network/connectivity_monitor.dart';
 import '../../../data/models/audio_quality.dart';
-import '../../../data/models/embed_service_config.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/audio_quality_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
-import '../../../providers/offline_download_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../widgets/mini_player.dart' show PlayerSwitcherSheet;
@@ -136,72 +134,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     return album;
   }
 
-  Future<void> _enqueuePreviewSong(Song song, {bool force = false}) async {
-    final activeLibrary = ref.read(activeLibraryProvider);
-    if (activeLibrary == null) {
-      _showMessage('当前没有活跃音乐库', kind: EchoMessageKind.warning);
-      return;
-    }
-
-    final config = EmbedServiceConfig.fromLibraryExtensions(
-      activeLibrary.extensions,
-    );
-    try {
-      await ref
-          .read(offlineDownloadServiceProvider)
-          .enqueuePreviewSong(
-            song: song,
-            libraryId: activeLibrary.id,
-            config: config,
-            force: force,
-          );
-      _showMessage(force ? '已重新添加到离线下载队列' : '已添加到离线下载队列');
-    } catch (error) {
-      if (error.toString().contains('已在离线队列中') && !force) {
-        await _showForceRedownloadConfirmation(song);
-      } else {
-        _showMessage('添加失败: $error', kind: EchoMessageKind.error);
-      }
-    }
-  }
-
-  Future<void> _showForceRedownloadConfirmation(Song song) async {
-    if (!mounted) return;
-    final confirmed = await showEchoBottomSheet<bool>(
-      context: context,
-      useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
-        title: '歌曲已存在',
-        subtitle: '「${song.title}」已在离线队列中。',
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(
-              '是否重新下载？这会替换队列中已有的任务。',
-              style: context.echoTypography.body.copyWith(
-                color: context.echoColors.muted,
-              ),
-            ),
-            SizedBox(height: context.echoSpacing.lg),
-            EchoButton.primary(
-              label: '重新下载',
-              expand: true,
-              onPressed: () => Navigator.of(sheetContext).pop(true),
-            ),
-            SizedBox(height: context.echoSpacing.xs),
-            EchoButton.ghost(
-              label: '取消',
-              expand: true,
-              onPressed: () => Navigator.of(sheetContext).pop(false),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (confirmed == true) await _enqueuePreviewSong(song, force: true);
-  }
-
   void _showMessage(
     String message, {
     EchoMessageKind kind = EchoMessageKind.info,
@@ -212,24 +144,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   void _showSongActions(Song song) {
     final mediaVisuals = ref.read(resolvedCurrentSongMediaVisualsProvider);
-    if (song.isPreview) {
-      unawaited(
-        showSongOptionsSheet(
-          context: context,
-          song: song,
-          mode: SongOptionsSheetMode.offlineOnly,
-          mediaVisuals: mediaVisuals,
-          extraActions: <SongOptionsExtraAction>[
-            SongOptionsExtraAction(
-              icon: AppIcons.downloadOutline,
-              title: '添加到离线下载队列',
-              onPressed: () => _enqueuePreviewSong(song),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
     unawaited(
       showSongOptionsSheet(
         context: context,

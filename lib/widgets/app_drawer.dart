@@ -4,7 +4,6 @@ import 'package:musicflow_client/core/design/echo_design.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/features/download/pages/download_manager_page.dart';
-import 'package:musicflow_client/features/offline/pages/offline_download_status_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
@@ -14,7 +13,6 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/music_provider.dart';
-import '../providers/offline_download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
 import 'echo_app_shell/echo_drawer.dart';
@@ -140,7 +138,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
   }
 
   Widget _buildNavigationList(ServerAddress? activeAddress) {
-    final downloadSummary = ref.watch(offlineDownloadSummaryProvider);
     final routeLabel = activeAddress?.label.trim();
     final entries = <_DrawerNavigationEntry?>[
       _DrawerNavigationEntry(
@@ -157,17 +154,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         title: '下载管理',
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const DownloadManagerPage()),
-      ),
-      _DrawerNavigationEntry(
-        icon: AppIcons.offline,
-        title: '离线下载状态',
-        subtitle: downloadSummary.total == 0
-            ? '暂无任务'
-            : '进行中 ${downloadSummary.active} · 完成 ${downloadSummary.completed} · '
-                  '失败 ${downloadSummary.failed}',
-        onPressed: () => _closeDrawerAndPushPage(
-          (context) => const OfflineDownloadStatusPage(),
-        ),
       ),
       null,
       _DrawerNavigationEntry(

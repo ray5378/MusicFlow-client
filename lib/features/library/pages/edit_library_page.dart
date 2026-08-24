@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/echo_design.dart';
-import '../../../data/models/embed_service_config.dart';
 import '../../../data/models/music_library.dart';
 import '../../../data/models/server_address.dart';
 import '../../../providers/api_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/library_provider.dart';
-import '../../../providers/offline_download_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../widgets/address_dialog.dart';
 
@@ -28,12 +26,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
   late final TextEditingController _apiKeyController;
-  late final TextEditingController _embedBaseUrlController;
-  late final TextEditingController _embedApiKeyController;
-  late final TextEditingController _embedLibraryIdController;
 
-  bool _embedEnabled = false;
-  bool _isTestingEmbed = false;
   bool _initialized = false;
 
   @override
@@ -43,9 +36,6 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     _usernameController = TextEditingController();
     _passwordController = TextEditingController();
     _apiKeyController = TextEditingController();
-    _embedBaseUrlController = TextEditingController();
-    _embedApiKeyController = TextEditingController();
-    _embedLibraryIdController = TextEditingController();
   }
 
   @override
@@ -54,9 +44,6 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     _usernameController.dispose();
     _passwordController.dispose();
     _apiKeyController.dispose();
-    _embedBaseUrlController.dispose();
-    _embedApiKeyController.dispose();
-    _embedLibraryIdController.dispose();
     super.dispose();
   }
 
@@ -117,10 +104,6 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
                         SizedBox(height: context.echoSpacing.xl),
                         const EchoDivider(),
                         SizedBox(height: context.echoSpacing.xl),
-                        _buildEmbedServiceSection(),
-                        SizedBox(height: context.echoSpacing.xl),
-                        const EchoDivider(),
-                        SizedBox(height: context.echoSpacing.xl),
                         _buildAddressesSection(library),
                         SizedBox(height: context.echoSpacing.xl),
                         const EchoDivider(),
@@ -155,13 +138,6 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     _usernameController.text = library.username ?? '';
     _passwordController.text = library.password ?? '';
     _apiKeyController.text = library.apiKey ?? '';
-    final embedConfig = EmbedServiceConfig.fromLibraryExtensions(
-      library.extensions,
-    );
-    _embedEnabled = embedConfig.enabled;
-    _embedBaseUrlController.text = embedConfig.baseUrl;
-    _embedApiKeyController.text = embedConfig.apiKey;
-    _embedLibraryIdController.text = embedConfig.libraryId;
     _initialized = true;
   }
 
@@ -185,73 +161,6 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
             return null;
           },
         ),
-      ],
-    );
-  }
-
-  Widget _buildEmbedServiceSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        EchoSectionHeader(
-          title: 'Embed Service 离线下载',
-          description: '启用后，可将远程试听歌曲加入当前音乐库的离线下载队列。',
-          trailing: _EchoToggle(
-            value: _embedEnabled,
-            label: _embedEnabled ? '已启用' : '未启用',
-            onChanged: (value) => setState(() => _embedEnabled = value),
-          ),
-        ),
-        if (_embedEnabled) ...<Widget>[
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
-            controller: _embedBaseUrlController,
-            label: 'Embed Service URL',
-            hintText: 'http://localhost:8080',
-            leadingIcon: AppIcons.cloud,
-            keyboardType: TextInputType.url,
-            textInputAction: TextInputAction.next,
-            validator: (value) {
-              if (!_embedEnabled) return null;
-              if (value == null || value.trim().isEmpty) {
-                return '请输入 Embed Service URL';
-              }
-              return null;
-            },
-          ),
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
-            controller: _embedApiKeyController,
-            label: 'API Key',
-            hintText: 'your-api-key',
-            leadingIcon: AppIcons.key,
-            obscureText: true,
-            textInputAction: TextInputAction.next,
-            validator: (value) {
-              if (!_embedEnabled) return null;
-              if (value == null || value.trim().isEmpty) return '请输入 API Key';
-              return null;
-            },
-          ),
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
-            controller: _embedLibraryIdController,
-            label: 'Library ID',
-            hintText: 'default',
-            leadingIcon: AppIcons.folderOpen,
-            textInputAction: TextInputAction.done,
-          ),
-          SizedBox(height: context.echoSpacing.md),
-          EchoButton.secondary(
-            label: _isTestingEmbed ? '正在测试…' : '测试连接',
-            leadingIcon: AppIcons.signalTower,
-            onPressed: _isTestingEmbed ? null : _testEmbedConnection,
-          ),
-          if (_isTestingEmbed) ...<Widget>[
-            SizedBox(height: context.echoSpacing.sm),
-            const _InlineBusyStatus(label: '正在连接 Embed Service'),
-          ],
-        ],
       ],
     );
   }
@@ -329,49 +238,6 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
           ),
       ],
     );
-  }
-
-  EmbedServiceConfig _currentEmbedServiceConfig() {
-    return EmbedServiceConfig(
-      enabled: _embedEnabled,
-      baseUrl: _embedBaseUrlController.text.trim(),
-      apiKey: _embedApiKeyController.text.trim(),
-      libraryId: _embedLibraryIdController.text.trim(),
-    );
-  }
-
-  Future<void> _testEmbedConnection() async {
-    if (!_embedEnabled) {
-      showEchoMessage(
-        context,
-        '请先启用 Embed Service 配置',
-        kind: EchoMessageKind.warning,
-      );
-      return;
-    }
-
-    final config = _currentEmbedServiceConfig();
-    if (!config.isConfigured) {
-      showEchoMessage(
-        context,
-        '请先填写 URL 和 API Key',
-        kind: EchoMessageKind.warning,
-      );
-      return;
-    }
-
-    setState(() => _isTestingEmbed = true);
-    try {
-      final service = ref.read(offlineDownloadServiceProvider);
-      await service.testConnection(config);
-      if (!mounted) return;
-      showEchoMessage(context, '连接成功', kind: EchoMessageKind.success);
-    } catch (error) {
-      if (!mounted) return;
-      showEchoMessage(context, '连接失败: $error', kind: EchoMessageKind.error);
-    } finally {
-      if (mounted) setState(() => _isTestingEmbed = false);
-    }
   }
 
   Future<void> _onReorderAddresses(
@@ -506,7 +372,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     final repository = ref.read(libraryRepositoryProvider);
     final extensions = Map<String, dynamic>.from(original.extensions);
     extensions.remove('aria2');
-    extensions['embedService'] = _currentEmbedServiceConfig().toJson();
+    extensions.remove('embedService');
     final updated = original.copyWith(
       name: _nameController.text,
       extensions: extensions,
@@ -743,92 +609,6 @@ class _AddressStatusPresentation {
         color: context.echoColors.muted,
       ),
     };
-  }
-}
-
-class _EchoToggle extends StatelessWidget {
-  const _EchoToggle({
-    required this.value,
-    required this.label,
-    required this.onChanged,
-  });
-
-  final bool value;
-  final String label;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.echoColors;
-    return EchoPressable(
-      semanticLabel: label,
-      selected: value,
-      onPressed: () => onChanged(!value),
-      minimumSize: Size(
-        context.echoInteraction.minimumTouchTarget,
-        context.echoInteraction.minimumTouchTarget,
-      ),
-      borderRadius: context.echoRadii.control,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: value ? colors.accent.withValues(alpha: 0.12) : colors.raised,
-          borderRadius: context.echoRadii.control,
-          border: Border.all(
-            color: value ? colors.accent : colors.controlBoundary,
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.sm),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(
-                value ? AppIcons.checkCircle : AppIcons.radio,
-                size: 20,
-                color: value ? colors.accent : colors.muted,
-              ),
-              SizedBox(width: context.echoSpacing.xs),
-              Text(
-                label,
-                style: context.echoTypography.label.copyWith(
-                  color: value ? colors.accent : colors.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InlineBusyStatus extends StatelessWidget {
-  const _InlineBusyStatus({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      label: label,
-      child: ExcludeSemantics(
-        child: Row(
-          children: <Widget>[
-            const EchoSkeleton.circle(size: 24),
-            SizedBox(width: context.echoSpacing.xs),
-            Expanded(
-              child: Text(
-                label,
-                style: context.echoTypography.body.copyWith(
-                  color: context.echoColors.muted,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

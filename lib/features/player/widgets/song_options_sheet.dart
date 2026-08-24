@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
-import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/song.dart';
@@ -13,13 +12,11 @@ import '../../../providers/api_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/download_provider.dart';
-import '../../../providers/offline_download_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../widgets/echo_artwork.dart';
 import '../../library/pages/album_detail_page.dart';
 import '../../library/pages/artist_detail_page.dart';
-import '../../library/pages/song_metadata_edit_page.dart';
 
 class SongOptionsExtraAction {
   const SongOptionsExtraAction({
@@ -35,14 +32,11 @@ class SongOptionsExtraAction {
   final FutureOr<void> Function() onPressed;
 }
 
-enum SongOptionsSheetMode { full, offlineOnly }
-
 Future<void> showSongOptionsSheet({
   required BuildContext context,
   required Song song,
   bool useRootNavigator = true,
   List<SongOptionsExtraAction> extraActions = const <SongOptionsExtraAction>[],
-  SongOptionsSheetMode mode = SongOptionsSheetMode.full,
   EchoMediaVisuals? mediaVisuals,
 }) async {
   await showEchoBottomSheet<void>(
@@ -54,7 +48,6 @@ Future<void> showSongOptionsSheet({
         hostContext: context,
         song: song,
         extraActions: extraActions,
-        mode: mode,
       );
       if (mediaVisuals == null) return sheet;
       return EchoMediaColorScope(
@@ -71,15 +64,11 @@ class _SongOptionsSheet extends ConsumerWidget {
     required this.hostContext,
     required this.song,
     required this.extraActions,
-    required this.mode,
   });
-
-  static const _logTag = 'METADATA_EDIT';
 
   final BuildContext hostContext;
   final Song song;
   final List<SongOptionsExtraAction> extraActions;
-  final SongOptionsSheetMode mode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -102,39 +91,9 @@ class _SongOptionsSheet extends ConsumerWidget {
       authStateProvider.select((state) => state.currentLibrary?.id ?? ''),
     );
     final canDownload = libraryId.isNotEmpty;
-    final embedConfig = ref.watch(activeEmbedServiceConfigProvider);
-    final canDownloadPreview =
-        canDownload && embedConfig.isEnabledAndConfigured;
-    final canEditMetadata =
-        embedConfig.isEnabledAndConfigured &&
-        !song.isPreview &&
-        (song.path?.trim().isNotEmpty ?? false);
 
     final actions = <Widget>[];
-    if (mode == SongOptionsSheetMode.offlineOnly) {
-      for (final action in extraActions) {
-        actions.add(
-          _SongOptionRow(
-            icon: action.icon,
-            title: action.title,
-            destructive: action.isDestructive,
-            onPressed: () => unawaited(
-              _closeAndRun(context, () async => action.onPressed()),
-            ),
-          ),
-        );
-      }
-      if (extraActions.isEmpty) {
-        actions.add(
-          _SongOptionRow(
-            icon: AppIcons.info,
-            title: canDownload ? '暂无可用操作' : '当前不可操作',
-            onPressed: null,
-          ),
-        );
-      }
-    } else if (song.isPreview) {
-      final previewSource = song.previewSource?.trim();
+    if (song.isPreview) {
       actions.addAll(<Widget>[
         if (!isCurrentSong)
           _SongOptionRow(
@@ -154,35 +113,6 @@ class _SongOptionsSheet extends ConsumerWidget {
               }),
             ),
           ),
-        _SongOptionRow(
-          icon: AppIcons.downloadOutline,
-          title: '添加到离线下载队列',
-          onPressed: !canDownloadPreview
-              ? null
-              : () => unawaited(
-                  _closeAndRun(context, () async {
-                    try {
-                      await ref
-                          .read(offlineDownloadServiceProvider)
-                          .enqueuePreviewSong(
-                            song: song,
-                            libraryId: libraryId,
-                            config: embedConfig,
-                          );
-                      _showMessage('已添加「${song.title}」到离线下载队列');
-                    } catch (error) {
-                      NetworkErrorNotifier.show('添加试听歌曲失败: $error');
-                    }
-                  }),
-                ),
-        ),
-        _SongOptionRow(
-          icon: AppIcons.cloud,
-          title: previewSource == null || previewSource.isEmpty
-              ? '远程试听'
-              : '远程试听 · $previewSource',
-          onPressed: null,
-        ),
       ]);
     } else {
       actions.addAll(<Widget>[
@@ -292,38 +222,10 @@ class _SongOptionsSheet extends ConsumerWidget {
             ToastNotifier.show('已复制专辑: $albumName');
           },
         ),
-        if (canEditMetadata)
-          _SongOptionRow(
-            icon: AppIcons.editNote,
-            title: '修改元数据',
-            onPressed: () {
-              Logger.infoWithTag(
-                _logTag,
-                'enter editor from options songId=${song.id} '
-                'title="${song.title.trim()}" '
-                'artist="${(song.artist ?? '').trim()}" '
-                'album="${(song.album ?? '').trim()}" '
-                'path="${(song.path ?? '').trim()}" '
-                'albumId="${(song.albumId ?? '').trim()}" '
-                'artistId="${(song.artistId ?? '').trim()}"',
-              );
-              unawaited(
-                _closeAndRun(context, () async {
-                  if (!hostContext.mounted) return;
-                  await Navigator.of(hostContext).push<bool>(
-                    EchoPageRoute<bool>(
-                      context: hostContext,
-                      builder: (_) => SongMetadataEditPage(song: song),
-                    ),
-                  );
-                }),
-              );
-            },
-          ),
       ]);
     }
 
-    if (mode != SongOptionsSheetMode.offlineOnly && extraActions.isNotEmpty) {
+    if (extraActions.isNotEmpty) {
       actions.add(
         Padding(
           padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
@@ -345,11 +247,7 @@ class _SongOptionsSheet extends ConsumerWidget {
     }
 
     return EchoBottomSheet(
-      title: mode == SongOptionsSheetMode.offlineOnly
-          ? '离线曲目操作'
-          : song.isPreview
-          ? '试听歌曲操作'
-          : '歌曲操作',
+      title: song.isPreview ? '试听歌曲操作' : '歌曲操作',
       padding: EdgeInsets.fromLTRB(
         context.echoSpacing.md,
         0,
