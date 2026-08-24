@@ -270,20 +270,21 @@ class _EchoPressableState extends State<EchoPressable>
       return;
     }
     _pressed = true;
-    _feedback.forward(duration: _pressIn);
+    _feedback.animateTo(1.0, duration: _pressIn);
   }
 
   /// 松开/取消：从峰值按 [_pressOut] 渐淡回弹,使快速点按产生可见的「闪亮→消退」。
   void _handlePointerRelease() {
     if (!_pressed) return;
     _pressed = false;
-    _feedback.reverse(duration: _pressOut);
+    _feedback.animateBack(0.0, duration: _pressOut);
   }
 
   /// 键盘激活(Enter/Space)时也闪现一次按压反馈,保证无障碍用户可见。
   void _activatePulse() {
-    _feedback.forward(from: 0, duration: _pressIn).whenComplete(() {
-      if (mounted && !_pressed) _feedback.reverse(duration: _pressOut);
+    _feedback.value = 0;
+    _feedback.animateTo(1.0, duration: _pressIn).whenComplete(() {
+      if (mounted && !_pressed) _feedback.animateBack(0.0, duration: _pressOut);
     });
   }
 
