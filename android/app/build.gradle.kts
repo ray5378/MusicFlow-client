@@ -80,6 +80,11 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // 仅打包 arm64-v8a(ARMv8 及以上)原生库,显著减小安装包体积。
+            // debug 构建保留全部 ABI,便于 x86_64 模拟器调试。
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
             // 防止 R8 压缩掉通知图标资源
             isShrinkResources = false
             isMinifyEnabled = false
