@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/echo_design.dart';
+import '../../../core/design/media/echo_media_color_scope.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';

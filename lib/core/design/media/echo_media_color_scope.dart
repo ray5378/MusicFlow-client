@@ -97,6 +97,10 @@ EchoColors _mediaColors(
     backgrounds: mediaSurfaces,
     minimumRatio: 3,
   );
+  final onSurface = EchoColors.readableOn(surface);
+  // 文字用固定高对比前景(黑/白),不随封面主色调漂移,保证任何封面都清晰可读。
+  // 歌手/辅助文字(muted)用同一前景按表面轻微融合以区分层级。
+  final fixedMuted = Color.lerp(onSurface, surface, 0.22)!;
   final onAccent = EchoColors.ensureColorContrast(
     EchoColors.readableOn(visuals.controlAccent),
     background: visuals.controlAccent,
@@ -110,8 +114,8 @@ EchoColors _mediaColors(
     canvas: canvas,
     surface: surface,
     raised: raised,
-    ink: visuals.foreground,
-    muted: visuals.mutedForeground,
+    ink: onSurface,
+    muted: fixedMuted,
     divider: divider,
     controlBoundary: visuals.controlAccent,
     error: error,
