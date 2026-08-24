@@ -35,7 +35,6 @@ class FullPlayerPage extends ConsumerStatefulWidget {
 class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     with TickerProviderStateMixin {
   bool _showLyrics = false;
-  bool _showBitRate = false;
   bool _isClosingRoute = false;
 
   late final AnimationController _lyricsController;
@@ -803,52 +802,40 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         final bitRateText = rawBitRate > 0 ? '${rawBitRate}Kbps' : '未知码率';
         final audioSpecText = _buildAudioSpecText(song);
         final parts = <String>[];
-        IconData icon;
+        const icon = AppIcons.headphones;
 
-        if (song?.isPreview == true) {
-          final qualityLabel = song?.previewQualityLabel?.trim();
-          parts.add('试听');
-          _appendUniqueQualityPart(
-            parts,
-            qualityLabel?.isNotEmpty == true ? qualityLabel! : '未知音质',
-          );
-          icon = AppIcons.headphones;
-        } else {
-          final quality =
-              playerState.currentQuality ?? ref.watch(effectiveQualityProvider);
-          final qualityLabel = switch (quality) {
-            AudioQualityLevel.original => '原始无损',
-            AudioQualityLevel.high => '高品质',
-            AudioQualityLevel.standard => '标准',
-            AudioQualityLevel.dataSaver => '流量节省',
-            null => '未知音质',
-          };
-          final source = playerState.playbackSource ?? PlaybackSource.stream;
-          switch (source) {
-            case PlaybackSource.downloaded:
-              parts.add('本地已下载');
-              icon = AppIcons.offline;
-            case PlaybackSource.cached:
-              parts.add('本地缓存');
-              icon = AppIcons.checkCircleOutline;
-            case PlaybackSource.stream:
-              final networkType = ref
-                  .watch(currentNetworkTypeProvider)
-                  .valueOrNull;
-              parts.add(switch (networkType) {
-                NetworkType.wifi => 'Wi-Fi',
-                NetworkType.mobile => '移动数据',
-                NetworkType.none => '无网络',
-                null => '未知网络',
-              });
-              icon = networkType == NetworkType.none
-                  ? AppIcons.offline
-                  : AppIcons.cloud;
-          }
-          parts.add(qualityLabel);
-        }
-
-        if (_showBitRate) _appendUniqueQualityPart(parts, bitRateText);
+        // 详情面板行数据：拖动 Popup 面板，不再把码率内联进标签切换。
+        final source = playerState.playbackSource ?? PlaybackSource.stream;
+        final qualityLabel =
+            song?.isPreview == true
+                ? (song?.previewQualityLabel?.trim().isNotEmpty == true
+                      ? song!.previewQualityLabel!.trim()
+                      : '未知音质')
+                : switch (playerState.currentQuality ??
+                      ref.watch(effectiveQualityProvider)) {
+                    AudioQualityLevel.original => '原始无损',
+                    AudioQualityLevel.high => '高品质',
+                    AudioQualityLevel.standard => '标准',
+                    AudioQualityLevel.dataSaver => '流量节省',
+                    null => '未知音质',
+                  };
+        final sourceLabel =
+            song?.isPreview == true
+                ? '试听'
+                : switch (source) {
+                    PlaybackSource.downloaded => '本地已下载',
+                    PlaybackSource.cached => '本地缓存',
+                    PlaybackSource.stream => switch (ref
+                        .watch(currentNetworkTypeProvider)
+                        .valueOrNull) {
+                        NetworkType.wifi => 'Wi-Fi',
+                        NetworkType.mobile => '移动数据',
+                        NetworkType.none => '无网络',
+                        null => '未知网络',
+                      },
+                  };
+        parts.add(sourceLabel);
+        _appendUniqueQualityPart(parts, qualityLabel);
         if (audioSpecText.isNotEmpty) {
           _appendUniqueQualityPart(parts, audioSpecText);
         }
@@ -856,8 +843,17 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
         return EchoPressable(
           key: const ValueKey<String>('full_player_quality_metadata'),
-          semanticLabel: '$text，${_showBitRate ? '点击收起码率' : '点击显示码率'}',
-          onPressed: () => setState(() => _showBitRate = !_showBitRate),
+          semanticLabel: '$text，点击查看播放详情',
+          onPressed: () => _showQualityDetailSheet(
+            context: context,
+            title: song?.title ?? '播放详情',
+            subtitle: song?.artistName,
+            isPreview: song?.isPreview == true,
+            sourceLabel: sourceLabel,
+            qualityLabel: qualityLabel,
+            bitRateText: bitRateText,
+            audioSpecText: audioSpecText,
+          ),
           minimumSize: Size(
             context.echoInteraction.minimumTouchTarget,
             context.echoInteraction.minimumTouchTarget,
@@ -886,6 +882,82 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           ),
         );
       },
+    );
+  }
+
+  /// 点击音质/码率信息时弹出的详情面板：把来源、音质、码率、采样规格等
+  /// 详情收进一个面板展示，替代原先「把码率内联进标签」的点击切换。
+  Future<void> _showQualityDetailSheet({
+    required BuildContext context,
+    required String title,
+    required String? subtitle,
+    required bool isPreview,
+    required String sourceLabel,
+    required String qualityLabel,
+    required String bitRateText,
+    required String audioSpecText,
+  }) async {
+    await showEchoBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (sheetContext) => EchoBottomSheet(
+        title: isPreview ? '试听详情' : '播放详情',
+        subtitle: subtitle,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _QualityDetailRow(label: '曲目', value: title),
+            _QualityDetailRow(label: '播放来源', value: sourceLabel),
+            _QualityDetailRow(label: '音质等级', value: qualityLabel),
+            _QualityDetailRow(label: '码率', value: bitRateText),
+            if (audioSpecText.isNotEmpty)
+              _QualityDetailRow(label: '采样规格', value: audioSpecText),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 播放详情面板里的一行「标签 — 值」只读数据项。
+class _QualityDetailRow extends StatelessWidget {
+  const _QualityDetailRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: context.echoSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 88,
+            child: Text(
+              label,
+              style: context.echoTypography.metadata.copyWith(
+                color: context.echoColors.muted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: context.echoTypography.body.copyWith(
+                color: context.echoColors.ink,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
