@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
@@ -52,12 +52,12 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
           ref.invalidate(topSongsByArtistProvider(currentArtistName!));
         }
       },
-      child: EchoScaffold(
-        topBar: EchoTopBar.back(
+      child: MusicFlowScaffold(
+        topBar: MusicFlowTopBar.back(
           context: context,
           title: '歌手',
           actions: <Widget>[
-            EchoIconButton(
+            MusicFlowIconButton(
               icon: AppIcons.info,
               label: '歌曲来源说明',
               onPressed: _showSongSourceInfo,
@@ -68,13 +68,13 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
           data: (detail) {
             if (detail == null) {
               return loadFailed
-                  ? EchoErrorState(
+                  ? MusicFlowErrorState(
                       title: '歌手加载失败',
                       description: '无法读取歌手详情。请检查网络后重试。',
                       actionLabel: '重试',
                       onAction: _retryArtist,
                     )
-                  : const EchoEmptyState(
+                  : const MusicFlowEmptyState(
                       title: '歌手不存在',
                       description: '服务器没有返回这位歌手，内容可能已经被移动或删除。',
                       icon: AppIcons.people,
@@ -117,9 +117,9 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
-                            context.echoSpacing.md,
-                            context.echoSpacing.md,
-                            context.echoSpacing.md,
+                            context.musicFlowSpacing.md,
+                            context.musicFlowSpacing.md,
+                            context.musicFlowSpacing.md,
                             0,
                           ),
                           child: MediaLoadNotice(
@@ -148,8 +148,8 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                           'artist-detail-bottom-spacer',
                         ),
                         height:
-                            context.echoSpacing.xxl +
-                            context.echoShellBottomObstruction,
+                            context.musicFlowSpacing.xxl +
+                            context.musicFlowShellBottomObstruction,
                       ),
                     ),
                   ],
@@ -158,7 +158,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
             );
           },
           loading: () => const MediaDetailLoadingView(circularArtwork: true),
-          error: (error, stackTrace) => EchoErrorState(
+          error: (error, stackTrace) => MusicFlowErrorState(
             title: '歌手加载失败',
             description: '无法读取歌手详情。请检查网络后重试。',
             actionLabel: '重试',
@@ -184,15 +184,15 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                 : topSongs.take(_topSongsPreviewCount).toList();
             return Padding(
               padding: EdgeInsets.fromLTRB(
-                context.echoSpacing.md,
-                context.echoSpacing.lg,
-                context.echoSpacing.md,
-                context.echoSpacing.xs,
+                context.musicFlowSpacing.md,
+                context.musicFlowSpacing.lg,
+                context.musicFlowSpacing.md,
+                context.musicFlowSpacing.xs,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  EchoSectionHeader(
+                  MusicFlowSectionHeader(
                     title: '热门歌曲',
                     description: '${topSongs.length} 首来自远程热门结果',
                     actionLabel: topSongs.length > _topSongsPreviewCount
@@ -202,14 +202,14 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                       setState(() => _showAllTopSongs = !_showAllTopSongs);
                     },
                   ),
-                  SizedBox(height: context.echoSpacing.xs),
+                  SizedBox(height: context.musicFlowSpacing.xs),
                   for (var index = 0; index < visibleSongs.length; index++)
                     SongListItem(
                       song: visibleSongs[index],
                       index: index,
                       variant: SongListItemVariant.standard,
                       contentPadding: EdgeInsets.symmetric(
-                        vertical: context.echoSpacing.xs,
+                        vertical: context.musicFlowSpacing.xs,
                       ),
                       onTap: () {
                         final queueIndex = topSongs.indexWhere(
@@ -233,9 +233,9 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
           loading: () => const _TopSongsSkeleton(),
           error: (error, stackTrace) => Padding(
             padding: EdgeInsets.fromLTRB(
-              context.echoSpacing.md,
-              context.echoSpacing.md,
-              context.echoSpacing.md,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.md,
               0,
             ),
             child: MediaLoadNotice(
@@ -247,7 +247,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
         ),
       ),
       SliverToBoxAdapter(
-        child: EchoSectionHeader(
+        child: MusicFlowSectionHeader(
           title: '所有歌曲',
           description: songs.isEmpty ? '没有可播放歌曲' : '${songs.length} 首',
           actionLabel: songs.isEmpty ? null : '播放全部',
@@ -255,10 +255,10 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
               ? null
               : () => playEffectiveQueue(ref, songs),
           padding: EdgeInsets.fromLTRB(
-            context.echoSpacing.md,
-            context.echoSpacing.lg,
-            context.echoSpacing.md,
-            context.echoSpacing.xs,
+            context.musicFlowSpacing.md,
+            context.musicFlowSpacing.lg,
+            context.musicFlowSpacing.md,
+            context.musicFlowSpacing.xs,
           ),
         ),
       ),
@@ -267,7 +267,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
     if (songs.isEmpty) {
       slivers.add(
         const SliverToBoxAdapter(
-          child: EchoEmptyState(
+          child: MusicFlowEmptyState(
             title: '暂无歌曲',
             description: '服务器没有为这位歌手返回可播放歌曲。',
             icon: AppIcons.music,
@@ -303,7 +303,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
     if (albums.isEmpty) {
       return const <Widget>[
         SliverToBoxAdapter(
-          child: EchoEmptyState(
+          child: MusicFlowEmptyState(
             title: '暂无专辑',
             description: '服务器没有为这位歌手返回专辑。',
             icon: AppIcons.albumOutline,
@@ -318,16 +318,16 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
       return <Widget>[
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
-            context.echoSpacing.md,
-            context.echoSpacing.lg,
-            context.echoSpacing.md,
+            context.musicFlowSpacing.md,
+            context.musicFlowSpacing.lg,
+            context.musicFlowSpacing.md,
             0,
           ),
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final album = albums[index];
               return Padding(
-                padding: EdgeInsets.only(bottom: context.echoSpacing.sm),
+                padding: EdgeInsets.only(bottom: context.musicFlowSpacing.sm),
                 child: _ArtistAlbumRow(
                   album: album,
                   onPressed: () => _openAlbum(album),
@@ -347,9 +347,9 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
     return <Widget>[
       SliverPadding(
         padding: EdgeInsets.fromLTRB(
-          context.echoSpacing.md,
-          context.echoSpacing.lg,
-          context.echoSpacing.md,
+          context.musicFlowSpacing.md,
+          context.musicFlowSpacing.lg,
+          context.musicFlowSpacing.md,
           0,
         ),
         sliver: SliverGrid(
@@ -378,7 +378,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
 
   void _openAlbum(Album album) {
     Navigator.of(context).push<void>(
-      EchoPageRoute<void>(
+      MusicFlowPageRoute<void>(
         context: context,
         builder: (context) => AlbumDetailPage(albumId: album.id),
       ),
@@ -405,12 +405,12 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
       if (mounted) {
         ToastNotifier.show(
           nextStarred ? '已收藏歌手' : '已取消收藏歌手',
-          kind: EchoMessageKind.success,
+          kind: MusicFlowMessageKind.success,
         );
       }
     } catch (error) {
       if (mounted) {
-        ToastNotifier.show('操作失败: $error', kind: EchoMessageKind.error);
+        ToastNotifier.show('操作失败: $error', kind: MusicFlowMessageKind.error);
       }
     }
   }
@@ -420,7 +420,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '歌曲来源说明',
         child: SingleChildScrollView(
           child: Column(
@@ -428,10 +428,10 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
             children: <Widget>[
               Text(
                 '当前歌手歌曲来源为该歌手作为专辑艺术家的专辑下的所有歌曲，可能出现错漏。',
-                style: sheetContext.echoTypography.body,
+                style: sheetContext.musicFlowTypography.body,
               ),
-              SizedBox(height: sheetContext.echoSpacing.lg),
-              EchoButton.secondary(
+              SizedBox(height: sheetContext.musicFlowSpacing.lg),
+              MusicFlowButton.secondary(
                 label: '知道了',
                 expand: true,
                 onPressed: () => Navigator.of(sheetContext).pop(),
@@ -468,7 +468,7 @@ class _ArtistIdentityHeader extends StatelessWidget {
     return MediaDetailHeaderSurface(
       coverArtId: coverArtId,
       child: Padding(
-        padding: EdgeInsets.all(context.echoSpacing.lg),
+        padding: EdgeInsets.all(context.musicFlowSpacing.lg),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 680;
@@ -492,29 +492,29 @@ class _ArtistIdentityHeader extends StatelessWidget {
                   child: Text(
                     artistName,
                     textAlign: wide ? TextAlign.start : TextAlign.center,
-                    style: context.echoTypography.display,
+                    style: context.musicFlowTypography.display,
                   ),
                 ),
-                SizedBox(height: context.echoSpacing.sm),
+                SizedBox(height: context.musicFlowSpacing.sm),
                 Text(
                   '$songCount 首歌曲 · $albumCount 张专辑',
                   textAlign: wide ? TextAlign.start : TextAlign.center,
-                  style: context.echoTypography.body.copyWith(
-                    color: context.echoColors.muted,
+                  style: context.musicFlowTypography.body.copyWith(
+                    color: context.musicFlowColors.muted,
                   ),
                 ),
-                SizedBox(height: context.echoSpacing.lg),
+                SizedBox(height: context.musicFlowSpacing.lg),
                 Wrap(
                   alignment: wide ? WrapAlignment.start : WrapAlignment.center,
-                  spacing: context.echoSpacing.xs,
-                  runSpacing: context.echoSpacing.xs,
+                  spacing: context.musicFlowSpacing.xs,
+                  runSpacing: context.musicFlowSpacing.xs,
                   children: <Widget>[
-                    EchoButton.primary(
+                    MusicFlowButton.primary(
                       label: '播放歌曲',
                       leadingIcon: AppIcons.play,
                       onPressed: onPlay,
                     ),
-                    EchoIconButton(
+                    MusicFlowIconButton(
                       icon: starred ? AppIcons.heart : AppIcons.heartOutline,
                       label: starred ? '取消收藏歌手' : '收藏歌手',
                       selected: starred,
@@ -529,7 +529,7 @@ class _ArtistIdentityHeader extends StatelessWidget {
               return Column(
                 children: <Widget>[
                   portrait,
-                  SizedBox(height: context.echoSpacing.lg),
+                  SizedBox(height: context.musicFlowSpacing.lg),
                   information,
                 ],
               );
@@ -537,7 +537,7 @@ class _ArtistIdentityHeader extends StatelessWidget {
             return Row(
               children: <Widget>[
                 portrait,
-                SizedBox(width: context.echoSpacing.xl),
+                SizedBox(width: context.musicFlowSpacing.xl),
                 Expanded(child: information),
               ],
             );
@@ -596,13 +596,13 @@ class _ArtistAlbumRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: '${album.name}，${album.songCount} 首',
       onPressed: onPressed,
       onLongPress: onLongPress,
       minimumSize: const Size(double.infinity, 104),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+        padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
         child: Row(
           children: <Widget>[
             SizedBox.square(
@@ -614,30 +614,30 @@ class _ArtistAlbumRow extends StatelessWidget {
                 requestSize: 320,
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(album.name, style: context.echoTypography.title),
-                  SizedBox(height: context.echoSpacing.xxs),
+                  Text(album.name, style: context.musicFlowTypography.title),
+                  SizedBox(height: context.musicFlowSpacing.xxs),
                   Text(
                     <String>[
                       if (album.year != null) '${album.year}',
                       '${album.songCount} 首',
                     ].join(' · '),
-                    style: context.echoTypography.body.copyWith(
-                      color: context.echoColors.muted,
+                    style: context.musicFlowTypography.body.copyWith(
+                      color: context.musicFlowColors.muted,
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(width: context.echoSpacing.xs),
+            SizedBox(width: context.musicFlowSpacing.xs),
             Icon(
               AppIcons.chevronRight,
-              color: context.echoColors.muted,
+              color: context.musicFlowColors.muted,
               size: 20,
             ),
           ],
@@ -653,21 +653,21 @@ class _TopSongsSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.all(context.echoSpacing.md),
+      padding: EdgeInsets.all(context.musicFlowSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const EchoSkeleton.line(width: 160, height: 24),
-          SizedBox(height: context.echoSpacing.md),
+          const MusicFlowSkeleton.line(width: 160, height: 24),
+          SizedBox(height: context.musicFlowSpacing.md),
           for (var index = 0; index < 3; index++) ...<Widget>[
             Row(
               children: <Widget>[
-                const EchoSkeleton.circle(),
-                SizedBox(width: context.echoSpacing.sm),
-                const Expanded(child: EchoSkeleton.line(height: 18)),
+                const MusicFlowSkeleton.circle(),
+                SizedBox(width: context.musicFlowSpacing.sm),
+                const Expanded(child: MusicFlowSkeleton.line(height: 18)),
               ],
             ),
-            SizedBox(height: context.echoSpacing.sm),
+            SizedBox(height: context.musicFlowSpacing.sm),
           ],
         ],
       ),

@@ -1,6 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
@@ -70,7 +70,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CachedNetworkImage), findsOneWidget);
-    expect(find.byType(EchoSkeleton), findsOneWidget);
+    expect(find.byType(MusicFlowSkeleton), findsOneWidget);
     expect(find.bySemanticsLabel('专辑封面'), findsOneWidget);
   });
 
@@ -126,7 +126,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(tester.getSize(find.byType(EchoSkeleton)), const Size(120, 80));
+    expect(tester.getSize(find.byType(MusicFlowSkeleton)), const Size(120, 80));
     expect(find.bySemanticsLabel('bounded 封面'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -138,7 +138,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(tester.getSize(find.byType(EchoSkeleton)), const Size(48, 48));
+    expect(tester.getSize(find.byType(MusicFlowSkeleton)), const Size(48, 48));
     expect(find.bySemanticsLabel('unbounded 封面'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

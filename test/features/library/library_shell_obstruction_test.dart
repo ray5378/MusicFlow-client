@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
@@ -101,7 +101,7 @@ Future<void> _pumpPage(
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
-        home: EchoShellObstructionScope(bottom: _obstruction, child: page),
+        home: MusicFlowShellObstructionScope(bottom: _obstruction, child: page),
       ),
     ),
   );
@@ -126,7 +126,7 @@ void main() {
 
     final spacer =
         tester.widget<SizedBox>(find.byKey(const ValueKey<String>('album-detail-bottom-spacer')));
-    expect(spacer.height, EchoSpacing.standard.xxl + _obstruction);
+    expect(spacer.height, MusicFlowSpacing.standard.xxl + _obstruction);
     expect(tester.takeException(), isNull);
   });
 
@@ -152,7 +152,7 @@ void main() {
 
     final spacer =
         tester.widget<SizedBox>(find.byKey(const ValueKey<String>('artist-detail-bottom-spacer')));
-    expect(spacer.height, EchoSpacing.standard.xxl + _obstruction);
+    expect(spacer.height, MusicFlowSpacing.standard.xxl + _obstruction);
     expect(tester.takeException(), isNull);
   });
 
@@ -174,7 +174,7 @@ void main() {
 
     final spacer =
         tester.widget<SizedBox>(find.byKey(const ValueKey<String>('playlist-detail-bottom-spacer')));
-    expect(spacer.height, EchoSpacing.standard.xxl + _obstruction);
+    expect(spacer.height, MusicFlowSpacing.standard.xxl + _obstruction);
     expect(tester.takeException(), isNull);
   });
 
@@ -195,7 +195,7 @@ void main() {
       expect(padding, isNotNull);
       expect(
         padding!.bottom,
-        EchoSpacing.standard.xxl + _obstruction,
+        MusicFlowSpacing.standard.xxl + _obstruction,
       );
       expect(tester.takeException(), isNull);
     }

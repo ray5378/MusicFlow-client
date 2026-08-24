@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/cover_ref_security.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
@@ -63,16 +63,16 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
   @override
   Widget build(BuildContext context) {
     final album = widget.album;
-    return EchoScaffold(
-      topBar: EchoTopBar.back(context: context, title: album.name),
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(context: context, title: album.name),
       body: FutureBuilder<List<Song>>(
         future: _songsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const EchoMediaListSkeleton(count: 8);
+            return const MusicFlowMediaListSkeleton(count: 8);
           }
           if (snapshot.hasError) {
-            return EchoErrorState(
+            return MusicFlowErrorState(
               title: '加载失败',
               description: '拉取专辑歌曲时出错,可重试。',
               actionLabel: '重试',
@@ -92,7 +92,7 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
               ),
               if (songs.isEmpty)
                 const SliverToBoxAdapter(
-                  child: EchoEmptyState(
+                  child: MusicFlowEmptyState(
                     title: '没有可播放的歌曲',
                     description: '该平台专辑暂时拉取不到歌曲。',
                     icon: AppIcons.album,
@@ -122,8 +122,8 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
                 ),
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: context.echoSpacing.xxl +
-                      context.echoShellBottomObstruction,
+                  height: context.musicFlowSpacing.xxl +
+                      context.musicFlowShellBottomObstruction,
                 ),
               ),
             ],
@@ -162,13 +162,13 @@ class _Header extends StatelessWidget {
         : Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: context.echoColors.surface,
+              color: context.musicFlowColors.surface,
             ),
             child: const Center(child: Icon(AppIcons.album, size: 40)),
           );
 
     return Padding(
-      padding: EdgeInsets.all(context.echoSpacing.md),
+      padding: EdgeInsets.all(context.musicFlowSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -176,7 +176,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               SizedBox.square(dimension: 120, child: cover),
-              SizedBox(width: context.echoSpacing.md),
+              SizedBox(width: context.musicFlowSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +185,7 @@ class _Header extends StatelessWidget {
                       album.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: context.echoTypography.headline,
+                      style: context.musicFlowTypography.headline,
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -196,19 +196,19 @@ class _Header extends StatelessWidget {
                       ].where((e) => e.isNotEmpty).join(' · '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: context.echoTypography.metadata
-                          .copyWith(color: context.echoColors.muted),
+                      style: context.musicFlowTypography.metadata
+                          .copyWith(color: context.musicFlowColors.muted),
                     ),
                     const SizedBox(height: 14),
                     Row(
                       children: <Widget>[
-                        EchoButton.primary(
+                        MusicFlowButton.primary(
                           label: '播放全部',
                           leadingIcon: AppIcons.play,
                           onPressed: onPlayAll,
                         ),
-                        SizedBox(width: context.echoSpacing.sm),
-                        EchoButton.secondary(
+                        SizedBox(width: context.musicFlowSpacing.sm),
+                        MusicFlowButton.secondary(
                           label: '加入库',
                           leadingIcon: AppIcons.playlistAdd,
                           onPressed: onAddToLibrary,
@@ -220,7 +220,7 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: context.echoSpacing.sm),
+          SizedBox(height: context.musicFlowSpacing.sm),
         ],
       ),
     );

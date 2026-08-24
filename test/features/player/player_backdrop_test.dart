@@ -1,11 +1,11 @@
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:palette_generator/palette_generator.dart';
 
 void main() {
-  final visuals = EchoMediaVisuals.fromPalette(
+  final visuals = MusicFlowMediaVisuals.fromPalette(
     PaletteGenerator.fromColors(<PaletteColor>[
       PaletteColor(const Color(0xFFFFE36B), 120),
       PaletteColor(const Color(0xFF4E77C8), 30),
@@ -23,17 +23,17 @@ void main() {
             SizedBox(
               width: 220,
               height: 72,
-              child: EchoPlayerBackdrop(
+              child: MusicFlowPlayerBackdrop(
                 key: const Key('mini-backdrop'),
                 visuals: visuals,
-                mode: EchoPlayerBackdropMode.mini,
+                mode: MusicFlowPlayerBackdropMode.mini,
               ),
             ),
             Expanded(
-              child: EchoPlayerBackdrop(
+              child: MusicFlowPlayerBackdrop(
                 key: const Key('stage-backdrop'),
                 visuals: visuals,
-                mode: EchoPlayerBackdropMode.stage,
+                mode: MusicFlowPlayerBackdropMode.stage,
               ),
             ),
           ],
@@ -172,15 +172,15 @@ void main() {
     );
     expect(
       tester
-          .widgetList<EchoPlayerBackdrop>(find.byType(EchoPlayerBackdrop))
+          .widgetList<MusicFlowPlayerBackdrop>(find.byType(MusicFlowPlayerBackdrop))
           .map((backdrop) => backdrop.mode),
-      contains(EchoPlayerBackdropMode.stage),
+      contains(MusicFlowPlayerBackdropMode.stage),
     );
   });
 }
 
 Widget _heroApp({
-  required EchoMediaVisuals visuals,
+  required MusicFlowMediaVisuals visuals,
   bool disableAnimations = false,
 }) {
   return MaterialApp(
@@ -198,7 +198,7 @@ Widget _heroApp({
 class _BackdropHeroSource extends StatelessWidget {
   const _BackdropHeroSource({required this.visuals});
 
-  final EchoMediaVisuals visuals;
+  final MusicFlowMediaVisuals visuals;
 
   @override
   Widget build(BuildContext context) {
@@ -214,10 +214,10 @@ class _BackdropHeroSource extends StatelessWidget {
                 tag: playerBackgroundHeroTag,
                 createRectTween: playerLinearRectTween,
                 flightShuttleBuilder: playerBackgroundFlightShuttleBuilder,
-                child: EchoPlayerBackdrop(
+                child: MusicFlowPlayerBackdrop(
                   key: const Key('source-backdrop'),
                   visuals: visuals,
-                  mode: EchoPlayerBackdropMode.mini,
+                  mode: MusicFlowPlayerBackdropMode.mini,
                 ),
               ),
             ),
@@ -247,7 +247,7 @@ class _BackdropHeroSource extends StatelessWidget {
 class _BackdropHeroTarget extends StatelessWidget {
   const _BackdropHeroTarget({required this.visuals});
 
-  final EchoMediaVisuals visuals;
+  final MusicFlowMediaVisuals visuals;
 
   @override
   Widget build(BuildContext context) {
@@ -259,10 +259,10 @@ class _BackdropHeroTarget extends StatelessWidget {
               tag: playerBackgroundHeroTag,
               createRectTween: playerLinearRectTween,
               flightShuttleBuilder: playerBackgroundFlightShuttleBuilder,
-              child: EchoPlayerBackdrop(
+              child: MusicFlowPlayerBackdrop(
                 key: const Key('target-backdrop'),
                 visuals: visuals,
-                mode: EchoPlayerBackdropMode.stage,
+                mode: MusicFlowPlayerBackdropMode.stage,
               ),
             ),
           ),
@@ -310,15 +310,15 @@ void _expectRadiusValue(BoxDecoration decoration, double expected) {
   expect(_radiusOf(decoration), closeTo(expected, 0.001));
 }
 
-void _expectContrastSafe(BoxDecoration decoration, EchoMediaVisuals visuals) {
+void _expectContrastSafe(BoxDecoration decoration, MusicFlowMediaVisuals visuals) {
   final gradient = decoration.gradient! as LinearGradient;
   for (final color in gradient.colors) {
     expect(
-      EchoColors.contrastRatio(visuals.foreground, color),
+      MusicFlowColors.contrastRatio(visuals.foreground, color),
       greaterThanOrEqualTo(4.5),
     );
     expect(
-      EchoColors.contrastRatio(visuals.controlAccent, color),
+      MusicFlowColors.contrastRatio(visuals.controlAccent, color),
       greaterThanOrEqualTo(3),
     );
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/album.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../widgets/cover_art_image.dart';
@@ -15,7 +15,7 @@ Future<SongSortOption?> showMediaSongSortSheet({
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
-    builder: (sheetContext) => EchoBottomSheet(
+    builder: (sheetContext) => MusicFlowBottomSheet(
       title: '歌曲排序',
       subtitle: '当前：${current.label}',
       child: SingleChildScrollView(
@@ -23,14 +23,14 @@ Future<SongSortOption?> showMediaSongSortSheet({
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             for (final option in selectableSongSortOptions)
-              EchoActionRow(
+              MusicFlowActionRow(
                 icon: AppIcons.sort,
                 title: option.label,
                 selected: option == current,
                 trailing: option == current
                     ? Icon(
                         AppIcons.check,
-                        color: sheetContext.echoColors.accent,
+                        color: sheetContext.musicFlowColors.accent,
                       )
                     : null,
                 onPressed: () => Navigator.of(sheetContext).pop(option),
@@ -56,7 +56,7 @@ class MediaDetailHeaderSurface extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     final normalizedCoverArtId = coverArtId?.trim() ?? '';
     final palette = useContentTint && normalizedCoverArtId.isNotEmpty
         ? ref
@@ -74,7 +74,7 @@ class MediaDetailHeaderSurface extends ConsumerWidget {
     final background = useContentTint
         ? mediaDetailHeaderBackgroundColor(context, paletteColor)
         : colors.canvas;
-    final motion = context.echoMotion;
+    final motion = context.musicFlowMotion;
 
     return AnimatedContainer(
       key: const ValueKey<String>('media-detail-header-surface'),
@@ -91,11 +91,11 @@ class MediaDetailHeaderSurface extends ConsumerWidget {
 
 /// Builds a restrained artwork tint while keeping Echo text readable.
 ///
-/// The fallback seed is [EchoColors.contentTint], so missing artwork and
+/// The fallback seed is [MusicFlowColors.contentTint], so missing artwork and
 /// extraction failures retain the same stable visual identity. Tint strength
 /// is reduced until both primary and secondary text meet WCAG AA.
 Color mediaDetailHeaderBackgroundColor(BuildContext context, Color? seed) {
-  final colors = context.echoColors;
+  final colors = context.musicFlowColors;
   final tint = seed ?? colors.contentTint;
   var strength = Theme.of(context).brightness == Brightness.dark ? 0.24 : 0.16;
 
@@ -104,8 +104,8 @@ Color mediaDetailHeaderBackgroundColor(BuildContext context, Color? seed) {
       tint.withValues(alpha: strength),
       colors.canvas,
     );
-    final inkRatio = EchoColors.contrastRatio(colors.ink, candidate);
-    final mutedRatio = EchoColors.contrastRatio(colors.muted, candidate);
+    final inkRatio = MusicFlowColors.contrastRatio(colors.ink, candidate);
+    final mutedRatio = MusicFlowColors.contrastRatio(colors.muted, candidate);
     if (inkRatio >= 4.5 && mutedRatio >= 4.5) {
       return candidate;
     }
@@ -141,7 +141,7 @@ class MediaDetailArtwork extends StatelessWidget {
     );
     artwork = circular
         ? ClipOval(child: artwork)
-        : ClipRRect(borderRadius: context.echoRadii.surface, child: artwork);
+        : ClipRRect(borderRadius: context.musicFlowRadii.surface, child: artwork);
 
     if (heroTag != null) {
       artwork = Hero(tag: heroTag!, child: artwork);
@@ -165,18 +165,18 @@ class MediaDetailSectionSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: context.echoColors.canvas,
+      color: context.musicFlowColors.canvas,
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoSpacing.md,
-          vertical: context.echoSpacing.xs,
+          horizontal: context.musicFlowSpacing.md,
+          vertical: context.musicFlowSpacing.xs,
         ),
         child: Row(
           children: <Widget>[
             for (var index = 0; index < labels.length; index++) ...<Widget>[
-              if (index > 0) SizedBox(width: context.echoSpacing.xs),
+              if (index > 0) SizedBox(width: context.musicFlowSpacing.xs),
               Expanded(
-                child: EchoPressable(
+                child: MusicFlowPressable(
                   semanticLabel: labels[index],
                   selected: index == selectedIndex,
                   onPressed: () => onSelected(index),
@@ -184,17 +184,17 @@ class MediaDetailSectionSwitcher extends StatelessWidget {
                   child: Ink(
                     decoration: BoxDecoration(
                       color: index == selectedIndex
-                          ? context.echoColors.accent.withValues(alpha: 0.12)
+                          ? context.musicFlowColors.accent.withValues(alpha: 0.12)
                           : Colors.transparent,
-                      borderRadius: context.echoRadii.control,
+                      borderRadius: context.musicFlowRadii.control,
                     ),
                     child: Center(
                       child: Text(
                         labels[index],
-                        style: context.echoTypography.label.copyWith(
+                        style: context.musicFlowTypography.label.copyWith(
                           color: index == selectedIndex
-                              ? context.echoColors.accent
-                              : context.echoColors.ink,
+                              ? context.musicFlowColors.accent
+                              : context.musicFlowColors.ink,
                           fontWeight: index == selectedIndex
                               ? FontWeight.w700
                               : FontWeight.w500,
@@ -231,7 +231,7 @@ class MediaDetailAlbumTile extends StatelessWidget {
       '${album.songCount} 首',
     ].join(' · ');
 
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: '${album.name}，$metadata',
       onPressed: onPressed,
       onLongPress: onLongPress,
@@ -248,13 +248,13 @@ class MediaDetailAlbumTile extends StatelessWidget {
               requestSize: 480,
             ),
           ),
-          SizedBox(height: context.echoSpacing.xs),
-          Text(album.name, style: context.echoTypography.title, maxLines: 2),
-          SizedBox(height: context.echoSpacing.xxs),
+          SizedBox(height: context.musicFlowSpacing.xs),
+          Text(album.name, style: context.musicFlowTypography.title, maxLines: 2),
+          SizedBox(height: context.musicFlowSpacing.xxs),
           Text(
             metadata,
-            style: context.echoTypography.metadata.copyWith(
-              color: context.echoColors.muted,
+            style: context.musicFlowTypography.metadata.copyWith(
+              color: context.musicFlowColors.muted,
             ),
           ),
         ],
@@ -272,33 +272,33 @@ class MediaDetailLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.all(context.echoSpacing.md),
+      padding: EdgeInsets.all(context.musicFlowSpacing.md),
       children: <Widget>[
         Center(
           child: circularArtwork
-              ? const EchoSkeleton.circle(size: 160)
+              ? const MusicFlowSkeleton.circle(size: 160)
               : const SizedBox.square(
                   dimension: 220,
-                  child: EchoSkeleton(
+                  child: MusicFlowSkeleton(
                     height: 220,
                     borderRadius: BorderRadius.all(Radius.circular(16)),
                   ),
                 ),
         ),
-        SizedBox(height: context.echoSpacing.lg),
-        const EchoSkeleton.line(width: 220, height: 28),
-        SizedBox(height: context.echoSpacing.sm),
-        const EchoSkeleton.line(width: 160),
-        SizedBox(height: context.echoSpacing.lg),
+        SizedBox(height: context.musicFlowSpacing.lg),
+        const MusicFlowSkeleton.line(width: 220, height: 28),
+        SizedBox(height: context.musicFlowSpacing.sm),
+        const MusicFlowSkeleton.line(width: 160),
+        SizedBox(height: context.musicFlowSpacing.lg),
         for (var index = 0; index < 6; index++) ...<Widget>[
           Row(
             children: <Widget>[
-              const EchoSkeleton.circle(),
-              SizedBox(width: context.echoSpacing.sm),
-              const Expanded(child: EchoSkeleton.line(height: 18)),
+              const MusicFlowSkeleton.circle(),
+              SizedBox(width: context.musicFlowSpacing.sm),
+              const Expanded(child: MusicFlowSkeleton.line(height: 18)),
             ],
           ),
-          SizedBox(height: context.echoSpacing.md),
+          SizedBox(height: context.musicFlowSpacing.md),
         ],
       ],
     );
@@ -322,25 +322,25 @@ class MediaLoadNotice extends StatelessWidget {
       label: message,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: context.echoColors.raised,
-          borderRadius: context.echoRadii.control,
-          border: Border.all(color: context.echoColors.controlBoundary),
+          color: context.musicFlowColors.raised,
+          borderRadius: context.musicFlowRadii.control,
+          border: Border.all(color: context.musicFlowColors.controlBoundary),
         ),
         child: Padding(
-          padding: EdgeInsets.all(context.echoSpacing.sm),
+          padding: EdgeInsets.all(context.musicFlowSpacing.sm),
           child: Row(
             children: <Widget>[
               Icon(
                 AppIcons.wifiOff,
                 size: 20,
-                color: context.echoColors.warning,
+                color: context.musicFlowColors.warning,
               ),
-              SizedBox(width: context.echoSpacing.xs),
+              SizedBox(width: context.musicFlowSpacing.xs),
               Expanded(
-                child: Text(message, style: context.echoTypography.body),
+                child: Text(message, style: context.musicFlowTypography.body),
               ),
-              SizedBox(width: context.echoSpacing.xs),
-              EchoButton.ghost(label: '重试', onPressed: onRetry),
+              SizedBox(width: context.musicFlowSpacing.xs),
+              MusicFlowButton.ghost(label: '重试', onPressed: onRetry),
             ],
           ),
         ),

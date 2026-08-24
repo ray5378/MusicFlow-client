@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/provider_config.dart';
 import '../../../data/sources/database/database_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
-import '../widgets/echo_settings_components.dart';
+import '../widgets/music_flow_settings_components.dart';
 
 class LyricsProvidersPage extends ConsumerStatefulWidget {
   const LyricsProvidersPage({super.key});
@@ -20,16 +20,16 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
   Widget build(BuildContext context) {
     final configsAsync = ref.watch(lyricsProviderConfigsProvider);
 
-    return EchoScaffold(
-      topBar: EchoTopBar.back(context: context, title: '歌词提供商'),
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(context: context, title: '歌词提供商'),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: configsAsync.when(
             data: _buildProviderList,
-            loading: () => const EchoProviderListSkeleton(),
-            error: (error, stackTrace) => EchoErrorState(
+            loading: () => const MusicFlowProviderListSkeleton(),
+            error: (error, stackTrace) => MusicFlowErrorState(
               title: '无法读取歌词提供商',
               description: '提供商顺序和启用状态暂时不可用。\n$error',
               actionLabel: '重试',
@@ -43,7 +43,7 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
 
   Widget _buildProviderList(List<ProviderConfig> configs) {
     if (configs.isEmpty) {
-      return const EchoEmptyState(
+      return const MusicFlowEmptyState(
         title: '没有可用的歌词提供商',
         description: '提供商配置为空，请稍后重试或检查应用数据。',
         icon: AppIcons.lyrics,
@@ -55,14 +55,14 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
     return ReorderableListView.builder(
       buildDefaultDragHandles: false,
       padding: EdgeInsets.fromLTRB(
-        context.echoSpacing.md,
-        context.echoSpacing.sm,
-        context.echoSpacing.md,
-        context.echoSpacing.xxl + context.echoShellBottomObstruction,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.sm,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
       ),
       header: Padding(
-        padding: EdgeInsets.only(bottom: context.echoSpacing.md),
-        child: const EchoSectionHeader(
+        padding: EdgeInsets.only(bottom: context.musicFlowSpacing.md),
+        child: const MusicFlowSectionHeader(
           title: '优先顺序',
           description: '播放时会从上到下依次尝试。按住拖动图标可调整顺序。',
         ),
@@ -80,7 +80,7 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
       },
       itemBuilder: (context, index) {
         final config = currentConfigs[index];
-        return EchoProviderSettingRow(
+        return MusicFlowProviderSettingRow(
           key: ValueKey(config.id),
           index: index,
           title: _getProviderName(config.sourceId),

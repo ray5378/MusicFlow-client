@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/features/download/pages/download_manager_page.dart';
@@ -15,7 +15,7 @@ import '../providers/auth_provider.dart';
 import '../providers/music_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
-import 'echo_app_shell/echo_drawer.dart';
+import 'music_flow_app_shell/music_flow_drawer.dart';
 
 /// Echo's application drawer. [Scaffold] still supplies platform drawer
 /// routing, focus, and back behavior; every visible surface is owned here.
@@ -37,8 +37,8 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     final activeLibrary = authState.currentLibrary;
     final activeAddress = ref.watch(activeAddressProvider);
 
-    return EchoDrawerFrame(
-      header: EchoDrawerIdentityHeader(
+    return MusicFlowDrawerFrame(
+      header: MusicFlowDrawerIdentityHeader(
         username: activeLibrary?.username ?? 'Guest',
         libraryName: activeLibrary?.name ?? '未选择',
         addressLabel: activeAddress?.label ?? '没有活动线路',
@@ -63,7 +63,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     return libraries.when(
       data: (items) {
         if (items.isEmpty) {
-          return EchoEmptyState(
+          return MusicFlowEmptyState(
             title: '还没有音乐库',
             description: '添加一个 Navidrome、Subsonic 或 OpenSubsonic 音乐库后即可开始聆听。',
             icon: AppIcons.library,
@@ -74,7 +74,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
 
         return ListView.builder(
           key: const PageStorageKey<String>('echo-drawer-libraries'),
-          padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+          padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           itemCount: items.length + 2,
           itemBuilder: (context, index) {
@@ -82,8 +82,8 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
               final library = items[index];
               final isActive = library.id == activeLibrary?.id;
               return Padding(
-                padding: EdgeInsets.only(bottom: context.echoSpacing.xs),
-                child: EchoDrawerLibraryRow(
+                padding: EdgeInsets.only(bottom: context.musicFlowSpacing.xs),
+                child: MusicFlowDrawerLibraryRow(
                   title: library.name,
                   subtitle: library.addresses.firstOrNull?.url ?? '未配置服务器地址',
                   selected: isActive,
@@ -106,18 +106,18 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
             if (index == items.length) {
               return Padding(
                 padding: EdgeInsets.fromLTRB(
-                  context.echoSpacing.md,
-                  context.echoSpacing.xxs,
-                  context.echoSpacing.md,
-                  context.echoSpacing.sm,
+                  context.musicFlowSpacing.md,
+                  context.musicFlowSpacing.xxs,
+                  context.musicFlowSpacing.md,
+                  context.musicFlowSpacing.sm,
                 ),
-                child: const EchoDivider(),
+                child: const MusicFlowDivider(),
               );
             }
 
             return Padding(
-              padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.xs),
-              child: EchoActionRow(
+              padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.xs),
+              child: MusicFlowActionRow(
                 icon: AppIcons.add,
                 title: '添加新音乐库',
                 subtitle: '连接另一台服务器或另一个账户',
@@ -128,7 +128,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         );
       },
       loading: () => const _DrawerSkeletonList(),
-      error: (error, stackTrace) => EchoErrorState(
+      error: (error, stackTrace) => MusicFlowErrorState(
         title: '无法读取音乐库',
         description: '音乐库列表暂时不可用。重试不会影响当前正在播放的内容。',
         actionLabel: '重试',
@@ -166,37 +166,37 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
 
     return ListView.builder(
       key: const PageStorageKey<String>('echo-drawer-navigation'),
-      padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
         if (entry == null) {
           return Padding(
             padding: EdgeInsets.fromLTRB(
-              context.echoSpacing.md,
-              context.echoSpacing.xxs,
-              context.echoSpacing.md,
-              context.echoSpacing.xs,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.xxs,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.xs,
             ),
-            child: const EchoDivider(),
+            child: const MusicFlowDivider(),
           );
         }
 
         return Padding(
           padding: EdgeInsets.fromLTRB(
-            context.echoSpacing.xs,
+            context.musicFlowSpacing.xs,
             0,
-            context.echoSpacing.xs,
-            context.echoSpacing.xs,
+            context.musicFlowSpacing.xs,
+            context.musicFlowSpacing.xs,
           ),
-          child: EchoActionRow(
+          child: MusicFlowActionRow(
             icon: entry.icon,
             title: entry.title,
             subtitle: entry.subtitle,
             trailing: Icon(
               AppIcons.chevronRight,
-              size: context.echoInteraction.smallIconSize,
-              color: context.echoColors.muted,
+              size: context.musicFlowInteraction.smallIconSize,
+              color: context.musicFlowColors.muted,
             ),
             onPressed: entry.onPressed,
           ),
@@ -226,7 +226,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!navigator.mounted) return;
       navigator.push(
-        EchoPageRoute<void>(context: navigator.context, builder: builder),
+        MusicFlowPageRoute<void>(context: navigator.context, builder: builder),
       );
     });
   }
@@ -274,7 +274,7 @@ Future<void> showRouteSelectionSheet(
               final activeAddress = ref.watch(activeAddressProvider);
               final addressPool = ref.read(addressPoolProvider);
 
-              return EchoBottomSheet(
+              return MusicFlowBottomSheet(
                 title: '切换线路',
                 subtitle: '手动锁定一条线路，或让 Echo 根据可用性和延迟自动选择。',
                 constrainToAvailableHeight: true,
@@ -282,7 +282,7 @@ Future<void> showRouteSelectionSheet(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    EchoButton.ghost(
+                    MusicFlowButton.ghost(
                       label: '重新检测延迟',
                       leadingIcon: AppIcons.refresh,
                       expand: true,
@@ -290,7 +290,7 @@ Future<void> showRouteSelectionSheet(
                         addressPool.probeAll();
                       },
                     ),
-                    SizedBox(height: context.echoSpacing.sm),
+                    SizedBox(height: context.musicFlowSpacing.sm),
                     Flexible(
                       child: libraries.when(
                         data: (items) {
@@ -315,7 +315,7 @@ Future<void> showRouteSelectionSheet(
 
                           if (addresses.isEmpty) {
                             return const SingleChildScrollView(
-                              child: EchoEmptyState(
+                              child: MusicFlowEmptyState(
                                 title: '没有可用线路',
                                 description: '请先在音乐库设置中添加至少一个服务器地址。',
                                 icon: AppIcons.route,
@@ -335,7 +335,7 @@ Future<void> showRouteSelectionSheet(
                             itemCount: addresses.length + 2,
                             itemBuilder: (context, index) {
                               if (index == 0) {
-                                return EchoActionRow(
+                                return MusicFlowActionRow(
                                   icon: AppIcons.route,
                                   title: '自动选择',
                                   subtitle: isAuto
@@ -345,7 +345,7 @@ Future<void> showRouteSelectionSheet(
                                   trailing: isAuto
                                       ? Icon(
                                           AppIcons.check,
-                                          color: context.echoColors.accent,
+                                          color: context.musicFlowColors.accent,
                                         )
                                       : null,
                                   onPressed: () {
@@ -358,9 +358,9 @@ Future<void> showRouteSelectionSheet(
                               if (index == 1) {
                                 return Padding(
                                   padding: EdgeInsets.symmetric(
-                                    vertical: context.echoSpacing.xs,
+                                    vertical: context.musicFlowSpacing.xs,
                                   ),
-                                  child: const EchoDivider(),
+                                  child: const MusicFlowDivider(),
                                 );
                               }
 
@@ -373,9 +373,9 @@ Future<void> showRouteSelectionSheet(
                               );
                               return Padding(
                                 padding: EdgeInsets.only(
-                                  bottom: context.echoSpacing.xs,
+                                  bottom: context.musicFlowSpacing.xs,
                                 ),
-                                child: EchoActionRow(
+                                child: MusicFlowActionRow(
                                   icon: AppIcons.signalTower,
                                   title: address.label,
                                   subtitle:
@@ -388,7 +388,7 @@ Future<void> showRouteSelectionSheet(
                                       isSelected ? AppIcons.check : status.icon,
                                       size: 20,
                                       color: isSelected
-                                          ? context.echoColors.accent
+                                          ? context.musicFlowColors.accent
                                           : status.color(context),
                                     ),
                                   ),
@@ -403,7 +403,7 @@ Future<void> showRouteSelectionSheet(
                         },
                         loading: () => const _DrawerSkeletonList(itemCount: 3),
                         error: (error, stackTrace) => SingleChildScrollView(
-                          child: EchoErrorState(
+                          child: MusicFlowErrorState(
                             title: '无法读取线路',
                             description: '线路信息暂时不可用。请重试，或稍后打开音乐库设置检查地址。',
                             actionLabel: '重试',
@@ -435,12 +435,12 @@ String? resolveEchoDrawerAvatarUrl(MusicLibrary? library) {
   return raw.trim();
 }
 
-EchoDrawerConnectionState _connectionState(ServerAddress? address) {
-  if (address == null) return EchoDrawerConnectionState.disconnected;
+MusicFlowDrawerConnectionState _connectionState(ServerAddress? address) {
+  if (address == null) return MusicFlowDrawerConnectionState.disconnected;
   return switch (address.status) {
-    ServerAddressStatus.ok => EchoDrawerConnectionState.connected,
-    ServerAddressStatus.failed => EchoDrawerConnectionState.failed,
-    ServerAddressStatus.unknown => EchoDrawerConnectionState.unknown,
+    ServerAddressStatus.ok => MusicFlowDrawerConnectionState.connected,
+    ServerAddressStatus.failed => MusicFlowDrawerConnectionState.failed,
+    ServerAddressStatus.unknown => MusicFlowDrawerConnectionState.unknown,
   };
 }
 
@@ -493,9 +493,9 @@ class _AddressStatusPresentation {
 
   Color color(BuildContext context) {
     return switch (kind) {
-      _AddressStatusKind.connected => context.echoColors.accent,
-      _AddressStatusKind.failed => context.echoColors.error,
-      _AddressStatusKind.unknown => context.echoColors.muted,
+      _AddressStatusKind.connected => context.musicFlowColors.accent,
+      _AddressStatusKind.failed => context.musicFlowColors.error,
+      _AddressStatusKind.unknown => context.musicFlowColors.muted,
     };
   }
 }
@@ -509,27 +509,27 @@ class _DrawerSkeletonList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.builder(
       padding: EdgeInsets.symmetric(
-        horizontal: context.echoSpacing.md,
-        vertical: context.echoSpacing.sm,
+        horizontal: context.musicFlowSpacing.md,
+        vertical: context.musicFlowSpacing.sm,
       ),
       itemCount: itemCount,
       itemBuilder: (context, index) {
         return Padding(
-          padding: EdgeInsets.only(bottom: context.echoSpacing.md),
+          padding: EdgeInsets.only(bottom: context.musicFlowSpacing.md),
           child: Row(
             children: <Widget>[
-              const EchoSkeleton.circle(),
-              SizedBox(width: context.echoSpacing.sm),
+              const MusicFlowSkeleton.circle(),
+              SizedBox(width: context.musicFlowSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    EchoSkeleton.line(
+                    MusicFlowSkeleton.line(
                       width: index.isEven ? 140 : 112,
                       height: 16,
                     ),
-                    SizedBox(height: context.echoSpacing.xs),
-                    const EchoSkeleton.line(width: 196),
+                    SizedBox(height: context.musicFlowSpacing.xs),
+                    const MusicFlowSkeleton.line(width: 196),
                   ],
                 ),
               ),

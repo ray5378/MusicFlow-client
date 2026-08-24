@@ -6,13 +6,13 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:palette_generator/palette_generator.dart';
 
-import '../core/design/media/echo_media_visuals.dart';
+import '../core/design/media/music_flow_media_visuals.dart';
 import '../core/utils/cover_ref_security.dart';
 import 'api_provider.dart';
 import 'library_provider.dart';
 import 'player_provider.dart';
 
-export '../core/design/media/echo_media_visuals.dart';
+export '../core/design/media/music_flow_media_visuals.dart';
 
 enum MediaPaletteSourceKind { coverReference, previewUrl }
 
@@ -144,9 +144,9 @@ final mediaPaletteProvider = FutureProvider.autoDispose
 /// compatibility. New UI should consume this provider so swatch selection,
 /// light/dark foreground choice, and contrast guarantees stay centralized.
 final mediaVisualsProvider = FutureProvider.autoDispose
-    .family<EchoMediaVisuals, MediaPaletteRequest>((ref, request) async {
+    .family<MusicFlowMediaVisuals, MediaPaletteRequest>((ref, request) async {
       final palette = await ref.watch(mediaPaletteProvider(request).future);
-      return EchoMediaVisuals.fromPalette(palette);
+      return MusicFlowMediaVisuals.fromPalette(palette);
     });
 
 /// Current-player compatibility provider.
@@ -176,12 +176,12 @@ final currentSongPaletteProvider =
 /// song remains `null`, matching the lifecycle of [currentSongPaletteProvider]
 /// without forcing player chrome to render when playback has no current item.
 final currentSongMediaVisualsProvider =
-    FutureProvider.autoDispose<EchoMediaVisuals?>((ref) async {
+    FutureProvider.autoDispose<MusicFlowMediaVisuals?>((ref) async {
       final song = ref.watch(playerProvider.select((s) => s.currentSong));
       if (song == null) return null;
 
       final palette = await ref.watch(currentSongPaletteProvider.future);
-      return EchoMediaVisuals.fromPalette(palette);
+      return MusicFlowMediaVisuals.fromPalette(palette);
     });
 
 /// Always-available visuals for player chrome.
@@ -189,11 +189,11 @@ final currentSongMediaVisualsProvider =
 /// Riverpod preserves the previous FutureProvider value while a dependency is
 /// reloading. Reading [valueOrNull] therefore keeps one stable colour state
 /// during rapid song changes instead of flashing through fallback colours.
-final resolvedCurrentSongMediaVisualsProvider = Provider<EchoMediaVisuals>((
+final resolvedCurrentSongMediaVisualsProvider = Provider<MusicFlowMediaVisuals>((
   ref,
 ) {
   final visuals = ref.watch(currentSongMediaVisualsProvider);
-  return visuals.valueOrNull ?? EchoMediaVisuals.fallback();
+  return visuals.valueOrNull ?? MusicFlowMediaVisuals.fallback();
 });
 
 _MediaPaletteResource? _resolvePaletteResource(

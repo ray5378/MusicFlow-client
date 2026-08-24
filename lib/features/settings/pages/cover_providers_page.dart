@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/provider_config.dart';
 import '../../../data/sources/database/database_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
-import '../widgets/echo_settings_components.dart';
+import '../widgets/music_flow_settings_components.dart';
 
 class CoverProvidersPage extends ConsumerStatefulWidget {
   const CoverProvidersPage({super.key});
@@ -19,16 +19,16 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
   Widget build(BuildContext context) {
     final configsAsync = ref.watch(coverProviderConfigsProvider);
 
-    return EchoScaffold(
-      topBar: EchoTopBar.back(context: context, title: '封面提供商'),
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(context: context, title: '封面提供商'),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: configsAsync.when(
             data: _buildProviderList,
-            loading: () => const EchoProviderListSkeleton(),
-            error: (error, stackTrace) => EchoErrorState(
+            loading: () => const MusicFlowProviderListSkeleton(),
+            error: (error, stackTrace) => MusicFlowErrorState(
               title: '无法读取封面提供商',
               description: '提供商顺序、启用状态和配置暂时不可用。\n$error',
               actionLabel: '重试',
@@ -42,7 +42,7 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
 
   Widget _buildProviderList(List<ProviderConfig> configs) {
     if (configs.isEmpty) {
-      return const EchoEmptyState(
+      return const MusicFlowEmptyState(
         title: '没有可用的封面提供商',
         description: '提供商配置为空，请稍后重试或检查应用数据。',
         icon: AppIcons.image,
@@ -54,14 +54,14 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
     return ReorderableListView.builder(
       buildDefaultDragHandles: false,
       padding: EdgeInsets.fromLTRB(
-        context.echoSpacing.md,
-        context.echoSpacing.sm,
-        context.echoSpacing.md,
-        context.echoSpacing.xxl + context.echoShellBottomObstruction,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.sm,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
       ),
       header: Padding(
-        padding: EdgeInsets.only(bottom: context.echoSpacing.md),
-        child: const EchoSectionHeader(
+        padding: EdgeInsets.only(bottom: context.musicFlowSpacing.md),
+        child: const MusicFlowSectionHeader(
           title: '优先顺序',
           description: '查找封面时会从上到下依次尝试。按住拖动图标可调整顺序。',
         ),
@@ -79,7 +79,7 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
       },
       itemBuilder: (context, index) {
         final config = currentConfigs[index];
-        return EchoProviderSettingRow(
+        return MusicFlowProviderSettingRow(
           key: ValueKey(config.id),
           index: index,
           title: _getProviderName(config.sourceId),
@@ -124,15 +124,15 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => AnimatedPadding(
-        duration: sheetContext.echoMotion.resolve(
+        duration: sheetContext.musicFlowMotion.resolve(
           sheetContext,
-          sheetContext.echoMotion.state,
+          sheetContext.musicFlowMotion.state,
         ),
-        curve: sheetContext.echoMotion.easeOut,
+        curve: sheetContext.musicFlowMotion.easeOut,
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
         ),
-        child: EchoBottomSheet(
+        child: MusicFlowBottomSheet(
           title: '配置 Fanart.tv',
           subtitle: 'Fanart.tv 高清封面需要单独的 API Key。',
           constrainToAvailableHeight: true,
@@ -141,7 +141,7 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                EchoTextField(
+                MusicFlowTextField(
                   controller: controller,
                   label: 'API Key',
                   hintText: '输入 Fanart.tv API Key',
@@ -153,21 +153,21 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
                   onSubmitted: (value) =>
                       Navigator.of(sheetContext).pop(value.trim()),
                 ),
-                SizedBox(height: sheetContext.echoSpacing.lg),
+                SizedBox(height: sheetContext.musicFlowSpacing.lg),
                 Wrap(
                   alignment: WrapAlignment.end,
-                  spacing: sheetContext.echoSpacing.xs,
-                  runSpacing: sheetContext.echoSpacing.xs,
+                  spacing: sheetContext.musicFlowSpacing.xs,
+                  runSpacing: sheetContext.musicFlowSpacing.xs,
                   children: <Widget>[
-                    EchoButton.ghost(
+                    MusicFlowButton.ghost(
                       label: '取消',
                       onPressed: () => Navigator.of(sheetContext).pop(),
                     ),
-                    EchoButton.secondary(
+                    MusicFlowButton.secondary(
                       label: '清空',
                       onPressed: () => Navigator.of(sheetContext).pop(''),
                     ),
-                    EchoButton.primary(
+                    MusicFlowButton.primary(
                       label: '保存',
                       onPressed: () => Navigator.of(
                         sheetContext,

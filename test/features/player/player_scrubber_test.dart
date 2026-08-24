@@ -22,7 +22,7 @@ void main() {
               body: Center(
                 child: SizedBox(
                   width: 240,
-                  child: EchoPlayerScrubber(
+                  child: MusicFlowPlayerScrubber(
                     value: value,
                     min: 0,
                     max: 100,
@@ -96,7 +96,7 @@ void main() {
             return Center(
               child: SizedBox(
                 width: 240,
-                child: EchoPlayerScrubber(
+                child: MusicFlowPlayerScrubber(
                   value: value,
                   min: 0,
                   max: 100,
@@ -135,7 +135,7 @@ void main() {
         theme: AppTheme.light(),
         home: StatefulBuilder(
           builder: (context, setState) {
-            return EchoPlayerScrubber(
+            return MusicFlowPlayerScrubber(
               value: value,
               min: 0,
               max: 100,

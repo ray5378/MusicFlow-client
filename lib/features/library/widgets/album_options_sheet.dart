@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/network_error_notifier.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
@@ -51,14 +51,14 @@ class _AlbumOptionsSheet extends ConsumerWidget {
         ? album.artist!.trim()
         : '未知歌手';
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: album.name,
       subtitle: artistName,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: album.starred ? AppIcons.heart : AppIcons.heartOutline,
               title: album.starred ? '取消收藏专辑' : '收藏专辑',
               selected: album.starred,
@@ -80,7 +80,7 @@ class _AlbumOptionsSheet extends ConsumerWidget {
                 }
               }),
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.downloadOutline,
               title: '下载专辑',
               subtitle: canDownload ? null : '请先选择音乐库',
@@ -104,7 +104,7 @@ class _AlbumOptionsSheet extends ConsumerWidget {
                     })
                   : null,
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.queueAdd,
               title: '添加到播放列表',
               onPressed: () => _closeAndRun(context, () async {
@@ -114,7 +114,7 @@ class _AlbumOptionsSheet extends ConsumerWidget {
                 _showMessage('已添加 ${songs.length} 首到播放列表');
               }),
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.playlistAdd,
               title: '添加到歌单',
               onPressed: () => _closeAndRun(context, () async {
@@ -190,7 +190,7 @@ class _AlbumOptionsSheet extends ConsumerWidget {
 
   void _showMessage(String message) {
     if (!hostContext.mounted) return;
-    ToastNotifier.show(message, kind: EchoMessageKind.success);
+    ToastNotifier.show(message, kind: MusicFlowMessageKind.success);
   }
 }
 
@@ -212,7 +212,7 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
     final songIds = songs.map((song) => song.id).toSet().toList();
     final maxListHeight = MediaQuery.sizeOf(context).height * 0.56;
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: '添加到歌单',
       subtitle: album.name,
       child: ConstrainedBox(
@@ -220,7 +220,7 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
         child: playlistsAsync.when(
           data: (playlists) {
             if (playlists.isEmpty) {
-              return EchoEmptyState(
+              return MusicFlowEmptyState(
                 title: loadFailed ? '歌单暂时不可用' : '还没有歌单',
                 description: loadFailed ? '网络连接恢复后重试。' : '先创建一个歌单，再把这张专辑加入其中。',
                 icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
@@ -237,7 +237,7 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
               itemCount: playlists.length,
               itemBuilder: (context, index) {
                 final playlist = playlists[index];
-                return EchoActionRow(
+                return MusicFlowActionRow(
                   icon: AppIcons.playlist,
                   title: playlist.name,
                   subtitle: '${playlist.songCount} 首',
@@ -257,7 +257,7 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
             );
           },
           loading: () => const _PlaylistSkeletonList(),
-          error: (_, _) => EchoErrorState(
+          error: (_, _) => MusicFlowErrorState(
             title: '歌单加载失败',
             description: '无法读取歌单，请检查网络后重试。',
             actionLabel: '重试',
@@ -292,7 +292,7 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
       if (hostContext.mounted) {
         ToastNotifier.show(
           '已将「${album.name}」添加到歌单「$playlistName」',
-          kind: EchoMessageKind.success,
+          kind: MusicFlowMessageKind.success,
         );
       }
     } catch (_) {
@@ -310,18 +310,18 @@ class _PlaylistSkeletonList extends StatelessWidget {
       shrinkWrap: true,
       itemCount: 3,
       separatorBuilder: (context, index) =>
-          SizedBox(height: context.echoSpacing.xs),
+          SizedBox(height: context.musicFlowSpacing.xs),
       itemBuilder: (context, index) => Row(
         children: <Widget>[
-          const EchoSkeleton.circle(size: 48),
-          SizedBox(width: context.echoSpacing.sm),
+          const MusicFlowSkeleton.circle(size: 48),
+          SizedBox(width: context.musicFlowSpacing.sm),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                EchoSkeleton.line(width: 160),
+                MusicFlowSkeleton.line(width: 160),
                 SizedBox(height: 8),
-                EchoSkeleton.line(width: 72, height: 10),
+                MusicFlowSkeleton.line(width: 72, height: 10),
               ],
             ),
           ),

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/repositories/music_repository.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
@@ -109,15 +109,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         if (committedQueryIsVisible) ref.invalidate(searchProvider(_query));
       },
       child: Scaffold(
-        backgroundColor: context.echoColors.canvas,
+        backgroundColor: context.musicFlowColors.canvas,
         body: SafeArea(
           bottom: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              EchoPageHeader(
+              MusicFlowPageHeader(
                 title: '搜索',
-                leading: EchoIconButton(
+                leading: MusicFlowIconButton(
                   icon: AppIcons.back,
                   label: '返回音乐流',
                   onPressed: () => Navigator.of(context).maybePop(),
@@ -125,10 +125,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                  context.echoPageHorizontalPadding,
+                  context.musicFlowPageHorizontalPadding,
                   0,
-                  context.echoPageHorizontalPadding,
-                  context.echoSpacing.sm,
+                  context.musicFlowPageHorizontalPadding,
+                  context.musicFlowSpacing.sm,
                 ),
                 child: ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _searchController,
@@ -147,7 +147,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     } else {
                       helperText = '正在显示“$_query”的结果。';
                     }
-                    return EchoTextField(
+                    return MusicFlowTextField(
                       controller: _searchController,
                       focusNode: _searchFocusNode,
                       label: '搜索音乐库',
@@ -160,7 +160,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       onSubmitted: _submitSearch,
                       trailing: value.text.isEmpty
                           ? null
-                          : EchoIconButton(
+                          : MusicFlowIconButton(
                               icon: AppIcons.close,
                               label: '清空搜索',
                               onPressed: _clearSearch,
@@ -172,7 +172,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               Expanded(
                 child: _draftQuery.isEmpty
                     ? _withBottomObstruction(
-                        const EchoEmptyState(
+                        const MusicFlowEmptyState(
                           title: '搜索你的音乐库',
                           description: '输入歌曲、专辑或歌手名称，结果会自动出现。',
                           icon: AppIcons.search,
@@ -213,7 +213,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   label: '“$_query”搜索失败',
                 ),
                 _withBottomObstruction(
-                  EchoErrorState(
+                  MusicFlowErrorState(
                     title: '搜索失败',
                     description: '无法读取音乐库，请检查网络或当前线路后重试。',
                     actionLabel: '重试',
@@ -230,7 +230,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 label: '“$_query”搜索完成，没有找到相关结果',
               ),
               _withBottomObstruction(
-                EchoEmptyState(
+                MusicFlowEmptyState(
                   title: '没有找到相关结果',
                   description: '“$_query”没有匹配的歌曲、专辑或歌手。可以尝试更短的关键词。',
                   icon: AppIcons.fileSearch,
@@ -250,10 +250,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               key: const ValueKey<String>('search_results_list'),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
-                context.echoPageHorizontalPadding,
-                context.echoSpacing.xs,
-                context.echoPageHorizontalPadding,
-                context.echoSpacing.xxl + context.echoShellBottomObstruction,
+                context.musicFlowPageHorizontalPadding,
+                context.musicFlowSpacing.xs,
+                context.musicFlowPageHorizontalPadding,
+                context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
               ),
               children: <Widget>[
                 Semantics(
@@ -264,27 +264,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   label: '“$_query”搜索完成，找到 $resultCount 项结果',
                   child: Text(
                     '找到 $resultCount 项结果',
-                    style: context.echoTypography.metadata.copyWith(
-                      color: context.echoColors.muted,
+                    style: context.musicFlowTypography.metadata.copyWith(
+                      color: context.musicFlowColors.muted,
                     ),
                   ),
                 ),
-                SizedBox(height: context.echoSpacing.md),
+                SizedBox(height: context.musicFlowSpacing.md),
                 if (result.songs.isNotEmpty) ...<Widget>[
                   KeyedSubtree(
                     key: const ValueKey<String>('search_section_songs'),
-                    child: EchoSectionHeader(
+                    child: MusicFlowSectionHeader(
                       title: '歌曲',
                       trailing: _ResultCount(count: result.songs.length),
                     ),
                   ),
-                  SizedBox(height: context.echoSpacing.xs),
+                  SizedBox(height: context.musicFlowSpacing.xs),
                   for (var index = 0; index < result.songs.length; index++)
-                    EchoSongRow(
+                    MusicFlowSongRow(
                       song: result.songs[index],
                       index: index,
                       contentPadding: EdgeInsets.symmetric(
-                        vertical: context.echoSpacing.xs,
+                        vertical: context.musicFlowSpacing.xs,
                       ),
                       isCurrent: result.songs[index].id == currentSongId,
                       onPressed: () {
@@ -307,26 +307,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 if (result.songs.isNotEmpty &&
                     (result.albums.isNotEmpty ||
                         result.artists.isNotEmpty)) ...<Widget>[
-                  SizedBox(height: context.echoSpacing.xl),
+                  SizedBox(height: context.musicFlowSpacing.xl),
                 ],
                 if (result.albums.isNotEmpty) ...<Widget>[
                   KeyedSubtree(
                     key: const ValueKey<String>('search_section_albums'),
-                    child: EchoSectionHeader(
+                    child: MusicFlowSectionHeader(
                       title: '专辑',
                       trailing: _ResultCount(count: result.albums.length),
                     ),
                   ),
-                  SizedBox(height: context.echoSpacing.xs),
+                  SizedBox(height: context.musicFlowSpacing.xs),
                   for (final album in result.albums)
-                    EchoAlbumRow(
+                    MusicFlowAlbumRow(
                       album: album,
                       contentPadding: EdgeInsets.symmetric(
-                        vertical: context.echoSpacing.xs,
+                        vertical: context.musicFlowSpacing.xs,
                       ),
                       onPressed: () {
                         Navigator.of(context).push<void>(
-                          EchoPageRoute<void>(
+                          MusicFlowPageRoute<void>(
                             context: context,
                             builder: (context) =>
                                 AlbumDetailPage(albumId: album.id),
@@ -337,26 +337,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ],
                 if (result.albums.isNotEmpty &&
                     result.artists.isNotEmpty) ...<Widget>[
-                  SizedBox(height: context.echoSpacing.xl),
+                  SizedBox(height: context.musicFlowSpacing.xl),
                 ],
                 if (result.artists.isNotEmpty) ...<Widget>[
                   KeyedSubtree(
                     key: const ValueKey<String>('search_section_artists'),
-                    child: EchoSectionHeader(
+                    child: MusicFlowSectionHeader(
                       title: '歌手',
                       trailing: _ResultCount(count: result.artists.length),
                     ),
                   ),
-                  SizedBox(height: context.echoSpacing.xs),
+                  SizedBox(height: context.musicFlowSpacing.xs),
                   for (final artist in result.artists)
-                    EchoArtistRow(
+                    MusicFlowArtistRow(
                       artist: artist,
                       contentPadding: EdgeInsets.symmetric(
-                        vertical: context.echoSpacing.xs,
+                        vertical: context.musicFlowSpacing.xs,
                       ),
                       onPressed: () {
                         Navigator.of(context).push<void>(
-                          EchoPageRoute<void>(
+                          MusicFlowPageRoute<void>(
                             context: context,
                             builder: (context) =>
                                 ArtistDetailPage(artistId: artist.id),
@@ -384,7 +384,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             label: '“$_query”搜索失败',
           ),
           _withBottomObstruction(
-            EchoErrorState(
+            MusicFlowErrorState(
               title: '搜索失败',
               description: '无法读取音乐库，请检查网络或当前线路后重试。',
               actionLabel: '重试',
@@ -398,7 +398,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   Widget _withBottomObstruction(Widget child) {
     return Padding(
-      padding: EdgeInsets.only(bottom: context.echoShellBottomObstruction),
+      padding: EdgeInsets.only(bottom: context.musicFlowShellBottomObstruction),
       child: child,
     );
   }
@@ -411,7 +411,7 @@ class _SearchDraftState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoEmptyState(
+    return MusicFlowEmptyState(
       title: '准备搜索',
       description: '停止输入后将搜索“$query”。',
       icon: AppIcons.search,
@@ -455,24 +455,24 @@ class _SearchResultsLoading extends StatelessWidget {
       child: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
-          context.echoPageHorizontalPadding,
-          context.echoSpacing.xs,
-          context.echoPageHorizontalPadding,
-          context.echoSpacing.xxl + context.echoShellBottomObstruction,
+          context.musicFlowPageHorizontalPadding,
+          context.musicFlowSpacing.xs,
+          context.musicFlowPageHorizontalPadding,
+          context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
         ),
         children: <Widget>[
           const _SearchLoadingHeader(),
-          SizedBox(height: context.echoSpacing.sm),
+          SizedBox(height: context.musicFlowSpacing.sm),
           for (var index = 0; index < 3; index++)
             const _SearchLoadingRow(artworkSize: 48, trailingAction: true),
-          SizedBox(height: context.echoSpacing.xl),
+          SizedBox(height: context.musicFlowSpacing.xl),
           const _SearchLoadingHeader(),
-          SizedBox(height: context.echoSpacing.sm),
+          SizedBox(height: context.musicFlowSpacing.sm),
           for (var index = 0; index < 2; index++)
             const _SearchLoadingRow(artworkSize: 72),
-          SizedBox(height: context.echoSpacing.xl),
+          SizedBox(height: context.musicFlowSpacing.xl),
           const _SearchLoadingHeader(),
-          SizedBox(height: context.echoSpacing.sm),
+          SizedBox(height: context.musicFlowSpacing.sm),
           for (var index = 0; index < 2; index++)
             const _SearchLoadingRow(artworkSize: 56, circular: true),
         ],
@@ -488,12 +488,12 @@ class _SearchLoadingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        const EchoSkeleton.line(width: 72, height: 22),
+        const MusicFlowSkeleton.line(width: 72, height: 22),
         const Spacer(),
-        EchoSkeleton(
+        MusicFlowSkeleton(
           width: 36,
           height: 14,
-          borderRadius: context.echoRadii.pill,
+          borderRadius: context.musicFlowRadii.pill,
         ),
       ],
     );
@@ -514,35 +514,35 @@ class _SearchLoadingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       child: Row(
         children: <Widget>[
           if (circular)
-            EchoSkeleton.circle(size: artworkSize)
+            MusicFlowSkeleton.circle(size: artworkSize)
           else
-            EchoSkeleton(
+            MusicFlowSkeleton(
               width: artworkSize,
               height: artworkSize,
-              borderRadius: context.echoRadii.detail,
+              borderRadius: context.musicFlowRadii.detail,
             ),
-          SizedBox(width: context.echoSpacing.sm),
+          SizedBox(width: context.musicFlowSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const EchoSkeleton.line(height: 16),
-                SizedBox(height: context.echoSpacing.xs),
+                const MusicFlowSkeleton.line(height: 16),
+                SizedBox(height: context.musicFlowSpacing.xs),
                 const FractionallySizedBox(
                   widthFactor: 0.64,
                   alignment: AlignmentDirectional.centerStart,
-                  child: EchoSkeleton.line(height: 12),
+                  child: MusicFlowSkeleton.line(height: 12),
                 ),
               ],
             ),
           ),
           if (trailingAction) ...<Widget>[
-            SizedBox(width: context.echoSpacing.sm),
-            const EchoSkeleton.circle(size: 48),
+            SizedBox(width: context.musicFlowSpacing.sm),
+            const MusicFlowSkeleton.circle(size: 48),
           ],
         ],
       ),
@@ -559,8 +559,8 @@ class _ResultCount extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       '$count 项',
-      style: context.echoTypography.metadata.copyWith(
-        color: context.echoColors.muted,
+      style: context.musicFlowTypography.metadata.copyWith(
+        color: context.musicFlowColors.muted,
       ),
     );
   }

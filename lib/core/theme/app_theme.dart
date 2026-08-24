@@ -1,9 +1,9 @@
-import 'package:musicflow_client/core/design/tokens/echo_breakpoints.dart';
-import 'package:musicflow_client/core/design/tokens/echo_interaction.dart';
-import 'package:musicflow_client/core/design/tokens/echo_motion.dart';
-import 'package:musicflow_client/core/design/tokens/echo_radii.dart';
-import 'package:musicflow_client/core/design/tokens/echo_spacing.dart';
-import 'package:musicflow_client/core/design/tokens/echo_typography.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_breakpoints.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_interaction.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_motion.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_radii.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_spacing.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_typography.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
 import 'package:flutter/material.dart';
 
@@ -21,7 +21,7 @@ abstract final class AppTheme {
 
   static ThemeData _build(Brightness brightness, Color? seedColor) {
     final colors = AppColorScheme.colorsFor(brightness, seedColor);
-    final typography = EchoTypography.standard(colors);
+    final typography = MusicFlowTypography.standard(colors);
     final colorScheme = AppColorScheme.materialBridge(colors, brightness);
     final textTheme = TextTheme(
       displayLarge: typography.display,
@@ -45,7 +45,7 @@ abstract final class AppTheme {
       brightness: brightness,
       useMaterial3: true,
       // 全局默认字体（Material 组件、弹窗、悬浮提示等统一走 HarmonyOS Sans SC）。
-      fontFamily: EchoTypography.fontFamily,
+      fontFamily: MusicFlowTypography.fontFamily,
       colorScheme: colorScheme,
       primaryColor: colors.accent,
       scaffoldBackgroundColor: colors.canvas,
@@ -68,11 +68,11 @@ abstract final class AppTheme {
       extensions: <ThemeExtension<dynamic>>[
         colors,
         typography,
-        EchoSpacing.standard,
-        EchoRadii.standard,
-        EchoMotion.standard,
-        EchoInteraction.standard,
-        EchoBreakpoints.standard,
+        MusicFlowSpacing.standard,
+        MusicFlowRadii.standard,
+        MusicFlowMotion.standard,
+        MusicFlowInteraction.standard,
+        MusicFlowBreakpoints.standard,
       ],
     );
   }

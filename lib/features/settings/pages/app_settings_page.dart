@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/services/update_checker.dart';
 import '../../../core/utils/logger.dart';
 import '../../../data/models/music_library.dart';
@@ -24,7 +24,7 @@ import '../../../providers/playlist_provider.dart';
 import '../../../providers/status_lyrics_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../widgets/windows_title_bar.dart';
-import '../widgets/echo_settings_components.dart';
+import '../widgets/music_flow_settings_components.dart';
 import 'audio_quality_page.dart';
 import 'cache_management_page.dart';
 import 'cover_providers_page.dart';
@@ -82,7 +82,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       );
     } catch (error) {
       Logger.errorWithTag('LOG_EXPORT', 'export failed', error);
-      _showMessage('日志导出失败: $error', kind: EchoMessageKind.error);
+      _showMessage('日志导出失败: $error', kind: MusicFlowMessageKind.error);
     } finally {
       if (mounted) setState(() => _isExportingLogs = false);
     }
@@ -100,11 +100,11 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       } else {
         _showMessage(
           '当前已是最新版本 (${result.currentVersion})',
-          kind: EchoMessageKind.success,
+          kind: MusicFlowMessageKind.success,
         );
       }
     } catch (error) {
-      _showMessage('检查更新失败: $error', kind: EchoMessageKind.error);
+      _showMessage('检查更新失败: $error', kind: MusicFlowMessageKind.error);
     } finally {
       if (mounted) setState(() => _isCheckingUpdate = false);
     }
@@ -115,7 +115,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '发现新版本',
         subtitle: '${result.currentVersion} → ${result.latestVersion}',
         constrainToAvailableHeight: true,
@@ -127,33 +127,33 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               _SettingsInfoLine(label: '最新版本', value: result.latestVersion),
               if (result.releaseNotes != null &&
                   result.releaseNotes!.isNotEmpty) ...<Widget>[
-                SizedBox(height: sheetContext.echoSpacing.sm),
-                const EchoDivider(),
-                SizedBox(height: sheetContext.echoSpacing.md),
-                const EchoSectionHeader(title: '更新说明'),
-                SizedBox(height: sheetContext.echoSpacing.xs),
+                SizedBox(height: sheetContext.musicFlowSpacing.sm),
+                const MusicFlowDivider(),
+                SizedBox(height: sheetContext.musicFlowSpacing.md),
+                const MusicFlowSectionHeader(title: '更新说明'),
+                SizedBox(height: sheetContext.musicFlowSpacing.xs),
                 Text(
                   result.releaseNotes!,
-                  style: sheetContext.echoTypography.body.copyWith(
-                    color: sheetContext.echoColors.muted,
+                  style: sheetContext.musicFlowTypography.body.copyWith(
+                    color: sheetContext.musicFlowColors.muted,
                   ),
                 ),
               ],
               if (result.assets.isNotEmpty) ...<Widget>[
-                SizedBox(height: sheetContext.echoSpacing.sm),
-                const EchoDivider(),
-                SizedBox(height: sheetContext.echoSpacing.md),
-                const EchoSectionHeader(
+                SizedBox(height: sheetContext.musicFlowSpacing.sm),
+                const MusicFlowDivider(),
+                SizedBox(height: sheetContext.musicFlowSpacing.md),
+                const MusicFlowSectionHeader(
                   title: '下载文件',
                   description: '选择适合当前设备的安装文件。',
                 ),
-                SizedBox(height: sheetContext.echoSpacing.xs),
+                SizedBox(height: sheetContext.musicFlowSpacing.xs),
                 for (final asset in result.assets)
                   Padding(
                     padding: EdgeInsets.only(
-                      bottom: sheetContext.echoSpacing.xs,
+                      bottom: sheetContext.musicFlowSpacing.xs,
                     ),
-                    child: EchoActionRow(
+                    child: MusicFlowActionRow(
                       icon: AppIcons.download,
                       title: asset.name,
                       subtitle:
@@ -161,24 +161,24 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       trailing: Icon(
                         AppIcons.chevronRight,
                         size: 20,
-                        color: sheetContext.echoColors.muted,
+                        color: sheetContext.musicFlowColors.muted,
                       ),
                       onPressed: () => _openUrl(asset.downloadUrl),
                     ),
                   ),
               ],
-              SizedBox(height: sheetContext.echoSpacing.lg),
+              SizedBox(height: sheetContext.musicFlowSpacing.lg),
               Wrap(
                 alignment: WrapAlignment.end,
-                spacing: sheetContext.echoSpacing.xs,
-                runSpacing: sheetContext.echoSpacing.xs,
+                spacing: sheetContext.musicFlowSpacing.xs,
+                runSpacing: sheetContext.musicFlowSpacing.xs,
                 children: <Widget>[
-                  EchoButton.ghost(
+                  MusicFlowButton.ghost(
                     label: '稍后再说',
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
                   if (result.releaseUrl != null)
-                    EchoButton.primary(
+                    MusicFlowButton.primary(
                       label: '前往下载',
                       leadingIcon: AppIcons.download,
                       onPressed: () {
@@ -204,7 +204,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   void _showMessage(
     String message, {
-    EchoMessageKind kind = EchoMessageKind.info,
+    MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   }) {
     if (!mounted) return;
     showEchoMessage(context, message, kind: kind);
@@ -244,23 +244,23 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
     final Widget switchLibraryTrailing;
     if (librariesAsync.isLoading) {
-      switchLibraryTrailing = const EchoSkeleton.circle(size: 20);
+      switchLibraryTrailing = const MusicFlowSkeleton.circle(size: 20);
     } else if (librariesAsync.hasError) {
       switchLibraryTrailing = Icon(
         AppIcons.refresh,
         size: 20,
-        color: context.echoColors.error,
+        color: context.musicFlowColors.error,
       );
     } else {
       switchLibraryTrailing = Icon(
         AppIcons.chevronDown,
         size: 20,
-        color: context.echoColors.muted,
+        color: context.musicFlowColors.muted,
       );
     }
 
-    return EchoScaffold(
-      topBar: EchoTopBar.back(context: context, title: '设置'),
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(context: context, title: '设置'),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -268,13 +268,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           child: ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.fromLTRB(
-              context.echoSpacing.md,
-              context.echoSpacing.sm,
-              context.echoSpacing.md,
-              context.echoSpacing.xxl + context.echoShellBottomObstruction,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.sm,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             children: <Widget>[
-              EchoSettingsSection(
+              MusicFlowSettingsSection(
                 title: '音乐库与服务器',
                 description: '查看当前连接，也可以切换或编辑已经保存的音乐库。',
                 children: <Widget>[
@@ -282,8 +282,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     library: library,
                     activeAddress: activeAddress,
                   ),
-                  SizedBox(height: context.echoSpacing.sm),
-                  EchoSettingRow(
+                  SizedBox(height: context.musicFlowSpacing.sm),
+                  MusicFlowSettingRow(
                     icon: AppIcons.library,
                     title: '切换音乐库',
                     value: library?.name ?? '未选择',
@@ -291,7 +291,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     trailing: switchLibraryTrailing,
                     onPressed: switchLibraryAction,
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.edit,
                     title: '编辑当前音乐库',
                     value: library?.name ?? '未选择',
@@ -304,12 +304,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                 ],
               ),
-              SizedBox(height: context.echoSpacing.xl),
-              EchoSettingsSection(
+              SizedBox(height: context.musicFlowSpacing.xl),
+              MusicFlowSettingsSection(
                 title: '播放与外观',
                 description: '这些选择会立即应用到当前设备。',
                 children: <Widget>[
-                  EchoToggleSettingRow(
+                  MusicFlowToggleSettingRow(
                     icon: AppIcons.route,
                     title: '线路自动回退',
                     description: '手动线路不可用时，自动切换到其他可用线路。',
@@ -320,7 +320,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       await LocalStorage.setAutoFallback(value);
                     },
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.palette,
                     title: '主题设置',
                     value:
@@ -328,20 +328,20 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     description: '明暗模式与主题色',
                     onPressed: () => _pushPage(const ThemeSettingsPage()),
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.quality,
                     title: '音质设置',
                     description: '按网络选择播放码率',
                     onPressed: () => _pushPage(const AudioQualityPage()),
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.timer,
                     title: '切歌淡入淡出',
                     value: _crossfadeLabel(crossfadeMs),
                     description: '设置相邻曲目之间的交叉衰减时长。',
                     onPressed: () => _showCrossfadeSheet(crossfadeMs),
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.lyrics,
                     title: '歌词跟随停靠时长',
                     value: _lyricsDwellLabel(lyricsDwellSeconds),
@@ -349,7 +349,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     onPressed: () =>
                         _showLyricsDwellSheet(lyricsDwellSeconds),
                   ),
-                  EchoToggleSettingRow(
+                  MusicFlowToggleSettingRow(
                     icon: AppIcons.play,
                     title: '打开时自动播放',
                     description: '启动后恢复上次本机播放队列与进度，并自动续播。',
@@ -360,7 +360,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     },
                   ),
                   if (isWindowsDesktop)
-                    EchoToggleSettingRow(
+                    MusicFlowToggleSettingRow(
                       icon: AppIcons.lyrics,
                       title: '任务栏歌词',
                       description: '开启后，系统托盘图标旁显示当前播放歌词。',
@@ -368,13 +368,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       onChanged: (_) =>
                           ref.read(statusLyricsControllerProvider).toggle(),
                     ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.lyrics,
                     title: '歌词提供商',
                     description: '调整获取顺序与启用状态',
                     onPressed: () => _pushPage(const LyricsProvidersPage()),
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.image,
                     title: '封面提供商',
                     description: '调整获取顺序并配置 Fanart.tv',
@@ -382,12 +382,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                 ],
               ),
-              SizedBox(height: context.echoSpacing.xl),
-              EchoSettingsSection(
+              SizedBox(height: context.musicFlowSpacing.xl),
+              MusicFlowSettingsSection(
                 title: '存储与数据',
                 description: '管理本机缓存。',
                 children: <Widget>[
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.storage,
                     title: '缓存管理',
                     description: '音频、图片与歌词缓存',
@@ -395,22 +395,22 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                 ],
               ),
-              SizedBox(height: context.echoSpacing.xl),
-              EchoSettingsSection(
+              SizedBox(height: context.musicFlowSpacing.xl),
+              MusicFlowSettingsSection(
                 title: '诊断与更新',
                 description: '导出本机诊断日志，或检查 GitHub Releases。',
                 children: <Widget>[
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.fileText,
                     title: '导出日志',
                     description: '共缓存 ${Logger.bufferedLineCount} 条日志',
                     semanticLabel: _isExportingLogs ? '导出日志，正在准备分享文件' : null,
                     trailing: _isExportingLogs
-                        ? const EchoSkeleton.circle(size: 20)
+                        ? const MusicFlowSkeleton.circle(size: 20)
                         : null,
                     onPressed: _isExportingLogs ? null : _exportLogs,
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.refresh,
                     title: '检查更新',
                     description: '从 GitHub Releases 检查最新版本',
@@ -418,11 +418,11 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                         ? '检查更新，正在连接 GitHub Releases'
                         : null,
                     trailing: _isCheckingUpdate
-                        ? const EchoSkeleton.circle(size: 20)
+                        ? const MusicFlowSkeleton.circle(size: 20)
                         : null,
                     onPressed: _isCheckingUpdate ? null : _checkForUpdates,
                   ),
-                  EchoSettingRow(
+                  MusicFlowSettingRow(
                     icon: AppIcons.info,
                     title: '关于',
                     description: 'MusicFlow · 基于 Subsonic API',
@@ -440,7 +440,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   void _pushPage(Widget page) {
     Navigator.of(
       context,
-    ).push(EchoPageRoute<void>(context: context, builder: (context) => page));
+    ).push(MusicFlowPageRoute<void>(context: context, builder: (context) => page));
   }
 
   Future<void> _showLibrarySheet(
@@ -451,7 +451,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '切换音乐库',
         subtitle: '选择后会刷新当前音乐库的内容与播放状态。',
         constrainToAvailableHeight: true,
@@ -460,7 +460,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               for (final library in libraries)
-                EchoChoiceRow(
+                MusicFlowChoiceRow(
                   title: library.name,
                   description: library.addresses.firstOrNull?.url ?? '未配置服务器地址',
                   selected: library.id == currentLibrary?.id,
@@ -491,9 +491,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       ref.invalidate(frequentAlbumsProvider);
       ref.invalidate(playlistsProvider);
       ref.invalidate(starredProvider);
-      _showMessage('已切换到“${library.name}”', kind: EchoMessageKind.success);
+      _showMessage('已切换到“${library.name}”', kind: MusicFlowMessageKind.success);
     } catch (error) {
-      _showMessage('切换音乐库失败: $error', kind: EchoMessageKind.error);
+      _showMessage('切换音乐库失败: $error', kind: MusicFlowMessageKind.error);
     }
   }
 
@@ -503,7 +503,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '切歌淡入淡出',
         subtitle: '选择相邻曲目同时播放的交叉衰减时长。',
         constrainToAvailableHeight: true,
@@ -512,7 +512,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               for (final value in values)
-                EchoChoiceRow(
+                MusicFlowChoiceRow(
                   title: _crossfadeLabel(value),
                   description: value == 0
                       ? '关闭交叉衰减'
@@ -536,7 +536,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '歌词跟随停靠时长',
         subtitle: '手动滚动并停下后，等待该时长再恢复「跟随当前歌词」自动滚动。',
         constrainToAvailableHeight: true,
@@ -545,7 +545,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               for (final value in values)
-                EchoChoiceRow(
+                MusicFlowChoiceRow(
                   title: _lyricsDwellLabel(value),
                   description: value == 3
                       ? '默认：停下 3 秒后恢复跟随'
@@ -568,7 +568,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '关于 MusicFlow',
         constrainToAvailableHeight: true,
         child: SingleChildScrollView(
@@ -576,38 +576,38 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              EchoSurface(
-                level: EchoSurfaceLevel.raised,
-                borderColor: sheetContext.echoColors.controlBoundary,
-                padding: EdgeInsets.all(sheetContext.echoSpacing.md),
+              MusicFlowSurface(
+                level: MusicFlowSurfaceLevel.raised,
+                borderColor: sheetContext.musicFlowColors.controlBoundary,
+                padding: EdgeInsets.all(sheetContext.musicFlowSpacing.md),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     SizedBox.square(
                       dimension:
-                          sheetContext.echoInteraction.minimumTouchTarget,
+                          sheetContext.musicFlowInteraction.minimumTouchTarget,
                       child: Center(
                         child: Icon(
                           AppIcons.musicFilled,
                           size: 28,
-                          color: sheetContext.echoColors.accent,
+                          color: sheetContext.musicFlowColors.accent,
                         ),
                       ),
                     ),
-                    SizedBox(width: sheetContext.echoSpacing.sm),
+                    SizedBox(width: sheetContext.musicFlowSpacing.sm),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
                             'MusicFlow',
-                            style: sheetContext.echoTypography.headline,
+                            style: sheetContext.musicFlowTypography.headline,
                           ),
-                          SizedBox(height: sheetContext.echoSpacing.xxs),
+                          SizedBox(height: sheetContext.musicFlowSpacing.xxs),
                           Text(
                             '基于 Subsonic API 的音乐客户端。',
-                            style: sheetContext.echoTypography.body.copyWith(
-                              color: sheetContext.echoColors.muted,
+                            style: sheetContext.musicFlowTypography.body.copyWith(
+                              color: sheetContext.musicFlowColors.muted,
                             ),
                           ),
                         ],
@@ -616,25 +616,25 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ],
                 ),
               ),
-              SizedBox(height: sheetContext.echoSpacing.md),
-              EchoActionRow(
+              SizedBox(height: sheetContext.musicFlowSpacing.md),
+              MusicFlowActionRow(
                 icon: AppIcons.externalLink,
                 title: '项目主页',
                 subtitle: 'github.com/ray5378/MusicFlow-client',
                 trailing: Icon(
                   AppIcons.chevronRight,
                   size: 20,
-                  color: sheetContext.echoColors.muted,
+                  color: sheetContext.musicFlowColors.muted,
                 ),
                 onPressed: () => _openUrl(
                   'https://github.com/ray5378/MusicFlow-client',
                 ),
               ),
-              SizedBox(height: sheetContext.echoSpacing.sm),
+              SizedBox(height: sheetContext.musicFlowSpacing.sm),
               Text(
                 '© 2026 MusicFlow',
-                style: sheetContext.echoTypography.metadata.copyWith(
-                  color: sheetContext.echoColors.muted,
+                style: sheetContext.musicFlowTypography.metadata.copyWith(
+                  color: sheetContext.musicFlowColors.muted,
                 ),
               ),
             ],
@@ -673,10 +673,10 @@ class _ServerSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoSurface(
-      level: EchoSurfaceLevel.raised,
-      borderColor: context.echoColors.controlBoundary,
-      padding: EdgeInsets.all(context.echoSpacing.md),
+    return MusicFlowSurface(
+      level: MusicFlowSurfaceLevel.raised,
+      borderColor: context.musicFlowColors.controlBoundary,
+      padding: EdgeInsets.all(context.musicFlowSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -719,19 +719,19 @@ class _SettingsInfoLine extends StatelessWidget {
       child: ExcludeSemantics(
         child: Padding(
           padding: EdgeInsets.only(
-            bottom: showBottomSpacing ? context.echoSpacing.sm : 0,
+            bottom: showBottomSpacing ? context.musicFlowSpacing.sm : 0,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
                 label,
-                style: context.echoTypography.metadata.copyWith(
-                  color: context.echoColors.muted,
+                style: context.musicFlowTypography.metadata.copyWith(
+                  color: context.musicFlowColors.muted,
                 ),
               ),
-              SizedBox(height: context.echoSpacing.xxs),
-              SelectableText(value, style: context.echoTypography.body),
+              SizedBox(height: context.musicFlowSpacing.xxs),
+              SelectableText(value, style: context.musicFlowTypography.body),
             ],
           ),
         ),

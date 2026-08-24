@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
@@ -64,8 +64,8 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
       debugLabel: 'album_list_page',
       shouldRetry: (ref) => _list.hasError,
       onRetry: (ref) => _list.retry(),
-      child: EchoScaffold(
-        topBar: EchoTopBar.back(context: context, title: '所有专辑'),
+      child: MusicFlowScaffold(
+        topBar: MusicFlowTopBar.back(context: context, title: '所有专辑'),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -77,7 +77,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
                 if (query.isEmpty) _reload();
               },
             ),
-            SizedBox(height: context.echoSpacing.xs),
+            SizedBox(height: context.musicFlowSpacing.xs),
             Expanded(child: _body()),
           ],
         ),
@@ -105,7 +105,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
             onPlay: () => unawaited(_playLocalAlbum(ref, album)),
             onImport: () {},
             onOpen: () => Navigator.of(context).push<void>(
-              EchoPageRoute<void>(
+              MusicFlowPageRoute<void>(
                 context: context,
                 builder: (_) => AlbumDetailPage(albumId: album.id),
               ),
@@ -133,16 +133,16 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
             controller: _list,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
-              mainAxisSpacing: context.echoSpacing.sm,
-              crossAxisSpacing: context.echoSpacing.sm,
+              mainAxisSpacing: context.musicFlowSpacing.sm,
+              crossAxisSpacing: context.musicFlowSpacing.sm,
               mainAxisExtent: 240,
             ),
             padding: EdgeInsets.only(
-              left: context.echoPageHorizontalPadding,
-              right: context.echoPageHorizontalPadding,
-              top: context.echoSpacing.xs,
-              bottom: context.echoSpacing.xxl +
-                  context.echoShellBottomObstruction,
+              left: context.musicFlowPageHorizontalPadding,
+              right: context.musicFlowPageHorizontalPadding,
+              top: context.musicFlowSpacing.xs,
+              bottom: context.musicFlowSpacing.xxl +
+                  context.musicFlowShellBottomObstruction,
             ),
             emptyTitle: '暂无专辑',
             emptyDescription: '同步音乐库后，专辑会显示在这里。',
@@ -156,12 +156,12 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
   }
 
   Widget _buildTile(int index, Album album) {
-    return EchoAlbumTile(
+    return MusicFlowAlbumTile(
       key: ValueKey('album-tile-${album.id}'),
       album: album,
       onPressed: () {
         Navigator.of(context).push<void>(
-          EchoPageRoute<void>(
+          MusicFlowPageRoute<void>(
             context: context,
             builder: (_) => AlbumDetailPage(albumId: album.id),
           ),

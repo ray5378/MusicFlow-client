@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../providers/theme_provider.dart';
-import '../widgets/echo_settings_components.dart';
+import '../widgets/music_flow_settings_components.dart';
 
 class ThemeSettingsPage extends ConsumerWidget {
   const ThemeSettingsPage({super.key});
@@ -14,39 +14,39 @@ class ThemeSettingsPage extends ConsumerWidget {
     final settings = ref.watch(themeSettingsProvider);
     final notifier = ref.read(themeSettingsProvider.notifier);
 
-    return EchoScaffold(
-      topBar: EchoTopBar.back(context: context, title: '主题设置'),
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(context: context, title: '主题设置'),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
             padding: EdgeInsets.fromLTRB(
-              context.echoSpacing.md,
-              context.echoSpacing.sm,
-              context.echoSpacing.md,
-              context.echoSpacing.xxl + context.echoShellBottomObstruction,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.sm,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             children: <Widget>[
-              EchoSettingsSection(
+              MusicFlowSettingsSection(
                 title: '外观模式',
                 description: '跟随设备，或固定使用浅色与深色界面。',
                 children: <Widget>[
-                  EchoChoiceRow(
+                  MusicFlowChoiceRow(
                     title: '跟随系统',
                     description: '自动匹配设备的外观设置',
                     selected: settings.mode == ThemeMode.system,
                     onPressed: () => notifier.setThemeMode(ThemeMode.system),
                     icon: AppIcons.settings,
                   ),
-                  EchoChoiceRow(
+                  MusicFlowChoiceRow(
                     title: '浅色',
                     description: '使用明亮、中性的试听空间',
                     selected: settings.mode == ThemeMode.light,
                     onPressed: () => notifier.setThemeMode(ThemeMode.light),
                     icon: AppIcons.image,
                   ),
-                  EchoChoiceRow(
+                  MusicFlowChoiceRow(
                     title: '深色',
                     description: '使用低亮度的夜间试听空间',
                     selected: settings.mode == ThemeMode.dark,
@@ -55,32 +55,32 @@ class ThemeSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              SizedBox(height: context.echoSpacing.xl),
-              EchoSettingsSection(
+              SizedBox(height: context.musicFlowSpacing.xl),
+              MusicFlowSettingsSection(
                 title: '强调色',
                 description: '只用于主要操作、当前选择与键盘焦点。专辑颜色不会扩散到普通页面。',
                 children: <Widget>[
-                  EchoSurface(
-                    level: EchoSurfaceLevel.raised,
-                    borderColor: context.echoColors.controlBoundary,
-                    padding: EdgeInsets.all(context.echoSpacing.md),
+                  MusicFlowSurface(
+                    level: MusicFlowSurfaceLevel.raised,
+                    borderColor: context.musicFlowColors.controlBoundary,
+                    padding: EdgeInsets.all(context.musicFlowSpacing.md),
                     child: Row(
                       children: <Widget>[
                         _ColorSwatch(color: settings.seedColor, size: 48),
-                        SizedBox(width: context.echoSpacing.sm),
+                        SizedBox(width: context.musicFlowSpacing.sm),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               Text(
                                 '当前强调色',
-                                style: context.echoTypography.label,
+                                style: context.musicFlowTypography.label,
                               ),
-                              SizedBox(height: context.echoSpacing.xxs),
+                              SizedBox(height: context.musicFlowSpacing.xxs),
                               Text(
                                 _toHex(settings.seedColor),
-                                style: context.echoTypography.body.copyWith(
-                                  color: context.echoColors.muted,
+                                style: context.musicFlowTypography.body.copyWith(
+                                  color: context.musicFlowColors.muted,
                                   fontFeatures: const <FontFeature>[
                                     FontFeature.tabularFigures(),
                                   ],
@@ -92,10 +92,10 @@ class ThemeSettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  SizedBox(height: context.echoSpacing.md),
+                  SizedBox(height: context.musicFlowSpacing.md),
                   Wrap(
-                    spacing: context.echoSpacing.xs,
-                    runSpacing: context.echoSpacing.xs,
+                    spacing: context.musicFlowSpacing.xs,
+                    runSpacing: context.musicFlowSpacing.xs,
                     children: <Widget>[
                       for (final color in _presetColors)
                         _PresetColorButton(
@@ -106,18 +106,18 @@ class ThemeSettingsPage extends ConsumerWidget {
                         ),
                     ],
                   ),
-                  SizedBox(height: context.echoSpacing.md),
+                  SizedBox(height: context.musicFlowSpacing.md),
                   Wrap(
-                    spacing: context.echoSpacing.sm,
-                    runSpacing: context.echoSpacing.sm,
+                    spacing: context.musicFlowSpacing.sm,
+                    runSpacing: context.musicFlowSpacing.sm,
                     children: <Widget>[
-                      EchoButton.primary(
+                      MusicFlowButton.primary(
                         label: '精细调整',
                         leadingIcon: AppIcons.palette,
                         onPressed: () =>
                             _openColorPicker(context, ref, settings.seedColor),
                       ),
-                      EchoButton.secondary(
+                      MusicFlowButton.secondary(
                         label: '恢复默认主题',
                         onPressed: notifier.resetSeedColor,
                       ),
@@ -151,7 +151,7 @@ class ThemeSettingsPage extends ConsumerWidget {
 
 const List<Color> _presetColors = <Color>[
   AppColorScheme.defaultSeedColor,
-  EchoColors.legacyGreenAccent,
+  MusicFlowColors.legacyGreenAccent,
   Color(0xFF3D7188),
   Color(0xFF6B6F9A),
   Color(0xFF8A633D),
@@ -183,7 +183,7 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
   Widget build(BuildContext context) {
     final color = _hsv.toColor();
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: '调整强调色',
       subtitle: '系统会在保存时校准对比度和色度。',
       child: ConstrainedBox(
@@ -196,17 +196,17 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Align(child: _ColorSwatch(color: color, size: 72)),
-              SizedBox(height: context.echoSpacing.sm),
+              SizedBox(height: context.musicFlowSpacing.sm),
               Text(
                 _toHex(color),
                 textAlign: TextAlign.center,
-                style: context.echoTypography.title.copyWith(
+                style: context.musicFlowTypography.title.copyWith(
                   fontFeatures: const <FontFeature>[
                     FontFeature.tabularFigures(),
                   ],
                 ),
               ),
-              SizedBox(height: context.echoSpacing.lg),
+              SizedBox(height: context.musicFlowSpacing.lg),
               _ColorSliderLine(
                 label: '色相',
                 valueLabel: '${_hsv.hue.round()}°',
@@ -242,18 +242,18 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                 onChanged: (value) =>
                     setState(() => _hsv = _hsv.withValue(value)),
               ),
-              SizedBox(height: context.echoSpacing.lg),
+              SizedBox(height: context.musicFlowSpacing.lg),
               Row(
                 children: <Widget>[
                   Expanded(
-                    child: EchoButton.secondary(
+                    child: MusicFlowButton.secondary(
                       label: '取消',
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
-                  SizedBox(width: context.echoSpacing.sm),
+                  SizedBox(width: context.musicFlowSpacing.sm),
                   Expanded(
-                    child: EchoButton.primary(
+                    child: MusicFlowButton.primary(
                       label: '应用',
                       onPressed: () => Navigator.of(context).pop(color),
                     ),
@@ -290,17 +290,17 @@ class _ColorSliderLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: context.echoSpacing.sm),
+      padding: EdgeInsets.only(bottom: context.musicFlowSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
-              Expanded(child: Text(label, style: context.echoTypography.label)),
+              Expanded(child: Text(label, style: context.musicFlowTypography.label)),
               Text(
                 valueLabel,
-                style: context.echoTypography.metadata.copyWith(
-                  color: context.echoColors.muted,
+                style: context.musicFlowTypography.metadata.copyWith(
+                  color: context.musicFlowColors.muted,
                   fontFeatures: const <FontFeature>[
                     FontFeature.tabularFigures(),
                   ],
@@ -308,7 +308,7 @@ class _ColorSliderLine extends StatelessWidget {
               ),
             ],
           ),
-          EchoSlider(
+          MusicFlowSlider(
             value: value,
             min: min,
             max: max,
@@ -338,12 +338,12 @@ class _PresetColorButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hex = _toHex(color);
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: '强调色 $hex${selected ? '，已选择' : ''}',
       selected: selected,
       onPressed: onPressed,
       minimumSize: const Size.square(48),
-      borderRadius: context.echoRadii.pill,
+      borderRadius: context.musicFlowRadii.pill,
       child: Center(
         child: Stack(
           alignment: Alignment.center,
@@ -353,7 +353,7 @@ class _PresetColorButton extends StatelessWidget {
               Icon(
                 AppIcons.check,
                 size: 18,
-                color: EchoColors.readableOn(color),
+                color: MusicFlowColors.readableOn(color),
               ),
           ],
         ),
@@ -381,8 +381,8 @@ class _ColorSwatch extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(
           color: selected
-              ? context.echoColors.ink
-              : context.echoColors.controlBoundary,
+              ? context.musicFlowColors.ink
+              : context.musicFlowColors.controlBoundary,
           width: selected ? 3 : 1,
         ),
       ),

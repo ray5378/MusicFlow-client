@@ -103,7 +103,7 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   AudioPlayer? _audioPlayer;
-  EchoAudioHandler? _audioHandler;
+  MusicFlowAudioHandler? _audioHandler;
   StreamSubscription? _downloadProgressSubscription;
   StreamSubscription<NetworkType>? _networkTypeSubscription;
   final Random _random = Random();

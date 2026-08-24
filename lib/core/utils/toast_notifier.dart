@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../design/components/echo_message.dart';
+import '../design/components/music_flow_message.dart';
 import 'logger.dart';
 
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -8,11 +8,11 @@ final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 class ToastNotifier {
   static const _tag = 'TOAST';
   static String? _pendingMessage;
-  static EchoMessageKind _pendingKind = EchoMessageKind.info;
+  static MusicFlowMessageKind _pendingKind = MusicFlowMessageKind.info;
 
   static void show(
     String message, {
-    EchoMessageKind kind = EchoMessageKind.info,
+    MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   }) {
     final messenger = rootScaffoldMessengerKey.currentState;
     if (messenger == null) {
@@ -38,7 +38,7 @@ class ToastNotifier {
     }
     final kind = _pendingKind;
     _pendingMessage = null;
-    _pendingKind = EchoMessageKind.info;
+    _pendingKind = MusicFlowMessageKind.info;
     showEchoMessage(
       messenger.context,
       message,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/repositories/music_repository.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
@@ -46,17 +46,17 @@ class StarredPage extends ConsumerWidget {
         child: Builder(
           builder: (tabContext) {
             final controller = DefaultTabController.of(tabContext);
-            return EchoScaffold(
+            return MusicFlowScaffold(
               topBar: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  EchoTopBar.back(
+                  MusicFlowTopBar.back(
                     context: tabContext,
                     title: '收藏夹',
                     subtitle: total == null ? null : '$total 项收藏',
                   ),
                   _StarredTabStrip(controller: controller),
-                  const EchoDivider(),
+                  const MusicFlowDivider(),
                 ],
               ),
               body: starredAsync.when(
@@ -66,7 +66,7 @@ class StarredPage extends ConsumerWidget {
                       starred.albums.isEmpty &&
                       starred.artists.isEmpty;
                   if (loadFailed && empty) {
-                    return EchoErrorState(
+                    return MusicFlowErrorState(
                       title: '收藏加载失败',
                       description: '请检查网络或服务器状态后重试。',
                       actionLabel: '重试',
@@ -88,8 +88,8 @@ class StarredPage extends ConsumerWidget {
                     ),
                   );
                 },
-                loading: () => const EchoMediaListSkeleton(count: 7),
-                error: (error, stackTrace) => EchoErrorState(
+                loading: () => const MusicFlowMediaListSkeleton(count: 7),
+                error: (error, stackTrace) => MusicFlowErrorState(
                   title: '收藏加载失败',
                   description: '请检查网络或服务器状态后重试。',
                   actionLabel: '重试',
@@ -119,35 +119,35 @@ class StarredPage extends ConsumerWidget {
       );
     }
 
-    return EchoRefreshView(
+    return MusicFlowRefreshView(
       onRefresh: () => _refresh(ref),
       child: ListView.builder(
         key: const ValueKey<String>('starred-songs-scroll'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(
-          bottom: context.echoSpacing.xxl + context.echoShellBottomObstruction,
+          bottom: context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
         ),
         itemCount: songs.length + 1,
         itemBuilder: (context, listIndex) {
           if (listIndex == 0) {
             return Padding(
               padding: EdgeInsets.fromLTRB(
-                context.echoPageHorizontalPadding,
-                context.echoSpacing.sm,
-                context.echoPageHorizontalPadding,
-                context.echoSpacing.xs,
+                context.musicFlowPageHorizontalPadding,
+                context.musicFlowSpacing.sm,
+                context.musicFlowPageHorizontalPadding,
+                context.musicFlowSpacing.xs,
               ),
               child: Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: context.echoSpacing.sm,
-                runSpacing: context.echoSpacing.xs,
+                spacing: context.musicFlowSpacing.sm,
+                runSpacing: context.musicFlowSpacing.xs,
                 children: <Widget>[
                   Text(
                     '歌曲 (${songs.length})',
-                    style: context.echoTypography.headline,
+                    style: context.musicFlowTypography.headline,
                   ),
-                  EchoButton.ghost(
+                  MusicFlowButton.ghost(
                     label: '播放全部',
                     leadingIcon: AppIcons.play,
                     onPressed: () => playEffectiveQueue(ref, songs),
@@ -164,8 +164,8 @@ class StarredPage extends ConsumerWidget {
             index: index,
             variant: SongListItemVariant.standard,
             contentPadding: EdgeInsets.symmetric(
-              horizontal: context.echoPageHorizontalPadding,
-              vertical: context.echoSpacing.xs,
+              horizontal: context.musicFlowPageHorizontalPadding,
+              vertical: context.musicFlowSpacing.xs,
             ),
             onTap: () => playEffectiveQueue(
               ref,
@@ -204,12 +204,12 @@ class StarredPage extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.only(
               bottom:
-                  context.echoSpacing.xxl + context.echoShellBottomObstruction,
+                  context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             itemCount: albums.length,
             itemBuilder: (context, index) {
               final album = albums[index];
-              return EchoAlbumRow(
+              return MusicFlowAlbumRow(
                 album: album,
                 onPressed: () => _openAlbum(context, album.id),
                 onLongPress: () => showAlbumOptionsSheet(
@@ -224,21 +224,21 @@ class StarredPage extends ConsumerWidget {
             key: const ValueKey<String>('starred-albums-grid-scroll'),
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
-              context.echoPageHorizontalPadding,
-              context.echoSpacing.md,
-              context.echoPageHorizontalPadding,
-              context.echoSpacing.xxl + context.echoShellBottomObstruction,
+              context.musicFlowPageHorizontalPadding,
+              context.musicFlowSpacing.md,
+              context.musicFlowPageHorizontalPadding,
+              context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 200,
               mainAxisExtent: 220 + 76 * textScale,
-              crossAxisSpacing: context.echoSpacing.sm,
-              mainAxisSpacing: context.echoSpacing.md,
+              crossAxisSpacing: context.musicFlowSpacing.sm,
+              mainAxisSpacing: context.musicFlowSpacing.md,
             ),
             itemCount: albums.length,
             itemBuilder: (context, index) {
               final album = albums[index];
-              return EchoAlbumTile(
+              return MusicFlowAlbumTile(
                 album: album,
                 onPressed: () => _openAlbum(context, album.id),
                 onLongPress: () => showAlbumOptionsSheet(
@@ -250,7 +250,7 @@ class StarredPage extends ConsumerWidget {
             },
           );
 
-    return EchoRefreshView(onRefresh: () => _refresh(ref), child: content);
+    return MusicFlowRefreshView(onRefresh: () => _refresh(ref), child: content);
   }
 
   Widget _buildArtistsTab(
@@ -269,21 +269,21 @@ class StarredPage extends ConsumerWidget {
       );
     }
 
-    return EchoRefreshView(
+    return MusicFlowRefreshView(
       onRefresh: () => _refresh(ref),
       child: ListView.builder(
         key: const ValueKey<String>('starred-artists-scroll'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(
-          bottom: context.echoSpacing.xxl + context.echoShellBottomObstruction,
+          bottom: context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
         ),
         itemCount: artists.length,
         itemBuilder: (context, index) {
           final artist = artists[index];
-          return EchoArtistRow(
+          return MusicFlowArtistRow(
             artist: artist,
             onPressed: () => Navigator.of(context).push<void>(
-              EchoPageRoute<void>(
+              MusicFlowPageRoute<void>(
                 context: context,
                 builder: (_) => ArtistDetailPage(artistId: artist.id),
               ),
@@ -301,7 +301,7 @@ class StarredPage extends ConsumerWidget {
     required String description,
     required IconData icon,
   }) {
-    return EchoRefreshView(
+    return MusicFlowRefreshView(
       onRefresh: () => _refresh(ref),
       child: CustomScrollView(
         key: const ValueKey<String>('starred-empty-scroll'),
@@ -309,11 +309,11 @@ class StarredPage extends ConsumerWidget {
         slivers: <Widget>[
           SliverPadding(
             padding: EdgeInsets.only(
-              bottom: context.echoShellBottomObstruction,
+              bottom: context.musicFlowShellBottomObstruction,
             ),
             sliver: SliverFillRemaining(
               hasScrollBody: false,
-              child: EchoEmptyState(
+              child: MusicFlowEmptyState(
                 title: title,
                 description: description,
                 icon: icon,
@@ -327,7 +327,7 @@ class StarredPage extends ConsumerWidget {
 
   void _openAlbum(BuildContext context, String albumId) {
     Navigator.of(context).push<void>(
-      EchoPageRoute<void>(
+      MusicFlowPageRoute<void>(
         context: context,
         builder: (_) => AlbumDetailPage(albumId: albumId),
       ),
@@ -374,54 +374,54 @@ class _StarredTabStripState extends State<_StarredTabStrip> {
     const labels = <String>['歌曲', '专辑', '歌手'];
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        context.echoPageHorizontalPadding,
+        context.musicFlowPageHorizontalPadding,
         0,
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.sm,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.sm,
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: context.echoColors.raised,
-          borderRadius: context.echoRadii.control,
+          color: context.musicFlowColors.raised,
+          borderRadius: context.musicFlowRadii.control,
         ),
         child: Row(
           children: <Widget>[
             for (var index = 0; index < labels.length; index++)
               Expanded(
-                child: EchoPressable(
+                child: MusicFlowPressable(
                   semanticLabel: '${labels[index]}收藏',
                   selected: widget.controller.index == index,
                   onPressed: () => widget.controller.animateTo(
                     index,
-                    duration: context.echoMotion.resolve(
+                    duration: context.musicFlowMotion.resolve(
                       context,
-                      context.echoMotion.state,
+                      context.musicFlowMotion.state,
                     ),
-                    curve: context.echoMotion.easeOut,
+                    curve: context.musicFlowMotion.easeOut,
                   ),
                   minimumSize: Size(
                     double.infinity,
-                    context.echoInteraction.minimumTouchTarget,
+                    context.musicFlowInteraction.minimumTouchTarget,
                   ),
-                  borderRadius: context.echoRadii.control,
+                  borderRadius: context.musicFlowRadii.control,
                   child: Ink(
                     decoration: BoxDecoration(
                       color: widget.controller.index == index
-                          ? context.echoColors.accent.withValues(alpha: 0.14)
+                          ? context.musicFlowColors.accent.withValues(alpha: 0.14)
                           : Colors.transparent,
-                      borderRadius: context.echoRadii.control,
+                      borderRadius: context.musicFlowRadii.control,
                     ),
                     child: Center(
                       child: Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: context.echoSpacing.xs,
+                          horizontal: context.musicFlowSpacing.xs,
                         ),
                         child: Text(
                           labels[index],
-                          style: context.echoTypography.label.copyWith(
+                          style: context.musicFlowTypography.label.copyWith(
                             color: widget.controller.index == index
-                                ? context.echoColors.accent
-                                : context.echoColors.muted,
+                                ? context.musicFlowColors.accent
+                                : context.musicFlowColors.muted,
                           ),
                         ),
                       ),

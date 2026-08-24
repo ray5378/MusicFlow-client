@@ -414,7 +414,7 @@ class DownloadService {
 
   /// 获取文件保存路径
   /// Android: External Music app directory / MusicFlow / {libraryId} / {songId}.suffix
-  /// iOS: Documents / echo_downloads / {libraryId} / {songId}.suffix
+  /// iOS: Documents / music_flow_downloads / {libraryId} / {songId}.suffix
   Future<String> _getSavePath(
     String libraryId,
     String songId,
@@ -440,7 +440,7 @@ class DownloadService {
       return Directory(p.join(musicDir, 'MusicFlow'));
     }
     final appDir = await getApplicationDocumentsDirectory();
-    return Directory(p.join(appDir.path, 'echo_downloads'));
+    return Directory(p.join(appDir.path, 'music_flow_downloads'));
   }
 
   /// 获取下载目录路径（供 UI 展示）

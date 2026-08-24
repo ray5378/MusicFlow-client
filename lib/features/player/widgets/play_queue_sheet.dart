@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
-import '../../../core/design/media/echo_media_color_scope.dart';
+import '../../../core/design/music_flow_design.dart';
+import '../../../core/design/media/music_flow_media_color_scope.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
@@ -43,7 +43,7 @@ Future<void> showPlayQueueSheet({
   required BuildContext context,
   bool useRootNavigator = true,
 }) {
-  if (context.echoWindowClass != EchoWindowClass.compact) {
+  if (context.musicFlowWindowClass != MusicFlowWindowClass.compact) {
     return showRightQueuePanel(context);
   }
   return showEchoBottomSheet<void>(
@@ -86,12 +86,12 @@ class RightQueuePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spacing = context.echoSpacing;
+    final spacing = context.musicFlowSpacing;
     // 队列面板随窗口缩放(约 1/6 窗宽),并让最小/最大宽度进一步收窄,
     // 让面板更窄、更悬浮,避免在桌面窗口里占据过大横向空间。
     final width = MediaQuery.sizeOf(context).width * 0.17;
     final panelWidth = width.clamp(150.0, 220.0);
-    final motion = context.echoMotion;
+    final motion = context.musicFlowMotion;
     final duration = motion.resolve(context, motion.scene);
 
     final size = MediaQuery.sizeOf(context);
@@ -248,7 +248,7 @@ class PlayQueueSheetView extends StatelessWidget {
   });
 
   final PlayerState playerState;
-  final EchoMediaVisuals? mediaVisuals;
+  final MusicFlowMediaVisuals? mediaVisuals;
 
   /// Compatibility seed for provider-free tests and older call sites.
   final Color? albumColor;
@@ -268,14 +268,14 @@ class PlayQueueSheetView extends StatelessWidget {
     final currentIndex = playerState.currentIndex;
     final visuals =
         mediaVisuals ??
-        EchoMediaVisuals.fallback(
-          seed: albumColor ?? EchoColors.contentTintFallback,
+        MusicFlowMediaVisuals.fallback(
+          seed: albumColor ?? MusicFlowColors.contentTintFallback,
         );
     final borderRadius = panel
-        ? BorderRadius.horizontal(left: context.echoRadii.scene.topLeft)
+        ? BorderRadius.horizontal(left: context.musicFlowRadii.scene.topLeft)
         : BorderRadius.only(
-            topLeft: context.echoRadii.scene.topLeft,
-            topRight: context.echoRadii.scene.topRight,
+            topLeft: context.musicFlowRadii.scene.topLeft,
+            topRight: context.musicFlowRadii.scene.topRight,
           );
 
     Widget surface(ScrollController? scrollController) {
@@ -285,9 +285,9 @@ class PlayQueueSheetView extends StatelessWidget {
         namesRoute: true,
         explicitChildNodes: true,
         label: '播放队列',
-        child: EchoSurface(
-          level: EchoSurfaceLevel.modal,
-          color: context.echoColors.surface,
+        child: MusicFlowSurface(
+          level: MusicFlowSurfaceLevel.modal,
+          color: context.musicFlowColors.surface,
           borderRadius: borderRadius,
           clipBehavior: Clip.antiAlias,
           child: SafeArea(
@@ -295,13 +295,13 @@ class PlayQueueSheetView extends StatelessWidget {
             child: Column(
               children: <Widget>[
                 if (!panel) ...[
-                  SizedBox(height: context.echoSpacing.xs),
+                  SizedBox(height: context.musicFlowSpacing.xs),
                   Center(
                     child: ExcludeSemantics(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: context.echoColors.divider,
-                          borderRadius: context.echoRadii.pill,
+                          color: context.musicFlowColors.divider,
+                          borderRadius: context.musicFlowRadii.pill,
                         ),
                         child: const SizedBox(width: 36, height: 4),
                       ),
@@ -310,10 +310,10 @@ class PlayQueueSheetView extends StatelessWidget {
                 ],
                 Padding(
                   padding: EdgeInsetsDirectional.fromSTEB(
-                    context.echoSpacing.md,
-                    context.echoSpacing.sm,
-                    context.echoSpacing.xs,
-                    context.echoSpacing.sm,
+                    context.musicFlowSpacing.md,
+                    context.musicFlowSpacing.sm,
+                    context.musicFlowSpacing.xs,
+                    context.musicFlowSpacing.sm,
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -327,19 +327,19 @@ class PlayQueueSheetView extends StatelessWidget {
                               header: true,
                               child: Text(
                                 '播放队列',
-                                style: context.echoTypography.headline,
+                                style: context.musicFlowTypography.headline,
                               ),
                             ),
-                            SizedBox(height: context.echoSpacing.xxs),
+                            SizedBox(height: context.musicFlowSpacing.xxs),
                             Text(
                               '${queue.length} 首曲目',
-                              style: context.echoTypography.metadata,
+                              style: context.musicFlowTypography.metadata,
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(width: context.echoSpacing.sm),
-                      EchoIconButton(
+                      SizedBox(width: context.musicFlowSpacing.sm),
+                      MusicFlowIconButton(
                         icon: AppIcons.close,
                         label: '关闭播放队列',
                         onPressed: () {
@@ -353,10 +353,10 @@ class PlayQueueSheetView extends StatelessWidget {
                     ],
                   ),
                 ),
-                const EchoDivider(),
+                const MusicFlowDivider(),
                 Expanded(
                   child: queue.isEmpty
-                      ? const EchoEmptyState(
+                      ? const MusicFlowEmptyState(
                           title: '队列为空',
                           description: '开始播放一首歌曲后，接下来的曲目会出现在这里。',
                           icon: AppIcons.queue,
@@ -371,23 +371,23 @@ class PlayQueueSheetView extends StatelessWidget {
                           : ListView.separated(
                               controller: scrollController,
                               padding: EdgeInsets.symmetric(
-                                vertical: context.echoSpacing.xs,
+                                vertical: context.musicFlowSpacing.xs,
                               ),
                               itemCount: queue.length,
                               separatorBuilder: (context, index) =>
-                                  SizedBox(height: context.echoSpacing.xxs),
+                                  SizedBox(height: context.musicFlowSpacing.xxs),
                               itemBuilder: (context, index) {
                                 final song = queue[index];
-                                return EchoSongRow(
+                                return MusicFlowSongRow(
                                   index: index,
                                   song: song,
-                                  variant: EchoSongRowVariant.standard,
+                                  variant: MusicFlowSongRowVariant.standard,
                                   isCurrent: index == currentIndex,
                                   contentPadding: EdgeInsetsDirectional.fromSTEB(
-                                    context.echoSpacing.md,
-                                    context.echoSpacing.xs,
-                                    context.echoSpacing.xs,
-                                    context.echoSpacing.xs,
+                                    context.musicFlowSpacing.md,
+                                    context.musicFlowSpacing.xs,
+                                    context.musicFlowSpacing.xs,
+                                    context.musicFlowSpacing.xs,
                                   ),
                                   onPressed: () => unawaited(onSelect(index)),
                                   onLongPress: () => unawaited(
@@ -402,17 +402,17 @@ class PlayQueueSheetView extends StatelessWidget {
                               },
                             ),
                 ),
-                const EchoDivider(),
+                const MusicFlowDivider(),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
-                    context.echoSpacing.md,
-                    context.echoSpacing.xs,
-                    context.echoSpacing.md,
-                    context.echoSpacing.sm,
+                    context.musicFlowSpacing.md,
+                    context.musicFlowSpacing.xs,
+                    context.musicFlowSpacing.md,
+                    context.musicFlowSpacing.sm,
                   ),
                   child: Align(
                     alignment: AlignmentDirectional.centerStart,
-                    child: EchoButton.ghost(
+                    child: MusicFlowButton.ghost(
                       label: '清空后续队列',
                       semanticLabel: '清空后续播放队列，保留当前曲目',
                       leadingIcon: AppIcons.clearAll,
@@ -429,9 +429,9 @@ class PlayQueueSheetView extends StatelessWidget {
       );
     }
 
-    final scope = EchoMediaColorScope(
+    final scope = MusicFlowMediaColorScope(
       visuals: visuals,
-      role: EchoMediaSurfaceRole.panel,
+      role: MusicFlowMediaSurfaceRole.panel,
       child: panel
           ? surface(null)
           : DraggableScrollableSheet(
@@ -482,15 +482,15 @@ class CastQueueSheetView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderRadius = panel
-        ? BorderRadius.horizontal(left: context.echoRadii.scene.topLeft)
+        ? BorderRadius.horizontal(left: context.musicFlowRadii.scene.topLeft)
         : BorderRadius.only(
-            topLeft: context.echoRadii.scene.topLeft,
-            topRight: context.echoRadii.scene.topRight,
+            topLeft: context.musicFlowRadii.scene.topLeft,
+            topRight: context.musicFlowRadii.scene.topRight,
           );
 
-    return EchoSurface(
-      level: EchoSurfaceLevel.modal,
-      color: context.echoColors.surface,
+    return MusicFlowSurface(
+      level: MusicFlowSurfaceLevel.modal,
+      color: context.musicFlowColors.surface,
       borderRadius: borderRadius,
       clipBehavior: Clip.antiAlias,
       child: SafeArea(
@@ -498,13 +498,13 @@ class CastQueueSheetView extends StatelessWidget {
         child: Column(
           children: <Widget>[
             if (!panel) ...[
-              SizedBox(height: context.echoSpacing.xs),
+              SizedBox(height: context.musicFlowSpacing.xs),
               Center(
                 child: ExcludeSemantics(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: context.echoColors.divider,
-                      borderRadius: context.echoRadii.pill,
+                      color: context.musicFlowColors.divider,
+                      borderRadius: context.musicFlowRadii.pill,
                     ),
                     child: const SizedBox(width: 36, height: 4),
                   ),
@@ -513,10 +513,10 @@ class CastQueueSheetView extends StatelessWidget {
             ],
             Padding(
               padding: EdgeInsetsDirectional.fromSTEB(
-                context.echoSpacing.md,
-                context.echoSpacing.sm,
-                context.echoSpacing.xs,
-                context.echoSpacing.sm,
+                context.musicFlowSpacing.md,
+                context.musicFlowSpacing.sm,
+                context.musicFlowSpacing.xs,
+                context.musicFlowSpacing.sm,
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -530,20 +530,20 @@ class CastQueueSheetView extends StatelessWidget {
                           header: true,
                           child: Text(
                             '投屏队列',
-                            style: context.echoTypography.headline,
+                            style: context.musicFlowTypography.headline,
                           ),
                         ),
-                        SizedBox(height: context.echoSpacing.xxs),
+                        SizedBox(height: context.musicFlowSpacing.xxs),
                         Text(
                           '${queue.length} 首曲目 · 正在投屏到「$deviceName」'
                           '${offline ? ' · 设备离线' : ''}',
-                          style: context.echoTypography.metadata,
+                          style: context.musicFlowTypography.metadata,
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(width: context.echoSpacing.sm),
-                  EchoIconButton(
+                  SizedBox(width: context.musicFlowSpacing.sm),
+                  MusicFlowIconButton(
                     icon: AppIcons.close,
                     label: '关闭投屏队列',
                     onPressed: () {
@@ -557,17 +557,17 @@ class CastQueueSheetView extends StatelessWidget {
                 ],
               ),
             ),
-            const EchoDivider(),
+            const MusicFlowDivider(),
             Expanded(
               child: queue.isEmpty
-                  ? const EchoEmptyState(
+                  ? const MusicFlowEmptyState(
                       title: '投屏队列为空',
                       description: '后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。',
                       icon: AppIcons.queue,
                     )
                   : ReorderableListView.builder(
                       padding: EdgeInsets.symmetric(
-                        vertical: context.echoSpacing.xs,
+                        vertical: context.musicFlowSpacing.xs,
                       ),
                       buildDefaultDragHandles: false,
                       itemCount: queue.length,
@@ -586,16 +586,16 @@ class CastQueueSheetView extends StatelessWidget {
                           key: ValueKey<String>('cast-queue-$index-${song.id}'),
                           child: ReorderableDelayedDragStartListener(
                             index: index,
-                            child: EchoSongRow(
+                            child: MusicFlowSongRow(
                               index: index,
                               song: song,
-                              variant: EchoSongRowVariant.standard,
+                              variant: MusicFlowSongRowVariant.standard,
                               isCurrent: index == currentIndex,
                               contentPadding: EdgeInsetsDirectional.fromSTEB(
-                                context.echoSpacing.md,
-                                context.echoSpacing.xs,
-                                context.echoSpacing.xs,
-                                context.echoSpacing.xs,
+                                context.musicFlowSpacing.md,
+                                context.musicFlowSpacing.xs,
+                                context.musicFlowSpacing.xs,
+                                context.musicFlowSpacing.xs,
                               ),
                               onPressed: () => unawaited(onSelect(index)),
                               onMorePressed: () => onRemove(index),
@@ -607,17 +607,17 @@ class CastQueueSheetView extends StatelessWidget {
                       },
                     ),
             ),
-            const EchoDivider(),
+            const MusicFlowDivider(),
             Padding(
               padding: EdgeInsets.fromLTRB(
-                context.echoSpacing.md,
-                context.echoSpacing.xs,
-                context.echoSpacing.md,
-                context.echoSpacing.sm,
+                context.musicFlowSpacing.md,
+                context.musicFlowSpacing.xs,
+                context.musicFlowSpacing.md,
+                context.musicFlowSpacing.sm,
               ),
               child: Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: EchoButton.ghost(
+                child: MusicFlowButton.ghost(
                   label: '清空并停止投屏',
                   semanticLabel: '清空投屏队列并停止投屏',
                   leadingIcon: AppIcons.clearAll,
@@ -727,23 +727,23 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
     final current = widget.currentIndex;
     return ListView.separated(
       controller: _controller,
-      padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       itemCount: widget.queue.length,
       separatorBuilder: (context, index) =>
-          SizedBox(height: context.echoSpacing.xxs),
+          SizedBox(height: context.musicFlowSpacing.xxs),
       itemBuilder: (context, i) {
         final song = widget.queue[i];
         final isCurrent = i == current;
-        final row = EchoSongRow(
+        final row = MusicFlowSongRow(
           index: i,
           song: song,
-          variant: EchoSongRowVariant.standard,
+          variant: MusicFlowSongRowVariant.standard,
           isCurrent: isCurrent,
           contentPadding: EdgeInsetsDirectional.fromSTEB(
-            context.echoSpacing.md,
-            context.echoSpacing.xs,
-            context.echoSpacing.xs,
-            context.echoSpacing.xs,
+            context.musicFlowSpacing.md,
+            context.musicFlowSpacing.xs,
+            context.musicFlowSpacing.xs,
+            context.musicFlowSpacing.xs,
           ),
           onPressed: () => unawaited(widget.onSelect(i)),
           onLongPress: () => unawaited(

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/network/connectivity_monitor.dart';
 import '../../../data/models/audio_quality.dart';
 import '../../../providers/audio_quality_provider.dart';
-import '../widgets/echo_settings_components.dart';
+import '../widgets/music_flow_settings_components.dart';
 
 class AudioQualityPage extends ConsumerWidget {
   const AudioQualityPage({super.key});
@@ -18,35 +18,35 @@ class AudioQualityPage extends ConsumerWidget {
     final effectiveQuality = ref.watch(effectiveQualityProvider);
     final notifier = ref.read(audioQualitySettingsProvider.notifier);
 
-    return EchoScaffold(
-      topBar: EchoTopBar.back(context: context, title: '音质设置'),
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(context: context, title: '音质设置'),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
             padding: EdgeInsets.fromLTRB(
-              context.echoSpacing.md,
-              context.echoSpacing.sm,
-              context.echoSpacing.md,
-              context.echoSpacing.xxl + context.echoShellBottomObstruction,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.sm,
+              context.musicFlowSpacing.md,
+              context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             children: <Widget>[
-              EchoSurface(
-                level: EchoSurfaceLevel.raised,
-                borderColor: context.echoColors.controlBoundary,
-                padding: EdgeInsets.all(context.echoSpacing.md),
+              MusicFlowSurface(
+                level: MusicFlowSurfaceLevel.raised,
+                borderColor: context.musicFlowColors.controlBoundary,
+                padding: EdgeInsets.all(context.musicFlowSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text('当前播放策略', style: context.echoTypography.headline),
-                    SizedBox(height: context.echoSpacing.sm),
+                    Text('当前播放策略', style: context.musicFlowTypography.headline),
+                    SizedBox(height: context.musicFlowSpacing.sm),
                     _StatusLine(
                       icon: _networkIcon(networkType),
                       label: '网络',
                       value: _networkName(networkType),
                     ),
-                    SizedBox(height: context.echoSpacing.xs),
+                    SizedBox(height: context.musicFlowSpacing.xs),
                     _StatusLine(
                       icon: AppIcons.quality,
                       label: '生效音质',
@@ -55,12 +55,12 @@ class AudioQualityPage extends ConsumerWidget {
                   ],
                 ),
               ),
-              SizedBox(height: context.echoSpacing.xl),
-              EchoSettingsSection(
+              SizedBox(height: context.musicFlowSpacing.xl),
+              MusicFlowSettingsSection(
                 title: '网络策略',
                 description: '在 Wi-Fi 与移动数据之间自动使用不同码率。',
                 children: <Widget>[
-                  EchoToggleSettingRow(
+                  MusicFlowToggleSettingRow(
                     icon: AppIcons.route,
                     title: '按网络自动切换',
                     description: settings.autoSwitch
@@ -71,15 +71,15 @@ class AudioQualityPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              SizedBox(height: context.echoSpacing.xl),
-              EchoSettingsSection(
+              SizedBox(height: context.musicFlowSpacing.xl),
+              MusicFlowSettingsSection(
                 title: settings.autoSwitch ? 'Wi-Fi 音质' : '全局音质',
                 description: settings.autoSwitch
                     ? '连接 Wi-Fi 时优先保证音乐完整度。'
                     : '此选择将用于所有网络。',
                 children: <Widget>[
                   for (final quality in AudioQualityLevel.values)
-                    EchoChoiceRow(
+                    MusicFlowChoiceRow(
                       title: quality.displayName,
                       description: _qualityDescription(quality),
                       selected: settings.wifiQuality == quality,
@@ -89,13 +89,13 @@ class AudioQualityPage extends ConsumerWidget {
                 ],
               ),
               if (settings.autoSwitch) ...<Widget>[
-                SizedBox(height: context.echoSpacing.xl),
-                EchoSettingsSection(
+                SizedBox(height: context.musicFlowSpacing.xl),
+                MusicFlowSettingsSection(
                   title: '移动数据音质',
                   description: '在流量消耗、启动速度与听感之间选择。',
                   children: <Widget>[
                     for (final quality in AudioQualityLevel.values)
-                      EchoChoiceRow(
+                      MusicFlowChoiceRow(
                         title: quality.displayName,
                         description: _qualityDescription(quality),
                         selected: settings.mobileQuality == quality,
@@ -133,24 +133,24 @@ class _StatusLine extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             SizedBox.square(
-              dimension: context.echoInteraction.minimumTouchTarget,
+              dimension: context.musicFlowInteraction.minimumTouchTarget,
               child: Center(
-                child: Icon(icon, size: 22, color: context.echoColors.accent),
+                child: Icon(icon, size: 22, color: context.musicFlowColors.accent),
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
                     label,
-                    style: context.echoTypography.metadata.copyWith(
-                      color: context.echoColors.muted,
+                    style: context.musicFlowTypography.metadata.copyWith(
+                      color: context.musicFlowColors.muted,
                     ),
                   ),
-                  SizedBox(height: context.echoSpacing.xxs),
-                  Text(value, style: context.echoTypography.title),
+                  SizedBox(height: context.musicFlowSpacing.xxs),
+                  Text(value, style: context.musicFlowTypography.title),
                 ],
               ),
             ),

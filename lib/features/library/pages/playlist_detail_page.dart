@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
@@ -188,15 +188,15 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     );
 
     final topBar = _selectionMode
-        ? EchoTopBar(
+        ? MusicFlowTopBar(
             title: '已选 ${_selectedSongIndexes.length} 首',
-            leading: EchoIconButton(
+            leading: MusicFlowIconButton(
               icon: AppIcons.close,
               label: '退出歌曲管理',
               onPressed: _isRemovingSongs ? null : _exitSelectionMode,
             ),
             actions: <Widget>[
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: allSongsSelected ? AppIcons.clearAll : AppIcons.selectAll,
                 label: allSongsSelected ? '取消全选歌曲' : '全选歌曲',
                 selected: allSongsSelected,
@@ -206,23 +206,23 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
               ),
             ],
           )
-        : EchoTopBar.back(
+        : MusicFlowTopBar.back(
             context: context,
             title: '歌单',
             actions: <Widget>[
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: AppIcons.selectAll,
                 label: '管理歌单歌曲',
                 onPressed: currentSongCount == 0 || _isRemovingSongs
                     ? null
                     : _enterSelectionMode,
               ),
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: AppIcons.sort,
                 label: '歌曲排序：${_sortOption.label}',
                 onPressed: _isRemovingSongs ? null : _selectSortOption,
               ),
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: AppIcons.more,
                 label: '歌单操作',
                 onPressed: _meta == null || _isRemovingSongs
@@ -244,7 +244,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         debugLabel: 'playlist_detail_page',
         shouldRetry: (ref) => _metaFailed || _songList.hasError,
         onRetry: (ref) => _retry(),
-        child: EchoScaffold(
+        child: MusicFlowScaffold(
           topBar: topBar,
           bottomBar: _selectionMode
               ? _PlaylistSelectionBar(
@@ -264,7 +264,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   Widget _body(Playlist? displayMeta) {
     if (displayMeta == null) {
       if (_metaFailed) {
-        return EchoErrorState(
+        return MusicFlowErrorState(
           title: '歌单加载失败',
           description: '无法读取歌单详情。请检查网络后重试。',
           actionLabel: '重试',
@@ -301,9 +301,9 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
-                      context.echoSpacing.md,
-                      context.echoSpacing.md,
-                      context.echoSpacing.md,
+                      context.musicFlowSpacing.md,
+                      context.musicFlowSpacing.md,
+                      context.musicFlowSpacing.md,
                       0,
                     ),
                     child: MediaLoadNotice(
@@ -313,14 +313,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   ),
                 ),
               SliverToBoxAdapter(
-                child: EchoSectionHeader(
+                child: MusicFlowSectionHeader(
                   title: '歌曲',
                   description: _selectionMode
                       ? '轻触歌曲选择要从歌单移除的条目'
                       : currentSongCount == 0
                       ? '歌单中暂时没有歌曲'
                       : '$currentSongCount 首 · ${_sortOption.label}',
-                  trailing: EchoButton.primary(
+                  trailing: MusicFlowButton.primary(
                     label: '播放全部',
                     leadingIcon: AppIcons.play,
                     onPressed: currentSongCount == 0
@@ -328,16 +328,16 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                         : () => unawaited(_playAll()),
                   ),
                   padding: EdgeInsets.fromLTRB(
-                    context.echoSpacing.md,
-                    context.echoSpacing.lg,
-                    context.echoSpacing.md,
-                    context.echoSpacing.xs,
+                    context.musicFlowSpacing.md,
+                    context.musicFlowSpacing.lg,
+                    context.musicFlowSpacing.md,
+                    context.musicFlowSpacing.xs,
                   ),
                 ),
               ),
               if (currentSongCount == 0)
                 const SliverToBoxAdapter(
-                  child: EchoEmptyState(
+                  child: MusicFlowEmptyState(
                     title: '歌单还是空的',
                     description: '通过歌曲操作菜单把喜欢的内容加入这个歌单。',
                     icon: AppIcons.playlistAdd,
@@ -351,7 +351,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Center(
-                      child: EchoButton.secondary(
+                      child: MusicFlowButton.secondary(
                         label: '加载失败，点击重试',
                         onPressed: _retry,
                       ),
@@ -364,8 +364,8 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 child: SizedBox(
                   key: const ValueKey<String>('playlist-detail-bottom-spacer'),
                   height:
-                      context.echoSpacing.xxl +
-                      (_selectionMode ? 0 : context.echoShellBottomObstruction),
+                      context.musicFlowSpacing.xxl +
+                      (_selectionMode ? 0 : context.musicFlowShellBottomObstruction),
                 ),
               ),
             ],
@@ -381,7 +381,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     return <Widget>[
       SliverPadding(
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoPageHorizontalPadding,
+          horizontal: context.musicFlowPageHorizontalPadding,
         ),
         sliver: SliverList.builder(
           itemCount: total,
@@ -398,10 +398,10 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                     horizontal: 8,
                     vertical: 8,
                   ),
-                  child: EchoSkeleton(
+                  child: MusicFlowSkeleton(
                     width: double.infinity,
                     height: 56,
-                    borderRadius: context.echoRadii.detail,
+                    borderRadius: context.musicFlowRadii.detail,
                   ),
                 ),
               );
@@ -436,7 +436,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Center(
-              child: EchoButton.secondary(
+              child: MusicFlowButton.secondary(
                 label: '加载失败，点击重试',
                 onPressed: () => _applySortOption(_sortOption),
               ),
@@ -448,7 +448,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     return <Widget>[
       SliverPadding(
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoPageHorizontalPadding,
+          horizontal: context.musicFlowPageHorizontalPadding,
         ),
         sliver: SliverList.builder(
           itemCount: _fullEntries.length,
@@ -651,7 +651,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     final confirmed = await showEchoBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '移除歌曲',
         subtitle: '只会修改当前歌单，不会删除音乐文件。',
         child: Column(
@@ -660,22 +660,22 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
           children: <Widget>[
             Text(
               '确定从「${playlist.name}」中移除选中的 $count 首歌曲吗？',
-              style: sheetContext.echoTypography.body.copyWith(
-                color: sheetContext.echoColors.muted,
+              style: sheetContext.musicFlowTypography.body.copyWith(
+                color: sheetContext.musicFlowColors.muted,
               ),
             ),
-            SizedBox(height: sheetContext.echoSpacing.lg),
+            SizedBox(height: sheetContext.musicFlowSpacing.lg),
             Row(
               children: <Widget>[
                 Expanded(
-                  child: EchoButton.secondary(
+                  child: MusicFlowButton.secondary(
                     label: '取消',
                     onPressed: () => Navigator.of(sheetContext).pop(false),
                   ),
                 ),
-                SizedBox(width: sheetContext.echoSpacing.sm),
+                SizedBox(width: sheetContext.musicFlowSpacing.sm),
                 Expanded(
-                  child: EchoButton.destructive(
+                  child: MusicFlowButton.destructive(
                     label: '移除',
                     onPressed: () => Navigator.of(sheetContext).pop(true),
                   ),
@@ -737,7 +737,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       // 窗口化列表与元数据一并刷新:先重新拉轻量元数据再重载分页列表。
       _loadMeta();
       _songList.load('');
-      ToastNotifier.show(successMessage, kind: EchoMessageKind.success);
+      ToastNotifier.show(successMessage, kind: MusicFlowMessageKind.success);
     } catch (error) {
       if (!_isCurrentMutation(mutationToken)) return;
       setState(() => _isRemovingSongs = false);
@@ -847,7 +847,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     if (mounted) {
       ToastNotifier.show(
         '已添加 ${songs.length} 首歌曲到下载队列',
-        kind: EchoMessageKind.success,
+        kind: MusicFlowMessageKind.success,
       );
     }
   }
@@ -861,7 +861,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     ref.read(playerProvider.notifier).addAllToQueue(songs);
     ToastNotifier.show(
       '已添加 ${songs.length} 首到播放列表',
-      kind: EchoMessageKind.success,
+      kind: MusicFlowMessageKind.success,
     );
   }
 
@@ -901,7 +901,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       if (mounted) {
         ToastNotifier.show(
           '已更新歌单「${formResult.name}」',
-          kind: EchoMessageKind.success,
+          kind: MusicFlowMessageKind.success,
         );
       }
     } catch (_) {
@@ -930,7 +930,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         Navigator.of(context).pop();
         ToastNotifier.show(
           '已删除歌单「${playlist.name}」',
-          kind: EchoMessageKind.success,
+          kind: MusicFlowMessageKind.success,
         );
       }
     } catch (_) {
@@ -1008,18 +1008,18 @@ class _PlaylistSelectionBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text('从当前歌单移除', style: context.echoTypography.title),
-        SizedBox(height: context.echoSpacing.xxs),
+        Text('从当前歌单移除', style: context.musicFlowTypography.title),
+        SizedBox(height: context.musicFlowSpacing.xxs),
         Text(
           '已选择 $selectedCount 首，不会删除音乐文件',
-          style: context.echoTypography.metadata.copyWith(
-            color: context.echoColors.muted,
+          style: context.musicFlowTypography.metadata.copyWith(
+            color: context.musicFlowColors.muted,
           ),
         ),
       ],
     );
 
-    EchoButton removeButton({required bool expand}) => EchoButton.destructive(
+    MusicFlowButton removeButton({required bool expand}) => MusicFlowButton.destructive(
       label: removing ? '移除中…' : '移除选中',
       semanticLabel: '移除选中歌曲',
       leadingIcon: AppIcons.removeCircle,
@@ -1027,15 +1027,15 @@ class _PlaylistSelectionBar extends StatelessWidget {
       onPressed: removing ? null : onRemove,
     );
 
-    return EchoSurface(
-      level: EchoSurfaceLevel.surface,
+    return MusicFlowSurface(
+      level: MusicFlowSurfaceLevel.surface,
       borderRadius: BorderRadius.zero,
-      borderColor: context.echoColors.divider,
+      borderColor: context.musicFlowColors.divider,
       padding: EdgeInsets.fromLTRB(
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.xs,
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.xs,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.xs,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.xs,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1048,7 +1048,7 @@ class _PlaylistSelectionBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 count,
-                SizedBox(height: context.echoSpacing.xs),
+                SizedBox(height: context.musicFlowSpacing.xs),
                 removeButton(expand: true),
               ],
             );
@@ -1056,7 +1056,7 @@ class _PlaylistSelectionBar extends StatelessWidget {
           return Row(
             children: <Widget>[
               Expanded(child: count),
-              SizedBox(width: context.echoSpacing.md),
+              SizedBox(width: context.musicFlowSpacing.md),
               removeButton(expand: false),
             ],
           );
@@ -1082,7 +1082,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
     return MediaDetailHeaderSurface(
       coverArtId: playlist.coverArt,
       child: Padding(
-        padding: EdgeInsets.all(context.echoSpacing.lg),
+        padding: EdgeInsets.all(context.musicFlowSpacing.lg),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 680;
@@ -1102,34 +1102,34 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                   header: true,
                   child: Text(
                     playlist.name,
-                    style: context.echoTypography.display,
+                    style: context.musicFlowTypography.display,
                   ),
                 ),
                 if (comment != null && comment.isNotEmpty) ...<Widget>[
-                  SizedBox(height: context.echoSpacing.xs),
-                  Text(comment, style: context.echoTypography.body),
+                  SizedBox(height: context.musicFlowSpacing.xs),
+                  Text(comment, style: context.musicFlowTypography.body),
                 ],
-                SizedBox(height: context.echoSpacing.sm),
+                SizedBox(height: context.musicFlowSpacing.sm),
                 Wrap(
-                  spacing: context.echoSpacing.xs,
-                  runSpacing: context.echoSpacing.xxs,
+                  spacing: context.musicFlowSpacing.xs,
+                  runSpacing: context.musicFlowSpacing.xxs,
                   children: <Widget>[
                     Text(
                       '$songCount 首',
-                      style: context.echoTypography.metadata.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.metadata.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                     Text(
                       playlist.durationString,
-                      style: context.echoTypography.metadata.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.metadata.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                     Text(
                       playlist.public ? '公开歌单' : '私人歌单',
-                      style: context.echoTypography.metadata.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.metadata.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                   ],
@@ -1142,7 +1142,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   cover,
-                  SizedBox(width: context.echoSpacing.md),
+                  SizedBox(width: context.musicFlowSpacing.md),
                   Expanded(child: information),
                 ],
               );
@@ -1151,7 +1151,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 cover,
-                SizedBox(width: context.echoSpacing.xl),
+                SizedBox(width: context.musicFlowSpacing.xl),
                 Expanded(child: information),
               ],
             );
@@ -1187,7 +1187,7 @@ class _PlaylistLoadingPreview extends StatelessWidget {
               child: MediaDetailHeaderSurface(
                 coverArtId: coverArt,
                 child: Padding(
-                  padding: EdgeInsets.all(context.echoSpacing.lg),
+                  padding: EdgeInsets.all(context.musicFlowSpacing.lg),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -1200,17 +1200,17 @@ class _PlaylistLoadingPreview extends StatelessWidget {
                           requestSize: 480,
                         ),
                       ),
-                      SizedBox(width: context.echoSpacing.md),
+                      SizedBox(width: context.musicFlowSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text(name, style: context.echoTypography.display),
-                            SizedBox(height: context.echoSpacing.sm),
+                            Text(name, style: context.musicFlowTypography.display),
+                            SizedBox(height: context.musicFlowSpacing.sm),
                             Text(
                               '$songCount 首',
-                              style: context.echoTypography.metadata.copyWith(
-                                color: context.echoColors.muted,
+                              style: context.musicFlowTypography.metadata.copyWith(
+                                color: context.musicFlowColors.muted,
                               ),
                             ),
                           ],

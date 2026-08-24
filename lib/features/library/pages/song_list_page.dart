@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
 import '../../../features/library/widgets/windowed_list_view.dart';
@@ -61,14 +61,14 @@ class _SongListPageState extends ConsumerState<SongListPage> {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '歌曲排序',
         subtitle: '窗口化加载模式下支持以下排序',
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             for (final option in _SongSort.values)
-              EchoActionRow(
+              MusicFlowActionRow(
                 icon: option == _sort ? AppIcons.check : AppIcons.sort,
                 title: switch (option) {
                   _SongSort.titleAsc => '标题 A-Z',
@@ -93,13 +93,13 @@ class _SongListPageState extends ConsumerState<SongListPage> {
       debugLabel: 'song_list_page',
       shouldRetry: (ref) => _list.hasError,
       onRetry: (ref) => _list.retry(),
-      child: EchoScaffold(
-        topBar: EchoTopBar.back(
+      child: MusicFlowScaffold(
+        topBar: MusicFlowTopBar.back(
           context: context,
           title: '所有歌曲',
           actions: <Widget>[
             if (_searchQuery.isEmpty)
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: AppIcons.sort,
                 label: '歌曲排序',
                 onPressed: () => unawaited(_showSortSheet()),
@@ -117,7 +117,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
                 if (query.isEmpty) _reload();
               },
             ),
-            SizedBox(height: context.echoSpacing.xs),
+            SizedBox(height: context.musicFlowSpacing.xs),
             Expanded(child: _body()),
           ],
         ),
@@ -155,11 +155,11 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             controller: _list,
             placeholderExtent: 72,
             padding: EdgeInsets.only(
-              left: context.echoPageHorizontalPadding,
-              right: context.echoPageHorizontalPadding,
-              top: context.echoSpacing.xs,
+              left: context.musicFlowPageHorizontalPadding,
+              right: context.musicFlowPageHorizontalPadding,
+              top: context.musicFlowSpacing.xs,
               bottom:
-                  context.echoSpacing.xxl + context.echoShellBottomObstruction,
+                  context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             emptyTitle: '暂无歌曲',
             emptyDescription: '同步音乐库后，歌曲会显示在这里。',
@@ -179,10 +179,10 @@ class _SongListPageState extends ConsumerState<SongListPage> {
         index: index,
         variant: SongListItemVariant.standard,
         contentPadding: EdgeInsetsDirectional.fromSTEB(
-          context.echoPageHorizontalPadding,
-          context.echoSpacing.xs,
-          context.echoPageHorizontalPadding,
-          context.echoSpacing.xs,
+          context.musicFlowPageHorizontalPadding,
+          context.musicFlowSpacing.xs,
+          context.musicFlowPageHorizontalPadding,
+          context.musicFlowSpacing.xs,
         ),
         onTap: () async {
           // 播放队列需要完整顺序表:后台一次性拉全量构建队列(仅用户主动播放时),

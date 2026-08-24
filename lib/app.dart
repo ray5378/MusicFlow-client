@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/design/echo_design.dart';
+import 'core/design/music_flow_design.dart';
 import 'core/utils/logger.dart';
 import 'core/utils/toast_notifier.dart';
 import 'core/theme/app_theme.dart';
@@ -199,7 +199,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 登录页
       GoRoute(
         path: '/login',
-        pageBuilder: (context, state) => EchoTransitionPage<void>(
+        pageBuilder: (context, state) => MusicFlowTransitionPage<void>(
           key: state.pageKey,
           name: state.name ?? state.path,
           arguments: <String, String>{
@@ -214,7 +214,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/library/edit/:id',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => EchoTransitionPage<void>(
+        pageBuilder: (context, state) => MusicFlowTransitionPage<void>(
           key: state.pageKey,
           name: state.name ?? state.path,
           arguments: <String, String>{

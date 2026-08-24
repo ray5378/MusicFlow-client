@@ -1,4 +1,4 @@
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +16,7 @@ void main() {
       ),
     );
 
-    ToastNotifier.show('网络异常', kind: EchoMessageKind.error);
+    ToastNotifier.show('网络异常', kind: MusicFlowMessageKind.error);
     await tester.pump();
 
     expect(find.text('网络异常'), findsOneWidget);

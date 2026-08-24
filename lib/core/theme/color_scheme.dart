@@ -1,32 +1,32 @@
-import 'package:musicflow_client/core/design/tokens/echo_colors.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 import 'package:flutter/material.dart';
 
 /// One-way compatibility bridge from Echo semantics to Flutter roles.
 ///
-/// Business UI consumes [EchoColors]. [ColorScheme] exists only for Flutter,
+/// Business UI consumes [MusicFlowColors]. [ColorScheme] exists only for Flutter,
 /// third-party widgets, and code that has not yet migrated to Echo primitives.
 abstract final class AppColorScheme {
-  static const Color defaultSeedColor = EchoColors.defaultAccent;
+  static const Color defaultSeedColor = MusicFlowColors.defaultAccent;
 
-  static EchoColors lightColors([Color? accent]) {
-    return EchoColors.light(accent: accent ?? defaultSeedColor);
+  static MusicFlowColors lightColors([Color? accent]) {
+    return MusicFlowColors.light(accent: accent ?? defaultSeedColor);
   }
 
-  static EchoColors darkColors([Color? accent]) {
-    return EchoColors.dark(accent: accent ?? defaultSeedColor);
+  static MusicFlowColors darkColors([Color? accent]) {
+    return MusicFlowColors.dark(accent: accent ?? defaultSeedColor);
   }
 
-  static EchoColors colorsFor(Brightness brightness, [Color? accent]) {
+  static MusicFlowColors colorsFor(Brightness brightness, [Color? accent]) {
     return brightness == Brightness.dark
         ? darkColors(accent)
         : lightColors(accent);
   }
 
-  static ColorScheme materialBridge(EchoColors colors, Brightness brightness) {
+  static ColorScheme materialBridge(MusicFlowColors colors, Brightness brightness) {
     final base = brightness == Brightness.dark
         ? const ColorScheme.dark()
         : const ColorScheme.light();
-    final inversePrimary = EchoColors.ensureColorContrast(
+    final inversePrimary = MusicFlowColors.ensureColorContrast(
       colors.accent,
       background: colors.ink,
     );

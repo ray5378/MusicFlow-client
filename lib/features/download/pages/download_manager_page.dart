@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/download_task.dart';
 import '../../../data/models/song.dart';
@@ -26,12 +26,12 @@ class DownloadManagerPage extends ConsumerWidget {
             .length ??
         0;
 
-    return EchoScaffold(
-      topBar: EchoTopBar.back(
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar.back(
         context: context,
         title: '下载管理',
         actions: <Widget>[
-          EchoIconButton(
+          MusicFlowIconButton(
             icon: AppIcons.more,
             label: '下载批量操作',
             onPressed: () => _showBulkActions(context, ref),
@@ -43,12 +43,12 @@ class DownloadManagerPage extends ConsumerWidget {
               top: false,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  context.echoSpacing.md,
-                  context.echoSpacing.xs,
-                  context.echoSpacing.md,
-                  context.echoSpacing.sm,
+                  context.musicFlowSpacing.md,
+                  context.musicFlowSpacing.xs,
+                  context.musicFlowSpacing.md,
+                  context.musicFlowSpacing.sm,
                 ),
-                child: EchoButton.primary(
+                child: MusicFlowButton.primary(
                   label: '播放全部已下载歌曲',
                   leadingIcon: AppIcons.play,
                   expand: true,
@@ -59,7 +59,7 @@ class DownloadManagerPage extends ConsumerWidget {
           : null,
       body: tasksAsync.when(
         data: (tasks) => _DownloadTaskList(tasks: tasks),
-        error: (error, stackTrace) => EchoErrorState(
+        error: (error, stackTrace) => MusicFlowErrorState(
           title: '下载任务加载失败',
           description: '无法读取下载记录，请稍后重试。',
           actionLabel: '重试',
@@ -75,12 +75,12 @@ class DownloadManagerPage extends ConsumerWidget {
     await showEchoBottomSheet<void>(
       context: context,
       useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '下载批量操作',
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.pause,
               title: '全部暂停',
               onPressed: () {
@@ -88,7 +88,7 @@ class DownloadManagerPage extends ConsumerWidget {
                 service.pauseAll();
               },
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.play,
               title: '全部恢复',
               onPressed: () {
@@ -96,7 +96,7 @@ class DownloadManagerPage extends ConsumerWidget {
                 service.resumeAll();
               },
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.clearAll,
               title: '清除已完成记录',
               onPressed: () {
@@ -104,7 +104,7 @@ class DownloadManagerPage extends ConsumerWidget {
                 service.clearCompleted();
               },
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.fileSearch,
               title: '扫描本地文件',
               onPressed: () {
@@ -170,7 +170,7 @@ class _DownloadTaskList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (tasks.isEmpty) {
-      return const EchoEmptyState(
+      return const MusicFlowEmptyState(
         title: '暂无下载任务',
         description: '在歌曲、专辑或歌单操作中选择下载，任务会显示在这里。',
         icon: AppIcons.downloadCloud,
@@ -222,24 +222,24 @@ class _DownloadTaskList extends ConsumerWidget {
               constraints: const BoxConstraints(maxWidth: 840),
               child: ListView.builder(
                 padding: EdgeInsets.fromLTRB(
-                  context.echoSpacing.md,
-                  context.echoSpacing.sm,
-                  context.echoSpacing.md,
-                  context.echoSpacing.xxl + context.echoShellBottomObstruction,
+                  context.musicFlowSpacing.md,
+                  context.musicFlowSpacing.sm,
+                  context.musicFlowSpacing.md,
+                  context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
                 ),
                 itemCount: groups.length,
                 itemBuilder: (context, index) {
                   final group = groups[index];
                   return Padding(
-                    padding: EdgeInsets.only(bottom: context.echoSpacing.lg),
+                    padding: EdgeInsets.only(bottom: context.musicFlowSpacing.lg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        EchoSectionHeader(
+                        MusicFlowSectionHeader(
                           title: group.title,
                           description: '${group.tasks.length} 项',
                         ),
-                        SizedBox(height: context.echoSpacing.xs),
+                        SizedBox(height: context.musicFlowSpacing.xs),
                         for (final task in group.tasks)
                           _DownloadTaskRow(task: task),
                       ],
@@ -272,10 +272,10 @@ class _DownloadTaskRow extends ConsumerWidget {
     final isPlayable = task.status == DownloadTaskStatus.completed;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: context.echoSpacing.xs),
-      child: EchoPressable(
+      padding: EdgeInsets.only(bottom: context.musicFlowSpacing.xs),
+      child: MusicFlowPressable(
         semanticLabel: _taskSemanticLabel(task, progress),
-        semanticsMode: EchoPressableSemanticsMode.explicitChildren,
+        semanticsMode: MusicFlowPressableSemanticsMode.explicitChildren,
         onPressed: isPlayable ? () => _playTask(context, ref, task) : null,
         onLongPress: isPlayable
             ? () => _showTaskActions(context, ref, task)
@@ -283,8 +283,8 @@ class _DownloadTaskRow extends ConsumerWidget {
         minimumSize: const Size(double.infinity, 72),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: context.echoSpacing.xs,
-            vertical: context.echoSpacing.xs,
+            horizontal: context.musicFlowSpacing.xs,
+            vertical: context.musicFlowSpacing.xs,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,7 +294,7 @@ class _DownloadTaskRow extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
                     ClipRRect(
-                      borderRadius: context.echoRadii.detail,
+                      borderRadius: context.musicFlowRadii.detail,
                       child: CoverArtImage(
                         coverArtId: task.coverArt,
                         size: 48,
@@ -302,29 +302,29 @@ class _DownloadTaskRow extends ConsumerWidget {
                         semanticLabel: '${task.title} 封面',
                       ),
                     ),
-                    SizedBox(width: context.echoSpacing.sm),
+                    SizedBox(width: context.musicFlowSpacing.sm),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(task.title, style: context.echoTypography.title),
+                          Text(task.title, style: context.musicFlowTypography.title),
                           if (task.artist?.trim().isNotEmpty ==
                               true) ...<Widget>[
-                            SizedBox(height: context.echoSpacing.xxs),
+                            SizedBox(height: context.musicFlowSpacing.xxs),
                             Text(
                               task.artist!.trim(),
-                              style: context.echoTypography.body.copyWith(
-                                color: context.echoColors.muted,
+                              style: context.musicFlowTypography.body.copyWith(
+                                color: context.musicFlowColors.muted,
                               ),
                             ),
                           ],
-                          SizedBox(height: context.echoSpacing.xxs),
+                          SizedBox(height: context.musicFlowSpacing.xxs),
                           Text(
                             _taskStatusText(task),
-                            style: context.echoTypography.metadata.copyWith(
+                            style: context.musicFlowTypography.metadata.copyWith(
                               color: task.status == DownloadTaskStatus.failed
-                                  ? context.echoColors.error
-                                  : context.echoColors.muted,
+                                  ? context.musicFlowColors.error
+                                  : context.musicFlowColors.muted,
                             ),
                           ),
                         ],
@@ -334,16 +334,16 @@ class _DownloadTaskRow extends ConsumerWidget {
                 ),
               ),
               if (task.status == DownloadTaskStatus.downloading) ...<Widget>[
-                SizedBox(height: context.echoSpacing.xs),
+                SizedBox(height: context.musicFlowSpacing.xs),
                 ExcludeSemantics(
-                  child: EchoProgressBar(value: progress, height: 4),
+                  child: MusicFlowProgressBar(value: progress, height: 4),
                 ),
               ],
-              SizedBox(height: context.echoSpacing.xs),
+              SizedBox(height: context.musicFlowSpacing.xs),
               Align(
                 alignment: AlignmentDirectional.centerEnd,
                 child: Wrap(
-                  spacing: context.echoSpacing.xs,
+                  spacing: context.musicFlowSpacing.xs,
                   children: _taskActions(
                     task: task,
                     onPause: () => service.pause(task.id),
@@ -368,12 +368,12 @@ class _DownloadDirectory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoSurface(
-      level: EchoSurfaceLevel.raised,
+    return MusicFlowSurface(
+      level: MusicFlowSurfaceLevel.raised,
       borderRadius: BorderRadius.zero,
       padding: EdgeInsets.symmetric(
-        horizontal: context.echoSpacing.md,
-        vertical: context.echoSpacing.xs,
+        horizontal: context.musicFlowSpacing.md,
+        vertical: context.musicFlowSpacing.xs,
       ),
       child: Semantics(
         label: '下载目录，${path ?? '正在读取'}',
@@ -383,14 +383,14 @@ class _DownloadDirectory extends StatelessWidget {
               Icon(
                 AppIcons.folderOpen,
                 size: 18,
-                color: context.echoColors.muted,
+                color: context.musicFlowColors.muted,
               ),
-              SizedBox(width: context.echoSpacing.xs),
+              SizedBox(width: context.musicFlowSpacing.xs),
               Expanded(
                 child: Text(
                   path ?? '正在读取下载目录',
-                  style: context.echoTypography.metadata.copyWith(
-                    color: context.echoColors.muted,
+                  style: context.musicFlowTypography.metadata.copyWith(
+                    color: context.musicFlowColors.muted,
                   ),
                 ),
               ),
@@ -441,7 +441,7 @@ class _DownloadScanSheetState extends State<_DownloadScanSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: '扫描本地文件',
       subtitle: '核对下载记录与实际文件。',
       child: FutureBuilder<_DownloadScanResult>(
@@ -451,7 +451,7 @@ class _DownloadScanSheetState extends State<_DownloadScanSheet> {
             return const _ScanSkeleton();
           }
           if (snapshot.hasError || snapshot.data == null) {
-            return EchoErrorState(
+            return MusicFlowErrorState(
               title: '扫描失败',
               description: '无法完成本地文件核对，请重试。',
               actionLabel: '重试',
@@ -469,23 +469,23 @@ class _DownloadScanSheetState extends State<_DownloadScanSheet> {
                 label: '正常文件',
                 count: result.valid,
                 icon: AppIcons.checkCircle,
-                color: context.echoColors.accent,
+                color: context.musicFlowColors.accent,
               ),
               _ScanResultRow(
                 label: '缺失文件',
                 count: result.missing,
                 icon: AppIcons.error,
-                color: context.echoColors.error,
+                color: context.musicFlowColors.error,
               ),
               _ScanResultRow(
                 label: '孤立文件',
                 count: result.orphan,
                 icon: AppIcons.warning,
-                color: context.echoColors.warning,
+                color: context.musicFlowColors.warning,
               ),
-              SizedBox(height: context.echoSpacing.lg),
+              SizedBox(height: context.musicFlowSpacing.lg),
               if (result.orphan > 0)
-                EchoButton.destructive(
+                MusicFlowButton.destructive(
                   label: _cleaning ? '正在清理' : '清理孤立文件',
                   leadingIcon: AppIcons.delete,
                   expand: true,
@@ -495,8 +495,8 @@ class _DownloadScanSheetState extends State<_DownloadScanSheet> {
                 Text(
                   '所有文件状态正常。',
                   textAlign: TextAlign.center,
-                  style: context.echoTypography.body.copyWith(
-                    color: context.echoColors.muted,
+                  style: context.musicFlowTypography.body.copyWith(
+                    color: context.musicFlowColors.muted,
                   ),
                 ),
             ],
@@ -523,15 +523,15 @@ class _ScanResultRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       child: Row(
         children: <Widget>[
           Icon(icon, size: 22, color: color),
-          SizedBox(width: context.echoSpacing.sm),
-          Expanded(child: Text(label, style: context.echoTypography.title)),
+          SizedBox(width: context.musicFlowSpacing.sm),
+          Expanded(child: Text(label, style: context.musicFlowTypography.title)),
           Text(
             '$count',
-            style: context.echoTypography.title.copyWith(
+            style: context.musicFlowTypography.title.copyWith(
               color: color,
               fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
             ),
@@ -549,25 +549,25 @@ class _DownloadTaskSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       padding: EdgeInsets.fromLTRB(
-        context.echoSpacing.md,
-        context.echoSpacing.md,
-        context.echoSpacing.md,
-        context.echoSpacing.md + context.echoShellBottomObstruction,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.md + context.musicFlowShellBottomObstruction,
       ),
       itemCount: 5,
       separatorBuilder: (context, index) =>
-          SizedBox(height: context.echoSpacing.md),
+          SizedBox(height: context.musicFlowSpacing.md),
       itemBuilder: (context, index) => Row(
         children: <Widget>[
-          const EchoSkeleton(width: 48, height: 48),
-          SizedBox(width: context.echoSpacing.sm),
+          const MusicFlowSkeleton(width: 48, height: 48),
+          SizedBox(width: context.musicFlowSpacing.sm),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                EchoSkeleton.line(width: 190),
+                MusicFlowSkeleton.line(width: 190),
                 SizedBox(height: 8),
-                EchoSkeleton.line(width: 120, height: 10),
+                MusicFlowSkeleton.line(width: 120, height: 10),
               ],
             ),
           ),
@@ -586,8 +586,8 @@ class _ScanSkeleton extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         for (var index = 0; index < 3; index++) ...<Widget>[
-          const EchoSkeleton.line(),
-          if (index < 2) SizedBox(height: context.echoSpacing.sm),
+          const MusicFlowSkeleton.line(),
+          if (index < 2) SizedBox(height: context.musicFlowSpacing.sm),
         ],
       ],
     );
@@ -608,15 +608,15 @@ List<Widget> _taskActions({
   required VoidCallback onCancel,
   required VoidCallback onPlay,
 }) {
-  EchoIconButton action(IconData icon, String label, VoidCallback onPressed) {
-    return EchoIconButton(icon: icon, label: label, onPressed: onPressed);
+  MusicFlowIconButton action(IconData icon, String label, VoidCallback onPressed) {
+    return MusicFlowIconButton(icon: icon, label: label, onPressed: onPressed);
   }
 
   return switch (task.status) {
     DownloadTaskStatus.downloading => <Widget>[
       action(AppIcons.pause, '暂停 ${task.title}', onPause),
     ],
-    DownloadTaskStatus.pending => const <Widget>[EchoSkeleton.circle(size: 32)],
+    DownloadTaskStatus.pending => const <Widget>[MusicFlowSkeleton.circle(size: 32)],
     DownloadTaskStatus.paused => <Widget>[
       action(AppIcons.play, '继续 ${task.title}', onResume),
       action(AppIcons.close, '取消 ${task.title}', onCancel),
@@ -677,13 +677,13 @@ Future<void> _showTaskActions(
   await showEchoBottomSheet<void>(
     context: context,
     useRootNavigator: true,
-    builder: (sheetContext) => EchoBottomSheet(
+    builder: (sheetContext) => MusicFlowBottomSheet(
       title: task.title,
       subtitle: task.artist,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          EchoActionRow(
+          MusicFlowActionRow(
             icon: AppIcons.play,
             title: '播放',
             onPressed: () {
@@ -691,7 +691,7 @@ Future<void> _showTaskActions(
               unawaited(_playTask(context, ref, task));
             },
           ),
-          EchoActionRow(
+          MusicFlowActionRow(
             icon: AppIcons.delete,
             title: '删除下载',
             destructive: true,

@@ -1,4 +1,4 @@
-import '../design/components/echo_message.dart';
+import '../design/components/music_flow_message.dart';
 import 'toast_notifier.dart';
 
 /// 网络异常提示（带节流，避免同一时刻重复弹出）
@@ -12,6 +12,6 @@ class NetworkErrorNotifier {
       return;
     }
     _lastShownAt = now;
-    ToastNotifier.show(message, kind: EchoMessageKind.error);
+    ToastNotifier.show(message, kind: MusicFlowMessageKind.error);
   }
 }

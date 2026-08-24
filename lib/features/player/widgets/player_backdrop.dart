@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/media/echo_media_visuals.dart';
-import '../../../core/design/tokens/echo_colors.dart';
+import '../../../core/design/media/music_flow_media_visuals.dart';
+import '../../../core/design/tokens/music_flow_colors.dart';
 
 /// The two spatial states used by the shared player background Hero.
-enum EchoPlayerBackdropMode { mini, stage }
+enum MusicFlowPlayerBackdropMode { mini, stage }
 
 /// Artwork-derived background shared by MiniPlayer and the full player.
 ///
 /// Both modes use a three-stop gradient so the Hero shuttle can interpolate
 /// one stable material instead of cross-fading unrelated widgets.
-class EchoPlayerBackdrop extends StatelessWidget {
-  const EchoPlayerBackdrop({
+class MusicFlowPlayerBackdrop extends StatelessWidget {
+  const MusicFlowPlayerBackdrop({
     super.key,
     required this.visuals,
     required this.mode,
   });
 
-  final EchoMediaVisuals visuals;
-  final EchoPlayerBackdropMode mode;
+  final MusicFlowMediaVisuals visuals;
+  final MusicFlowPlayerBackdropMode mode;
 
   BoxDecoration get decoration =>
       _PlayerBackdropSpec(visuals: visuals, mode: mode).decoration;
@@ -50,8 +50,8 @@ Widget playerBackgroundFlightShuttleBuilder(
 
   if (_reduceMotion(flightContext)) return toChild;
 
-  final fromBackdrop = fromChild is EchoPlayerBackdrop ? fromChild : null;
-  final toBackdrop = toChild is EchoPlayerBackdrop ? toChild : null;
+  final fromBackdrop = fromChild is MusicFlowPlayerBackdrop ? fromChild : null;
+  final toBackdrop = toChild is MusicFlowPlayerBackdrop ? toChild : null;
   if (fromBackdrop == null || toBackdrop == null) return toChild;
 
   final flightVisuals = fromBackdrop.visuals;
@@ -98,19 +98,19 @@ bool _reduceMotion(BuildContext context) {
 class _PlayerBackdropSpec {
   const _PlayerBackdropSpec({required this.visuals, required this.mode});
 
-  final EchoMediaVisuals visuals;
-  final EchoPlayerBackdropMode mode;
+  final MusicFlowMediaVisuals visuals;
+  final MusicFlowPlayerBackdropMode mode;
 
   static const BorderRadius _miniRadius = BorderRadius.all(Radius.circular(16));
   static const List<double> _gradientStops = <double>[0, 0.48, 1];
 
   List<Color> get colors => switch (mode) {
-    EchoPlayerBackdropMode.mini => <Color>[
+    MusicFlowPlayerBackdropMode.mini => <Color>[
       visuals.miniSurface,
       visuals.miniSurface,
       visuals.miniSurface,
     ],
-    EchoPlayerBackdropMode.stage => <Color>[
+    MusicFlowPlayerBackdropMode.stage => <Color>[
       visuals.stageGlow,
       visuals.stageBase,
       visuals.stageBottom,
@@ -118,13 +118,13 @@ class _PlayerBackdropSpec {
   };
 
   BorderRadius get borderRadius => switch (mode) {
-    EchoPlayerBackdropMode.mini => _miniRadius,
-    EchoPlayerBackdropMode.stage => BorderRadius.zero,
+    MusicFlowPlayerBackdropMode.mini => _miniRadius,
+    MusicFlowPlayerBackdropMode.stage => BorderRadius.zero,
   };
 
   BoxBorder? get border => switch (mode) {
-    EchoPlayerBackdropMode.mini => Border.all(color: visuals.controlAccent),
-    EchoPlayerBackdropMode.stage => null,
+    MusicFlowPlayerBackdropMode.mini => Border.all(color: visuals.controlAccent),
+    MusicFlowPlayerBackdropMode.stage => null,
   };
 
   BoxDecoration get decoration => BoxDecoration(
@@ -221,8 +221,8 @@ Color _ensureBackdropContrastUncached(
   final opaque = candidate.withValues(alpha: 1);
 
   bool passes(Color background) {
-    return EchoColors.contrastRatio(foreground, background) >= 4.5 &&
-        EchoColors.contrastRatio(control, background) >= 3;
+    return MusicFlowColors.contrastRatio(foreground, background) >= 4.5 &&
+        MusicFlowColors.contrastRatio(control, background) >= 3;
   }
 
   if (passes(opaque)) return opaque;
@@ -252,9 +252,9 @@ Color _ensureBackdropContrastUncached(
 
   if (closest != null) return closest;
 
-  // EchoMediaVisuals normally makes this branch unreachable. Keep a
+  // MusicFlowMediaVisuals normally makes this branch unreachable. Keep a
   // deterministic text-safe fallback for malformed test or integration data.
-  return EchoColors.ensureForegroundContrast(
+  return MusicFlowColors.ensureForegroundContrast(
     opaque,
     foreground: foreground,
     minimumRatio: 4.5,

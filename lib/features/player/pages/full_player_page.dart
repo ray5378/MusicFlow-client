@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/network/connectivity_monitor.dart';
 import '../../../data/models/audio_quality.dart';
 import '../../../data/models/song.dart';
@@ -49,20 +49,20 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     super.initState();
     _lyricsController = AnimationController(
       vsync: this,
-      duration: EchoMotion.standard.state,
+      duration: MusicFlowMotion.standard.state,
       value: _showLyrics ? 1 : 0,
     );
     _lyricsProgress = CurvedAnimation(
       parent: _lyricsController,
-      curve: EchoMotion.standard.sceneCurve,
-      reverseCurve: EchoMotion.standard.easeOut,
+      curve: MusicFlowMotion.standard.sceneCurve,
+      reverseCurve: MusicFlowMotion.standard.easeOut,
     );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final motion = context.echoMotion;
+    final motion = context.musicFlowMotion;
     final stateDuration = motion.resolve(context, motion.state);
     _lyricsController.duration = stateDuration;
 
@@ -84,7 +84,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       _routeForegroundOpacity = foregroundOpacity;
     }
 
-    if (context.echoReduceMotion) {
+    if (context.musicFlowReduceMotion) {
       _lyricsController.value = _showLyrics ? 1 : 0;
     }
   }
@@ -102,7 +102,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     final navigator = Navigator.of(context);
 
     try {
-      final motion = context.echoMotion;
+      final motion = context.musicFlowMotion;
       final settleDuration = motion.resolve(context, motion.feedback);
       if (_showLyrics || _lyricsController.value > 0) {
         setState(() => _showLyrics = false);
@@ -136,7 +136,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   void _showMessage(
     String message, {
-    EchoMessageKind kind = EchoMessageKind.info,
+    MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   }) {
     if (!mounted) return;
     showEchoMessage(context, message, kind: kind);
@@ -156,7 +156,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   void _toggleLyrics() {
     final next = !_showLyrics;
     setState(() => _showLyrics = next);
-    if (context.echoReduceMotion) {
+    if (context.musicFlowReduceMotion) {
       _lyricsController.value = next ? 1 : 0;
     } else if (next) {
       _lyricsController.forward();
@@ -177,15 +177,15 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
         child: Scaffold(
-          backgroundColor: context.echoColors.canvas,
+          backgroundColor: context.musicFlowColors.canvas,
           body: SafeArea(
             child: Column(
               children: <Widget>[
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: Padding(
-                    padding: EdgeInsets.all(context.echoSpacing.xs),
-                    child: EchoIconButton(
+                    padding: EdgeInsets.all(context.musicFlowSpacing.xs),
+                    child: MusicFlowIconButton(
                       icon: AppIcons.chevronDown,
                       label: '关闭播放器',
                       onPressed: _closeToMini,
@@ -193,7 +193,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   ),
                 ),
                 const Expanded(
-                  child: EchoEmptyState(
+                  child: MusicFlowEmptyState(
                     title: '暂无播放内容',
                     description: '从音乐流、搜索或资料库选择一首歌曲开始播放。',
                     icon: AppIcons.music,
@@ -222,9 +222,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       systemNavigationBarIconBrightness: foregroundBrightness,
     );
 
-    return EchoMediaColorScope(
+    return MusicFlowMediaColorScope(
       visuals: visuals,
-      role: EchoMediaSurfaceRole.stage,
+      role: MusicFlowMediaSurfaceRole.stage,
       child: Builder(
         builder: (context) {
           return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -243,9 +243,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                         tag: playerBackgroundHeroTag,
                         flightShuttleBuilder:
                             playerBackgroundFlightShuttleBuilder,
-                        child: EchoPlayerBackdrop(
+                        child: MusicFlowPlayerBackdrop(
                           visuals: visuals,
-                          mode: EchoPlayerBackdropMode.stage,
+                          mode: MusicFlowPlayerBackdropMode.stage,
                         ),
                       ),
                     ),
@@ -267,7 +267,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                                 constraints.maxWidth >
                                         constraints.maxHeight ||
                                     constraints.maxWidth >=
-                                        context.echoBreakpoints.expanded;
+                                        context.musicFlowBreakpoints.expanded;
                             final useWideLayout = !isTouchLike && wideAvailable;
                             return useWideLayout
                                 ? _buildWidePlayerLayout(
@@ -316,10 +316,10 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   }
 
   Widget _buildWidePlayerLayout(Song song, {required String subtitle}) {
-    final spacing = context.echoSpacing;
-    final horizontalPadding = context.echoWindowClass == EchoWindowClass.compact
+    final spacing = context.musicFlowSpacing;
+    final horizontalPadding = context.musicFlowWindowClass == MusicFlowWindowClass.compact
         ? spacing.md
-        : context.echoPageHorizontalPadding;
+        : context.musicFlowPageHorizontalPadding;
 
     return GestureDetector(
       onTap: _closeToMini,
@@ -330,7 +330,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           Center(
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: context.echoBreakpoints.maxContentWidth * 1.2,
+                maxWidth: context.musicFlowBreakpoints.maxContentWidth * 1.2,
               ),
               padding: EdgeInsets.fromLTRB(
                 horizontalPadding,
@@ -408,7 +408,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   /// 大屏左栏下半部分:歌曲信息(吸收剩余空间) + 播放控件(始终占位显示)。
   Widget _buildWideControlPane(Song song, {required String subtitle}) {
-    final spacing = context.echoSpacing;
+    final spacing = context.musicFlowSpacing;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -431,7 +431,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   Widget _buildWideArtworkPane(Song song) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = context.echoSpacing;
+        final spacing = context.musicFlowSpacing;
         final maxCoverByWidth = (constraints.maxWidth - spacing.xs * 2).clamp(
           0.0,
           520.0,
@@ -456,11 +456,11 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   }
 
   Widget _buildWideDetailsPane(Song song, {required String subtitle}) {
-    final titleStyle = context.echoTypography.headline.copyWith(
-      color: context.echoColors.ink,
+    final titleStyle = context.musicFlowTypography.headline.copyWith(
+      color: context.musicFlowColors.ink,
     );
-    final subtitleStyle = context.echoTypography.body.copyWith(
-      color: context.echoColors.muted,
+    final subtitleStyle = context.musicFlowTypography.body.copyWith(
+      color: context.musicFlowColors.muted,
     );
 
     return Center(
@@ -488,10 +488,10 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   Widget _buildMiddleContent(Song song, {required String subtitle}) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = context.echoSpacing;
+        final spacing = context.musicFlowSpacing;
         final textScale = MediaQuery.textScalerOf(context).scale(1);
         final horizontalPadding =
-            context.echoWindowClass == EchoWindowClass.compact
+            context.musicFlowWindowClass == MusicFlowWindowClass.compact
             ? spacing.lg
             : spacing.xl;
         final titleReserve =
@@ -510,17 +510,17 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         final availableTopSpace =
             (constraints.maxHeight - coverSize - titleReserve) / 2;
         final coverTopSpace = availableTopSpace.clamp(spacing.xs, spacing.xl);
-        final expandedTitleStyle = context.echoTypography.headline.copyWith(
-          color: context.echoColors.ink,
+        final expandedTitleStyle = context.musicFlowTypography.headline.copyWith(
+          color: context.musicFlowColors.ink,
         );
-        final compactTitleStyle = context.echoTypography.title.copyWith(
-          color: context.echoColors.ink,
+        final compactTitleStyle = context.musicFlowTypography.title.copyWith(
+          color: context.musicFlowColors.ink,
         );
-        final expandedSubtitleStyle = context.echoTypography.body.copyWith(
-          color: context.echoColors.muted,
+        final expandedSubtitleStyle = context.musicFlowTypography.body.copyWith(
+          color: context.musicFlowColors.muted,
         );
-        final compactSubtitleStyle = context.echoTypography.metadata.copyWith(
-          color: context.echoColors.muted,
+        final compactSubtitleStyle = context.musicFlowTypography.metadata.copyWith(
+          color: context.musicFlowColors.muted,
         );
 
         return AnimatedBuilder(
@@ -659,7 +659,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           ),
         ),
         if (subtitle.isNotEmpty) ...<Widget>[
-          SizedBox(height: context.echoSpacing.xxs),
+          SizedBox(height: context.musicFlowSpacing.xxs),
           Hero(
             tag: playerSubtitleHeroTag,
             createRectTween: playerLinearRectTween,
@@ -688,7 +688,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   }
 
   Widget _buildControlPanel(Song song, {bool compact = false}) {
-    final spacing = context.echoSpacing;
+    final spacing = context.musicFlowSpacing;
     final content = Column(
       key: const ValueKey<String>('full_player_control_panel'),
       mainAxisSize: MainAxisSize.min,
@@ -705,7 +705,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           currentSong: song,
           onOpenQueue: () {
             // 移动端:打开底部弹窗(可下滑/叉号关闭);桌面端:右侧面板点开/点关切换。
-            if (context.echoWindowClass == EchoWindowClass.compact) {
+            if (context.musicFlowWindowClass == MusicFlowWindowClass.compact) {
               unawaited(showPlayQueueSheet(context: context));
             } else {
               toggleRightQueuePanel(context: context);
@@ -718,7 +718,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
     if (compact) return content;
 
-    final horizontalPadding = context.echoWindowClass == EchoWindowClass.compact
+    final horizontalPadding = context.musicFlowWindowClass == MusicFlowWindowClass.compact
         ? spacing.md
         : spacing.xl;
 
@@ -837,7 +837,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         }
         final text = parts.join(' · ');
 
-        return EchoPressable(
+        return MusicFlowPressable(
           key: const ValueKey<String>('full_player_quality_metadata'),
           semanticLabel: '$text，点击查看播放详情',
           onPressed: () => _showQualityDetailSheet(
@@ -851,25 +851,25 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             audioSpecText: audioSpecText,
           ),
           minimumSize: Size(
-            context.echoInteraction.minimumTouchTarget,
-            context.echoInteraction.minimumTouchTarget,
+            context.musicFlowInteraction.minimumTouchTarget,
+            context.musicFlowInteraction.minimumTouchTarget,
           ),
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.sm),
+            padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.sm),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Icon(icon, size: 16, color: context.echoColors.ink),
-                SizedBox(width: context.echoSpacing.xs),
+                Icon(icon, size: 16, color: context.musicFlowColors.ink),
+                SizedBox(width: context.musicFlowSpacing.xs),
                 Flexible(
                   child: Text(
                     text,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: context.echoTypography.metadata.copyWith(
-                      color: context.echoColors.muted,
+                    style: context.musicFlowTypography.metadata.copyWith(
+                      color: context.musicFlowColors.muted,
                     ),
                   ),
                 ),
@@ -896,7 +896,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     await showEchoBottomSheet<void>(
       context: context,
       useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: isPreview ? '试听详情' : '播放详情',
         subtitle: subtitle,
         child: Column(
@@ -929,7 +929,7 @@ class _QualityDetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: context.echoSpacing.xs),
+      padding: EdgeInsets.only(bottom: context.musicFlowSpacing.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -937,8 +937,8 @@ class _QualityDetailRow extends StatelessWidget {
             width: 88,
             child: Text(
               label,
-              style: context.echoTypography.metadata.copyWith(
-                color: context.echoColors.muted,
+              style: context.musicFlowTypography.metadata.copyWith(
+                color: context.musicFlowColors.muted,
               ),
             ),
           ),
@@ -947,8 +947,8 @@ class _QualityDetailRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: context.echoTypography.body.copyWith(
-                color: context.echoColors.ink,
+              style: context.musicFlowTypography.body.copyWith(
+                color: context.musicFlowColors.ink,
               ),
             ),
           ),
@@ -998,7 +998,7 @@ class _PlayerTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.xs),
+      padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.xs),
       child: SizedBox(
         height: 56,
         child: Row(
@@ -1016,8 +1016,8 @@ class _PlayerTopBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: context.echoTypography.label.copyWith(
-                    color: context.echoColors.ink,
+                  style: context.musicFlowTypography.label.copyWith(
+                    color: context.musicFlowColors.ink,
                   ),
                 ),
               ),
@@ -1045,7 +1045,7 @@ class _PlayerLyricsPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
     // 高亮颜色跟随当前主题强调色；未显式指定时不再使用硬编码黄色。
-    final lyricActiveColor = activeColor ?? context.echoColors.accent;
+    final lyricActiveColor = activeColor ?? context.musicFlowColors.accent;
     return lyricsAsync.when(
       data: (lyrics) {
         if (lyrics == null || lyrics.isEmpty) {
@@ -1067,8 +1067,8 @@ class _PlayerLyricsPane extends ConsumerWidget {
           lyrics: bestLyrics,
           activePrimaryColor: lyricActiveColor,
           activeSecondaryColor: lyricActiveColor,
-          inactivePrimaryColor: context.echoColors.muted,
-          inactiveSecondaryColor: context.echoColors.muted,
+          inactivePrimaryColor: context.musicFlowColors.muted,
+          inactiveSecondaryColor: context.musicFlowColors.muted,
         );
       },
       loading: () => const _PlayerLyricsLoading(),
@@ -1102,7 +1102,7 @@ class _PlayerLyricsMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(context.echoSpacing.lg),
+        padding: EdgeInsets.all(context.musicFlowSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -1113,21 +1113,21 @@ class _PlayerLyricsMessage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(icon, size: 32, color: context.echoColors.ink),
-                    SizedBox(height: context.echoSpacing.sm),
+                    Icon(icon, size: 32, color: context.musicFlowColors.ink),
+                    SizedBox(height: context.musicFlowSpacing.sm),
                     Text(
                       title,
                       textAlign: TextAlign.center,
-                      style: context.echoTypography.title.copyWith(
-                        color: context.echoColors.ink,
+                      style: context.musicFlowTypography.title.copyWith(
+                        color: context.musicFlowColors.ink,
                       ),
                     ),
-                    SizedBox(height: context.echoSpacing.xs),
+                    SizedBox(height: context.musicFlowSpacing.xs),
                     Text(
                       description,
                       textAlign: TextAlign.center,
-                      style: context.echoTypography.body.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.body.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                   ],
@@ -1135,8 +1135,8 @@ class _PlayerLyricsMessage extends StatelessWidget {
               ),
             ),
             if (actionLabel != null && onAction != null) ...<Widget>[
-              SizedBox(height: context.echoSpacing.lg),
-              EchoButton.secondary(label: actionLabel!, onPressed: onAction),
+              SizedBox(height: context.musicFlowSpacing.lg),
+              MusicFlowButton.secondary(label: actionLabel!, onPressed: onAction),
             ],
           ],
         ),
@@ -1161,12 +1161,12 @@ class _PlayerLyricsLoading extends StatelessWidget {
               for (final width in <double>[220, 280, 196, 250]) ...<Widget>[
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    color: context.echoColors.ink.withValues(alpha: 0.18),
-                    borderRadius: context.echoRadii.detail,
+                    color: context.musicFlowColors.ink.withValues(alpha: 0.18),
+                    borderRadius: context.musicFlowRadii.detail,
                   ),
                   child: SizedBox(width: width, height: 16),
                 ),
-                SizedBox(height: context.echoSpacing.md),
+                SizedBox(height: context.musicFlowSpacing.md),
               ],
             ],
           ),
@@ -1211,7 +1211,7 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduceMotion = context.echoReduceMotion;
+    _reduceMotion = context.musicFlowReduceMotion;
     if (_reduceMotion) {
       _loadingOpacityController
         ..stop()
@@ -1298,8 +1298,8 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
         : Duration(milliseconds: activeDragValue.round());
     final progressLabel =
         '${_formatDuration(displayPosition)} / ${_formatDuration(state.duration)}';
-    final timeStyle = context.echoTypography.metadata.copyWith(
-      color: context.echoColors.muted,
+    final timeStyle = context.musicFlowTypography.metadata.copyWith(
+      color: context.musicFlowColors.muted,
     );
 
     // 进度条与时间文本区域用 RepaintBoundary 隔离,进度高频更新不扩散整页重绘(SEC §8.2)。
@@ -1308,7 +1308,7 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           SizedBox(
-            height: context.echoInteraction.minimumTouchTarget,
+            height: context.musicFlowInteraction.minimumTouchTarget,
             child: AnimatedBuilder(
               animation: _loadingOpacity,
               builder: (context, child) => Opacity(
@@ -1317,7 +1317,7 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
                     : 1,
                 child: child,
               ),
-              child: EchoPlayerScrubber(
+              child: MusicFlowPlayerScrubber(
                 key: ValueKey<String?>(state.songId),
                 value: sliderValue,
                 min: 0,
@@ -1331,12 +1331,12 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
                   return '${_formatDuration(position)} / '
                       '${_formatDuration(state.duration)}';
                 },
-                activeColor: context.echoColors.accent,
-                secondaryColor: context.echoColors.accent.withValues(
+                activeColor: context.musicFlowColors.accent,
+                secondaryColor: context.musicFlowColors.accent.withValues(
                   alpha: 0.42,
                 ),
-                inactiveColor: context.echoColors.divider,
-                thumbColor: context.echoColors.ink,
+                inactiveColor: context.musicFlowColors.divider,
+                thumbColor: context.musicFlowColors.ink,
                 onChangeStart: state.duration <= Duration.zero
                     ? null
                     : (value) {
@@ -1379,7 +1379,7 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
           ),
           ExcludeSemantics(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.sm),
+              padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.sm),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
@@ -1557,7 +1557,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
       cast.activePeer != null
           ? '正在投屏到「${currentPlayerName(cast)}」'
           : '已切换为本机播放',
-      kind: EchoMessageKind.success,
+      kind: MusicFlowMessageKind.success,
     );
   }
 }
@@ -1585,10 +1585,10 @@ class _PlayerIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     final enabled = onPressed != null;
     final foreground = emphasized
-        ? EchoColors.readableOn(colors.ink)
+        ? MusicFlowColors.readableOn(colors.ink)
         : enabled
         ? colors.ink
         : colors.onDisabled;
@@ -1598,19 +1598,19 @@ class _PlayerIconButton extends StatelessWidget {
         ? colors.ink.withValues(alpha: 0.14)
         : Colors.transparent;
 
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: label,
       selected: selected,
       onPressed: onPressed,
       enableHaptics: true,
       minimumSize: Size.square(dimension),
-      borderRadius: context.echoRadii.pill,
+      borderRadius: context.musicFlowRadii.pill,
       child: SizedBox.square(
         dimension: dimension,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: background,
-            borderRadius: context.echoRadii.pill,
+            borderRadius: context.musicFlowRadii.pill,
             border: !emphasized && selected
                 ? Border.all(color: colors.accent)
                 : null,

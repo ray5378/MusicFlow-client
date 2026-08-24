@@ -1,4 +1,4 @@
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
@@ -62,7 +62,7 @@ void main() {
     VoidCallback? onOpen,
     VoidCallback? onSwitchPlayer,
     String currentPlayerName = '本机',
-    EchoMediaVisuals? mediaVisuals,
+    MusicFlowMediaVisuals? mediaVisuals,
     Color? albumColor,
   }) {
     return MiniPlayerView(
@@ -93,7 +93,7 @@ void main() {
       MiniPlayer.height,
     );
     // 产品定版:手机端两键 = 播放暂停 + 投屏控制(切换播放器)。
-    expect(find.byType(EchoIconButton), findsNWidgets(2));
+    expect(find.byType(MusicFlowIconButton), findsNWidgets(2));
     expect(find.bySemanticsLabel('播放'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('切换播放器')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -163,7 +163,7 @@ void main() {
       final progress = find.byKey(const Key('mini-player-progress'));
       final surfaceRect = tester.getRect(surface);
       final progressRect = tester.getRect(progress);
-      final progressBar = tester.widget<EchoProgressBar>(progress);
+      final progressBar = tester.widget<MusicFlowProgressBar>(progress);
       final fraction = tester.widget<AnimatedFractionallySizedBox>(
         find.descendant(
           of: progress,
@@ -180,7 +180,7 @@ void main() {
       expect(progressRect.right, surfaceRect.right);
       expect(progressRect.bottom, surfaceRect.bottom);
       expect(surfaceClip, findsOneWidget);
-      expect(clip.borderRadius, tester.element(surface).echoRadii.surface);
+      expect(clip.borderRadius, tester.element(surface).musicFlowRadii.surface);
       expect(clip.clipBehavior, isNot(Clip.none));
       expect(progressBar.trackColor, Colors.transparent);
       expect(fraction.alignment, Alignment.centerLeft);
@@ -192,7 +192,7 @@ void main() {
     tester,
   ) async {
     for (final seed in const <Color>[Color(0xFFFFD54F), Color(0xFF14213D)]) {
-      final visuals = EchoMediaVisuals.fallback(seed: seed);
+      final visuals = MusicFlowMediaVisuals.fallback(seed: seed);
       await tester.pumpWidget(
         appFor(
           view(
@@ -209,27 +209,27 @@ void main() {
         find.textContaining(songs[1].title),
       );
       final playIcon = tester.widget<Icon>(find.byIcon(AppIcons.play));
-      final progress = tester.widget<EchoProgressBar>(
+      final progress = tester.widget<MusicFlowProgressBar>(
         find.byKey(const Key('mini-player-progress')),
       );
-      final backdrop = tester.widget<EchoPlayerBackdrop>(
-        find.byType(EchoPlayerBackdrop),
+      final backdrop = tester.widget<MusicFlowPlayerBackdrop>(
+        find.byType(MusicFlowPlayerBackdrop),
       );
       final backgroundHero = tester.widget<Hero>(
         find.ancestor(
-          of: find.byType(EchoPlayerBackdrop),
+          of: find.byType(MusicFlowPlayerBackdrop),
           matching: find.byType(Hero),
         ),
       );
       // 迷你条标题以「歌名 - 歌手」富文本(Text.rich)展示:颜色在首段 TextSpan 的
-      // style 上(EchoMediaColorScope 注入 visuals.foreground),而非 Text.style。
+      // style 上(MusicFlowMediaColorScope 注入 visuals.foreground),而非 Text.style。
       final titleSpan = (title.textSpan as TextSpan).children!.first
           as TextSpan;
       expect(titleSpan.style?.color, visuals.foreground);
       expect(playIcon.color, visuals.foreground);
       expect(progress.color, visuals.controlAccent);
       expect(backdrop.visuals, visuals);
-      expect(backdrop.mode, EchoPlayerBackdropMode.mini);
+      expect(backdrop.mode, MusicFlowPlayerBackdropMode.mini);
       expect(
         backgroundHero.flightShuttleBuilder,
         playerBackgroundFlightShuttleBuilder,

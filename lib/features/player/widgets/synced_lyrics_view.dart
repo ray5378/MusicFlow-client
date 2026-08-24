@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/structured_lyrics.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/lyrics_dwell_provider.dart';
@@ -131,16 +131,16 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
     if (_isUserScrolling || !widget.lyrics.synced) return;
     if (index < 0 || index >= widget.lyrics.lines.length) return;
 
-    final reduceMotion = context.echoReduceMotion;
+    final reduceMotion = context.musicFlowReduceMotion;
     try {
       if (animated && !reduceMotion) {
         _itemScrollController.scrollTo(
           index: index,
-          duration: context.echoMotion.resolve(
+          duration: context.musicFlowMotion.resolve(
             context,
-            context.echoMotion.state,
+            context.musicFlowMotion.state,
           ),
-          curve: context.echoMotion.easeOut,
+          curve: context.musicFlowMotion.easeOut,
           alignment: _alignmentForIndex(index),
         );
       } else {
@@ -211,16 +211,16 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
     final lines = widget.lyrics.lines;
     if (lines.isEmpty) return const SizedBox.shrink();
 
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     final activePrimaryColor = widget.activePrimaryColor ?? colors.accent;
     final activeSecondaryColor =
         widget.activeSecondaryColor ?? activePrimaryColor;
     final inactivePrimaryColor = widget.inactivePrimaryColor ?? colors.muted;
     final inactiveSecondaryColor =
         widget.inactiveSecondaryColor ?? colors.muted;
-    final stateDuration = context.echoMotion.resolve(
+    final stateDuration = context.musicFlowMotion.resolve(
       context,
-      context.echoMotion.state,
+      context.musicFlowMotion.state,
     );
     final newIndex = _findCurrentLineIndex(widget.position.inMilliseconds);
     final initialIndex = newIndex.clamp(0, lines.length - 1).toInt();
@@ -266,8 +266,8 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
           initialScrollIndex: initialIndex,
           initialAlignment: _alignmentForIndex(initialIndex),
           padding: EdgeInsets.symmetric(
-            vertical: context.echoSpacing.xxl * 2,
-            horizontal: context.echoSpacing.md,
+            vertical: context.musicFlowSpacing.xxl * 2,
+            horizontal: context.musicFlowSpacing.md,
           ),
           itemCount: lines.length,
           itemBuilder: (context, index) {
@@ -314,7 +314,7 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
                 child: ExcludeSemantics(child: lineContent),
               );
             }
-            return EchoPressable(
+            return MusicFlowPressable(
               semanticLabel: semanticLabel,
               selected: isCurrent,
               onPressed: () {
@@ -323,7 +323,7 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
               },
               minimumSize: Size(
                 double.infinity,
-                context.echoInteraction.minimumTouchTarget,
+                context.musicFlowInteraction.minimumTouchTarget,
               ),
               child: lineContent,
             );
@@ -450,7 +450,7 @@ class _SyncedLyricLineContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typography = context.echoTypography;
+    final typography = context.musicFlowTypography;
     final primaryStyle = (isCurrent ? typography.headline : typography.title)
         .copyWith(
           fontSize: isCurrent ? 22 : 17,
@@ -468,10 +468,10 @@ class _SyncedLyricLineContent extends StatelessWidget {
 
     return ConstrainedBox(
       constraints: BoxConstraints(
-        minHeight: context.echoInteraction.minimumTouchTarget,
+        minHeight: context.musicFlowInteraction.minimumTouchTarget,
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: context.echoSpacing.sm),
+        padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.sm),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -484,16 +484,16 @@ class _SyncedLyricLineContent extends StatelessWidget {
                   child: AnimatedOpacity(
                     key: ValueKey<String>('lyrics-line-marker-$index'),
                     duration: duration,
-                    curve: context.echoMotion.easeOut,
+                    curve: context.musicFlowMotion.easeOut,
                     opacity: showIndicator ? 1 : 0,
                     child: AnimatedScale(
                       duration: duration,
-                      curve: context.echoMotion.easeOut,
+                      curve: context.musicFlowMotion.easeOut,
                       scale: showIndicator ? 1 : 0.72,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: activePrimaryColor,
-                          borderRadius: context.echoRadii.pill,
+                          borderRadius: context.musicFlowRadii.pill,
                         ),
                       ),
                     ),
@@ -501,7 +501,7 @@ class _SyncedLyricLineContent extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: _LyricsTextEdgeEffect(
                 index: index,
@@ -514,7 +514,7 @@ class _SyncedLyricLineContent extends StatelessWidget {
                     AnimatedDefaultTextStyle(
                       key: ValueKey<String>('lyrics-primary-style-$index'),
                       duration: duration,
-                      curve: context.echoMotion.easeOut,
+                      curve: context.musicFlowMotion.easeOut,
                       style: primaryStyle,
                       child: Text(
                         primary,
@@ -523,11 +523,11 @@ class _SyncedLyricLineContent extends StatelessWidget {
                       ),
                     ),
                     if (secondary?.isNotEmpty == true) ...<Widget>[
-                      SizedBox(height: context.echoSpacing.xxs),
+                      SizedBox(height: context.musicFlowSpacing.xxs),
                       AnimatedDefaultTextStyle(
                         key: ValueKey<String>('lyrics-secondary-style-$index'),
                         duration: duration,
-                        curve: context.echoMotion.easeOut,
+                        curve: context.musicFlowMotion.easeOut,
                         style: secondaryStyle,
                         child: Text(
                           secondary!,

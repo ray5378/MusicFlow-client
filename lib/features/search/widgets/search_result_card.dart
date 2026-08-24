@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:remixicon/remixicon.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/cover_ref_security.dart';
 import '../../../data/models/search.dart';
 import '../../../data/repositories/search_repository.dart';
@@ -45,7 +45,7 @@ class SearchResultList extends ConsumerWidget {
                     ),
                     onImport: () => importSearchAlbum(context, ref, a),
                     onOpen: () => Navigator.of(context).push<void>(
-                      EchoPageRoute<void>(
+                      MusicFlowPageRoute<void>(
                         context: context,
                         builder: (_) => RemoteAlbumPage(
                           album: a,
@@ -71,7 +71,7 @@ class SearchResultList extends ConsumerWidget {
                       SearchSongLike(name: a.name),
                     ),
                     onOpen: () => Navigator.of(context).push<void>(
-                      EchoPageRoute<void>(
+                      MusicFlowPageRoute<void>(
                         context: context,
                         builder: (_) => RemoteArtistPage(
                           artist: a,
@@ -98,7 +98,7 @@ class SearchResultList extends ConsumerWidget {
                       playlist: p,
                     ),
                     onOpen: () => Navigator.of(context).push<void>(
-                      EchoPageRoute<void>(
+                      MusicFlowPageRoute<void>(
                         context: context,
                         builder: (_) => RemotePlaylistPage(
                           playlist: p,
@@ -124,10 +124,10 @@ class SearchResultList extends ConsumerWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.only(
-        left: context.echoPageHorizontalPadding,
-        right: context.echoPageHorizontalPadding,
+        left: context.musicFlowPageHorizontalPadding,
+        right: context.musicFlowPageHorizontalPadding,
         bottom:
-            context.echoSpacing.xxl + context.echoShellBottomObstruction,
+            context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
       ),
       itemCount: songs.length,
       separatorBuilder: (_, _) => const SizedBox(height: 4),
@@ -159,19 +159,19 @@ class SearchResultList extends ConsumerWidget {
                           .join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: context.echoTypography.metadata
-                          .copyWith(color: context.echoColors.muted),
+                      style: context.musicFlowTypography.metadata
+                          .copyWith(color: context.musicFlowColors.muted),
                     ),
                   ],
                 ),
               ),
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: Remix.play_circle_line,
                 label: '播放',
                 iconSize: 22,
                 onPressed: () => playRemoteSearchSong(context, ref, s),
               ),
-              EchoIconButton(
+              MusicFlowIconButton(
                 icon: Remix.add_circle_line,
                 label: '加入库',
                 iconSize: 22,
@@ -191,14 +191,14 @@ class SearchResultList extends ConsumerWidget {
   ) {
     if (children.isEmpty) return const SizedBox.shrink();
     final padding = EdgeInsets.only(
-      left: context.echoPageHorizontalPadding,
-      right: context.echoPageHorizontalPadding,
-      bottom: context.echoSpacing.xxl + context.echoShellBottomObstruction,
+      left: context.musicFlowPageHorizontalPadding,
+      right: context.musicFlowPageHorizontalPadding,
+      bottom: context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
     );
     // 桌面端(medium/expanded):改为**自适应列数**网格,单格宽度收敛到 ~158,
     // 封面随之收敛到与主页面歌单封面(DiscoverPlaylistCard, 152 宽方封面,
     // 标题在下、副标题在最下的排列)一致,不再固定三列放大占满整窗。
-    if (context.echoWindowClass != EchoWindowClass.compact) {
+    if (context.musicFlowWindowClass != MusicFlowWindowClass.compact) {
       return GridView(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -257,7 +257,7 @@ class SearchAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoPressable(
+    return MusicFlowPressable(
       onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Column(
@@ -280,7 +280,7 @@ class SearchAlbumCard extends StatelessWidget {
                     : Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          color: context.echoColors.surface,
+                          color: context.musicFlowColors.surface,
                         ),
                         child: const Center(child: Icon(AppIcons.album)),
                       ),
@@ -291,15 +291,15 @@ class SearchAlbumCard extends StatelessWidget {
                     child: Row(
                       children: <Widget>[
                         if (showPlay)
-                          EchoIconButton(
+                          MusicFlowIconButton(
                             icon: Remix.play_circle_fill,
                             label: '播放',
                             iconSize: 24,
-                            foregroundColor: context.echoColors.accent,
+                            foregroundColor: context.musicFlowColors.accent,
                             onPressed: onPlay,
                           ),
                         if (showImport)
-                          EchoIconButton(
+                          MusicFlowIconButton(
                             icon: Remix.add_circle_line,
                             label: '加入库',
                             iconSize: 22,
@@ -317,8 +317,8 @@ class SearchAlbumCard extends StatelessWidget {
             album.artist.isNotEmpty ? album.artist : album.platformLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.echoTypography.metadata
-                .copyWith(color: context.echoColors.muted),
+            style: context.musicFlowTypography.metadata
+                .copyWith(color: context.musicFlowColors.muted),
           ),
         ],
       ),
@@ -342,7 +342,7 @@ class SearchArtistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoPressable(
+    return MusicFlowPressable(
       onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Column(
@@ -364,7 +364,7 @@ class SearchArtistCard extends StatelessWidget {
                     : Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: context.echoColors.surface,
+                          color: context.musicFlowColors.surface,
                         ),
                         child: const Center(child: Icon(AppIcons.profile)),
                       ),
@@ -372,11 +372,11 @@ class SearchArtistCard extends StatelessWidget {
                   Positioned(
                     right: 4,
                     bottom: 4,
-                    child: EchoIconButton(
+                    child: MusicFlowIconButton(
                       icon: Remix.play_circle_fill,
                       label: '播放',
                       iconSize: 24,
-                      foregroundColor: context.echoColors.accent,
+                      foregroundColor: context.musicFlowColors.accent,
                       onPressed: onPlay,
                     ),
                   ),
@@ -389,8 +389,8 @@ class SearchArtistCard extends StatelessWidget {
             artist.platformLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.echoTypography.metadata
-                .copyWith(color: context.echoColors.muted),
+            style: context.musicFlowTypography.metadata
+                .copyWith(color: context.musicFlowColors.muted),
           ),
         ],
       ),
@@ -414,7 +414,7 @@ class SearchPlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoPressable(
+    return MusicFlowPressable(
       onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Column(
@@ -438,7 +438,7 @@ class SearchPlaylistCard extends StatelessWidget {
                     : Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          color: context.echoColors.surface,
+                          color: context.musicFlowColors.surface,
                         ),
                         child: const Center(child: Icon(AppIcons.playlist)),
                       ),
@@ -446,11 +446,11 @@ class SearchPlaylistCard extends StatelessWidget {
                   Positioned(
                     right: 4,
                     bottom: 4,
-                    child: EchoIconButton(
+                    child: MusicFlowIconButton(
                       icon: Remix.play_circle_fill,
                       label: '播放',
                       iconSize: 24,
-                      foregroundColor: context.echoColors.accent,
+                      foregroundColor: context.musicFlowColors.accent,
                       onPressed: onPlay,
                     ),
                   ),
@@ -465,8 +465,8 @@ class SearchPlaylistCard extends StatelessWidget {
                 : playlist.platformLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.echoTypography.metadata
-                .copyWith(color: context.echoColors.muted),
+            style: context.musicFlowTypography.metadata
+                .copyWith(color: context.musicFlowColors.muted),
           ),
         ],
       ),

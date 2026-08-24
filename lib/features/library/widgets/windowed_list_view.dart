@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import 'windowed_paginated_list.dart';
 
 /// 全库统一的「窗口化 + 视口渐进式加载」列表渲染层。
@@ -91,10 +91,10 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
     if (widget.gridDelegate != null) {
       return Padding(
         padding: const EdgeInsets.all(8),
-        child: EchoSkeleton(
+        child: MusicFlowSkeleton(
           width: double.infinity,
           height: double.infinity,
-          borderRadius: context.echoRadii.surface,
+          borderRadius: context.musicFlowRadii.surface,
         ),
       );
     }
@@ -102,10 +102,10 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
       height: widget.placeholderExtent,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: EchoSkeleton(
+        child: MusicFlowSkeleton(
           width: double.infinity,
           height: widget.placeholderExtent - 16,
-          borderRadius: context.echoRadii.detail,
+          borderRadius: context.musicFlowRadii.detail,
         ),
       ),
     );
@@ -141,7 +141,7 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
         !controller.loading &&
         controller.slots.isEmpty) {
       return Center(
-        child: EchoEmptyState(
+        child: MusicFlowEmptyState(
           title: widget.emptyTitle,
           description: widget.emptyDescription,
           icon: widget.emptyIcon ?? AppIcons.music,
@@ -176,7 +176,7 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
               ),
             ),
           SliverToBoxAdapter(
-            child: SizedBox(height: context.echoShellBottomObstruction),
+            child: SizedBox(height: context.musicFlowShellBottomObstruction),
           ),
         ],
     );

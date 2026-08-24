@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../core/design/echo_design.dart';
+import '../core/design/music_flow_design.dart';
 import '../data/models/song.dart';
-import 'echo_artwork.dart';
-import 'echo_metadata_line.dart';
+import 'music_flow_artwork.dart';
+import 'music_flow_metadata_line.dart';
 
-enum EchoSongRowVariant { albumTrack, standard, topRank }
+enum MusicFlowSongRowVariant { albumTrack, standard, topRank }
 
 /// A media-first song row with explicit playback and availability states.
-class EchoSongRow extends StatelessWidget {
-  const EchoSongRow({
+class MusicFlowSongRow extends StatelessWidget {
+  const MusicFlowSongRow({
     super.key,
     required this.song,
     this.index = 0,
-    this.variant = EchoSongRowVariant.standard,
+    this.variant = MusicFlowSongRowVariant.standard,
     this.rank,
     this.coverArtId,
     this.contentPadding = const EdgeInsets.symmetric(
@@ -39,7 +39,7 @@ class EchoSongRow extends StatelessWidget {
 
   final Song song;
   final int index;
-  final EchoSongRowVariant variant;
+  final MusicFlowSongRowVariant variant;
   final int? rank;
   final String? coverArtId;
   final EdgeInsetsGeometry contentPadding;
@@ -80,19 +80,19 @@ class EchoSongRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
         _buildLeading(context),
-        SizedBox(width: context.echoSpacing.sm),
+        SizedBox(width: context.musicFlowSpacing.sm),
         Expanded(child: _buildDetails(context, artistText)),
       ],
     );
     final hasMainAction = mainAction != null || mainLongPress != null;
     final main = hasMainAction
-        ? EchoPressable(
+        ? MusicFlowPressable(
             semanticLabel: semanticLabel,
             selected: selectionMode ? selected : (isCurrent ? true : null),
             onPressed: mainAction,
             onLongPress: mainLongPress,
             minimumSize: const Size(0, 48),
-            borderRadius: context.echoRadii.control,
+            borderRadius: context.musicFlowRadii.control,
             child: mainContent,
           )
         : Semantics(
@@ -108,33 +108,33 @@ class EchoSongRow extends StatelessWidget {
           );
 
     return AnimatedContainer(
-      duration: context.echoMotion.resolve(
+      duration: context.musicFlowMotion.resolve(
         context,
-        context.echoMotion.feedback,
+        context.musicFlowMotion.feedback,
       ),
-      curve: context.echoMotion.easeOut,
+      curve: context.musicFlowMotion.easeOut,
       margin: contentPadding,
       decoration: BoxDecoration(
         color: selectionMode && selected
-            ? context.echoColors.accent.withValues(alpha: 0.1)
+            ? context.musicFlowColors.accent.withValues(alpha: 0.1)
             : Colors.transparent,
-        borderRadius: context.echoRadii.control,
+        borderRadius: context.musicFlowRadii.control,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Expanded(child: main),
           if (selectionMode && selectionAction != null) ...<Widget>[
-            SizedBox(width: context.echoSpacing.xs),
-            EchoIconButton(
+            SizedBox(width: context.musicFlowSpacing.xs),
+            MusicFlowIconButton(
               icon: selected ? AppIcons.checkCircle : AppIcons.radio,
               label: selected ? '取消选择 ${song.title}' : '选择 ${song.title}',
               selected: selected,
               onPressed: selectionAction,
             ),
           ] else if (moreAction != null) ...<Widget>[
-            SizedBox(width: context.echoSpacing.xs),
-            EchoIconButton(
+            SizedBox(width: context.musicFlowSpacing.xs),
+            MusicFlowIconButton(
               icon: AppIcons.more,
               label: moreSemanticLabel ?? '${song.title}，更多操作',
               onPressed: moreAction,
@@ -163,23 +163,23 @@ class EchoSongRow extends StatelessWidget {
           song.title,
           maxLines: showFullText ? null : 2,
           overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
-          style: context.echoTypography.title.copyWith(
+          style: context.musicFlowTypography.title.copyWith(
             color: isCurrent
-                ? context.echoColors.accent
-                : context.echoColors.ink,
+                ? context.musicFlowColors.accent
+                : context.musicFlowColors.ink,
           ),
         ),
-        SizedBox(height: context.echoSpacing.xxs),
-        EchoMetadataLine(
+        SizedBox(height: context.musicFlowSpacing.xxs),
+        MusicFlowMetadataLine(
           items: <String?>[artistText, song.durationString],
           maxLines: showFullText ? null : 2,
         ),
         if (statusMarkers.isNotEmpty) ...<Widget>[
-          SizedBox(height: context.echoSpacing.xxs),
+          SizedBox(height: context.musicFlowSpacing.xxs),
           ExcludeSemantics(
             child: Wrap(
-              spacing: context.echoSpacing.sm,
-              runSpacing: context.echoSpacing.xxs,
+              spacing: context.musicFlowSpacing.sm,
+              runSpacing: context.musicFlowSpacing.xxs,
               children: statusMarkers,
             ),
           ),
@@ -190,17 +190,17 @@ class EchoSongRow extends StatelessWidget {
 
   Widget _buildLeading(BuildContext context) {
     return switch (variant) {
-      EchoSongRowVariant.standard => SizedBox.square(
+      MusicFlowSongRowVariant.standard => SizedBox.square(
         dimension: _coverSize,
         child: Stack(
           clipBehavior: Clip.none,
           children: <Widget>[
             Positioned.fill(
-              child: EchoArtwork(
+              child: MusicFlowArtwork(
                 coverArtId: coverArtId ?? song.artworkReference,
                 semanticLabel: '${song.title} 封面',
                 requestSize: 192,
-                borderRadius: context.echoRadii.detail,
+                borderRadius: context.musicFlowRadii.detail,
               ),
             ),
             if (isCurrent)
@@ -208,18 +208,18 @@ class EchoSongRow extends StatelessWidget {
                 end: -2,
                 bottom: -2,
                 child: _CurrentPlayingBadge(
-                  background: context.echoColors.accent,
-                  foreground: context.echoColors.onAccent,
+                  background: context.musicFlowColors.accent,
+                  foreground: context.musicFlowColors.onAccent,
                 ),
               ),
           ],
         ),
       ),
-      EchoSongRowVariant.albumTrack => _NumberLeading(
+      MusicFlowSongRowVariant.albumTrack => _NumberLeading(
         value: song.track ?? index + 1,
         isCurrent: isCurrent,
       ),
-      EchoSongRowVariant.topRank => _NumberLeading(
+      MusicFlowSongRowVariant.topRank => _NumberLeading(
         value: rank ?? index + 1,
         isCurrent: isCurrent,
         prominent: true,
@@ -254,23 +254,23 @@ class _NumberLeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: EchoSongRow._numberWidth,
+      width: MusicFlowSongRow._numberWidth,
       child: Center(
         child: isCurrent
             ? Icon(
                 AppIcons.equalizer,
                 size: 20,
-                color: context.echoColors.accent,
+                color: context.musicFlowColors.accent,
               )
             : Text(
                 '$value',
                 textAlign: TextAlign.center,
                 style:
                     (prominent
-                            ? context.echoTypography.title
-                            : context.echoTypography.metadata)
+                            ? context.musicFlowTypography.title
+                            : context.musicFlowTypography.metadata)
                         .copyWith(
-                          color: context.echoColors.muted,
+                          color: context.musicFlowColors.muted,
                           fontWeight: prominent ? FontWeight.w700 : null,
                           fontFeatures: const <FontFeature>[
                             FontFeature.tabularFigures(),
@@ -296,8 +296,8 @@ class _CurrentPlayingBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background,
-        borderRadius: context.echoRadii.pill,
-        border: Border.all(color: context.echoColors.surface, width: 2),
+        borderRadius: context.musicFlowRadii.pill,
+        border: Border.all(color: context.musicFlowColors.surface, width: 2),
       ),
       child: SizedBox.square(
         dimension: 20,
@@ -318,12 +318,12 @@ class _SongStatusMarker extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(icon, size: 14, color: context.echoColors.muted),
-        SizedBox(width: context.echoSpacing.xxs),
+        Icon(icon, size: 14, color: context.musicFlowColors.muted),
+        SizedBox(width: context.musicFlowSpacing.xxs),
         Text(
           label,
-          style: context.echoTypography.metadata.copyWith(
-            color: context.echoColors.muted,
+          style: context.musicFlowTypography.metadata.copyWith(
+            color: context.musicFlowColors.muted,
           ),
         ),
       ],
@@ -376,12 +376,12 @@ class SongListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoSongRow(
+    return MusicFlowSongRow(
       song: song,
       index: index,
       variant: switch (variant) {
-        SongListItemVariant.albumTrack => EchoSongRowVariant.albumTrack,
-        SongListItemVariant.standard => EchoSongRowVariant.standard,
+        SongListItemVariant.albumTrack => MusicFlowSongRowVariant.albumTrack,
+        SongListItemVariant.standard => MusicFlowSongRowVariant.standard,
       },
       coverArtId: coverArtId,
       contentPadding: contentPadding,

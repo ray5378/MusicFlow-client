@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/search.dart';
 import '../../../providers/search_provider.dart';
 import '../../library/widgets/library_collection_components.dart';
@@ -62,11 +62,11 @@ class AggregateSearchResults extends ConsumerWidget {
   ) {
     return results.when(
       loading: () => const <Widget>[
-        SliverToBoxAdapter(child: EchoMediaListSkeleton(count: 6)),
+        SliverToBoxAdapter(child: MusicFlowMediaListSkeleton(count: 6)),
       ],
       error: (e, _) => <Widget>[
         SliverToBoxAdapter(
-          child: EchoErrorState(
+          child: MusicFlowErrorState(
             title: '全网搜索失败',
             description: '$e',
             actionLabel: '重试',
@@ -85,7 +85,7 @@ class AggregateSearchResults extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
-                child: EchoEmptyState(
+                child: MusicFlowEmptyState(
                   title: '全网暂无结果',
                   description: '换个关键词试试。',
                   icon: AppIcons.search,
@@ -98,8 +98,8 @@ class AggregateSearchResults extends ConsumerWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.only(
-                bottom: context.echoSpacing.xxl +
-                    context.echoShellBottomObstruction,
+                bottom: context.musicFlowSpacing.xxl +
+                    context.musicFlowShellBottomObstruction,
               ),
               child: SearchResultList(kind: kind, outcome: outcome),
             ),
@@ -140,22 +140,22 @@ class AggregateLocalBlock<T> extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: EchoMediaListSkeleton(count: 3),
+            child: MusicFlowMediaListSkeleton(count: 3),
           );
         }
         final items = snapshot.data?.items ?? <T>[];
         if (items.isEmpty) {
           return Padding(
             padding: EdgeInsets.fromLTRB(
-              context.echoPageHorizontalPadding,
-              context.echoSpacing.xxs,
-              context.echoPageHorizontalPadding,
-              context.echoSpacing.xs,
+              context.musicFlowPageHorizontalPadding,
+              context.musicFlowSpacing.xxs,
+              context.musicFlowPageHorizontalPadding,
+              context.musicFlowSpacing.xs,
             ),
             child: Text(
               emptyText,
-              style: context.echoTypography.metadata.copyWith(
-                color: context.echoColors.muted,
+              style: context.musicFlowTypography.metadata.copyWith(
+                color: context.musicFlowColors.muted,
               ),
             ),
           );
@@ -172,12 +172,12 @@ class AggregateLocalBlock<T> extends StatelessWidget {
         // (桌面端自适应列数 / 移动端三列 / childAspectRatio 0.8 / 同间距),
         // 保证本地结果与全网结果排列方式一致。
         final padding = EdgeInsets.only(
-          left: context.echoPageHorizontalPadding,
-          right: context.echoPageHorizontalPadding,
-          top: context.echoSpacing.xs,
-          bottom: context.echoSpacing.sm,
+          left: context.musicFlowPageHorizontalPadding,
+          right: context.musicFlowPageHorizontalPadding,
+          top: context.musicFlowSpacing.xs,
+          bottom: context.musicFlowSpacing.sm,
         );
-        if (context.echoWindowClass != EchoWindowClass.compact) {
+        if (context.musicFlowWindowClass != MusicFlowWindowClass.compact) {
           return GridView(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -220,18 +220,18 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.sm,
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.xxs,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.sm,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.xxs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             title,
-            style: context.echoTypography.label.copyWith(
-              color: context.echoColors.accent,
+            style: context.musicFlowTypography.label.copyWith(
+              color: context.musicFlowColors.accent,
             ),
           ),
           if (subtitle != null && subtitle!.isNotEmpty)
@@ -239,8 +239,8 @@ class _SectionHeader extends StatelessWidget {
               padding: EdgeInsets.only(top: 2),
               child: Text(
                 subtitle!,
-                style: context.echoTypography.metadata.copyWith(
-                  color: context.echoColors.muted,
+                style: context.musicFlowTypography.metadata.copyWith(
+                  color: context.musicFlowColors.muted,
                 ),
               ),
             ),

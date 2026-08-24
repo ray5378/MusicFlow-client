@@ -1,7 +1,7 @@
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/providers/navigation_provider.dart';
 import 'package:musicflow_client/widgets/main_scaffold.dart';
-import 'package:musicflow_client/widgets/echo_app_shell/echo_network_status_bar.dart';
+import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,7 +17,7 @@ void main() {
           branchCanPop: true,
           currentBranchIndex: discoverBranchIndex,
         ),
-        EchoBackAction.closeDrawer,
+        MusicFlowBackAction.closeDrawer,
       );
       expect(
         resolveEchoBackAction(
@@ -26,7 +26,7 @@ void main() {
           branchCanPop: true,
           currentBranchIndex: discoverBranchIndex,
         ),
-        EchoBackAction.popRootNavigator,
+        MusicFlowBackAction.popRootNavigator,
       );
       expect(
         resolveEchoBackAction(
@@ -35,7 +35,7 @@ void main() {
           branchCanPop: true,
           currentBranchIndex: discoverBranchIndex,
         ),
-        EchoBackAction.popBranchNavigator,
+        MusicFlowBackAction.popBranchNavigator,
       );
       // 探索/我的分支已移除,音乐流即根分支 → 退到后台。
       expect(
@@ -45,7 +45,7 @@ void main() {
           branchCanPop: false,
           currentBranchIndex: discoverBranchIndex,
         ),
-        EchoBackAction.moveAppToBackground,
+        MusicFlowBackAction.moveAppToBackground,
       );
     });
   });
@@ -78,7 +78,7 @@ void main() {
 
     test('exposes only the music-flow destination', () {
       // 探索分支已移除:侧栏仅保留「音乐流」,分支索引固定为 0。
-      final destinations = echoMainDestinations();
+      final destinations = musicFlowMainDestinations();
       expect(destinations, hasLength(1));
       expect(destinations.single.branchIndex, discoverBranchIndex);
       expect(destinations.single.label, '音乐流');
@@ -127,7 +127,7 @@ Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
             navigationShell: navigationShell,
             branchNavigatorKeys: branchNavigatorKeys,
             showMiniPlayerOverride: false,
-            networkStatusOverride: EchoNetworkStatus.online,
+            networkStatusOverride: MusicFlowNetworkStatus.online,
             drawerOverride: const SizedBox(width: 320),
             miniPlayerOverride: const SizedBox(height: 72),
           );

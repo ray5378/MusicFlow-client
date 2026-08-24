@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:musicflow_client/core/design/tokens/echo_colors.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/palette_provider.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
@@ -12,9 +12,9 @@ import 'package:palette_generator/palette_generator.dart';
 import '../features/player/test_player_notifier.dart';
 
 void main() {
-  group('EchoMediaVisuals', () {
+  group('MusicFlowMediaVisuals', () {
     test('keeps bright artwork bright and chooses dark foreground', () {
-      final visuals = EchoMediaVisuals.fromPalette(
+      final visuals = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[
           (const Color(0xFFFFE36B), 120),
           (const Color(0xFF4E77C8), 24),
@@ -27,7 +27,7 @@ void main() {
     });
 
     test('keeps dark artwork dark and chooses light foreground', () {
-      final visuals = EchoMediaVisuals.fromPalette(
+      final visuals = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[
           (const Color(0xFF101D33), 120),
           (const Color(0xFF8F334B), 28),
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('neutral gray artwork stays neutral across every media surface', () {
-      final visuals = EchoMediaVisuals.fromPalette(
+      final visuals = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[
           (const Color(0xFF858585), 100),
           (const Color(0xFFB7B7B7), 30),
@@ -65,7 +65,7 @@ void main() {
     });
 
     test('low-saturation artwork remains restrained and readable', () {
-      final visuals = EchoMediaVisuals.fromPalette(
+      final visuals = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[
           (const Color(0xFF718580), 100),
           (const Color(0xFF9A8985), 36),
@@ -78,21 +78,21 @@ void main() {
     });
 
     test('missing and empty palettes share a deterministic fallback', () {
-      final missing = EchoMediaVisuals.fromPalette(null);
-      final empty = EchoMediaVisuals.fromPalette(
+      final missing = MusicFlowMediaVisuals.fromPalette(null);
+      final empty = MusicFlowMediaVisuals.fromPalette(
         PaletteGenerator.fromColors(<PaletteColor>[]),
       );
 
       expect(empty, missing);
-      expect(missing, EchoMediaVisuals.fallback());
+      expect(missing, MusicFlowMediaVisuals.fallback());
       _expectAccessibleVisuals(missing);
     });
 
     test('different bright covers retain distinct media identities', () {
-      final amber = EchoMediaVisuals.fromPalette(
+      final amber = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[(const Color(0xFFFFC857), 100)]),
       );
-      final cyan = EchoMediaVisuals.fromPalette(
+      final cyan = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[(const Color(0xFF55D6BE), 100)]),
       );
 
@@ -108,10 +108,10 @@ void main() {
     });
 
     test('tiny vibrant noise cannot override the dominant media identity', () {
-      final dominantOnly = EchoMediaVisuals.fromPalette(
+      final dominantOnly = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[(const Color(0xFF7F8589), 1000)]),
       );
-      final withNoise = EchoMediaVisuals.fromPalette(
+      final withNoise = MusicFlowMediaVisuals.fromPalette(
         _palette(<(Color, int)>[
           (const Color(0xFF7F8589), 1000),
           (const Color(0xFFFF1744), 1),
@@ -239,7 +239,7 @@ void main() {
         ).future,
       );
 
-      expect(visuals, EchoMediaVisuals.fromPalette(null));
+      expect(visuals, MusicFlowMediaVisuals.fromPalette(null));
       expect(loadCount, 0);
     });
 
@@ -269,7 +269,7 @@ void main() {
 
       expect(
         await songContainer.read(currentSongMediaVisualsProvider.future),
-        EchoMediaVisuals.fromPalette(null),
+        MusicFlowMediaVisuals.fromPalette(null),
       );
     });
 
@@ -277,12 +277,12 @@ void main() {
       'resolved visuals retain one previous value while reloading',
       () async {
         final generationProvider = StateProvider<int>((_) => 0);
-        final pending = <int, Completer<EchoMediaVisuals?>>{
-          0: Completer<EchoMediaVisuals?>(),
-          1: Completer<EchoMediaVisuals?>(),
+        final pending = <int, Completer<MusicFlowMediaVisuals?>>{
+          0: Completer<MusicFlowMediaVisuals?>(),
+          1: Completer<MusicFlowMediaVisuals?>(),
         };
-        final first = EchoMediaVisuals.fallback(seed: const Color(0xFF183A54));
-        final second = EchoMediaVisuals.fallback(seed: const Color(0xFFF0C55A));
+        final first = MusicFlowMediaVisuals.fallback(seed: const Color(0xFF183A54));
+        final second = MusicFlowMediaVisuals.fallback(seed: const Color(0xFFF0C55A));
         final container = ProviderContainer(
           overrides: <Override>[
             currentSongMediaVisualsProvider.overrideWith((ref) {
@@ -292,7 +292,7 @@ void main() {
           ],
         );
         addTearDown(container.dispose);
-        final emitted = <EchoMediaVisuals>[];
+        final emitted = <MusicFlowMediaVisuals>[];
         final subscription = container.listen(
           resolvedCurrentSongMediaVisualsProvider,
           (_, next) => emitted.add(next),
@@ -300,7 +300,7 @@ void main() {
         );
         addTearDown(subscription.close);
 
-        expect(subscription.read(), EchoMediaVisuals.fallback());
+        expect(subscription.read(), MusicFlowMediaVisuals.fallback());
         pending[0]!.complete(first);
         await container.pump();
         expect(subscription.read(), first);
@@ -315,8 +315,8 @@ void main() {
         pending[1]!.complete(second);
         await container.pump();
         expect(subscription.read(), second);
-        expect(emitted, <EchoMediaVisuals>[
-          EchoMediaVisuals.fallback(),
+        expect(emitted, <MusicFlowMediaVisuals>[
+          MusicFlowMediaVisuals.fallback(),
           first,
           second,
         ]);
@@ -325,14 +325,14 @@ void main() {
 
     test('late palette result cannot replace a newer song request', () async {
       final generationProvider = StateProvider<int>((_) => 0);
-      final pending = <int, Completer<EchoMediaVisuals?>>{
-        0: Completer<EchoMediaVisuals?>(),
-        1: Completer<EchoMediaVisuals?>(),
-        2: Completer<EchoMediaVisuals?>(),
+      final pending = <int, Completer<MusicFlowMediaVisuals?>>{
+        0: Completer<MusicFlowMediaVisuals?>(),
+        1: Completer<MusicFlowMediaVisuals?>(),
+        2: Completer<MusicFlowMediaVisuals?>(),
       };
-      final first = EchoMediaVisuals.fallback(seed: const Color(0xFF244B5A));
-      final stale = EchoMediaVisuals.fallback(seed: const Color(0xFF9B4054));
-      final newest = EchoMediaVisuals.fallback(seed: const Color(0xFFE6D36A));
+      final first = MusicFlowMediaVisuals.fallback(seed: const Color(0xFF244B5A));
+      final stale = MusicFlowMediaVisuals.fallback(seed: const Color(0xFF9B4054));
+      final newest = MusicFlowMediaVisuals.fallback(seed: const Color(0xFFE6D36A));
       final container = ProviderContainer(
         overrides: <Override>[
           currentSongMediaVisualsProvider.overrideWith((ref) {
@@ -375,7 +375,7 @@ PaletteGenerator _palette(List<(Color, int)> swatches) {
   ]);
 }
 
-void _expectAccessibleVisuals(EchoMediaVisuals visuals) {
+void _expectAccessibleVisuals(MusicFlowMediaVisuals visuals) {
   final surfaces = <Color>[
     visuals.stageBase,
     visuals.stageGlow,
@@ -385,17 +385,17 @@ void _expectAccessibleVisuals(EchoMediaVisuals visuals) {
   ];
   for (final surface in surfaces) {
     expect(
-      EchoColors.contrastRatio(visuals.foreground, surface),
+      MusicFlowColors.contrastRatio(visuals.foreground, surface),
       greaterThanOrEqualTo(4.5),
       reason: 'primary foreground must remain readable on $surface',
     );
     expect(
-      EchoColors.contrastRatio(visuals.mutedForeground, surface),
+      MusicFlowColors.contrastRatio(visuals.mutedForeground, surface),
       greaterThanOrEqualTo(4.5),
       reason: 'secondary foreground must remain readable on $surface',
     );
     expect(
-      EchoColors.contrastRatio(visuals.controlAccent, surface),
+      MusicFlowColors.contrastRatio(visuals.controlAccent, surface),
       greaterThanOrEqualTo(3),
       reason: 'critical controls must remain distinguishable on $surface',
     );

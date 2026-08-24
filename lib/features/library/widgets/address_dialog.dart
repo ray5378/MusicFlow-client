@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/server_url_security.dart';
 import '../../../data/models/server_address.dart';
 
@@ -54,7 +54,7 @@ class _AddressDialogState extends State<AddressDialog> {
     await showEchoBottomSheet<void>(
       context: context,
       useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: 'HTTP 使用提示',
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -62,12 +62,12 @@ class _AddressDialogState extends State<AddressDialog> {
           children: <Widget>[
             Text(
               _httpHintMessage,
-              style: context.echoTypography.body.copyWith(
-                color: context.echoColors.muted,
+              style: context.musicFlowTypography.body.copyWith(
+                color: context.musicFlowColors.muted,
               ),
             ),
-            SizedBox(height: context.echoSpacing.lg),
-            EchoButton.primary(
+            SizedBox(height: context.musicFlowSpacing.lg),
+            MusicFlowButton.primary(
               label: '知道了',
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(),
@@ -82,7 +82,7 @@ class _AddressDialogState extends State<AddressDialog> {
     final confirmed = await showEchoBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: '保存不安全的 HTTP 地址',
         subtitle: normalizedUrl,
         child: Column(
@@ -92,18 +92,18 @@ class _AddressDialogState extends State<AddressDialog> {
             Text(
               'HTTP 不会加密传输。凭据、令牌以及媒体请求都可能暴露给同一网络中的其他人。'
               '仅当该服务器位于可信网络中时才保存。',
-              style: context.echoTypography.body.copyWith(
-                color: context.echoColors.muted,
+              style: context.musicFlowTypography.body.copyWith(
+                color: context.musicFlowColors.muted,
               ),
             ),
-            SizedBox(height: context.echoSpacing.lg),
-            EchoButton.destructive(
+            SizedBox(height: context.musicFlowSpacing.lg),
+            MusicFlowButton.destructive(
               label: '仍然保存',
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(true),
             ),
-            SizedBox(height: context.echoSpacing.xs),
-            EchoButton.ghost(
+            SizedBox(height: context.musicFlowSpacing.xs),
+            MusicFlowButton.ghost(
               label: '取消',
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(false),
@@ -144,7 +144,7 @@ class _AddressDialogState extends State<AddressDialog> {
     final isEditing = widget.initialAddress != null;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: isEditing ? '编辑地址' : '添加地址',
       subtitle: '同一音乐库可以配置多条线路，并按优先级自动选择。',
       child: ConstrainedBox(
@@ -160,7 +160,7 @@ class _AddressDialogState extends State<AddressDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                EchoTextField(
+                MusicFlowTextField(
                   controller: _labelController,
                   label: '标签',
                   hintText: '例如：OpenSubsonic',
@@ -172,18 +172,18 @@ class _AddressDialogState extends State<AddressDialog> {
                     return null;
                   },
                 ),
-                SizedBox(height: context.echoSpacing.md),
-                EchoTextField(
+                SizedBox(height: context.musicFlowSpacing.md),
+                MusicFlowTextField(
                   controller: _urlController,
                   label: '服务器地址',
                   hintText: '例如：https://music.example.com',
                   helperText: _httpHintMessage,
                   leadingIcon: AppIcons.router,
                   trailing: _showsHttpWarning
-                      ? EchoIconButton(
+                      ? MusicFlowIconButton(
                           icon: AppIcons.warning,
                           label: 'HTTP 使用提示',
-                          foregroundColor: context.echoColors.warning,
+                          foregroundColor: context.musicFlowColors.warning,
                           onPressed: _showHttpHint,
                         )
                       : null,
@@ -200,15 +200,15 @@ class _AddressDialogState extends State<AddressDialog> {
                     return null;
                   },
                 ),
-                SizedBox(height: context.echoSpacing.lg),
-                EchoButton.primary(
+                SizedBox(height: context.musicFlowSpacing.lg),
+                MusicFlowButton.primary(
                   label: '保存地址',
                   leadingIcon: AppIcons.save,
                   expand: true,
                   onPressed: _save,
                 ),
-                SizedBox(height: context.echoSpacing.xs),
-                EchoButton.ghost(
+                SizedBox(height: context.musicFlowSpacing.xs),
+                MusicFlowButton.ghost(
                   label: '取消',
                   expand: true,
                   onPressed: () => Navigator.of(context).pop(),

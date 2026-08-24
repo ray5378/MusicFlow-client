@@ -1,4 +1,4 @@
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/song.dart';

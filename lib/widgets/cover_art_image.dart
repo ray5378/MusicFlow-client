@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/design/echo_design.dart';
+import '../core/design/music_flow_design.dart';
 import '../core/utils/cover_ref_security.dart';
 import '../providers/api_provider.dart';
 
@@ -135,7 +135,7 @@ class CoverArtImage extends ConsumerWidget {
     bool semantic = true,
     String? accessibilityLabel,
   }) {
-    final bgColor = context.echoColors.raised;
+    final bgColor = context.musicFlowColors.raised;
     final placeholder = SizedBox(
       width: size,
       height: size,
@@ -147,7 +147,7 @@ class CoverArtImage extends ConsumerWidget {
                 child: Icon(
                   AppIcons.music,
                   size: _getIconSize(),
-                  color: context.echoColors.muted,
+                  color: context.musicFlowColors.muted,
                 ),
               ),
             ),
@@ -174,7 +174,7 @@ class CoverArtImage extends ConsumerWidget {
             : null;
         final fallbackExtent = boundedWidth ?? boundedHeight ?? 48.0;
 
-        return EchoSkeleton(
+        return MusicFlowSkeleton(
           width: size ?? boundedWidth ?? fallbackExtent,
           height: size ?? boundedHeight ?? fallbackExtent,
           borderRadius: BorderRadius.zero,

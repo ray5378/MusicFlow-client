@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../widgets/cover_art_image.dart';
@@ -199,12 +199,12 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
 
   Widget _buildPlaceholder() {
     return Container(
-      color: context.echoColors.raised,
+      color: context.musicFlowColors.raised,
       child: Center(
         child: Icon(
           AppIcons.music,
           size: widget.size * 0.2,
-          color: context.echoColors.muted,
+          color: context.musicFlowColors.muted,
         ),
       ),
     );

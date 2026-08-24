@@ -30,7 +30,7 @@ class AudioCacheService {
 
   Future<Directory> getAudioCacheDir() async {
     final cacheDir = await getApplicationCacheDirectory();
-    return Directory(p.join(cacheDir.path, 'echo_audio_cache'));
+    return Directory(p.join(cacheDir.path, 'music_flow_audio_cache'));
   }
 
   Future<String?> getCachedPath({
@@ -299,7 +299,7 @@ class AudioCacheService {
       }
 
       final appDir = await getApplicationDocumentsDirectory();
-      roots.add(p.join(appDir.path, 'echo_downloads'));
+      roots.add(p.join(appDir.path, 'music_flow_downloads'));
       return roots;
     } catch (_) {
       return roots;

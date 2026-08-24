@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/album.dart';
 import 'package:musicflow_client/data/models/artist.dart';
@@ -190,8 +190,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsLabel('正在搜索“不存在”'), findsOneWidget);
-      final skeletons = tester.widgetList<EchoSkeleton>(
-        find.byType(EchoSkeleton),
+      final skeletons = tester.widgetList<MusicFlowSkeleton>(
+        find.byType(MusicFlowSkeleton),
       );
       expect(
         skeletons.any(
@@ -284,8 +284,8 @@ void main() {
     await _submitQuery(tester, '夜航');
     await tester.pump();
 
-    expect(find.byType(EchoSongRow), findsNWidgets(2));
-    expect(find.byType(EchoDivider), findsNothing);
+    expect(find.byType(MusicFlowSongRow), findsNWidgets(2));
+    expect(find.byType(MusicFlowDivider), findsNothing);
     final resultSummary = tester.getSemantics(
       find.byKey(const ValueKey<String>('search_results_summary')),
     );
@@ -310,21 +310,21 @@ void main() {
       scrollable: resultsScrollable,
     );
     await tester.pump();
-    expect(find.byType(EchoAlbumRow), findsOneWidget);
+    expect(find.byType(MusicFlowAlbumRow), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.byType(EchoArtistRow),
+      find.byType(MusicFlowArtistRow),
       280,
       scrollable: resultsScrollable,
     );
     await tester.pump();
-    expect(find.byType(EchoArtistRow), findsOneWidget);
+    expect(find.byType(MusicFlowArtistRow), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('search_section_artists')),
       findsOneWidget,
     );
     expect(
       find.descendant(
-        of: find.byType(EchoArtistRow),
+        of: find.byType(MusicFlowArtistRow),
         matching: find.byType(ClipOval),
       ),
       findsOneWidget,
@@ -437,7 +437,7 @@ Future<void> _pumpSearchPage(
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  final page = EchoShellObstructionScope(
+  final page = MusicFlowShellObstructionScope(
     bottom: bottomObstruction,
     child: const SearchPage(),
   );

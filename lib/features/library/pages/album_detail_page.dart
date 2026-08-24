@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
@@ -40,17 +40,17 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       debugLabel: 'album_detail_page',
       shouldRetry: (ref) => loadFailed || detailAsync.hasError,
       onRetry: (ref) => ref.invalidate(albumDetailProvider(widget.albumId)),
-      child: EchoScaffold(
-        topBar: EchoTopBar.back(
+      child: MusicFlowScaffold(
+        topBar: MusicFlowTopBar.back(
           context: context,
           title: '专辑',
           actions: <Widget>[
-            EchoIconButton(
+            MusicFlowIconButton(
               icon: AppIcons.sort,
               label: '歌曲排序：${_sortOption.label}',
               onPressed: currentAlbum == null ? null : _selectSortOption,
             ),
-            EchoIconButton(
+            MusicFlowIconButton(
               icon: AppIcons.more,
               label: '专辑操作',
               onPressed: currentAlbum == null
@@ -67,13 +67,13 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
           data: (detail) {
             if (detail == null) {
               return loadFailed
-                  ? EchoErrorState(
+                  ? MusicFlowErrorState(
                       title: '专辑加载失败',
                       description: '无法读取专辑详情。请检查网络后重试。',
                       actionLabel: '重试',
                       onAction: _retry,
                     )
-                  : const EchoEmptyState(
+                  : const MusicFlowEmptyState(
                       title: '专辑不存在',
                       description: '服务器没有返回这张专辑，内容可能已经被移动或删除。',
                       icon: AppIcons.albumOutline,
@@ -84,7 +84,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             final songs = sortSongs(detail.songs, _sortOption);
             final compact =
                 MediaQuery.sizeOf(context).width <
-                context.echoBreakpoints.medium;
+                context.musicFlowBreakpoints.medium;
             return Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
@@ -108,9 +108,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
-                            context.echoSpacing.md,
-                            context.echoSpacing.md,
-                            context.echoSpacing.md,
+                            context.musicFlowSpacing.md,
+                            context.musicFlowSpacing.md,
+                            context.musicFlowSpacing.md,
                             0,
                           ),
                           child: MediaLoadNotice(
@@ -120,24 +120,24 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                         ),
                       ),
                     SliverToBoxAdapter(
-                      child: EchoSectionHeader(
+                      child: MusicFlowSectionHeader(
                         title: '曲目',
                         description: songs.isEmpty
                             ? '这张专辑暂时没有可播放曲目'
                             : '${songs.length} 首 · ${_sortOption.label}',
                         padding: EdgeInsets.fromLTRB(
-                          context.echoSpacing.md,
+                          context.musicFlowSpacing.md,
                           compact
-                              ? context.echoSpacing.sm
-                              : context.echoSpacing.lg,
-                          context.echoSpacing.md,
-                          context.echoSpacing.xs,
+                              ? context.musicFlowSpacing.sm
+                              : context.musicFlowSpacing.lg,
+                          context.musicFlowSpacing.md,
+                          context.musicFlowSpacing.xs,
                         ),
                       ),
                     ),
                     if (songs.isEmpty)
                       const SliverToBoxAdapter(
-                        child: EchoEmptyState(
+                        child: MusicFlowEmptyState(
                           title: '暂无曲目',
                           description: '服务器没有为这张专辑返回可播放歌曲。',
                           icon: AppIcons.music,
@@ -170,8 +170,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                           'album-detail-bottom-spacer',
                         ),
                         height:
-                            context.echoSpacing.xxl +
-                            context.echoShellBottomObstruction,
+                            context.musicFlowSpacing.xxl +
+                            context.musicFlowShellBottomObstruction,
                       ),
                     ),
                   ],
@@ -180,7 +180,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             );
           },
           loading: () => const MediaDetailLoadingView(),
-          error: (error, stackTrace) => EchoErrorState(
+          error: (error, stackTrace) => MusicFlowErrorState(
             title: '专辑加载失败',
             description: '无法读取专辑详情。请检查网络后重试。',
             actionLabel: '重试',
@@ -218,12 +218,12 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       if (mounted) {
         ToastNotifier.show(
           nextStarred ? '已收藏专辑' : '已取消收藏专辑',
-          kind: EchoMessageKind.success,
+          kind: MusicFlowMessageKind.success,
         );
       }
     } catch (error) {
       if (mounted) {
-        ToastNotifier.show('操作失败: $error', kind: EchoMessageKind.error);
+        ToastNotifier.show('操作失败: $error', kind: MusicFlowMessageKind.error);
       }
     }
   }
@@ -238,7 +238,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
     if (mounted) {
       ToastNotifier.show(
         '已添加 ${songs.length} 首歌曲到下载队列',
-        kind: EchoMessageKind.success,
+        kind: MusicFlowMessageKind.success,
       );
     }
   }
@@ -265,14 +265,14 @@ class _AlbumIdentityHeader extends StatelessWidget {
       coverArtId: album.coverArt,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < context.echoBreakpoints.medium;
+          final compact = constraints.maxWidth < context.musicFlowBreakpoints.medium;
           final wide = constraints.maxWidth >= 680;
           final padding = compact
               ? EdgeInsets.symmetric(
-                  horizontal: context.echoSpacing.md,
-                  vertical: context.echoSpacing.sm,
+                  horizontal: context.musicFlowSpacing.md,
+                  vertical: context.musicFlowSpacing.sm,
                 )
-              : EdgeInsets.all(context.echoSpacing.lg);
+              : EdgeInsets.all(context.musicFlowSpacing.lg);
 
           if (compact) {
             final artwork = SizedBox.square(
@@ -291,7 +291,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Center(child: artwork),
-                  SizedBox(height: context.echoSpacing.sm),
+                  SizedBox(height: context.musicFlowSpacing.sm),
                   _AlbumInformation(
                     album: album,
                     songs: songs,
@@ -340,7 +340,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: <Widget>[
                       artwork,
-                      SizedBox(width: context.echoSpacing.xl),
+                      SizedBox(width: context.musicFlowSpacing.xl),
                       Expanded(child: information),
                     ],
                   )
@@ -348,7 +348,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       Center(child: artwork),
-                      SizedBox(height: context.echoSpacing.lg),
+                      SizedBox(height: context.musicFlowSpacing.lg),
                       information,
                     ],
                   ),
@@ -395,13 +395,13 @@ class _AlbumInformation extends StatelessWidget {
                 ? TextOverflow.ellipsis
                 : TextOverflow.visible,
             style: compact
-                ? context.echoTypography.headline
-                : context.echoTypography.display,
+                ? context.musicFlowTypography.headline
+                : context.musicFlowTypography.display,
           ),
         ),
         if (artist != null && artist.isNotEmpty) ...<Widget>[
           SizedBox(
-            height: compact ? context.echoSpacing.xxs : context.echoSpacing.xs,
+            height: compact ? context.musicFlowSpacing.xxs : context.musicFlowSpacing.xs,
           ),
           Text(
             artist,
@@ -411,32 +411,32 @@ class _AlbumInformation extends StatelessWidget {
                 : TextOverflow.visible,
             style:
                 (compact
-                        ? context.echoTypography.body.copyWith(
+                        ? context.musicFlowTypography.body.copyWith(
                             fontWeight: FontWeight.w500,
                           )
-                        : context.echoTypography.title)
-                    .copyWith(color: context.echoColors.muted),
+                        : context.musicFlowTypography.title)
+                    .copyWith(color: context.musicFlowColors.muted),
           ),
         ],
         SizedBox(
-          height: compact ? context.echoSpacing.xs : context.echoSpacing.sm,
+          height: compact ? context.musicFlowSpacing.xs : context.musicFlowSpacing.sm,
         ),
         Wrap(
-          spacing: context.echoSpacing.xs,
-          runSpacing: context.echoSpacing.xxs,
+          spacing: context.musicFlowSpacing.xs,
+          runSpacing: context.musicFlowSpacing.xxs,
           children: <Widget>[
             for (final item in metadata)
               Text(
                 item,
-                style: context.echoTypography.metadata.copyWith(
-                  color: context.echoColors.muted,
+                style: context.musicFlowTypography.metadata.copyWith(
+                  color: context.musicFlowColors.muted,
                 ),
               ),
           ],
         ),
         if (actions != null) ...<Widget>[
           SizedBox(
-            height: compact ? context.echoSpacing.sm : context.echoSpacing.lg,
+            height: compact ? context.musicFlowSpacing.sm : context.musicFlowSpacing.lg,
           ),
           actions!,
         ],
@@ -461,22 +461,22 @@ class _AlbumActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: context.echoSpacing.xs,
-      runSpacing: context.echoSpacing.xs,
+      spacing: context.musicFlowSpacing.xs,
+      runSpacing: context.musicFlowSpacing.xs,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
-        EchoButton.primary(
+        MusicFlowButton.primary(
           label: '播放全部',
           leadingIcon: AppIcons.play,
           onPressed: onPlay,
         ),
-        EchoIconButton(
+        MusicFlowIconButton(
           icon: album.starred ? AppIcons.heart : AppIcons.heartOutline,
           label: album.starred ? '取消收藏专辑' : '收藏专辑',
           selected: album.starred,
           onPressed: onToggleStarred,
         ),
-        EchoIconButton(
+        MusicFlowIconButton(
           icon: AppIcons.downloadOutline,
           label: '下载专辑',
           onPressed: onDownload,

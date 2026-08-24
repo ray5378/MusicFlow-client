@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:musicflow_client/core/design/tokens/echo_breakpoints.dart';
-import 'package:musicflow_client/core/design/tokens/echo_colors.dart';
-import 'package:musicflow_client/core/design/tokens/echo_interaction.dart';
-import 'package:musicflow_client/core/design/tokens/echo_motion.dart';
-import 'package:musicflow_client/core/design/tokens/echo_radii.dart';
-import 'package:musicflow_client/core/design/tokens/echo_spacing.dart';
-import 'package:musicflow_client/core/design/tokens/echo_typography.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_breakpoints.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_interaction.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_motion.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_radii.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_spacing.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_typography.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
 import 'package:flutter/material.dart';
@@ -73,7 +73,7 @@ void main() {
 
         for (final (foreground, background) in pairs) {
           expect(
-            EchoColors.contrastRatio(foreground, background),
+            MusicFlowColors.contrastRatio(foreground, background),
             greaterThanOrEqualTo(4.5),
           );
         }
@@ -84,14 +84,14 @@ void main() {
   group('AppTheme compatibility bridge', () {
     test('registers every Echo token extension in both brightness modes', () {
       for (final theme in [AppTheme.light(), AppTheme.dark()]) {
-        final colors = theme.extension<EchoColors>()!;
+        final colors = theme.extension<MusicFlowColors>()!;
 
-        expect(theme.extension<EchoTypography>(), isNotNull);
-        expect(theme.extension<EchoSpacing>(), EchoSpacing.standard);
-        expect(theme.extension<EchoRadii>(), EchoRadii.standard);
-        expect(theme.extension<EchoMotion>(), EchoMotion.standard);
-        expect(theme.extension<EchoInteraction>(), EchoInteraction.standard);
-        expect(theme.extension<EchoBreakpoints>(), EchoBreakpoints.standard);
+        expect(theme.extension<MusicFlowTypography>(), isNotNull);
+        expect(theme.extension<MusicFlowSpacing>(), MusicFlowSpacing.standard);
+        expect(theme.extension<MusicFlowRadii>(), MusicFlowRadii.standard);
+        expect(theme.extension<MusicFlowMotion>(), MusicFlowMotion.standard);
+        expect(theme.extension<MusicFlowInteraction>(), MusicFlowInteraction.standard);
+        expect(theme.extension<MusicFlowBreakpoints>(), MusicFlowBreakpoints.standard);
         expect(theme.colorScheme.primary, colors.accent);
         expect(theme.colorScheme.surface, colors.surface);
         expect(theme.scaffoldBackgroundColor, colors.canvas);

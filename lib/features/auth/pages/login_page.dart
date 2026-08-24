@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/server_url_security.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../providers/auth_provider.dart';
@@ -107,7 +107,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final confirmed = await showEchoBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
-      builder: (sheetContext) => EchoBottomSheet(
+      builder: (sheetContext) => MusicFlowBottomSheet(
         title: 'HTTP 连接不安全',
         subtitle: serverUrl,
         child: Column(
@@ -117,18 +117,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             Text(
               'HTTP 不会加密传输。密码、API Key、令牌以及媒体请求都可能被同一网络中的其他人窃听或篡改。'
               '仅当你信任当前网络和该服务器时才继续。',
-              style: context.echoTypography.body.copyWith(
-                color: context.echoColors.muted,
+              style: context.musicFlowTypography.body.copyWith(
+                color: context.musicFlowColors.muted,
               ),
             ),
-            SizedBox(height: context.echoSpacing.lg),
-            EchoButton.destructive(
+            SizedBox(height: context.musicFlowSpacing.lg),
+            MusicFlowButton.destructive(
               label: '仍然继续',
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(true),
             ),
-            SizedBox(height: context.echoSpacing.xs),
-            EchoButton.ghost(
+            SizedBox(height: context.musicFlowSpacing.xs),
+            MusicFlowButton.ghost(
               label: '取消',
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(false),
@@ -144,7 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _showError(String message) {
     if (!mounted) return;
-    showEchoMessage(context, message, kind: EchoMessageKind.error);
+    showEchoMessage(context, message, kind: MusicFlowMessageKind.error);
   }
 
   @override
@@ -158,12 +158,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       ref.read(authStateProvider.notifier).clearError();
     });
 
-    return EchoScaffold(
-      topBar: EchoTopBar(
+    return MusicFlowScaffold(
+      topBar: MusicFlowTopBar(
         title: '连接到服务器',
         subtitle: _currentStep == 0 ? '先确认服务器地址' : '输入认证信息',
         leading: context.canPop()
-            ? EchoIconButton(
+            ? MusicFlowIconButton(
                 icon: AppIcons.back,
                 label: '返回',
                 onPressed: context.pop,
@@ -177,11 +177,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             return SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
-                context.echoPageHorizontalPadding,
-                context.echoSpacing.sm,
-                context.echoPageHorizontalPadding,
+                context.musicFlowPageHorizontalPadding,
+                context.musicFlowSpacing.sm,
+                context.musicFlowPageHorizontalPadding,
                 MediaQuery.viewInsetsOf(context).bottom +
-                    context.echoSpacing.xxl,
+                    context.musicFlowSpacing.xxl,
               ),
               child: Center(
                 child: ConstrainedBox(
@@ -190,13 +190,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       _LoginStepIndicator(currentStep: _currentStep),
-                      SizedBox(height: context.echoSpacing.xl),
+                      SizedBox(height: context.musicFlowSpacing.xl),
                       if (_currentStep == 0)
                         _buildServerStep()
                       else
                         _buildAuthenticationStep(),
-                      SizedBox(height: context.echoSpacing.lg),
-                      EchoButton.primary(
+                      SizedBox(height: context.musicFlowSpacing.lg),
+                      MusicFlowButton.primary(
                         label: _isDetecting
                             ? '正在检测…'
                             : authState.isLoading
@@ -215,8 +215,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             : _login,
                       ),
                       if (_currentStep > 0) ...<Widget>[
-                        SizedBox(height: context.echoSpacing.xs),
-                        EchoButton.ghost(
+                        SizedBox(height: context.musicFlowSpacing.xs),
+                        MusicFlowButton.ghost(
                           label: '上一步',
                           leadingIcon: AppIcons.back,
                           expand: true,
@@ -242,12 +242,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const EchoSectionHeader(
+          const MusicFlowSectionHeader(
             title: '服务器',
             description: 'MusicFlow 会先探测服务器能力，再决定可用的认证方式。',
           ),
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
+          SizedBox(height: context.musicFlowSpacing.md),
+          MusicFlowTextField(
             controller: _serverUrlController,
             label: '服务器地址',
             hintText: 'https://your-server.com',
@@ -265,8 +265,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               return null;
             },
           ),
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
+          SizedBox(height: context.musicFlowSpacing.md),
+          MusicFlowTextField(
             controller: _libraryNameController,
             label: '音乐库名称（可选）',
             hintText: '例如：家庭 NAS',
@@ -274,8 +274,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             leadingIcon: AppIcons.library,
             textInputAction: TextInputAction.next,
           ),
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
+          SizedBox(height: context.musicFlowSpacing.md),
+          MusicFlowTextField(
             controller: _addressLabelController,
             label: '线路名称（可选）',
             hintText: '例如：主线路 / 家里',
@@ -285,7 +285,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             onSubmitted: (_) => _detectServer(),
           ),
           if (_isDetecting) ...<Widget>[
-            SizedBox(height: context.echoSpacing.md),
+            SizedBox(height: context.musicFlowSpacing.md),
             const _LoginBusyStatus(label: '正在检测服务器能力', icon: AppIcons.route),
           ],
         ],
@@ -302,29 +302,29 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const EchoSectionHeader(
+          const MusicFlowSectionHeader(
             title: '认证信息',
             description: '认证信息只用于连接你的音乐服务器。',
           ),
           if (capabilities?.isOpenSubsonic == true) ...<Widget>[
-            SizedBox(height: context.echoSpacing.md),
-            EchoSurface(
-              level: EchoSurfaceLevel.raised,
-              borderColor: context.echoColors.controlBoundary,
-              padding: EdgeInsets.all(context.echoSpacing.sm),
+            SizedBox(height: context.musicFlowSpacing.md),
+            MusicFlowSurface(
+              level: MusicFlowSurfaceLevel.raised,
+              borderColor: context.musicFlowColors.controlBoundary,
+              padding: EdgeInsets.all(context.musicFlowSpacing.sm),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   SizedBox.square(
-                    dimension: context.echoInteraction.minimumTouchTarget,
+                    dimension: context.musicFlowInteraction.minimumTouchTarget,
                     child: Center(
                       child: Icon(
                         AppIcons.checkCircle,
-                        color: context.echoColors.accent,
+                        color: context.musicFlowColors.accent,
                       ),
                     ),
                   ),
-                  SizedBox(width: context.echoSpacing.xs),
+                  SizedBox(width: context.musicFlowSpacing.xs),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,13 +332,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       children: <Widget>[
                         Text(
                           '已检测到 OpenSubsonic',
-                          style: context.echoTypography.title,
+                          style: context.musicFlowTypography.title,
                         ),
-                        SizedBox(height: context.echoSpacing.xxs),
+                        SizedBox(height: context.musicFlowSpacing.xxs),
                         Text(
                           capabilities?.serverType ?? '未知服务器类型',
-                          style: context.echoTypography.body.copyWith(
-                            color: context.echoColors.muted,
+                          style: context.musicFlowTypography.body.copyWith(
+                            color: context.musicFlowColors.muted,
                           ),
                         ),
                       ],
@@ -348,8 +348,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ),
           ],
-          SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
+          SizedBox(height: context.musicFlowSpacing.md),
+          MusicFlowTextField(
             controller: _usernameController,
             label: '用户名',
             leadingIcon: AppIcons.profile,
@@ -360,8 +360,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             },
           ),
           if (supportsApiKey) ...<Widget>[
-            SizedBox(height: context.echoSpacing.md),
-            EchoTextField(
+            SizedBox(height: context.musicFlowSpacing.md),
+            MusicFlowTextField(
               controller: _apiKeyController,
               label: 'API Key（推荐）',
               helperText: '填写 API Key 后将优先使用 API Key 认证。',
@@ -370,28 +370,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               textInputAction: TextInputAction.next,
             ),
             Padding(
-              padding: EdgeInsets.symmetric(vertical: context.echoSpacing.md),
+              padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.md),
               child: Row(
                 children: <Widget>[
-                  const Expanded(child: EchoDivider()),
+                  const Expanded(child: MusicFlowDivider()),
                   Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: context.echoSpacing.sm,
+                      horizontal: context.musicFlowSpacing.sm,
                     ),
                     child: Text(
                       '或使用密码',
-                      style: context.echoTypography.metadata.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.metadata.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                   ),
-                  const Expanded(child: EchoDivider()),
+                  const Expanded(child: MusicFlowDivider()),
                 ],
               ),
             ),
           ] else
-            SizedBox(height: context.echoSpacing.md),
-          EchoTextField(
+            SizedBox(height: context.musicFlowSpacing.md),
+          MusicFlowTextField(
             controller: _passwordController,
             label: '密码',
             leadingIcon: AppIcons.shield,
@@ -407,7 +407,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             },
           ),
           if (ref.watch(authStateProvider).isLoading) ...<Widget>[
-            SizedBox(height: context.echoSpacing.md),
+            SizedBox(height: context.musicFlowSpacing.md),
             const _LoginBusyStatus(label: '正在验证认证信息', icon: AppIcons.key),
           ],
         ],
@@ -438,13 +438,13 @@ class _LoginStepIndicator extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: context.echoSpacing.xs),
+              padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.xs),
               child: SizedBox(
                 width: 32,
-                child: EchoDivider(
+                child: MusicFlowDivider(
                   color: currentStep > 0
-                      ? context.echoColors.accent
-                      : context.echoColors.divider,
+                      ? context.musicFlowColors.accent
+                      : context.musicFlowColors.divider,
                 ),
               ),
             ),
@@ -478,7 +478,7 @@ class _LoginStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     final highlighted = active || complete;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -488,7 +488,7 @@ class _LoginStep extends StatelessWidget {
             color: highlighted
                 ? colors.accent.withValues(alpha: 0.14)
                 : colors.raised,
-            borderRadius: context.echoRadii.pill,
+            borderRadius: context.musicFlowRadii.pill,
             border: Border.all(
               color: highlighted ? colors.accent : colors.controlBoundary,
             ),
@@ -500,18 +500,18 @@ class _LoginStep extends StatelessWidget {
                   ? Icon(AppIcons.check, size: 18, color: colors.accent)
                   : Text(
                       '$number',
-                      style: context.echoTypography.label.copyWith(
+                      style: context.musicFlowTypography.label.copyWith(
                         color: highlighted ? colors.accent : colors.muted,
                       ),
                     ),
             ),
           ),
         ),
-        SizedBox(width: context.echoSpacing.xs),
+        SizedBox(width: context.musicFlowSpacing.xs),
         Flexible(
           child: Text(
             label,
-            style: context.echoTypography.label.copyWith(
+            style: context.musicFlowTypography.label.copyWith(
               color: highlighted ? colors.ink : colors.muted,
             ),
           ),
@@ -536,20 +536,20 @@ class _LoginBusyStatus extends StatelessWidget {
         child: Row(
           children: <Widget>[
             SizedBox.square(
-              dimension: context.echoInteraction.minimumTouchTarget,
+              dimension: context.musicFlowInteraction.minimumTouchTarget,
               child: Center(
-                child: Icon(icon, size: 20, color: context.echoColors.accent),
+                child: Icon(icon, size: 20, color: context.musicFlowColors.accent),
               ),
             ),
-            SizedBox(width: context.echoSpacing.xs),
+            SizedBox(width: context.musicFlowSpacing.xs),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Text(label, style: context.echoTypography.body),
-                  SizedBox(height: context.echoSpacing.xs),
-                  const EchoSkeleton.line(height: 4),
+                  Text(label, style: context.musicFlowTypography.body),
+                  SizedBox(height: context.musicFlowSpacing.xs),
+                  const MusicFlowSkeleton.line(height: 4),
                 ],
               ),
             ),

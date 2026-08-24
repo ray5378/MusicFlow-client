@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
@@ -42,14 +42,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final colors = theme.extension<EchoColors>()!;
+      final colors = theme.extension<MusicFlowColors>()!;
       final background = headerColor(tester);
       expect(
-        EchoColors.contrastRatio(colors.ink, background),
+        MusicFlowColors.contrastRatio(colors.ink, background),
         greaterThanOrEqualTo(4.5),
       );
       expect(
-        EchoColors.contrastRatio(colors.muted, background),
+        MusicFlowColors.contrastRatio(colors.muted, background),
         greaterThanOrEqualTo(4.5),
       );
       expect(background, isNot(colors.canvas));
@@ -59,7 +59,7 @@ void main() {
               find.byKey(const ValueKey<String>('media-detail-header-surface')),
             )
             .duration,
-        EchoMotion.standard.state,
+        MusicFlowMotion.standard.state,
       );
     }
   });
@@ -104,9 +104,9 @@ void main() {
       'https://images.example.test/preview.jpg',
     );
     expect(resolved, isNot(fallback));
-    final colors = AppTheme.light().extension<EchoColors>()!;
+    final colors = AppTheme.light().extension<MusicFlowColors>()!;
     expect(
-      EchoColors.contrastRatio(colors.ink, resolved),
+      MusicFlowColors.contrastRatio(colors.ink, resolved),
       greaterThanOrEqualTo(4.5),
     );
   });

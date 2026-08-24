@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../core/design/echo_design.dart';
+import '../core/design/music_flow_design.dart';
 import '../core/network/connectivity_monitor.dart';
 import '../core/utils/logger.dart';
 import '../data/models/server_address.dart';
@@ -22,9 +22,9 @@ import '../providers/navigation_provider.dart';
 import '../providers/random_songs_push_provider.dart';
 import '../providers/status_lyrics_provider.dart';
 import 'app_drawer.dart';
-import 'echo_app_shell/echo_app_shell.dart';
-import 'echo_app_shell/echo_network_status_bar.dart';
-import 'echo_app_shell/echo_shell_navigation.dart';
+import 'music_flow_app_shell/music_flow_app_shell.dart';
+import 'music_flow_app_shell/music_flow_network_status_bar.dart';
+import 'music_flow_app_shell/music_flow_shell_navigation.dart';
 import 'windows_title_bar.dart';
 
 // GlobalKey used to access Scaffold state (e.g. opening drawer).
@@ -52,7 +52,7 @@ void openEchoAppDrawer() {
 /// duplicate control and a confusing accessibility traversal order.
 bool shouldShowPageDrawerTrigger(BuildContext context) {
   final width = MediaQuery.sizeOf(context).width;
-  return context.echoBreakpoints.classify(width) == EchoWindowClass.compact;
+  return context.musicFlowBreakpoints.classify(width) == MusicFlowWindowClass.compact;
 }
 
 void _restoreEchoAppDrawerFocus() {
@@ -66,7 +66,7 @@ void _restoreEchoAppDrawerFocus() {
   triggerFocus.requestFocus();
 }
 
-enum EchoBackAction {
+enum MusicFlowBackAction {
   closeDrawer,
   popRootNavigator,
   popBranchNavigator,
@@ -75,22 +75,22 @@ enum EchoBackAction {
 }
 
 @visibleForTesting
-EchoBackAction resolveEchoBackAction({
+MusicFlowBackAction resolveEchoBackAction({
   required bool drawerOpen,
   required bool rootCanPop,
   required bool branchCanPop,
   required int currentBranchIndex,
 }) {
-  if (drawerOpen) return EchoBackAction.closeDrawer;
-  if (rootCanPop) return EchoBackAction.popRootNavigator;
-  if (branchCanPop) return EchoBackAction.popBranchNavigator;
+  if (drawerOpen) return MusicFlowBackAction.closeDrawer;
+  if (rootCanPop) return MusicFlowBackAction.popRootNavigator;
+  if (branchCanPop) return MusicFlowBackAction.popBranchNavigator;
   if (currentBranchIndex != discoverBranchIndex) {
-    return EchoBackAction.switchToDiscover;
+    return MusicFlowBackAction.switchToDiscover;
   }
-  return EchoBackAction.moveAppToBackground;
+  return MusicFlowBackAction.moveAppToBackground;
 }
 
-const EchoShellDestination _discoverDestination = EchoShellDestination(
+const MusicFlowShellDestination _discoverDestination = MusicFlowShellDestination(
   branchIndex: discoverBranchIndex,
   label: '音乐流',
   icon: AppIcons.home,
@@ -98,8 +98,8 @@ const EchoShellDestination _discoverDestination = EchoShellDestination(
 );
 
 @visibleForTesting
-List<EchoShellDestination> echoMainDestinations() {
-  return <EchoShellDestination>[_discoverDestination];
+List<MusicFlowShellDestination> musicFlowMainDestinations() {
+  return <MusicFlowShellDestination>[_discoverDestination];
 }
 
 class MainScaffold extends ConsumerStatefulWidget {
@@ -126,7 +126,7 @@ class MainScaffold extends ConsumerStatefulWidget {
   final bool? showMiniPlayerOverride;
 
   @visibleForTesting
-  final EchoNetworkStatus? networkStatusOverride;
+  final MusicFlowNetworkStatus? networkStatusOverride;
 
   @override
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
@@ -226,14 +226,14 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     _observedNetworkType = null;
   }
 
-  EchoNetworkStatus _resolveNetworkStatus({
+  MusicFlowNetworkStatus _resolveNetworkStatus({
     required bool activeAddressIsHealthy,
   }) {
     final networkType = _observedNetworkType;
-    if (networkType == null) return EchoNetworkStatus.online;
-    if (networkType == NetworkType.none) return EchoNetworkStatus.offline;
-    if (!activeAddressIsHealthy) return EchoNetworkStatus.weak;
-    return EchoNetworkStatus.online;
+    if (networkType == null) return MusicFlowNetworkStatus.online;
+    if (networkType == NetworkType.none) return MusicFlowNetworkStatus.offline;
+    if (!activeAddressIsHealthy) return MusicFlowNetworkStatus.weak;
+    return MusicFlowNetworkStatus.online;
   }
 
   void _scheduleVisibleBranchSync() {
@@ -298,22 +298,22 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     );
 
     switch (action) {
-      case EchoBackAction.closeDrawer:
+      case MusicFlowBackAction.closeDrawer:
         Logger.infoWithTag(_logTag, 'drawer is open, closing drawer');
         scaffold?.closeDrawer();
-      case EchoBackAction.popRootNavigator:
+      case MusicFlowBackAction.popRootNavigator:
         Logger.infoWithTag(_logTag, 'root navigator can pop, popping');
         rootNavigator.pop();
-      case EchoBackAction.popBranchNavigator:
+      case MusicFlowBackAction.popBranchNavigator:
         Logger.infoWithTag(_logTag, 'branch $index can pop, popping');
         branchNavigator?.pop();
-      case EchoBackAction.switchToDiscover:
+      case MusicFlowBackAction.switchToDiscover:
         Logger.infoWithTag(
           _logTag,
           'non-home branch root reached (index=$index), switching to home tab',
         );
         _goToBranch(discoverBranchIndex);
-      case EchoBackAction.moveAppToBackground:
+      case MusicFlowBackAction.moveAppToBackground:
         Logger.infoWithTag(
           _logTag,
           'home branch root reached (index=0), move app to background',
@@ -350,7 +350,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         widget.networkStatusOverride ??
         _resolveNetworkStatus(activeAddressIsHealthy: activeAddressIsHealthy);
     final currentBranchIndex = widget.navigationShell.currentIndex;
-    final destinations = echoMainDestinations();
+    final destinations = musicFlowMainDestinations();
     final currentBranchIsVisible = destinations.any(
       (destination) => destination.branchIndex == currentBranchIndex,
     );
@@ -366,7 +366,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           // Windows 桌面端去掉系统标题栏后,顶部自绘标题栏(拖拽/最小化/最大化/关闭)。
           const WindowsTitleBar(),
           Expanded(
-            child: EchoAppShell(
+            child: MusicFlowAppShell(
               scaffoldKey: scaffoldKey,
               drawer:
                   widget.drawerOverride ??
@@ -399,35 +399,35 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
 
 /// 侧栏「曲库」快捷入口(宽屏)。点击直接打开对应列表页,
 /// 页面内部为窗口化分页加载。对标主项目 web 端侧栏。
-List<EchoSidebarLibraryEntry> _libraryEntries(BuildContext context) {
+List<MusicFlowSidebarLibraryEntry> _libraryEntries(BuildContext context) {
   Future<void> open(Widget page) async {
     Navigator.of(context).push<void>(
-      EchoPageRoute<void>(context: context, builder: (_) => page),
+      MusicFlowPageRoute<void>(context: context, builder: (_) => page),
     );
   }
 
-  return <EchoSidebarLibraryEntry>[
-    EchoSidebarLibraryEntry(
+  return <MusicFlowSidebarLibraryEntry>[
+    MusicFlowSidebarLibraryEntry(
       label: '歌单',
       icon: AppIcons.playlist,
       onTap: () => unawaited(open(const PlaylistSearchPage())),
     ),
-    EchoSidebarLibraryEntry(
+    MusicFlowSidebarLibraryEntry(
       label: '音乐',
       icon: AppIcons.headphones,
       onTap: () => unawaited(open(const SongListPage())),
     ),
-    EchoSidebarLibraryEntry(
+    MusicFlowSidebarLibraryEntry(
       label: '艺术家',
       icon: AppIcons.profile,
       onTap: () => unawaited(open(const ArtistListPage())),
     ),
-    EchoSidebarLibraryEntry(
+    MusicFlowSidebarLibraryEntry(
       label: '专辑',
       icon: AppIcons.album,
       onTap: () => unawaited(open(const AlbumListPage())),
     ),
-    EchoSidebarLibraryEntry(
+    MusicFlowSidebarLibraryEntry(
       label: '我喜欢',
       icon: AppIcons.heart,
       onTap: () => unawaited(open(const StarredPage())),

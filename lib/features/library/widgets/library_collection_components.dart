@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/artist.dart';
 import '../../../widgets/cover_art_image.dart';
 
-class EchoAlbumTile extends StatelessWidget {
-  const EchoAlbumTile({
+class MusicFlowAlbumTile extends StatelessWidget {
+  const MusicFlowAlbumTile({
     super.key,
     required this.album,
     required this.onPressed,
@@ -30,14 +30,14 @@ class EchoAlbumTile extends StatelessWidget {
       if (album.starred) '已收藏',
     ].join('，');
 
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: semanticLabel,
       onPressed: onPressed,
       onLongPress: onLongPress,
       minimumSize: const Size(96, 96),
-      borderRadius: context.echoRadii.control,
+      borderRadius: context.musicFlowRadii.control,
       child: Padding(
-        padding: EdgeInsets.only(bottom: context.echoSpacing.xs),
+        padding: EdgeInsets.only(bottom: context.musicFlowSpacing.xs),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -48,7 +48,7 @@ class EchoAlbumTile extends StatelessWidget {
                 fit: StackFit.expand,
                 children: <Widget>[
                   ClipRRect(
-                    borderRadius: context.echoRadii.control,
+                    borderRadius: context.musicFlowRadii.control,
                     child: CoverArtImage(
                       coverArtId: album.coverArt,
                       requestSize: 420,
@@ -58,22 +58,22 @@ class EchoAlbumTile extends StatelessWidget {
                   ),
                   if (album.starred)
                     PositionedDirectional(
-                      start: context.echoSpacing.xs,
-                      bottom: context.echoSpacing.xs,
+                      start: context.musicFlowSpacing.xs,
+                      bottom: context.musicFlowSpacing.xs,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: context.echoColors.surface,
-                          borderRadius: context.echoRadii.pill,
+                          color: context.musicFlowColors.surface,
+                          borderRadius: context.musicFlowRadii.pill,
                           border: Border.all(
-                            color: context.echoColors.controlBoundary,
+                            color: context.musicFlowColors.controlBoundary,
                           ),
                         ),
                         child: Padding(
-                          padding: EdgeInsets.all(context.echoSpacing.xxs),
+                          padding: EdgeInsets.all(context.musicFlowSpacing.xxs),
                           child: Icon(
                             AppIcons.heart,
                             size: 16,
-                            color: context.echoColors.error,
+                            color: context.musicFlowColors.error,
                           ),
                         ),
                       ),
@@ -81,21 +81,21 @@ class EchoAlbumTile extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(height: context.echoSpacing.xs),
+            SizedBox(height: context.musicFlowSpacing.xs),
             Text(
               album.name,
               maxLines: allowFullText ? null : 2,
               overflow: allowFullText ? null : TextOverflow.ellipsis,
-              style: context.echoTypography.title,
+              style: context.musicFlowTypography.title,
             ),
             if (artist.isNotEmpty) ...<Widget>[
-              SizedBox(height: context.echoSpacing.xxs),
+              SizedBox(height: context.musicFlowSpacing.xxs),
               Text(
                 artist,
                 maxLines: allowFullText ? null : 2,
                 overflow: allowFullText ? null : TextOverflow.ellipsis,
-                style: context.echoTypography.metadata.copyWith(
-                  color: context.echoColors.muted,
+                style: context.musicFlowTypography.metadata.copyWith(
+                  color: context.musicFlowColors.muted,
                 ),
               ),
             ],
@@ -106,8 +106,8 @@ class EchoAlbumTile extends StatelessWidget {
   }
 }
 
-class EchoAlbumRow extends StatelessWidget {
-  const EchoAlbumRow({
+class MusicFlowAlbumRow extends StatelessWidget {
+  const MusicFlowAlbumRow({
     super.key,
     required this.album,
     required this.onPressed,
@@ -125,7 +125,7 @@ class EchoAlbumRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final artist = album.artist?.trim() ?? '';
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: <String>[
         '专辑 ${album.name}',
         if (artist.isNotEmpty) artist,
@@ -135,21 +135,21 @@ class EchoAlbumRow extends StatelessWidget {
       onLongPress: onLongPress,
       minimumSize: Size(
         double.infinity,
-        context.echoInteraction.expandedSongRowHeight,
+        context.musicFlowInteraction.expandedSongRowHeight,
       ),
       borderRadius: BorderRadius.zero,
       child: Padding(
         padding:
             contentPadding ??
             EdgeInsets.symmetric(
-              horizontal: context.echoPageHorizontalPadding,
-              vertical: context.echoSpacing.xs,
+              horizontal: context.musicFlowPageHorizontalPadding,
+              vertical: context.musicFlowSpacing.xs,
             ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             ClipRRect(
-              borderRadius: context.echoRadii.detail,
+              borderRadius: context.musicFlowRadii.detail,
               child: CoverArtImage(
                 coverArtId: album.coverArt,
                 size: 72,
@@ -157,7 +157,7 @@ class EchoAlbumRow extends StatelessWidget {
                 semanticLabel: '${album.name} 封面',
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -169,32 +169,32 @@ class EchoAlbumRow extends StatelessWidget {
                     overflow: allowFullText
                         ? TextOverflow.visible
                         : TextOverflow.ellipsis,
-                    style: context.echoTypography.title,
+                    style: context.musicFlowTypography.title,
                   ),
                   if (artist.isNotEmpty) ...<Widget>[
-                    SizedBox(height: context.echoSpacing.xxs),
+                    SizedBox(height: context.musicFlowSpacing.xxs),
                     Text(
                       artist,
                       maxLines: allowFullText ? null : 1,
                       overflow: allowFullText
                           ? TextOverflow.visible
                           : TextOverflow.ellipsis,
-                      style: context.echoTypography.body.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.body.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            SizedBox(width: context.echoSpacing.xs),
+            SizedBox(width: context.musicFlowSpacing.xs),
             if (album.starred)
-              Icon(AppIcons.heart, size: 18, color: context.echoColors.error),
-            SizedBox(width: context.echoSpacing.xs),
+              Icon(AppIcons.heart, size: 18, color: context.musicFlowColors.error),
+            SizedBox(width: context.musicFlowSpacing.xs),
             Icon(
               AppIcons.chevronRight,
               size: 20,
-              color: context.echoColors.muted,
+              color: context.musicFlowColors.muted,
             ),
           ],
         ),
@@ -203,8 +203,8 @@ class EchoAlbumRow extends StatelessWidget {
   }
 }
 
-class EchoArtistRow extends StatelessWidget {
-  const EchoArtistRow({
+class MusicFlowArtistRow extends StatelessWidget {
+  const MusicFlowArtistRow({
     super.key,
     required this.artist,
     required this.onPressed,
@@ -218,7 +218,7 @@ class EchoArtistRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final albumCount = artist.albumCount;
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: <String>[
         '歌手 ${artist.name}',
         if (albumCount != null) '$albumCount 张专辑',
@@ -226,44 +226,44 @@ class EchoArtistRow extends StatelessWidget {
       onPressed: onPressed,
       minimumSize: Size(
         double.infinity,
-        context.echoInteraction.expandedSongRowHeight,
+        context.musicFlowInteraction.expandedSongRowHeight,
       ),
       borderRadius: BorderRadius.zero,
       child: Padding(
         padding:
             contentPadding ??
             EdgeInsets.symmetric(
-              horizontal: context.echoPageHorizontalPadding,
-              vertical: context.echoSpacing.xs,
+              horizontal: context.musicFlowPageHorizontalPadding,
+              vertical: context.musicFlowSpacing.xs,
             ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             ClipOval(child: _ArtistImage(artist: artist)),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(artist.name, style: context.echoTypography.title),
+                  Text(artist.name, style: context.musicFlowTypography.title),
                   if (albumCount != null) ...<Widget>[
-                    SizedBox(height: context.echoSpacing.xxs),
+                    SizedBox(height: context.musicFlowSpacing.xxs),
                     Text(
                       '$albumCount 张专辑',
-                      style: context.echoTypography.metadata.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.metadata.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            SizedBox(width: context.echoSpacing.xs),
+            SizedBox(width: context.musicFlowSpacing.xs),
             Icon(
               AppIcons.chevronRight,
               size: 20,
-              color: context.echoColors.muted,
+              color: context.musicFlowColors.muted,
             ),
           ],
         ),
@@ -282,14 +282,14 @@ class _ArtistImage extends StatelessWidget {
     final coverArt = artist.coverArt?.trim() ?? '';
     if (coverArt.isEmpty) {
       return ColoredBox(
-        color: context.echoColors.raised,
+        color: context.musicFlowColors.raised,
         child: SizedBox.square(
           dimension: 56,
           child: Center(
             child: Icon(
               AppIcons.profile,
               size: 24,
-              color: context.echoColors.muted,
+              color: context.musicFlowColors.muted,
             ),
           ),
         ),
@@ -304,8 +304,8 @@ class _ArtistImage extends StatelessWidget {
   }
 }
 
-class EchoLibrarySectionLabel extends StatelessWidget {
-  const EchoLibrarySectionLabel({super.key, required this.label});
+class MusicFlowLibrarySectionLabel extends StatelessWidget {
+  const MusicFlowLibrarySectionLabel({super.key, required this.label});
 
   final String label;
 
@@ -315,20 +315,20 @@ class EchoLibrarySectionLabel extends StatelessWidget {
       header: true,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: context.echoColors.canvas,
-          border: Border(bottom: BorderSide(color: context.echoColors.divider)),
+          color: context.musicFlowColors.canvas,
+          border: Border(bottom: BorderSide(color: context.musicFlowColors.divider)),
         ),
         child: Padding(
           padding: EdgeInsetsDirectional.fromSTEB(
-            context.echoPageHorizontalPadding,
-            context.echoSpacing.xs,
+            context.musicFlowPageHorizontalPadding,
+            context.musicFlowSpacing.xs,
             44,
-            context.echoSpacing.xs,
+            context.musicFlowSpacing.xs,
           ),
           child: Text(
             label,
-            style: context.echoTypography.label.copyWith(
-              color: context.echoColors.accent,
+            style: context.musicFlowTypography.label.copyWith(
+              color: context.musicFlowColors.accent,
             ),
           ),
         ),
@@ -337,28 +337,28 @@ class EchoLibrarySectionLabel extends StatelessWidget {
   }
 }
 
-typedef EchoAzRevealBuilder =
+typedef MusicFlowAzRevealBuilder =
     Widget Function(BuildContext context, double opacity, bool visible);
 
 /// Reveals the alphabetical rail while the user scrolls or touches its edge.
 ///
 /// The rail remains laid out while visually hidden so the first drag can jump
 /// immediately instead of merely revealing the control for a second gesture.
-class EchoAzIndexReveal extends StatefulWidget {
-  const EchoAzIndexReveal({
+class MusicFlowAzIndexReveal extends StatefulWidget {
+  const MusicFlowAzIndexReveal({
     super.key,
     required this.builder,
     this.enabled = true,
   });
 
-  final EchoAzRevealBuilder builder;
+  final MusicFlowAzRevealBuilder builder;
   final bool enabled;
 
   @override
-  State<EchoAzIndexReveal> createState() => _EchoAzIndexRevealState();
+  State<MusicFlowAzIndexReveal> createState() => _EchoAzIndexRevealState();
 }
 
-class _EchoAzIndexRevealState extends State<EchoAzIndexReveal> {
+class _EchoAzIndexRevealState extends State<MusicFlowAzIndexReveal> {
   static const Duration _lingerDuration = Duration(milliseconds: 1200);
   static const double _edgeActivationWidth = 40;
 
@@ -367,7 +367,7 @@ class _EchoAzIndexRevealState extends State<EchoAzIndexReveal> {
   bool _pointerActive = false;
 
   @override
-  void didUpdateWidget(covariant EchoAzIndexReveal oldWidget) {
+  void didUpdateWidget(covariant MusicFlowAzIndexReveal oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.enabled && !widget.enabled) {
       _hideTimer?.cancel();
@@ -427,11 +427,11 @@ class _EchoAzIndexRevealState extends State<EchoAzIndexReveal> {
             },
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(end: _visible ? 1 : 0),
-              duration: context.echoMotion.resolve(
+              duration: context.musicFlowMotion.resolve(
                 context,
-                context.echoMotion.feedback,
+                context.musicFlowMotion.feedback,
               ),
-              curve: context.echoMotion.easeOut,
+              curve: context.musicFlowMotion.easeOut,
               builder: (context, opacity, _) {
                 return widget.builder(context, opacity, opacity > 0.01);
               },
@@ -443,8 +443,8 @@ class _EchoAzIndexRevealState extends State<EchoAzIndexReveal> {
   }
 }
 
-class EchoMediaListSkeleton extends StatelessWidget {
-  const EchoMediaListSkeleton({super.key, this.circle = false, this.count = 8});
+class MusicFlowMediaListSkeleton extends StatelessWidget {
+  const MusicFlowMediaListSkeleton({super.key, this.circle = false, this.count = 8});
 
   final bool circle;
   final int count;
@@ -456,26 +456,26 @@ class EchoMediaListSkeleton extends StatelessWidget {
       itemCount: count,
       itemBuilder: (context, index) => Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoPageHorizontalPadding,
-          vertical: context.echoSpacing.xs,
+          horizontal: context.musicFlowPageHorizontalPadding,
+          vertical: context.musicFlowSpacing.xs,
         ),
         child: Row(
           children: <Widget>[
             circle
-                ? const EchoSkeleton.circle(size: 56)
-                : EchoSkeleton(
+                ? const MusicFlowSkeleton.circle(size: 56)
+                : MusicFlowSkeleton(
                     width: 56,
                     height: 56,
-                    borderRadius: context.echoRadii.detail,
+                    borderRadius: context.musicFlowRadii.detail,
                   ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  EchoSkeleton.line(width: 168 + (index % 3) * 24, height: 16),
-                  SizedBox(height: context.echoSpacing.xs),
-                  EchoSkeleton.line(width: 88 + (index % 2) * 32),
+                  MusicFlowSkeleton.line(width: 168 + (index % 3) * 24, height: 16),
+                  SizedBox(height: context.musicFlowSpacing.xs),
+                  MusicFlowSkeleton.line(width: 88 + (index % 2) * 32),
                 ],
               ),
             ),
@@ -486,8 +486,8 @@ class EchoMediaListSkeleton extends StatelessWidget {
   }
 }
 
-class EchoAlbumGridSkeleton extends StatelessWidget {
-  const EchoAlbumGridSkeleton({super.key, this.count = 8});
+class MusicFlowAlbumGridSkeleton extends StatelessWidget {
+  const MusicFlowAlbumGridSkeleton({super.key, this.count = 8});
 
   final int count;
 
@@ -498,31 +498,31 @@ class EchoAlbumGridSkeleton extends StatelessWidget {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.sm,
-        context.echoPageHorizontalPadding,
-        context.echoSpacing.lg,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.sm,
+        context.musicFlowPageHorizontalPadding,
+        context.musicFlowSpacing.lg,
       ),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: extent,
         childAspectRatio: 0.68,
-        crossAxisSpacing: context.echoSpacing.sm,
-        mainAxisSpacing: context.echoSpacing.sm,
+        crossAxisSpacing: context.musicFlowSpacing.sm,
+        mainAxisSpacing: context.musicFlowSpacing.sm,
       ),
       itemCount: count,
       itemBuilder: (context, index) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Expanded(
-            child: EchoSkeleton(
+            child: MusicFlowSkeleton(
               height: double.infinity,
-              borderRadius: context.echoRadii.control,
+              borderRadius: context.musicFlowRadii.control,
             ),
           ),
-          SizedBox(height: context.echoSpacing.xs),
-          EchoSkeleton.line(width: 120 + (index % 3) * 18, height: 16),
-          SizedBox(height: context.echoSpacing.xs),
-          EchoSkeleton.line(width: 72 + (index % 2) * 24),
+          SizedBox(height: context.musicFlowSpacing.xs),
+          MusicFlowSkeleton.line(width: 120 + (index % 3) * 18, height: 16),
+          SizedBox(height: context.musicFlowSpacing.xs),
+          MusicFlowSkeleton.line(width: 72 + (index % 2) * 24),
         ],
       ),
     );

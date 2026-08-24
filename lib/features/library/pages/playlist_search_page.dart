@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/playlist.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
@@ -61,8 +61,8 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
       debugLabel: 'playlist_search_page',
       shouldRetry: (ref) => _list.hasError,
       onRetry: (ref) => _list.retry(),
-      child: EchoScaffold(
-        topBar: EchoTopBar.back(
+      child: MusicFlowScaffold(
+        topBar: MusicFlowTopBar.back(
           context: context,
           title: '所有歌单',
         ),
@@ -77,7 +77,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
                 if (query.isEmpty) _list.load('');
               },
             ),
-            SizedBox(height: context.echoSpacing.xs),
+            SizedBox(height: context.musicFlowSpacing.xs),
             Expanded(child: _body()),
           ],
         ),
@@ -104,7 +104,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
             playlist: SearchPlaylist.fromLocal(playlist),
             onPlay: () => unawaited(_playLocalPlaylist(ref, playlist)),
             onOpen: () => Navigator.of(context).push<void>(
-              EchoPageRoute<void>(
+              MusicFlowPageRoute<void>(
                 context: context,
                 builder: (_) => PlaylistDetailPage(
                   playlistId: playlist.id,
@@ -130,11 +130,11 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
             controller: _list,
             placeholderExtent: 76,
             padding: EdgeInsets.only(
-              left: context.echoPageHorizontalPadding,
-              right: context.echoPageHorizontalPadding,
-              top: context.echoSpacing.xs,
+              left: context.musicFlowPageHorizontalPadding,
+              right: context.musicFlowPageHorizontalPadding,
+              top: context.musicFlowSpacing.xs,
               bottom:
-                  context.echoSpacing.xxl + context.echoShellBottomObstruction,
+                  context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
             emptyTitle: '暂无歌单',
             emptyDescription: '创建歌单，把想连续听的音乐整理在一起。',
@@ -144,7 +144,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
               key: ValueKey('playlist-row-${playlist!.id}'),
               playlist: playlist,
               onPressed: () => Navigator.of(context).push<void>(
-                EchoPageRoute<void>(
+                MusicFlowPageRoute<void>(
                   context: context,
                   builder: (_) => PlaylistDetailPage(
                     playlistId: playlist.id,

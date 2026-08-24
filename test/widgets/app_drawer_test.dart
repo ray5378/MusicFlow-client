@@ -1,5 +1,5 @@
 import 'package:musicflow_client/core/theme/app_theme.dart';
-import 'package:musicflow_client/widgets/echo_app_shell/echo_drawer.dart';
+import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -73,12 +73,12 @@ Future<void> _pumpDrawer(
           padding: const EdgeInsets.only(top: 24, bottom: 20),
         ),
         child: Scaffold(
-          body: EchoDrawerFrame(
-            header: EchoDrawerIdentityHeader(
+          body: MusicFlowDrawerFrame(
+            header: MusicFlowDrawerIdentityHeader(
               username: 'listener',
               libraryName: 'Night archive',
               addressLabel: '家庭服务器',
-              connectionState: EchoDrawerConnectionState.failed,
+              connectionState: MusicFlowDrawerConnectionState.failed,
               showingLibraries: true,
               onToggleLibraries: () {},
             ),
@@ -86,7 +86,7 @@ Future<void> _pumpDrawer(
               itemCount: 80,
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return EchoDrawerLibraryRow(
+                  return MusicFlowDrawerLibraryRow(
                     title: 'Night archive',
                     subtitle: 'https://music.example',
                     selected: true,

@@ -8,7 +8,7 @@ import '../../data/repositories/search_repository.dart';
 import '../../providers/effective_playback_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/search_provider.dart';
-import '../../core/design/components/echo_page_route.dart';
+import '../../core/design/components/music_flow_page_route.dart';
 import '../../features/library/pages/playlist_detail_page.dart';
 
 void _toast(BuildContext context, String message, {bool error = false}) {
@@ -128,7 +128,7 @@ Future<void> importSearchPlaylist(
     if (!context.mounted) return;
     navigator.pop();
     navigator.push<void>(
-      EchoPageRoute<void>(
+      MusicFlowPageRoute<void>(
         context: context,
         builder: (context) => PlaylistDetailPage(playlistId: playlistId),
       ),

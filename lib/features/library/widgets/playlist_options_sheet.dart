@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/playlist.dart';
 
 enum PlaylistOptionsAction { download, addToQueue, edit, delete }
@@ -37,14 +37,14 @@ class _PlaylistOptionsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: playlist.name,
       subtitle: '${playlist.songCount} 首 · ${playlist.durationString}',
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.downloadOutline,
               title: '下载歌单',
               subtitle: canDownload ? null : '请先选择音乐库',
@@ -54,7 +54,7 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                     ).pop(PlaylistOptionsAction.download)
                   : null,
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.queueAdd,
               title: '添加到播放列表',
               subtitle: hasSongs ? null : '歌单中暂无歌曲',
@@ -64,13 +64,13 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                     ).pop(PlaylistOptionsAction.addToQueue)
                   : null,
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.edit,
               title: '修改歌单',
               onPressed: () =>
                   Navigator.of(context).pop(PlaylistOptionsAction.edit),
             ),
-            EchoActionRow(
+            MusicFlowActionRow(
               icon: AppIcons.delete,
               title: '删除歌单',
               destructive: true,

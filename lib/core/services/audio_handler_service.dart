@@ -3,10 +3,10 @@ import 'package:just_audio/just_audio.dart';
 import '../utils/logger.dart';
 import '../theme/color_scheme.dart';
 
-const echoPlaybackSystemActions = <MediaAction>{MediaAction.seek};
+const musicFlowPlaybackSystemActions = <MediaAction>{MediaAction.seek};
 
 /// 音频处理器 - 处理后台播放和通知栏控制
-class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
+class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer;
 
   // 暴露 AudioPlayer 给外部使用
@@ -18,7 +18,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> Function(Duration position)? onSeek;
   Duration _positionOffset = Duration.zero;
 
-  EchoAudioHandler(this._audioPlayer) {
+  MusicFlowAudioHandler(this._audioPlayer) {
     _init();
   }
 
@@ -52,7 +52,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         androidCompactActionIndices: const [0, 1, 2],
         // Explicitly advertise seeking so OEM MediaStyle implementations do
         // not render the notification progress control as disabled.
-        systemActions: echoPlaybackSystemActions,
+        systemActions: musicFlowPlaybackSystemActions,
         processingState: _getProcessingState(),
         playing: _audioPlayer.playing,
         updatePosition: _logicalPosition(_audioPlayer.position),
@@ -97,7 +97,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       playbackState.value.copyWith(
         controls: _getControls(),
         androidCompactActionIndices: const [0, 1, 2],
-        systemActions: echoPlaybackSystemActions,
+        systemActions: musicFlowPlaybackSystemActions,
         processingState: AudioProcessingState.ready,
         playing: true, // 关键：标记为正在播放
         updatePosition: Duration.zero,
@@ -178,7 +178,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 }
 
 /// 初始化 AudioService
-Future<EchoAudioHandler> initAudioService() async {
+Future<MusicFlowAudioHandler> initAudioService() async {
   final audioPlayer = AudioPlayer(
     audioLoadConfiguration: const AudioLoadConfiguration(
       androidLoadControl: AndroidLoadControl(
@@ -194,7 +194,7 @@ Future<EchoAudioHandler> initAudioService() async {
   );
 
   final handler = await AudioService.init(
-    builder: () => EchoAudioHandler(audioPlayer),
+    builder: () => MusicFlowAudioHandler(audioPlayer),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.ray5378.musicflow.audio',
       androidNotificationChannelName: 'MusicFlow 播放控制',

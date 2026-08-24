@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
@@ -77,7 +77,7 @@ class MiniPlayer extends ConsumerWidget {
           ref.read(playerProvider.notifier).toggleFavorite(),
       onOpenQueue: () {
         // 移动端:底部弹窗;桌面端:右侧队列面板点开/点关切换(与播放页一致)。
-        if (context.echoWindowClass == EchoWindowClass.compact) {
+        if (context.musicFlowWindowClass == MusicFlowWindowClass.compact) {
           showPlayQueueSheet(context: context);
         } else {
           toggleRightQueuePanel(context: context);
@@ -89,9 +89,9 @@ class MiniPlayer extends ConsumerWidget {
   }
 
   static void _openFullPlayer(BuildContext context) {
-    final duration = context.echoMotion.resolve(
+    final duration = context.musicFlowMotion.resolve(
       context,
-      context.echoMotion.scene,
+      context.musicFlowMotion.scene,
     );
     // 压入「根」导航器:全屏播放器需盖住整个窗口(含 Windows 自绘标题栏),
     // 否则 Play 页会落在 40px 标题栏之下,顶部残留一条标题栏色带(用户感知为
@@ -138,7 +138,7 @@ class MiniPlayer extends ConsumerWidget {
         cast.activePeer != null
             ? '正在投屏到「${currentPlayerName(cast)}」'
             : '已切换为本机播放',
-        kind: EchoMessageKind.success,
+        kind: MusicFlowMessageKind.success,
       );
     }
   }
@@ -156,7 +156,7 @@ class MiniPlayer extends ConsumerWidget {
         onSwitched: (message) {
           if (entry.mounted) entry.remove();
           if (message != null && context.mounted) {
-            showEchoToast(context, message, kind: EchoMessageKind.success);
+            showEchoToast(context, message, kind: MusicFlowMessageKind.success);
           }
         },
       ),
@@ -191,7 +191,7 @@ class MiniPlayerView extends StatefulWidget {
   });
 
   final PlayerState playerState;
-  final EchoMediaVisuals? mediaVisuals;
+  final MusicFlowMediaVisuals? mediaVisuals;
 
   /// 当前播放目标名称（本机 / DLNA 设备名），对齐主项目前端的
   /// 「扬声器图标 + 当前播放器名」反馈。
@@ -269,30 +269,30 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     return <Widget>[
       Tooltip(
         message: '上一首',
-        child: EchoIconButton(
+        child: MusicFlowIconButton(
           icon: AppIcons.previous,
           label: '上一首',
-          foregroundColor: context.echoColors.ink,
+          foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onPrevious,
         ),
       ),
       Tooltip(
         message: _playerState.isPlaying ? '暂停' : '播放',
-        child: EchoIconButton(
+        child: MusicFlowIconButton(
           icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
           label: _playerState.isPlaying ? '暂停' : '播放',
-          foregroundColor: context.echoColors.ink,
+          foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: _togglePlayPause,
         ),
       ),
       Tooltip(
         message: '下一首',
-        child: EchoIconButton(
+        child: MusicFlowIconButton(
           icon: AppIcons.next,
           label: '下一首',
-          foregroundColor: context.echoColors.ink,
+          foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onNext,
         ),
@@ -303,7 +303,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       ),
       Tooltip(
         message: isFav ? '取消红心' : '红心',
-        child: EchoIconButton(
+        child: MusicFlowIconButton(
           icon: isFav ? AppIcons.heart : AppIcons.heartOutline,
           label: isFav ? '取消红心' : '红心',
           selected: isFav,
@@ -312,10 +312,10 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       ),
       Tooltip(
         message: '当前播放列表',
-        child: EchoIconButton(
+        child: MusicFlowIconButton(
           icon: AppIcons.queue,
           label: '当前播放列表',
-          foregroundColor: context.echoColors.ink,
+          foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onOpenQueue,
         ),
@@ -323,12 +323,12 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       const VolumeButton(),
       Tooltip(
         message: '切换播放器，当前：${widget.currentPlayerName}',
-        child: EchoIconButton(
+        child: MusicFlowIconButton(
           icon: AppIcons.dlna,
           label: '切换播放器，当前：${widget.currentPlayerName}',
           foregroundColor: widget.isCasting
-              ? context.echoColors.accent
-              : context.echoColors.ink,
+              ? context.musicFlowColors.accent
+              : context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onSwitchPlayer,
         ),
@@ -387,19 +387,19 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
   /// 手机端简略版：播放暂停 + 投屏控制
   List<Widget> _buildMobileControls(BuildContext context) {
     return <Widget>[
-      EchoIconButton(
+      MusicFlowIconButton(
         icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
         label: _playerState.isPlaying ? '暂停' : '播放',
-        foregroundColor: context.echoColors.ink,
+        foregroundColor: context.musicFlowColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: _togglePlayPause,
       ),
-      EchoIconButton(
+      MusicFlowIconButton(
         icon: AppIcons.dlna,
         label: '切换播放器，当前：${widget.currentPlayerName}',
         foregroundColor: widget.isCasting
-            ? context.echoColors.accent
-            : context.echoColors.ink,
+            ? context.musicFlowColors.accent
+            : context.musicFlowColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: widget.onSwitchPlayer,
       ),
@@ -430,13 +430,13 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     final song = currentSong;
     final visuals =
         widget.mediaVisuals ??
-        EchoMediaVisuals.fallback(
-          seed: widget.albumColor ?? EchoColors.contentTintFallback,
+        MusicFlowMediaVisuals.fallback(
+          seed: widget.albumColor ?? MusicFlowColors.contentTintFallback,
         );
 
-    return EchoMediaColorScope(
+    return MusicFlowMediaColorScope(
       visuals: visuals,
-      role: EchoMediaSurfaceRole.mini,
+      role: MusicFlowMediaSurfaceRole.mini,
       child: Builder(
         builder: (context) {
           final textScale = MediaQuery.textScalerOf(context).scale(1);
@@ -469,18 +469,18 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                         tag: playerBackgroundHeroTag,
                         flightShuttleBuilder:
                             playerBackgroundFlightShuttleBuilder,
-                        child: EchoPlayerBackdrop(
+                        child: MusicFlowPlayerBackdrop(
                           visuals: visuals,
-                          mode: EchoPlayerBackdropMode.mini,
+                          mode: MusicFlowPlayerBackdropMode.mini,
                         ),
                       ),
                     ),
                     Padding(
                       padding: EdgeInsetsDirectional.fromSTEB(
-                        context.echoSpacing.sm,
-                        context.echoSpacing.xs,
-                        context.echoSpacing.xs,
-                        context.echoSpacing.xs,
+                        context.musicFlowSpacing.sm,
+                        context.musicFlowSpacing.xs,
+                        context.musicFlowSpacing.xs,
+                        context.musicFlowSpacing.xs,
                       ),
                       child: LayoutBuilder(
                         builder: (context, constraints) => Row(
@@ -517,7 +517,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                     Positioned.fill(
                       child: ClipRRect(
                         key: const Key('mini-player-surface-clip'),
-                        borderRadius: context.echoRadii.surface,
+                        borderRadius: context.musicFlowRadii.surface,
                         child:
                             widget.progressLayer ??
                             _MiniPlayerProgressSurface(
@@ -679,11 +679,11 @@ class _MiniPlayerProgressSurfaceState
           bottom: 0,
           child: IgnorePointer(
             child: ExcludeSemantics(
-              child: EchoProgressBar(
+              child: MusicFlowProgressBar(
                 key: const Key('mini-player-progress'),
                 value: displayedProgress,
                 height: 3,
-                color: context.echoColors.accent,
+                color: context.musicFlowColors.accent,
                 trackColor: Colors.transparent,
               ),
             ),
@@ -691,7 +691,7 @@ class _MiniPlayerProgressSurfaceState
         ),
         if (_scrubbing)
           PositionedDirectional(
-            start: context.echoSpacing.sm,
+            start: context.musicFlowSpacing.sm,
             end: 196,
             bottom: 18,
             child: _MiniPlayerScrubBubble(
@@ -760,7 +760,7 @@ class _MiniPlayerTrack extends StatelessWidget {
           )
         else
           cover,
-        SizedBox(width: context.echoSpacing.sm),
+        SizedBox(width: context.musicFlowSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -798,16 +798,16 @@ class _MiniPlayerEmptyTrack extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: context.echoColors.surface,
+            color: context.musicFlowColors.surface,
             shape: BoxShape.circle,
           ),
           child: Icon(
             AppIcons.music,
             size: 24,
-            color: context.echoColors.muted,
+            color: context.musicFlowColors.muted,
           ),
         ),
-        SizedBox(width: context.echoSpacing.sm),
+        SizedBox(width: context.musicFlowSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -817,15 +817,15 @@ class _MiniPlayerEmptyTrack extends StatelessWidget {
                 '未在播放',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: context.echoTypography.title,
+                style: context.musicFlowTypography.title,
               ),
               if (showSubtitle)
                 Text(
                   '选择一首歌曲开始播放',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.echoTypography.metadata.copyWith(
-                    color: context.echoColors.muted,
+                  style: context.musicFlowTypography.metadata.copyWith(
+                    color: context.musicFlowColors.muted,
                   ),
                 ),
             ],
@@ -880,7 +880,7 @@ class _MiniPlayerTitle extends StatelessWidget {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: context.echoTypography.title,
+          style: context.musicFlowTypography.title,
         ),
       );
     }
@@ -891,11 +891,11 @@ class _MiniPlayerTitle extends StatelessWidget {
       child: Text.rich(
         TextSpan(
           children: <TextSpan>[
-            TextSpan(text: title, style: context.echoTypography.title),
+            TextSpan(text: title, style: context.musicFlowTypography.title),
             TextSpan(
               text: ' - $artist',
-              style: context.echoTypography.metadata.copyWith(
-                color: context.echoColors.muted,
+              style: context.musicFlowTypography.metadata.copyWith(
+                color: context.musicFlowColors.muted,
               ),
             ),
           ],
@@ -920,13 +920,13 @@ class _MiniPlayerLyric extends StatelessWidget {
     return Material(
       type: MaterialType.transparency,
       child: Padding(
-        padding: EdgeInsets.only(top: context.echoSpacing.xxs),
+        padding: EdgeInsets.only(top: context.musicFlowSpacing.xxs),
         child: Text(
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           // 歌词用 body(13) 而非 metadata(11)：现状偏小，适当放大。
-          style: context.echoTypography.body.copyWith(
+          style: context.musicFlowTypography.body.copyWith(
             color: _lyricYellow,
             fontWeight: FontWeight.w500,
           ),
@@ -964,7 +964,7 @@ class _PlayModeButton extends StatelessWidget {
     final selected = mode != 'all' && mode != 'order';
     return Tooltip(
       message: modeLabel,
-      child: EchoIconButton(
+      child: MusicFlowIconButton(
         icon: modeIcon,
         label: modeLabel,
         selected: selected,
@@ -1084,11 +1084,11 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
       _removeOverlay();
       return;
     }
-    // 弹出面板挂在根 Overlay 上,位于播放器 EchoMediaColorScope 之外,
+    // 弹出面板挂在根 Overlay 上,位于播放器 MusicFlowMediaColorScope 之外,
     // 直接使用根主题色会造成音量条与播放控件底色脱节。这里在打开时
     // 捕获本控件所在子树的**媒体自适应配色**(mini / stage 各自已按底色适配),
     // 让弹出的音量面板也用同一套配色渲染(见 _overlayTheme 与 Slider 配色)。
-    final mediaColors = context.echoColors;
+    final mediaColors = context.musicFlowColors;
     _overlayEntry = OverlayEntry(
       builder: (context) => _OverlayHost(
         mediaColors: mediaColors,
@@ -1111,9 +1111,9 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                 onTap: () {},
                 child: Material(
                   color: Colors.transparent,
-                  child: EchoSurface(
-                    level: EchoSurfaceLevel.floating,
-                    padding: EdgeInsets.all(context.echoSpacing.sm),
+                  child: MusicFlowSurface(
+                    level: MusicFlowSurfaceLevel.floating,
+                    padding: EdgeInsets.all(context.musicFlowSpacing.sm),
                     child: SizedBox(
                       width: 64,
                       height: 184,
@@ -1145,7 +1145,7 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: context.echoColors.ink,
+                                  color: context.musicFlowColors.ink,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -1204,11 +1204,11 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
     final icon = volume > 0 ? AppIcons.volumeHigh : AppIcons.volumeMute;
     return Tooltip(
       message: '音量 $percent%',
-      child: EchoIconButton(
+      child: MusicFlowIconButton(
         icon: icon,
         label: '音量 $percent%',
         selected: _overlayEntry != null,
-        foregroundColor: context.echoColors.ink,
+        foregroundColor: context.musicFlowColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: _toggleOverlay,
       ),
@@ -1216,7 +1216,7 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
   }
 }
 
-/// 音量弹窗宿主：Overlay 位于播放器 EchoMediaColorScope 之外，这里把
+/// 音量弹窗宿主：Overlay 位于播放器 MusicFlowMediaColorScope 之外，这里把
 /// 打开时捕获的媒体自适应配色重新装回本子树，使面板背景、文字与
 /// 音量条全部沿用「播放控件底色」渲染。
 class _OverlayHost extends StatelessWidget {
@@ -1225,14 +1225,14 @@ class _OverlayHost extends StatelessWidget {
     required this.child,
   });
 
-  final EchoColors mediaColors;
+  final MusicFlowColors mediaColors;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final base = Theme.of(context);
     final extensions = List<ThemeExtension<dynamic>>.of(base.extensions.values)
-      ..removeWhere((extension) => extension is EchoColors)
+      ..removeWhere((extension) => extension is MusicFlowColors)
       ..add(mediaColors);
     return Theme(
       data: base.copyWith(extensions: extensions),
@@ -1258,18 +1258,18 @@ class _MiniPlayerScrubBubble extends StatelessWidget {
 
     return Align(
       alignment: Alignment((progress * 2 - 1).clamp(-1.0, 1.0), 0),
-      child: EchoSurface(
-        level: EchoSurfaceLevel.floating,
-        color: context.echoColors.ink,
-        borderRadius: context.echoRadii.detail,
+      child: MusicFlowSurface(
+        level: MusicFlowSurfaceLevel.floating,
+        color: context.musicFlowColors.ink,
+        borderRadius: context.musicFlowRadii.detail,
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoSpacing.xs,
-          vertical: context.echoSpacing.xxs,
+          horizontal: context.musicFlowSpacing.xs,
+          vertical: context.musicFlowSpacing.xxs,
         ),
         child: Text(
           _formatPlayerDuration(position),
-          style: context.echoTypography.metadata.copyWith(
-            color: context.echoColors.canvas,
+          style: context.musicFlowTypography.metadata.copyWith(
+            color: context.musicFlowColors.canvas,
           ),
         ),
       ),
@@ -1316,7 +1316,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
         .where((p) => !p.isLocal && p.available)
         .toList();
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: '选择播放器',
       subtitle: '切换播放器仅改变当前控制目标,不会停止其他播放器。',
       child: ConstrainedBox(
@@ -1328,7 +1328,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              EchoActionRow(
+              MusicFlowActionRow(
                 icon: AppIcons.headphones,
                 title: '本机播放',
                 subtitle: cast.activePeer != null
@@ -1343,7 +1343,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                 },
               ),
               if (cast.activePeer != null)
-                EchoActionRow(
+                MusicFlowActionRow(
                   icon: AppIcons.close,
                   title: '停止投屏',
                   subtitle: '停止「${cast.activePeer!.name}」播放并清除控制',
@@ -1354,7 +1354,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                 ),
               if (remotePeers.isNotEmpty)
                 for (final peer in remotePeers)
-                  EchoActionRow(
+                  MusicFlowActionRow(
                     icon: switch (peer.kind) {
                       'group' => AppIcons.people,
                       'airplay' => AppIcons.signalTower,
@@ -1373,7 +1373,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                         showEchoMessage(
                           context,
                           '切换到「${peer.name}」失败,请检查设备是否在线',
-                          kind: EchoMessageKind.error,
+                          kind: MusicFlowMessageKind.error,
                         );
                         return;
                       }
@@ -1383,16 +1383,16 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
               else
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    vertical: context.echoSpacing.sm,
+                    vertical: context.musicFlowSpacing.sm,
                   ),
                   child: Text(
                     _peers == null ? '正在获取可用播放器…' : '未发现其他可用播放器。',
-                    style: context.echoTypography.body.copyWith(
-                      color: context.echoColors.muted,
+                    style: context.musicFlowTypography.body.copyWith(
+                      color: context.musicFlowColors.muted,
                     ),
                   ),
                 ),
-              EchoActionRow(
+              MusicFlowActionRow(
                 icon: AppIcons.refresh,
                 title: '刷新播放器列表',
                 trailing: cast.loadingPeers
@@ -1478,29 +1478,29 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
             child: Container(
               width: 320,
               constraints: const BoxConstraints(maxHeight: 380),
-              child: EchoSurface(
-                level: EchoSurfaceLevel.floating,
-                borderRadius: context.echoRadii.scene,
+              child: MusicFlowSurface(
+                level: MusicFlowSurfaceLevel.floating,
+                borderRadius: context.musicFlowRadii.scene,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Padding(
                       padding: EdgeInsets.fromLTRB(
-                        context.echoSpacing.sm,
-                        context.echoSpacing.xs,
-                        context.echoSpacing.xs,
-                        context.echoSpacing.xxs,
+                        context.musicFlowSpacing.sm,
+                        context.musicFlowSpacing.xs,
+                        context.musicFlowSpacing.xs,
+                        context.musicFlowSpacing.xxs,
                       ),
                       child: Row(
                         children: <Widget>[
                           Expanded(
                             child: Text(
                               '选择播放器',
-                              style: context.echoTypography.headline,
+                              style: context.musicFlowTypography.headline,
                             ),
                           ),
-                          EchoIconButton(
+                          MusicFlowIconButton(
                             icon: AppIcons.close,
                             label: '关闭',
                             onPressed: () => _close(),
@@ -1511,16 +1511,16 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                     Flexible(
                       child: SingleChildScrollView(
                         padding: EdgeInsets.fromLTRB(
-                          context.echoSpacing.xs,
+                          context.musicFlowSpacing.xs,
                           0,
-                          context.echoSpacing.xs,
-                          context.echoSpacing.xs,
+                          context.musicFlowSpacing.xs,
+                          context.musicFlowSpacing.xs,
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
-                            EchoActionRow(
+                            MusicFlowActionRow(
                               icon: AppIcons.headphones,
                               title: '本机播放',
                               subtitle: cast.activePeer != null
@@ -1533,7 +1533,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                               },
                             ),
                             if (cast.activePeer != null)
-                              EchoActionRow(
+                              MusicFlowActionRow(
                                 icon: AppIcons.close,
                                 title: '停止投屏',
                                 subtitle: '停止「${cast.activePeer!.name}」播放并清除控制',
@@ -1544,7 +1544,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                               ),
                             if (remotePeers.isNotEmpty)
                               for (final peer in remotePeers)
-                                EchoActionRow(
+                                MusicFlowActionRow(
                                   icon: switch (peer.kind) {
                                     'group' => AppIcons.people,
                                     _ => AppIcons.signalTower,
@@ -1563,7 +1563,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                                         showEchoMessage(
                                           context,
                                           '切换到「${peer.name}」失败,请检查设备是否在线',
-                                          kind: EchoMessageKind.error,
+                                          kind: MusicFlowMessageKind.error,
                                         );
                                       }
                                       return;
@@ -1574,16 +1574,16 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                             else
                               Padding(
                                 padding: EdgeInsets.symmetric(
-                                  vertical: context.echoSpacing.sm,
+                                  vertical: context.musicFlowSpacing.sm,
                                 ),
                                 child: Text(
                                   _peers == null ? '正在获取可用播放器…' : '未发现其他可用播放器。',
-                                  style: context.echoTypography.body.copyWith(
-                                    color: context.echoColors.muted,
+                                  style: context.musicFlowTypography.body.copyWith(
+                                    color: context.musicFlowColors.muted,
                                   ),
                                 ),
                               ),
-                            EchoActionRow(
+                            MusicFlowActionRow(
                               icon: AppIcons.refresh,
                               title: '刷新播放器列表',
                               trailing: cast.loadingPeers

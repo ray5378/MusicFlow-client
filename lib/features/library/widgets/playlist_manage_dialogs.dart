@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 
 class PlaylistFormResult {
   const PlaylistFormResult({
@@ -44,7 +44,7 @@ Future<bool> showDeletePlaylistConfirmDialog({
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
-    builder: (sheetContext) => EchoBottomSheet(
+    builder: (sheetContext) => MusicFlowBottomSheet(
       title: '删除歌单',
       subtitle: '此操作不可恢复。',
       child: Column(
@@ -53,22 +53,22 @@ Future<bool> showDeletePlaylistConfirmDialog({
         children: <Widget>[
           Text(
             '确定要删除歌单「$playlistName」吗？',
-            style: sheetContext.echoTypography.body.copyWith(
-              color: sheetContext.echoColors.muted,
+            style: sheetContext.musicFlowTypography.body.copyWith(
+              color: sheetContext.musicFlowColors.muted,
             ),
           ),
-          SizedBox(height: sheetContext.echoSpacing.lg),
+          SizedBox(height: sheetContext.musicFlowSpacing.lg),
           Row(
             children: <Widget>[
               Expanded(
-                child: EchoButton.secondary(
+                child: MusicFlowButton.secondary(
                   label: '取消',
                   onPressed: () => Navigator.of(sheetContext).pop(false),
                 ),
               ),
-              SizedBox(width: sheetContext.echoSpacing.sm),
+              SizedBox(width: sheetContext.musicFlowSpacing.sm),
               Expanded(
-                child: EchoButton.destructive(
+                child: MusicFlowButton.destructive(
                   label: '删除',
                   onPressed: () => Navigator.of(sheetContext).pop(true),
                 ),
@@ -137,13 +137,13 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-    final motion = context.echoMotion;
+    final motion = context.musicFlowMotion;
 
     return AnimatedPadding(
       duration: motion.resolve(context, motion.state),
       curve: motion.easeOut,
       padding: EdgeInsets.only(bottom: keyboardInset),
-      child: EchoBottomSheet(
+      child: MusicFlowBottomSheet(
         title: widget.title,
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -157,7 +157,7 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  EchoTextField(
+                  MusicFlowTextField(
                     controller: _nameController,
                     label: '歌单名称',
                     hintText: '请输入歌单名称',
@@ -169,8 +169,8 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                         : null,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   ),
-                  SizedBox(height: context.echoSpacing.md),
-                  EchoTextField(
+                  SizedBox(height: context.musicFlowSpacing.md),
+                  MusicFlowTextField(
                     controller: _commentController,
                     label: '简介（可选）',
                     hintText: '例如：通勤歌单',
@@ -179,7 +179,7 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                     maxLines: 4,
                     textInputAction: TextInputAction.newline,
                   ),
-                  SizedBox(height: context.echoSpacing.md),
+                  SizedBox(height: context.musicFlowSpacing.md),
                   _EchoToggleRow(
                     title: '公开歌单',
                     description: _isPublic
@@ -188,18 +188,18 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                     value: _isPublic,
                     onChanged: (value) => setState(() => _isPublic = value),
                   ),
-                  SizedBox(height: context.echoSpacing.lg),
+                  SizedBox(height: context.musicFlowSpacing.lg),
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: EchoButton.secondary(
+                        child: MusicFlowButton.secondary(
                           label: '取消',
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ),
-                      SizedBox(width: context.echoSpacing.sm),
+                      SizedBox(width: context.musicFlowSpacing.sm),
                       Expanded(
-                        child: EchoButton.primary(
+                        child: MusicFlowButton.primary(
                           label: widget.confirmText,
                           onPressed: _submit,
                         ),
@@ -231,18 +231,18 @@ class _EchoToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.echoColors;
-    final motion = context.echoMotion;
+    final colors = context.musicFlowColors;
+    final motion = context.musicFlowMotion;
 
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: '$title，${value ? '已开启' : '已关闭'}，$description',
       selected: value,
       onPressed: () => onChanged(!value),
       minimumSize: const Size(double.infinity, 72),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoSpacing.sm,
-          vertical: context.echoSpacing.xs,
+          horizontal: context.musicFlowSpacing.sm,
+          vertical: context.musicFlowSpacing.xs,
         ),
         child: Row(
           children: <Widget>[
@@ -250,18 +250,18 @@ class _EchoToggleRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(title, style: context.echoTypography.title),
-                  SizedBox(height: context.echoSpacing.xxs),
+                  Text(title, style: context.musicFlowTypography.title),
+                  SizedBox(height: context.musicFlowSpacing.xxs),
                   Text(
                     description,
-                    style: context.echoTypography.body.copyWith(
+                    style: context.musicFlowTypography.body.copyWith(
                       color: colors.muted,
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             AnimatedContainer(
               duration: motion.resolve(context, motion.state),
               curve: motion.easeOut,
@@ -270,7 +270,7 @@ class _EchoToggleRow extends StatelessWidget {
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 color: value ? colors.accent : colors.raised,
-                borderRadius: context.echoRadii.pill,
+                borderRadius: context.musicFlowRadii.pill,
                 border: Border.all(
                   color: value ? colors.accent : colors.controlBoundary,
                 ),

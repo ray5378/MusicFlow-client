@@ -8,7 +8,7 @@ class _MockAudioPlayer extends Mock implements AudioPlayer {}
 
 void main() {
   late _MockAudioPlayer player;
-  late EchoAudioHandler handler;
+  late MusicFlowAudioHandler handler;
 
   setUp(() {
     player = _MockAudioPlayer();
@@ -22,11 +22,11 @@ void main() {
     when(() => player.position).thenReturn(const Duration(seconds: 2));
     when(() => player.bufferedPosition).thenReturn(const Duration(seconds: 3));
     when(() => player.speed).thenReturn(1.0);
-    handler = EchoAudioHandler(player);
+    handler = MusicFlowAudioHandler(player);
   });
 
   test('media session advertises seek support for notification progress', () {
-    expect(echoPlaybackSystemActions, contains(MediaAction.seek));
+    expect(musicFlowPlaybackSystemActions, contains(MediaAction.seek));
   });
 
   test(

@@ -1,5 +1,5 @@
 
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
@@ -18,13 +18,13 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import 'test_player_notifier.dart';
 
-EchoPressable? _heartPressable(WidgetTester tester, IconData icon) {
+MusicFlowPressable? _heartPressable(WidgetTester tester, IconData icon) {
   final pressable = find.ancestor(
     of: find.byIcon(icon),
-    matching: find.byType(EchoPressable),
+    matching: find.byType(MusicFlowPressable),
   );
   if (pressable.evaluate().isEmpty) return null;
-  return tester.widget<EchoPressable>(pressable.first);
+  return tester.widget<MusicFlowPressable>(pressable.first);
 }
 
 void main() {
@@ -61,9 +61,9 @@ void main() {
     required Widget home,
     double textScale = 1,
     bool disableAnimations = true,
-    EchoMediaVisuals? visuals,
+    MusicFlowMediaVisuals? visuals,
   }) {
-    final resolvedVisuals = visuals ?? EchoMediaVisuals.fallback();
+    final resolvedVisuals = visuals ?? MusicFlowMediaVisuals.fallback();
     return ProviderScope(
       overrides: [
         playerProvider.overrideWith((ref) => notifier),
@@ -201,7 +201,7 @@ void main() {
     );
     final closePressable = find.ancestor(
       of: find.byIcon(AppIcons.chevronDown),
-      matching: find.byType(EchoPressable),
+      matching: find.byType(MusicFlowPressable),
     );
     expect(tester.getSize(closePressable.first).height, greaterThanOrEqualTo(48));
     expectControlHierarchy(tester);
@@ -284,7 +284,7 @@ void main() {
         find.byKey(const ValueKey<String>('full_player_cover')),
         findsOneWidget,
       );
-      expect(find.byType(EchoPlayerScrubber), findsOneWidget);
+      expect(find.byType(MusicFlowPlayerScrubber), findsOneWidget);
       final heroTags = tester
           .widgetList<Hero>(find.byType(Hero))
           .map((hero) => hero.tag)
@@ -321,7 +321,7 @@ void main() {
           of: detailsPane,
           matching: find.ancestor(
             of: target,
-            matching: find.byType(EchoPressable),
+            matching: find.byType(MusicFlowPressable),
           ),
         );
         expect(pressable, findsOneWidget);
@@ -506,7 +506,7 @@ void main() {
     await tester.pump();
     expect(find.byIcon(AppIcons.repeat), findsOneWidget);
 
-    EchoPressable? unstarredPressable =
+    MusicFlowPressable? unstarredPressable =
         _heartPressable(tester, AppIcons.heartOutline);
     expect(unstarredPressable?.selected ?? false, isFalse);
     await tester.tap(find.byIcon(AppIcons.heartOutline));
@@ -523,7 +523,7 @@ void main() {
     );
     await tester.pump();
 
-    final progressSlider = find.byType(EchoPlayerScrubber);
+    final progressSlider = find.byType(MusicFlowPlayerScrubber);
     expect(progressSlider, findsOneWidget);
 
     await tester.drag(progressSlider, const Offset(120, 0));
@@ -540,7 +540,7 @@ void main() {
     );
     await tester.pump();
 
-    final scrubber = find.byType(EchoPlayerScrubber);
+    final scrubber = find.byType(MusicFlowPlayerScrubber);
     final gesture = await tester.startGesture(tester.getCenter(scrubber));
     await tester.pumpAndSettle();
     await gesture.moveBy(const Offset(80, 0));
@@ -564,7 +564,7 @@ void main() {
     expect(notifier.seekTargets, isEmpty);
     expect(
       tester
-          .getSemantics(find.byType(EchoPlayerScrubber))
+          .getSemantics(find.byType(MusicFlowPlayerScrubber))
           .getSemanticsData()
           .value,
       '0:05 / 3:00',
@@ -574,7 +574,7 @@ void main() {
   testWidgets('bright artwork installs dark player ink and system chrome', (
     tester,
   ) async {
-    final visuals = EchoMediaVisuals.fallback(seed: const Color(0xFFFFE36B));
+    final visuals = MusicFlowMediaVisuals.fallback(seed: const Color(0xFFFFE36B));
     expect(visuals.foreground.computeLuminance(), lessThan(0.1));
 
     await tester.pumpWidget(
@@ -587,18 +587,18 @@ void main() {
     await tester.pump();
 
     final titleContext = tester.element(find.text('正在播放'));
-    expect(titleContext.echoColors.ink, visuals.foreground);
-    expect(titleContext.echoColors.muted, visuals.mutedForeground);
-    expect(titleContext.echoColors.canvas, visuals.stageBase);
+    expect(titleContext.musicFlowColors.ink, visuals.foreground);
+    expect(titleContext.musicFlowColors.muted, visuals.mutedForeground);
+    expect(titleContext.musicFlowColors.canvas, visuals.stageBase);
 
-    final backdrop = tester.widget<EchoPlayerBackdrop>(
-      find.byType(EchoPlayerBackdrop),
+    final backdrop = tester.widget<MusicFlowPlayerBackdrop>(
+      find.byType(MusicFlowPlayerBackdrop),
     );
-    expect(backdrop.mode, EchoPlayerBackdropMode.stage);
+    expect(backdrop.mode, MusicFlowPlayerBackdropMode.stage);
     expect(backdrop.visuals, visuals);
 
-    final scrubber = tester.widget<EchoPlayerScrubber>(
-      find.byType(EchoPlayerScrubber),
+    final scrubber = tester.widget<MusicFlowPlayerScrubber>(
+      find.byType(MusicFlowPlayerScrubber),
     );
     expect(scrubber.activeColor, visuals.controlAccent);
     expect(scrubber.thumbColor, visuals.foreground);
@@ -619,7 +619,7 @@ void main() {
   testWidgets('full-player song actions use the album-derived panel palette', (
     tester,
   ) async {
-    final visuals = EchoMediaVisuals.fallback(seed: const Color(0xFFBFD7EA));
+    final visuals = MusicFlowMediaVisuals.fallback(seed: const Color(0xFFBFD7EA));
 
     await tester.pumpWidget(
       providerApp(
@@ -633,14 +633,14 @@ void main() {
     await tester.tap(find.byIcon(AppIcons.more));
     await tester.pumpAndSettle();
 
-    final sheet = find.byType(EchoBottomSheet);
+    final sheet = find.byType(MusicFlowBottomSheet);
     expect(sheet, findsOneWidget);
     final sheetTitle = find.descendant(of: sheet, matching: find.text('歌曲操作'));
     final sheetContext = tester.element(sheetTitle);
-    expect(sheetContext.echoColors.surface, visuals.panelSurface);
-    expect(sheetContext.echoColors.accent, visuals.controlAccent);
-    expect(sheetContext.echoColors.ink, visuals.foreground);
-    expect(sheetContext.echoColors.muted, visuals.mutedForeground);
+    expect(sheetContext.musicFlowColors.surface, visuals.panelSurface);
+    expect(sheetContext.musicFlowColors.accent, visuals.controlAccent);
+    expect(sheetContext.musicFlowColors.ink, visuals.foreground);
+    expect(sheetContext.musicFlowColors.muted, visuals.mutedForeground);
 
     final heart = tester.widget<Icon>(
       find.descendant(of: sheet, matching: find.byIcon(AppIcons.heartOutline)),

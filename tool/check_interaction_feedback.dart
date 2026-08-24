@@ -1,4 +1,4 @@
-// CI 校验：所有「按钮类」点击操作都必须经由 EchoPressable 体系(自带按压缩放),
+// CI 校验：所有「按钮类」点击操作都必须经由 MusicFlowPressable 体系(自带按压缩放),
 // 不得在功能/widget 代码里直接裸用 Material 原生交互控件(它们没有统一按压反馈)。
 //
 // 规则：lib/ 下,除 lib/core/design/ 之外的所有 .dart 文件,如果出现下列原生
@@ -7,7 +7,7 @@
 //   IconButton / ListTile / TextButton / OutlinedButton / ElevatedButton /
 //   FilledButton / FloatingActionButton / InkWell / RawMaterialButton
 //
-// 排除项：lib/core/design/ 是反馈体系的"承载层"(EchoPressable 等在此定义),
+// 排除项：lib/core/design/ 是反馈体系的"承载层"(MusicFlowPressable 等在此定义),
 // 天然允许;GestureDetector 被刻意排除——它常被用于拖拽/seek/吞掉点击/背板关闭
 // 等非"按钮点击"场景,这些不需要按压缩放,且本规则专注"可点击动作"按钮类控件。
 //
@@ -61,7 +61,7 @@ void main() {
   }
 
   stdout.writeln(
-    'FAIL: 发现 ${problems.length} 处绕过 EchoPressable 的裸原生交互控件'
+    'FAIL: 发现 ${problems.length} 处绕过 MusicFlowPressable 的裸原生交互控件'
     '(缺少统一按压缩放反馈):',
   );
   for (final p in problems) {
@@ -69,7 +69,7 @@ void main() {
   }
   stdout.writeln('');
   stdout.writeln(
-    '请改用 EchoPressable / EchoButton / EchoIconButton(自带按压缩放动效),'
+    '请改用 MusicFlowPressable / MusicFlowButton / MusicFlowIconButton(自带按压缩放动效),'
     '或自建反馈承载组件并放入 lib/core/design/components/。',
   );
   exit(1);

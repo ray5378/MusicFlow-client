@@ -1,4 +1,4 @@
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
@@ -27,7 +27,7 @@ void main() {
     required Future<void> Function() onClear,
     required QueueSongAction onOpenSongActions,
     double textScale = 1,
-    EchoMediaVisuals? mediaVisuals,
+    MusicFlowMediaVisuals? mediaVisuals,
     Color? albumColor,
   }) {
     return ProviderScope(
@@ -84,7 +84,7 @@ void main() {
     await tester.pump();
 
     expect(find.bySemanticsLabel('关闭播放队列'), findsOneWidget);
-    expect(find.byType(EchoSongRow), findsNWidgets(2));
+    expect(find.byType(MusicFlowSongRow), findsNWidgets(2));
     expect(find.byType(CoverArtImage), findsNWidgets(2));
     expect(find.bySemanticsLabel(RegExp('正在播放')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('试听')), findsOneWidget);
@@ -96,7 +96,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(ListView),
-        matching: find.byType(EchoDivider),
+        matching: find.byType(MusicFlowDivider),
       ),
       findsNothing,
     );
@@ -136,7 +136,7 @@ void main() {
   testWidgets('queue content consumes the panel media color scope', (
     tester,
   ) async {
-    final visuals = EchoMediaVisuals.fallback(seed: const Color(0xFFBFD7EA));
+    final visuals = MusicFlowMediaVisuals.fallback(seed: const Color(0xFFBFD7EA));
     await tester.pumpWidget(
       buildSubject(
         state: PlayerState(
@@ -153,7 +153,7 @@ void main() {
     );
     await tester.pump();
 
-    final surface = tester.widget<EchoSurface>(find.byType(EchoSurface).first);
+    final surface = tester.widget<MusicFlowSurface>(find.byType(MusicFlowSurface).first);
     final currentTitle = tester.widget<Text>(find.text(songs.first.title));
     expect(surface.color, visuals.panelSurface);
     expect(currentTitle.style?.color, visuals.controlAccent);

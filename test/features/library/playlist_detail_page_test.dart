@@ -1,7 +1,7 @@
 import 'dart:ui' show Tristate;
 
 import 'package:dio/dio.dart';
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
@@ -188,8 +188,8 @@ Future<void> _confirmRemoval(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   expect(find.text('移除歌曲'), findsOneWidget);
-  expect(find.widgetWithText(EchoButton, '移除'), findsOneWidget);
-  await tester.tap(find.widgetWithText(EchoButton, '移除'));
+  expect(find.widgetWithText(MusicFlowButton, '移除'), findsOneWidget);
+  await tester.tap(find.widgetWithText(MusicFlowButton, '移除'));
   await tester.pumpAndSettle();
 }
 
@@ -341,7 +341,7 @@ void main() {
     expect(find.text('移除歌曲'), findsOneWidget);
     expect(find.textContaining('4'), findsWidgets);
 
-    await tester.tap(find.widgetWithText(EchoButton, '移除'));
+    await tester.tap(find.widgetWithText(MusicFlowButton, '移除'));
     await tester.pumpAndSettle();
 
     expect(repository.removalCalls, hasLength(1));

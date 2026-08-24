@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/cover_ref_security.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/playlist.dart';
@@ -27,9 +27,9 @@ class DiscoverSongTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 72),
-      child: EchoSongRow(
+      child: MusicFlowSongRow(
         song: song,
-        contentPadding: EdgeInsets.symmetric(vertical: context.echoSpacing.xxs),
+        contentPadding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xxs),
         onPressed: onPressed,
         onLongPress: onLongPress ?? onOpenActions,
         onMorePressed: onOpenActions,
@@ -57,7 +57,7 @@ class DiscoverAlbumTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: EchoAlbumTile(
+      child: MusicFlowAlbumTile(
         album: album,
         onPressed: onPressed,
         onLongPress: onLongPress,
@@ -90,10 +90,10 @@ class DiscoverRecentAlbumRail extends StatelessWidget {
             key: const Key('discover-recent-spotlight'),
             children: <Widget>[
               for (final album in albums)
-                EchoAlbumRow(
+                MusicFlowAlbumRow(
                   album: album,
                   contentPadding: EdgeInsets.symmetric(
-                    vertical: context.echoSpacing.xs,
+                    vertical: context.musicFlowSpacing.xs,
                   ),
                   onPressed: () => onAlbumPressed(album),
                   onLongPress: onAlbumLongPress == null
@@ -125,7 +125,7 @@ class DiscoverRecentAlbumRail extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: albums.length,
             separatorBuilder: (context, index) =>
-                SizedBox(width: context.echoSpacing.sm),
+                SizedBox(width: context.musicFlowSpacing.sm),
             itemBuilder: (context, index) {
               final album = albums[index];
               return DiscoverRecentAlbumCard(
@@ -179,24 +179,24 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
     return SizedBox(
       width: width,
       height: height,
-      child: EchoPressable(
+      child: MusicFlowPressable(
         semanticLabel: semanticLabel,
         onPressed: onPressed,
         onLongPress: onLongPress,
         minimumSize: Size(width, height),
-        borderRadius: context.echoRadii.surface,
+        borderRadius: context.musicFlowRadii.surface,
         child: Ink(
           decoration: BoxDecoration(
-            color: context.echoColors.surface,
-            borderRadius: context.echoRadii.surface,
-            border: Border.all(color: context.echoColors.divider),
+            color: context.musicFlowColors.surface,
+            borderRadius: context.musicFlowRadii.surface,
+            border: Border.all(color: context.musicFlowColors.divider),
           ),
           child: Padding(
-            padding: EdgeInsets.all(context.echoSpacing.sm),
+            padding: EdgeInsets.all(context.musicFlowSpacing.sm),
             child: Row(
               children: <Widget>[
                 ClipRRect(
-                  borderRadius: context.echoRadii.surface,
+                  borderRadius: context.musicFlowRadii.surface,
                   child: CoverArtImage(
                     coverArtId: album.coverArt,
                     size: artworkSize,
@@ -205,7 +205,7 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
                     semanticLabel: '${album.name} 封面',
                   ),
                 ),
-                SizedBox(width: context.echoSpacing.sm),
+                SizedBox(width: context.musicFlowSpacing.sm),
                 Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -216,35 +216,35 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
                           Icon(
                             AppIcons.history,
                             size: 16,
-                            color: context.echoColors.accent,
+                            color: context.musicFlowColors.accent,
                           ),
-                          SizedBox(width: context.echoSpacing.xxs),
+                          SizedBox(width: context.musicFlowSpacing.xxs),
                           Expanded(
                             child: Text(
                               '最近听过',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: context.echoTypography.label.copyWith(
-                                color: context.echoColors.accent,
+                              style: context.musicFlowTypography.label.copyWith(
+                                color: context.musicFlowColors.accent,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: context.echoSpacing.xs),
+                      SizedBox(height: context.musicFlowSpacing.xs),
                       Text(
                         album.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: context.echoTypography.title,
+                        style: context.musicFlowTypography.title,
                       ),
-                      SizedBox(height: context.echoSpacing.xxs),
+                      SizedBox(height: context.musicFlowSpacing.xxs),
                       Text(
                         metadata,
                         maxLines: scale > 1.3 ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
-                        style: context.echoTypography.metadata.copyWith(
-                          color: context.echoColors.muted,
+                        style: context.musicFlowTypography.metadata.copyWith(
+                          color: context.musicFlowColors.muted,
                         ),
                       ),
                     ],
@@ -283,10 +283,10 @@ class DiscoverAlbumRail extends StatelessWidget {
             key: const Key('discover-newest-rail'),
             children: <Widget>[
               for (final album in albums)
-                EchoAlbumRow(
+                MusicFlowAlbumRow(
                   album: album,
                   contentPadding: EdgeInsets.symmetric(
-                    vertical: context.echoSpacing.xs,
+                    vertical: context.musicFlowSpacing.xs,
                   ),
                   onPressed: () => onAlbumPressed(album),
                   onLongPress: onAlbumLongPress == null
@@ -307,7 +307,7 @@ class DiscoverAlbumRail extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: albums.length,
             separatorBuilder: (context, index) =>
-                SizedBox(width: context.echoSpacing.sm),
+                SizedBox(width: context.musicFlowSpacing.sm),
             itemBuilder: (context, index) {
               final album = albums[index];
               return DiscoverAlbumTile(
@@ -352,10 +352,10 @@ class DiscoverFrequentAlbumShelf extends StatelessWidget {
             key: const Key('discover-frequent-shelf'),
             children: <Widget>[
               for (final album in albums)
-                EchoAlbumRow(
+                MusicFlowAlbumRow(
                   album: album,
                   contentPadding: EdgeInsets.symmetric(
-                    vertical: context.echoSpacing.xs,
+                    vertical: context.musicFlowSpacing.xs,
                   ),
                   onPressed: () => onAlbumPressed(album),
                   onLongPress: onAlbumLongPress == null
@@ -380,12 +380,12 @@ class DiscoverFrequentAlbumShelf extends StatelessWidget {
 
         return SizedBox(
           key: const Key('discover-frequent-shelf'),
-          height: itemHeight * 2 + context.echoSpacing.sm,
+          height: itemHeight * 2 + context.musicFlowSpacing.sm,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: groupCount,
             separatorBuilder: (context, index) =>
-                SizedBox(width: context.echoSpacing.md),
+                SizedBox(width: context.musicFlowSpacing.md),
             itemBuilder: (context, groupIndex) {
               final start = groupIndex * 2;
               final end = (start + 2).clamp(0, albums.length);
@@ -420,8 +420,8 @@ class _DiscoverFrequentAlbumGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spacing = context.echoSpacing;
-    final radius = context.echoRadii.surface;
+    final spacing = context.musicFlowSpacing;
+    final radius = context.musicFlowRadii.surface;
     return SizedBox(
       width: width,
       child: Semantics(
@@ -431,9 +431,9 @@ class _DiscoverFrequentAlbumGroup extends StatelessWidget {
           borderRadius: radius,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: context.echoColors.surface,
+              color: context.musicFlowColors.surface,
               borderRadius: radius,
-              border: Border.all(color: context.echoColors.divider),
+              border: Border.all(color: context.musicFlowColors.divider),
             ),
             child: Padding(
               padding: EdgeInsets.symmetric(
@@ -448,9 +448,9 @@ class _DiscoverFrequentAlbumGroup extends StatelessWidget {
                     index++
                   ) ...<Widget>[
                     if (index > 0)
-                      EchoDivider(color: context.echoColors.divider),
+                      MusicFlowDivider(color: context.musicFlowColors.divider),
                     Expanded(
-                      child: EchoAlbumRow(
+                      child: MusicFlowAlbumRow(
                         album: albums[index],
                         allowFullText: false,
                         contentPadding: EdgeInsets.symmetric(
@@ -494,19 +494,19 @@ class DiscoverSectionMessage extends StatelessWidget {
       explicitChildNodes: true,
       label: '$title，$description',
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: context.echoSpacing.md),
+        padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             ExcludeSemantics(
               child: SizedBox.square(
-                dimension: context.echoInteraction.minimumTouchTarget,
+                dimension: context.musicFlowInteraction.minimumTouchTarget,
                 child: Center(
-                  child: Icon(icon, size: 24, color: context.echoColors.muted),
+                  child: Icon(icon, size: 24, color: context.musicFlowColors.muted),
                 ),
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,20 +517,20 @@ class DiscoverSectionMessage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Text(title, style: context.echoTypography.title),
-                        SizedBox(height: context.echoSpacing.xxs),
+                        Text(title, style: context.musicFlowTypography.title),
+                        SizedBox(height: context.musicFlowSpacing.xxs),
                         Text(
                           description,
-                          style: context.echoTypography.body.copyWith(
-                            color: context.echoColors.muted,
+                          style: context.musicFlowTypography.body.copyWith(
+                            color: context.musicFlowColors.muted,
                           ),
                         ),
                       ],
                     ),
                   ),
                   if (onRetry != null) ...<Widget>[
-                    SizedBox(height: context.echoSpacing.xs),
-                    EchoButton.ghost(
+                    SizedBox(height: context.musicFlowSpacing.xs),
+                    MusicFlowButton.ghost(
                       label: '重试',
                       leadingIcon: AppIcons.refresh,
                       onPressed: onRetry,
@@ -557,13 +557,13 @@ class DiscoverSongLoading extends StatelessWidget {
       builder: (context, constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1);
         final columns = textScale > 1.3 || constraints.maxWidth < 720 ? 1 : 2;
-        final gap = context.echoSpacing.md;
+        final gap = context.musicFlowSpacing.md;
         final itemWidth =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
 
         return Wrap(
           spacing: gap,
-          runSpacing: context.echoSpacing.xxs,
+          runSpacing: context.musicFlowSpacing.xxs,
           children: <Widget>[
             for (var index = 0; index < count; index++)
               SizedBox(
@@ -572,25 +572,25 @@ class DiscoverSongLoading extends StatelessWidget {
                   constraints: const BoxConstraints(minHeight: 72),
                   child: Padding(
                     padding: EdgeInsets.symmetric(
-                      vertical: context.echoSpacing.xxs,
+                      vertical: context.musicFlowSpacing.xxs,
                     ),
                     child: Row(
                       children: <Widget>[
-                        const EchoSkeleton(width: 48, height: 48),
-                        SizedBox(width: context.echoSpacing.sm),
+                        const MusicFlowSkeleton(width: 48, height: 48),
+                        SizedBox(width: context.musicFlowSpacing.sm),
                         const Expanded(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              EchoSkeleton.line(height: 16),
+                              MusicFlowSkeleton.line(height: 16),
                               SizedBox(height: 8),
-                              EchoSkeleton.line(width: 112, height: 12),
+                              MusicFlowSkeleton.line(width: 112, height: 12),
                             ],
                           ),
                         ),
-                        SizedBox(width: context.echoSpacing.sm),
-                        const EchoSkeleton(width: 48, height: 48),
+                        SizedBox(width: context.musicFlowSpacing.sm),
+                        const MusicFlowSkeleton(width: 48, height: 48),
                       ],
                     ),
                   ),
@@ -646,36 +646,36 @@ class DiscoverRecentAlbumLoading extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: count,
             separatorBuilder: (context, index) =>
-                SizedBox(width: context.echoSpacing.sm),
+                SizedBox(width: context.musicFlowSpacing.sm),
             itemBuilder: (context, index) => SizedBox(
               width: cardWidth,
               height: cardHeight,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: context.echoColors.surface,
-                  borderRadius: context.echoRadii.surface,
-                  border: Border.all(color: context.echoColors.divider),
+                  color: context.musicFlowColors.surface,
+                  borderRadius: context.musicFlowRadii.surface,
+                  border: Border.all(color: context.musicFlowColors.divider),
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(context.echoSpacing.sm),
+                  padding: EdgeInsets.all(context.musicFlowSpacing.sm),
                   child: Row(
                     children: <Widget>[
-                      EchoSkeleton(
+                      MusicFlowSkeleton(
                         width: artworkSize,
                         height: artworkSize,
-                        borderRadius: context.echoRadii.surface,
+                        borderRadius: context.musicFlowRadii.surface,
                       ),
-                      SizedBox(width: context.echoSpacing.sm),
+                      SizedBox(width: context.musicFlowSpacing.sm),
                       Expanded(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            EchoSkeleton.line(width: 92, height: 12 * scale),
-                            SizedBox(height: context.echoSpacing.sm),
-                            EchoSkeleton.line(height: 16 * scale),
-                            SizedBox(height: context.echoSpacing.xs),
-                            EchoSkeleton.line(width: 112, height: 12 * scale),
+                            MusicFlowSkeleton.line(width: 92, height: 12 * scale),
+                            SizedBox(height: context.musicFlowSpacing.sm),
+                            MusicFlowSkeleton.line(height: 16 * scale),
+                            SizedBox(height: context.musicFlowSpacing.xs),
+                            MusicFlowSkeleton.line(width: 112, height: 12 * scale),
                           ],
                         ),
                       ),
@@ -722,21 +722,21 @@ class DiscoverAlbumLoading extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: count,
             separatorBuilder: (context, index) =>
-                SizedBox(width: context.echoSpacing.sm),
+                SizedBox(width: context.musicFlowSpacing.sm),
             itemBuilder: (context, index) => SizedBox(
               width: width,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  EchoSkeleton(
+                  MusicFlowSkeleton(
                     width: width,
                     height: width,
-                    borderRadius: context.echoRadii.control,
+                    borderRadius: context.musicFlowRadii.control,
                   ),
-                  SizedBox(height: context.echoSpacing.xs),
-                  EchoSkeleton.line(height: 16 * scale),
-                  SizedBox(height: context.echoSpacing.xs),
-                  EchoSkeleton.line(width: 88, height: 12 * scale),
+                  SizedBox(height: context.musicFlowSpacing.xs),
+                  MusicFlowSkeleton.line(height: 16 * scale),
+                  SizedBox(height: context.musicFlowSpacing.xs),
+                  MusicFlowSkeleton.line(width: 88, height: 12 * scale),
                 ],
               ),
             ),
@@ -784,30 +784,30 @@ class DiscoverFrequentAlbumLoading extends StatelessWidget {
         final groupCount = (count + 1) ~/ 2;
 
         return SizedBox(
-          height: itemHeight * 2 + context.echoSpacing.sm,
+          height: itemHeight * 2 + context.musicFlowSpacing.sm,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: groupCount,
             separatorBuilder: (context, index) =>
-                SizedBox(width: context.echoSpacing.md),
+                SizedBox(width: context.musicFlowSpacing.md),
             itemBuilder: (context, groupIndex) {
               final start = groupIndex * 2;
               final groupItemCount = (count - start).clamp(0, 2);
               return SizedBox(
                 width: tileWidth,
                 child: ClipRRect(
-                  borderRadius: context.echoRadii.surface,
+                  borderRadius: context.musicFlowRadii.surface,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: context.echoColors.surface,
-                      borderRadius: context.echoRadii.surface,
-                      border: Border.all(color: context.echoColors.divider),
+                      color: context.musicFlowColors.surface,
+                      borderRadius: context.musicFlowRadii.surface,
+                      border: Border.all(color: context.musicFlowColors.divider),
                     ),
                     child: Padding(
                       padding: EdgeInsets.symmetric(
-                        horizontal: context.echoSpacing.sm,
-                        vertical: context.echoSpacing.xxs,
+                        horizontal: context.musicFlowSpacing.sm,
+                        vertical: context.musicFlowSpacing.xxs,
                       ),
                       child: Column(
                         children: <Widget>[
@@ -817,7 +817,7 @@ class DiscoverFrequentAlbumLoading extends StatelessWidget {
                             itemIndex++
                           ) ...<Widget>[
                             if (itemIndex > 0)
-                              EchoDivider(color: context.echoColors.divider),
+                              MusicFlowDivider(color: context.musicFlowColors.divider),
                             const Expanded(child: _DiscoverAlbumRowSkeleton()),
                           ],
                         ],
@@ -840,23 +840,23 @@ class _DiscoverAlbumRowSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       child: Row(
         children: <Widget>[
-          EchoSkeleton(
+          MusicFlowSkeleton(
             width: 72,
             height: 72,
-            borderRadius: context.echoRadii.detail,
+            borderRadius: context.musicFlowRadii.detail,
           ),
-          SizedBox(width: context.echoSpacing.sm),
+          SizedBox(width: context.musicFlowSpacing.sm),
           const Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                EchoSkeleton.line(height: 16),
+                MusicFlowSkeleton.line(height: 16),
                 SizedBox(height: 8),
-                EchoSkeleton.line(width: 104, height: 12),
+                MusicFlowSkeleton.line(width: 104, height: 12),
               ],
             ),
           ),
@@ -882,29 +882,29 @@ class DiscoverPlaylistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 72),
-      child: EchoPressable(
+      child: MusicFlowPressable(
         semanticLabel: '${playlist.name}，${playlist.songCount} 首',
         onPressed: onPressed,
         onLongPress: onLongPress,
         minimumSize: const Size(double.infinity, 72),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: context.echoSpacing.xs,
-            vertical: context.echoSpacing.xs,
+            horizontal: context.musicFlowSpacing.xs,
+            vertical: context.musicFlowSpacing.xs,
           ),
           child: Row(
             children: <Widget>[
               SizedBox.square(
-                dimension: context.echoInteraction.minimumTouchTarget,
+                dimension: context.musicFlowInteraction.minimumTouchTarget,
                 child: ClipRRect(
-                  borderRadius: context.echoRadii.control,
+                  borderRadius: context.musicFlowRadii.control,
                   // 与其它库一致使用 CoverArtImage 封面加载规范：
                   // coverArt 非空(如 pl-<id>)显示封面，否则回退歌单图标。
                   child: playlist.coverArt != null &&
                           playlist.coverArt!.isNotEmpty
                       ? CoverArtImage(
                           coverArtId: playlist.coverArt,
-                          size: context.echoInteraction.minimumTouchTarget,
+                          size: context.musicFlowInteraction.minimumTouchTarget,
                           requestSize: 160,
                           fit: BoxFit.cover,
                           semanticLabel: '${playlist.name} 封面',
@@ -913,25 +913,25 @@ class DiscoverPlaylistTile extends StatelessWidget {
                           child: Icon(
                             AppIcons.playlist,
                             size: 24,
-                            color: context.echoColors.accent,
+                            color: context.musicFlowColors.accent,
                           ),
                         ),
                 ),
               ),
-              SizedBox(width: context.echoSpacing.sm),
+              SizedBox(width: context.musicFlowSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       playlist.name,
-                      style: context.echoTypography.title,
+                      style: context.musicFlowTypography.title,
                     ),
-                    SizedBox(height: context.echoSpacing.xxs),
+                    SizedBox(height: context.musicFlowSpacing.xxs),
                     Text(
                       '${playlist.songCount} 首 · ${playlist.durationString}',
-                      style: context.echoTypography.metadata.copyWith(
-                        color: context.echoColors.muted,
+                      style: context.musicFlowTypography.metadata.copyWith(
+                        color: context.musicFlowColors.muted,
                       ),
                     ),
                   ],
@@ -956,13 +956,13 @@ class DiscoverPlaylistLoading extends StatelessWidget {
       builder: (context, constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1);
         final columns = textScale > 1.3 || constraints.maxWidth < 720 ? 1 : 2;
-        final gap = context.echoSpacing.md;
+        final gap = context.musicFlowSpacing.md;
         final itemWidth =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
 
         return Wrap(
           spacing: gap,
-          runSpacing: context.echoSpacing.xxs,
+          runSpacing: context.musicFlowSpacing.xxs,
           children: <Widget>[
             for (var index = 0; index < count; index++)
               SizedBox(
@@ -971,20 +971,20 @@ class DiscoverPlaylistLoading extends StatelessWidget {
                   constraints: const BoxConstraints(minHeight: 72),
                   child: Padding(
                     padding: EdgeInsets.symmetric(
-                      vertical: context.echoSpacing.xxs,
+                      vertical: context.musicFlowSpacing.xxs,
                     ),
                     child: Row(
                       children: <Widget>[
-                        const EchoSkeleton(width: 48, height: 48),
-                        SizedBox(width: context.echoSpacing.sm),
+                        const MusicFlowSkeleton(width: 48, height: 48),
+                        SizedBox(width: context.musicFlowSpacing.sm),
                         const Expanded(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              EchoSkeleton.line(height: 16),
+                              MusicFlowSkeleton.line(height: 16),
                               SizedBox(height: 8),
-                              EchoSkeleton.line(width: 112, height: 12),
+                              MusicFlowSkeleton.line(width: 112, height: 12),
                             ],
                           ),
                         ),
@@ -1042,22 +1042,22 @@ class DiscoverRecommendTile extends StatelessWidget {
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 72),
-      child: EchoPressable(
+      child: MusicFlowPressable(
         semanticLabel: semanticLabel,
         onPressed: onPressed,
         onLongPress: onLongPress,
         minimumSize: const Size(double.infinity, 72),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: context.echoSpacing.xs,
-            vertical: context.echoSpacing.xxs,
+            horizontal: context.musicFlowSpacing.xs,
+            vertical: context.musicFlowSpacing.xxs,
           ),
           child: Row(
             children: <Widget>[
               SizedBox.square(
                 dimension: artworkSize,
                 child: ClipRRect(
-                  borderRadius: context.echoRadii.surface,
+                  borderRadius: context.musicFlowRadii.surface,
                   child: coverRef != null
                       ? CoverArtImage(
                           coverArtId: coverRef,
@@ -1067,32 +1067,32 @@ class DiscoverRecommendTile extends StatelessWidget {
                           semanticLabel: '$title 封面',
                         )
                       : Container(
-                          color: context.echoColors.surface,
+                          color: context.musicFlowColors.surface,
                           child: Center(
                             child: Icon(
                               AppIcons.playlist,
                               size: 24,
-                              color: context.echoColors.accent,
+                              color: context.musicFlowColors.accent,
                             ),
                           ),
                         ),
                 ),
               ),
-              SizedBox(width: context.echoSpacing.sm),
+              SizedBox(width: context.musicFlowSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       title,
-                      style: context.echoTypography.title,
+                      style: context.musicFlowTypography.title,
                     ),
                     if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
-                      SizedBox(height: context.echoSpacing.xxs),
+                      SizedBox(height: context.musicFlowSpacing.xxs),
                       Text(
                         subtitle!,
-                        style: context.echoTypography.metadata.copyWith(
-                          color: context.echoColors.muted,
+                        style: context.musicFlowTypography.metadata.copyWith(
+                          color: context.musicFlowColors.muted,
                         ),
                       ),
                     ],
@@ -1118,30 +1118,30 @@ class DiscoverRecommendLoading extends StatelessWidget {
         ? 80.0
         : 56.0;
     return Wrap(
-      spacing: context.echoSpacing.md,
-      runSpacing: context.echoSpacing.xxs,
+      spacing: context.musicFlowSpacing.md,
+      runSpacing: context.musicFlowSpacing.xxs,
       children: <Widget>[
         for (var index = 0; index < count; index++)
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 72),
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xxs),
+              padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xxs),
               child: Row(
                 children: <Widget>[
-                  EchoSkeleton(
+                  MusicFlowSkeleton(
                     width: artworkSize,
                     height: artworkSize,
-                    borderRadius: context.echoRadii.surface,
+                    borderRadius: context.musicFlowRadii.surface,
                   ),
-                  SizedBox(width: context.echoSpacing.sm),
+                  SizedBox(width: context.musicFlowSpacing.sm),
                   const Expanded(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        EchoSkeleton.line(height: 16),
+                        MusicFlowSkeleton.line(height: 16),
                         SizedBox(height: 8),
-                        EchoSkeleton.line(width: 112, height: 12),
+                        MusicFlowSkeleton.line(width: 112, height: 12),
                       ],
                     ),
                   ),
@@ -1196,10 +1196,10 @@ class DiscoverPlaylistCard extends StatelessWidget {
       width: width,
       child: Semantics(
         label: semanticLabel,
-        child: EchoPressable(
+        child: MusicFlowPressable(
           onPressed: onPressed,
           minimumSize: Size(width, width),
-          borderRadius: context.echoRadii.surface,
+          borderRadius: context.musicFlowRadii.surface,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1207,7 +1207,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 1,
                 child: ClipRRect(
-                  borderRadius: context.echoRadii.surface,
+                  borderRadius: context.musicFlowRadii.surface,
                   child: Stack(
                     fit: StackFit.expand,
                     children: <Widget>[
@@ -1220,12 +1220,12 @@ class DiscoverPlaylistCard extends StatelessWidget {
                               semanticLabel: '$title 封面',
                             )
                           : Container(
-                              color: context.echoColors.surface,
+                              color: context.musicFlowColors.surface,
                               child: Center(
                                 child: Icon(
                                   AppIcons.playlist,
                                   size: width * 0.3,
-                                  color: context.echoColors.accent,
+                                  color: context.musicFlowColors.accent,
                                 ),
                               ),
                             ),
@@ -1240,21 +1240,21 @@ class DiscoverPlaylistCard extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: context.echoSpacing.xs),
+              SizedBox(height: context.musicFlowSpacing.xs),
               Text(
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: context.echoTypography.title,
+                style: context.musicFlowTypography.title,
               ),
               if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
-                SizedBox(height: context.echoSpacing.xxs),
+                SizedBox(height: context.musicFlowSpacing.xxs),
                 Text(
                   subtitle!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.echoTypography.metadata.copyWith(
-                    color: context.echoColors.muted,
+                  style: context.musicFlowTypography.metadata.copyWith(
+                    color: context.musicFlowColors.muted,
                   ),
                 ),
               ],
@@ -1279,15 +1279,15 @@ class DiscoverPlaylistCardLoading extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          EchoSkeleton(
+          MusicFlowSkeleton(
             width: width,
             height: width,
-            borderRadius: context.echoRadii.surface,
+            borderRadius: context.musicFlowRadii.surface,
           ),
-          SizedBox(height: context.echoSpacing.xs),
-          EchoSkeleton.line(height: 14),
-          SizedBox(height: context.echoSpacing.xxs),
-          EchoSkeleton.line(width: width * 0.6, height: 12),
+          SizedBox(height: context.musicFlowSpacing.xs),
+          MusicFlowSkeleton.line(height: 14),
+          SizedBox(height: context.musicFlowSpacing.xxs),
+          MusicFlowSkeleton.line(width: width * 0.6, height: 12),
         ],
       ),
     );

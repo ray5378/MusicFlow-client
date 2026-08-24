@@ -86,7 +86,7 @@ void main() {
   });
 
   group('buildCacheFilePath', () {
-    final root = p.join('cache', 'echo_audio_cache');
+    final root = p.join('cache', 'music_flow_audio_cache');
 
     test('keeps cache files under the cache root', () {
       final path = buildCacheFilePath(

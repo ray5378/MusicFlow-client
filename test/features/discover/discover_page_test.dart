@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
@@ -125,8 +125,8 @@ void main() {
       ],
     );
 
-    final refreshView = tester.widget<EchoRefreshView>(
-      find.byType(EchoRefreshView),
+    final refreshView = tester.widget<MusicFlowRefreshView>(
+      find.byType(MusicFlowRefreshView),
     );
     final refresh = refreshView.onRefresh();
     var refreshCompleted = false;

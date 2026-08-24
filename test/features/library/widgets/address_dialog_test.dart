@@ -1,4 +1,4 @@
-import 'package:musicflow_client/core/design/echo_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/features/library/widgets/address_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +12,7 @@ void main() {
 
   Finder addressEditor() => find.descendant(
     of: find.byWidgetPredicate(
-      (widget) => widget is EchoTextField && widget.label == '服务器地址',
+      (widget) => widget is MusicFlowTextField && widget.label == '服务器地址',
     ),
     matching: find.byType(TextField),
   );

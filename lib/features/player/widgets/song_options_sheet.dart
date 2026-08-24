@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/network_error_notifier.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/song.dart';
@@ -14,7 +14,7 @@ import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
-import '../../../widgets/echo_artwork.dart';
+import '../../../widgets/music_flow_artwork.dart';
 import '../../library/pages/album_detail_page.dart';
 import '../../library/pages/artist_detail_page.dart';
 
@@ -37,7 +37,7 @@ Future<void> showSongOptionsSheet({
   required Song song,
   bool useRootNavigator = true,
   List<SongOptionsExtraAction> extraActions = const <SongOptionsExtraAction>[],
-  EchoMediaVisuals? mediaVisuals,
+  MusicFlowMediaVisuals? mediaVisuals,
 }) async {
   await showEchoBottomSheet<void>(
     context: context,
@@ -50,9 +50,9 @@ Future<void> showSongOptionsSheet({
         extraActions: extraActions,
       );
       if (mediaVisuals == null) return sheet;
-      return EchoMediaColorScope(
+      return MusicFlowMediaColorScope(
         visuals: mediaVisuals,
-        role: EchoMediaSurfaceRole.panel,
+        role: MusicFlowMediaSurfaceRole.panel,
         child: sheet,
       );
     },
@@ -189,7 +189,7 @@ class _SongOptionsSheet extends ConsumerWidget {
               : () => unawaited(
                   _closeAndRun(context, () async {
                     await Navigator.of(hostContext).push<void>(
-                      EchoPageRoute<void>(
+                      MusicFlowPageRoute<void>(
                         context: hostContext,
                         builder: (_) =>
                             ArtistDetailPage(artistId: song.artistId!),
@@ -210,7 +210,7 @@ class _SongOptionsSheet extends ConsumerWidget {
               : () => unawaited(
                   _closeAndRun(context, () async {
                     await Navigator.of(hostContext).push<void>(
-                      EchoPageRoute<void>(
+                      MusicFlowPageRoute<void>(
                         context: hostContext,
                         builder: (_) => AlbumDetailPage(albumId: song.albumId!),
                       ),
@@ -228,8 +228,8 @@ class _SongOptionsSheet extends ConsumerWidget {
     if (extraActions.isNotEmpty) {
       actions.add(
         Padding(
-          padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
-          child: const EchoDivider(),
+          padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
+          child: const MusicFlowDivider(),
         ),
       );
       for (final action in extraActions) {
@@ -246,13 +246,13 @@ class _SongOptionsSheet extends ConsumerWidget {
       }
     }
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: song.isPreview ? '试听歌曲操作' : '歌曲操作',
       padding: EdgeInsets.fromLTRB(
-        context.echoSpacing.md,
+        context.musicFlowSpacing.md,
         0,
-        context.echoSpacing.md,
-        context.echoSpacing.md,
+        context.musicFlowSpacing.md,
+        context.musicFlowSpacing.md,
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -272,8 +272,8 @@ class _SongOptionsSheet extends ConsumerWidget {
                 },
               ),
               Padding(
-                padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
-                child: const EchoDivider(),
+                padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
+                child: const MusicFlowDivider(),
               ),
               ...actions,
             ],
@@ -314,29 +314,29 @@ class _SongSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: '${song.title}，$artistName，$albumName，长按复制歌曲名',
       onLongPress: onCopyTitle,
       minimumSize: Size(
         double.infinity,
-        context.echoInteraction.expandedSongRowHeight,
+        context.musicFlowInteraction.expandedSongRowHeight,
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+        padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             SizedBox.square(
-              dimension: context.echoInteraction.minimumTouchTarget,
-              child: EchoArtwork(
+              dimension: context.musicFlowInteraction.minimumTouchTarget,
+              child: MusicFlowArtwork(
                 coverArtId: song.artworkReference,
                 semanticLabel: '${song.title} 封面',
-                size: context.echoInteraction.minimumTouchTarget,
+                size: context.musicFlowInteraction.minimumTouchTarget,
                 requestSize: 192,
-                borderRadius: context.echoRadii.detail,
+                borderRadius: context.musicFlowRadii.detail,
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -346,14 +346,14 @@ class _SongSummary extends StatelessWidget {
                     song.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: context.echoTypography.title,
+                    style: context.musicFlowTypography.title,
                   ),
-                  SizedBox(height: context.echoSpacing.xxs),
+                  SizedBox(height: context.musicFlowSpacing.xxs),
                   Text(
                     '$artistName · $albumName',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: context.echoTypography.metadata,
+                    style: context.musicFlowTypography.metadata,
                   ),
                 ],
               ),
@@ -384,7 +384,7 @@ class _SongOptionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     final enabled = onPressed != null || onLongPress != null;
     final accent = destructive ? colors.error : colors.accent;
     final foreground = enabled
@@ -393,7 +393,7 @@ class _SongOptionRow extends StatelessWidget {
               : colors.ink
         : colors.onDisabled;
 
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: <String>[
         title,
         if (selected) '已选中',
@@ -402,7 +402,7 @@ class _SongOptionRow extends StatelessWidget {
       selected: selected,
       onPressed: onPressed,
       onLongPress: onLongPress,
-      minimumSize: Size(double.infinity, context.echoInteraction.songRowHeight),
+      minimumSize: Size(double.infinity, context.musicFlowInteraction.songRowHeight),
       child: Ink(
         decoration: BoxDecoration(
           color: selected
@@ -410,17 +410,17 @@ class _SongOptionRow extends StatelessWidget {
               : enabled
               ? Colors.transparent
               : colors.raised.withValues(alpha: 0.55),
-          borderRadius: context.echoRadii.control,
+          borderRadius: context.musicFlowRadii.control,
         ),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: context.echoSpacing.xs,
-            vertical: context.echoSpacing.xs,
+            horizontal: context.musicFlowSpacing.xs,
+            vertical: context.musicFlowSpacing.xs,
           ),
           child: Row(
             children: <Widget>[
               SizedBox.square(
-                dimension: context.echoInteraction.minimumTouchTarget,
+                dimension: context.musicFlowInteraction.minimumTouchTarget,
                 child: Center(
                   child: Icon(
                     icon,
@@ -429,13 +429,13 @@ class _SongOptionRow extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(width: context.echoSpacing.xs),
+              SizedBox(width: context.musicFlowSpacing.xs),
               Expanded(
                 child: Text(
                   title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: context.echoTypography.title.copyWith(
+                  style: context.musicFlowTypography.title.copyWith(
                     color: foreground,
                   ),
                 ),
@@ -459,7 +459,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
     final playlistsAsync = ref.watch(playlistsProvider);
     final loadFailed = ref.watch(playlistsLoadFailedProvider);
 
-    return EchoBottomSheet(
+    return MusicFlowBottomSheet(
       title: '添加到歌单',
       subtitle: song.title,
       child: ConstrainedBox(
@@ -469,7 +469,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
         child: playlistsAsync.when(
           data: (playlists) {
             if (playlists.isEmpty) {
-              return EchoEmptyState(
+              return MusicFlowEmptyState(
                 title: loadFailed ? '歌单加载失败' : '暂无歌单',
                 description: loadFailed
                     ? '请检查网络或服务器状态后重试。'
@@ -479,17 +479,17 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                 onAction: loadFailed
                     ? () => ref.invalidate(playlistsProvider)
                     : null,
-                padding: EdgeInsets.all(context.echoSpacing.lg),
+                padding: EdgeInsets.all(context.musicFlowSpacing.lg),
               );
             }
 
             return ListView.separated(
               shrinkWrap: true,
               itemCount: playlists.length,
-              separatorBuilder: (context, index) => EchoDivider(
+              separatorBuilder: (context, index) => MusicFlowDivider(
                 inset:
-                    context.echoInteraction.minimumTouchTarget +
-                    context.echoSpacing.sm,
+                    context.musicFlowInteraction.minimumTouchTarget +
+                    context.musicFlowSpacing.sm,
               ),
               itemBuilder: (context, index) {
                 final playlist = playlists[index];
@@ -527,12 +527,12 @@ class _AddToPlaylistSheet extends ConsumerWidget {
             );
           },
           loading: () => const _PlaylistLoading(),
-          error: (error, stackTrace) => EchoErrorState(
+          error: (error, stackTrace) => MusicFlowErrorState(
             title: '歌单加载失败',
             description: '请检查网络或服务器状态后重试。',
             actionLabel: '重试',
             onAction: () => ref.invalidate(playlistsProvider),
-            padding: EdgeInsets.all(context.echoSpacing.lg),
+            padding: EdgeInsets.all(context.musicFlowSpacing.lg),
           ),
         ),
       ),
@@ -553,28 +553,28 @@ class _PlaylistRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EchoPressable(
+    return MusicFlowPressable(
       semanticLabel: '$name，$songCount 首歌曲',
       onPressed: () => unawaited(onPressed()),
       minimumSize: Size(
         double.infinity,
-        context.echoInteraction.expandedSongRowHeight,
+        context.musicFlowInteraction.expandedSongRowHeight,
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+        padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
         child: Row(
           children: <Widget>[
             SizedBox.square(
-              dimension: context.echoInteraction.minimumTouchTarget,
+              dimension: context.musicFlowInteraction.minimumTouchTarget,
               child: Center(
                 child: Icon(
                   AppIcons.playlist,
                   size: 22,
-                  color: context.echoColors.accent,
+                  color: context.musicFlowColors.accent,
                 ),
               ),
             ),
-            SizedBox(width: context.echoSpacing.sm),
+            SizedBox(width: context.musicFlowSpacing.sm),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -584,18 +584,18 @@ class _PlaylistRow extends StatelessWidget {
                     name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: context.echoTypography.title,
+                    style: context.musicFlowTypography.title,
                   ),
-                  SizedBox(height: context.echoSpacing.xxs),
-                  Text('$songCount 首', style: context.echoTypography.metadata),
+                  SizedBox(height: context.musicFlowSpacing.xxs),
+                  Text('$songCount 首', style: context.musicFlowTypography.metadata),
                 ],
               ),
             ),
-            SizedBox(width: context.echoSpacing.xs),
+            SizedBox(width: context.musicFlowSpacing.xs),
             Icon(
               AppIcons.chevronRight,
               size: 20,
-              color: context.echoColors.muted,
+              color: context.musicFlowColors.muted,
             ),
           ],
         ),
@@ -617,21 +617,21 @@ class _PlaylistLoading extends StatelessWidget {
           for (var index = 0; index < 3; index += 1) ...<Widget>[
             Row(
               children: <Widget>[
-                const EchoSkeleton.circle(size: 48),
-                SizedBox(width: context.echoSpacing.sm),
+                const MusicFlowSkeleton.circle(size: 48),
+                SizedBox(width: context.musicFlowSpacing.sm),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const <Widget>[
-                      EchoSkeleton.line(width: 180, height: 16),
+                      MusicFlowSkeleton.line(width: 180, height: 16),
                       SizedBox(height: 8),
-                      EchoSkeleton.line(width: 72, height: 12),
+                      MusicFlowSkeleton.line(width: 72, height: 12),
                     ],
                   ),
                 ),
               ],
             ),
-            if (index < 2) SizedBox(height: context.echoSpacing.sm),
+            if (index < 2) SizedBox(height: context.musicFlowSpacing.sm),
           ],
         ],
       ),

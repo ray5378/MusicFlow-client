@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/logger.dart';
 import '../../../data/models/recommend.dart';
 import '../../../data/models/music_library.dart';
@@ -94,26 +94,26 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         notifyRandomSongsChanged();
       },
       child: Scaffold(
-        backgroundColor: context.echoColors.canvas,
+        backgroundColor: context.musicFlowColors.canvas,
         body: SafeArea(
           bottom: false,
           child: Column(
             children: <Widget>[
-              EchoPageHeader(
+              MusicFlowPageHeader(
                 title: '音乐流',
                 leading: shouldShowPageDrawerTrigger(context)
-                    ? EchoIconButton(
+                    ? MusicFlowIconButton(
                         icon: AppIcons.menu,
                         label: '打开应用菜单',
                         onPressed: openEchoAppDrawer,
                       )
                     : null,
-                trailing: EchoIconButton(
+                trailing: MusicFlowIconButton(
                   icon: AppIcons.search,
                   label: '搜索音乐库',
                   onPressed: () {
                     Navigator.of(context).push<void>(
-                      EchoPageRoute<void>(
+                      MusicFlowPageRoute<void>(
                         context: context,
                         builder: (context) => const SearchPage(),
                       ),
@@ -123,7 +123,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               ),
               const CategoryNavBar(),
               Expanded(
-                child: EchoRefreshView(
+                child: MusicFlowRefreshView(
                   onRefresh: _refresh,
                   child: Align(
                     alignment: Alignment.topCenter,
@@ -135,21 +135,21 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         slivers: <Widget>[
                           SliverPadding(
                             padding: EdgeInsets.fromLTRB(
-                              context.echoPageHorizontalPadding,
-                              context.echoSpacing.xs,
-                              context.echoPageHorizontalPadding,
-                              context.echoSpacing.xxl +
-                                  context.echoShellBottomObstruction,
+                              context.musicFlowPageHorizontalPadding,
+                              context.musicFlowSpacing.xs,
+                              context.musicFlowPageHorizontalPadding,
+                              context.musicFlowSpacing.xxl +
+                                  context.musicFlowShellBottomObstruction,
                             ),
                             sliver: SliverList(
                               delegate: SliverChildListDelegate(
                                 <Widget>[
                                   const RandomSongsSection(),
-                                  SizedBox(height: context.echoSpacing.sm),
+                                  SizedBox(height: context.musicFlowSpacing.sm),
                                   const RecentPlaylistsSection(),
-                                  SizedBox(height: context.echoSpacing.sm),
+                                  SizedBox(height: context.musicFlowSpacing.sm),
                                   const FixedRecommendSection(),
-                                  SizedBox(height: context.echoSpacing.sm),
+                                  SizedBox(height: context.musicFlowSpacing.sm),
                                   const PlatformRecommendSection(),
                                 ],
                               ),
@@ -188,20 +188,20 @@ class CategoryNavBar extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoPageHorizontalPadding,
-          vertical: context.echoSpacing.xs,
+          horizontal: context.musicFlowPageHorizontalPadding,
+          vertical: context.musicFlowSpacing.xs,
         ),
         child: Row(
           children: <Widget>[
             for (var i = 0; i < _items.length; i++) ...<Widget>[
               if (i > 0)
-                SizedBox(width: context.echoSpacing.md),
+                SizedBox(width: context.musicFlowSpacing.md),
               _CategoryNavItem(
                 label: _items[i].$1,
                 icon: _items[i].$2,
                 onPressed: () {
                   Navigator.of(context).push<void>(
-                    EchoPageRoute<void>(
+                    MusicFlowPageRoute<void>(
                       context: context,
                       builder: (context) => _items[i].$3,
                     ),
@@ -232,20 +232,20 @@ class _CategoryNavItem extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: EchoPressable(
+      child: MusicFlowPressable(
         onPressed: onPressed,
         minimumSize: const Size(64, 64),
-        borderRadius: context.echoRadii.surface,
+        borderRadius: context.musicFlowRadii.surface,
         child: SizedBox(
           width: 64,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(icon, size: 26, color: context.echoColors.accent),
-              SizedBox(height: context.echoSpacing.xxs),
+              Icon(icon, size: 26, color: context.musicFlowColors.accent),
+              SizedBox(height: context.musicFlowSpacing.xxs),
               Text(
                 label,
-                style: context.echoTypography.metadata,
+                style: context.musicFlowTypography.metadata,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -476,14 +476,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
             controller: controller,
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(
-              horizontal: context.echoSpacing.xs,
+              horizontal: context.musicFlowSpacing.xs,
             ),
             itemCount: columnCount,
             itemBuilder: (context, col) {
               final firstRow = col * 3;
               final rowsInColumn = (songs.length - firstRow).clamp(0, 3);
               return Padding(
-                padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                padding: EdgeInsets.only(right: context.musicFlowSpacing.sm),
                 child: Column(
                   mainAxisSize: MainAxisSize.max,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,30 +561,30 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     return DecoratedBox(
       key: const Key('discover-random-mix'),
       decoration: BoxDecoration(
-        color: context.echoColors.surface,
-        borderRadius: context.echoRadii.surface,
-        border: Border.all(color: context.echoColors.divider),
+        color: context.musicFlowColors.surface,
+        borderRadius: context.musicFlowRadii.surface,
+        border: Border.all(color: context.musicFlowColors.divider),
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: context.echoSpacing.sm,
-          vertical: context.echoSpacing.xs,
+          horizontal: context.musicFlowSpacing.sm,
+          vertical: context.musicFlowSpacing.xs,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            EchoSectionHeader(
+            MusicFlowSectionHeader(
               title: '随机歌曲',
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  EchoIconButton(
+                  MusicFlowIconButton(
                     icon: AppIcons.refresh,
                     label: '换一批随机歌曲',
                     onPressed: _refresh,
                   ),
-                  SizedBox(width: context.echoSpacing.xs),
-                  EchoIconButton(
+                  SizedBox(width: context.musicFlowSpacing.xs),
+                  MusicFlowIconButton(
                     icon: AppIcons.play,
                     label: '播放随机歌曲',
                     onPressed: _playRound,
@@ -592,7 +592,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
                 ],
               ),
             ),
-            SizedBox(height: context.echoSpacing.xs),
+            SizedBox(height: context.musicFlowSpacing.xs),
             content,
           ],
         ),
@@ -620,14 +620,14 @@ class _RandomSongsLoading extends StatelessWidget {
             controller: controller,
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(
-              horizontal: context.echoSpacing.xs,
+              horizontal: context.musicFlowSpacing.xs,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 for (var col = 0; col < 3; col++)
                   Padding(
-                    padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                    padding: EdgeInsets.only(right: context.musicFlowSpacing.sm),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
@@ -660,20 +660,20 @@ class _RandomSongTileSkeleton extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 72),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          vertical: context.echoSpacing.xxs,
+          vertical: context.musicFlowSpacing.xxs,
         ),
         child: Row(
           children: <Widget>[
-            const EchoSkeleton(width: 48, height: 48),
-            SizedBox(width: context.echoSpacing.sm),
+            const MusicFlowSkeleton(width: 48, height: 48),
+            SizedBox(width: context.musicFlowSpacing.sm),
             const Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  EchoSkeleton.line(height: 16),
+                  MusicFlowSkeleton.line(height: 16),
                   SizedBox(height: 8),
-                  EchoSkeleton.line(width: 112, height: 12),
+                  MusicFlowSkeleton.line(width: 112, height: 12),
                 ],
               ),
             ),
@@ -696,15 +696,15 @@ class RecentPlaylistsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        EchoSectionHeader(
+        MusicFlowSectionHeader(
           title: '最近更新的歌单',
-          trailing: EchoIconButton(
+          trailing: MusicFlowIconButton(
             icon: AppIcons.refresh,
             label: '刷新最近更新歌单',
             onPressed: () => ref.invalidate(recentPlaylistsProvider),
           ),
         ),
-        SizedBox(height: context.echoSpacing.xxs),
+        SizedBox(height: context.musicFlowSpacing.xxs),
         playlistsAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
@@ -728,11 +728,11 @@ class RecentPlaylistsSection extends ConsumerWidget {
                   controller: controller,
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(
-                    horizontal: context.echoPageHorizontalPadding,
+                    horizontal: context.musicFlowPageHorizontalPadding,
                   ),
                   itemCount: playlists.length,
                   separatorBuilder: (context, index) =>
-                      SizedBox(width: context.echoSpacing.sm),
+                      SizedBox(width: context.musicFlowSpacing.sm),
                   itemBuilder: (context, index) {
                     final pl = playlists[index];
                     return DiscoverPlaylistCard(
@@ -742,7 +742,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
                       coverArtId: pl.coverArt,
                       onPressed: () {
                         Navigator.of(context).push<void>(
-                          EchoPageRoute<void>(
+                          MusicFlowPageRoute<void>(
                             context: context,
                             builder: (context) => PlaylistDetailPage(
                               playlistId: pl.id,
@@ -764,11 +764,11 @@ class RecentPlaylistsSection extends ConsumerWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(
-                horizontal: context.echoPageHorizontalPadding,
+                horizontal: context.musicFlowPageHorizontalPadding,
               ),
               itemCount: 4,
               separatorBuilder: (context, index) =>
-                  SizedBox(width: context.echoSpacing.sm),
+                  SizedBox(width: context.musicFlowSpacing.sm),
               itemBuilder: (context, index) =>
                   DiscoverPlaylistCardLoading(width: _playlistCardWidth),
             ),
@@ -799,10 +799,10 @@ class FixedRecommendSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        EchoSectionHeader(
+        MusicFlowSectionHeader(
           title: '为你推荐',
         ),
-        SizedBox(height: context.echoSpacing.xxs),
+        SizedBox(height: context.musicFlowSpacing.xxs),
         sectionAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
@@ -846,11 +846,11 @@ class FixedRecommendSection extends ConsumerWidget {
                   controller: controller,
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(
-                    horizontal: context.echoPageHorizontalPadding,
+                    horizontal: context.musicFlowPageHorizontalPadding,
                   ),
                   itemCount: cards.length,
                   separatorBuilder: (context, index) =>
-                      SizedBox(width: context.echoSpacing.sm),
+                      SizedBox(width: context.musicFlowSpacing.sm),
                   itemBuilder: (context, index) {
                     final card = cards[index];
                     return DiscoverPlaylistCard(
@@ -860,7 +860,7 @@ class FixedRecommendSection extends ConsumerWidget {
                       coverArtId: card.coverArt,
                       onPressed: () {
                         Navigator.of(context).push<void>(
-                          EchoPageRoute<void>(
+                          MusicFlowPageRoute<void>(
                             context: context,
                             builder: (context) => PlaylistDetailPage(
                               playlistId: card.playlistId,
@@ -882,11 +882,11 @@ class FixedRecommendSection extends ConsumerWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(
-                horizontal: context.echoPageHorizontalPadding,
+                horizontal: context.musicFlowPageHorizontalPadding,
               ),
               itemCount: 4,
               separatorBuilder: (context, index) =>
-                  SizedBox(width: context.echoSpacing.sm),
+                  SizedBox(width: context.musicFlowSpacing.sm),
               itemBuilder: (context, index) =>
                   DiscoverPlaylistCardLoading(width: _playlistCardWidth),
             ),
@@ -935,7 +935,7 @@ Future<void> _openRecommendPlaylist(
       if (localId != null && localId.isNotEmpty) {
         if (!context.mounted) return;
         Navigator.of(context).push<void>(
-          EchoPageRoute<void>(
+          MusicFlowPageRoute<void>(
             context: context,
             builder: (context) => PlaylistDetailPage(playlistId: localId),
           ),
@@ -960,7 +960,7 @@ Future<void> _openRecommendPlaylist(
     });
     if (!context.mounted) return;
     Navigator.of(context).push<void>(
-      EchoPageRoute<void>(
+      MusicFlowPageRoute<void>(
         context: context,
         builder: (context) => PlaylistDetailPage(playlistId: playlistId),
       ),
@@ -992,10 +992,10 @@ class PlatformRecommendSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        EchoSectionHeader(
+        MusicFlowSectionHeader(
           title: '平台推荐',
         ),
-        SizedBox(height: context.echoSpacing.xxs),
+        SizedBox(height: context.musicFlowSpacing.xxs),
         channelsAsync.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
@@ -1020,14 +1020,14 @@ class PlatformRecommendSection extends ConsumerWidget {
               children: <Widget>[
                 for (final channel in channels) ...<Widget>[
                   if (channels.length > 1) ...<Widget>[
-                    SizedBox(height: context.echoSpacing.sm),
+                    SizedBox(height: context.musicFlowSpacing.sm),
                     Text(
                       channel.name,
-                      style: context.echoTypography.label.copyWith(
-                        color: context.echoColors.accent,
+                      style: context.musicFlowTypography.label.copyWith(
+                        color: context.musicFlowColors.accent,
                       ),
                     ),
-                    SizedBox(height: context.echoSpacing.xxs),
+                    SizedBox(height: context.musicFlowSpacing.xxs),
                   ],
                   if (channel.playlists.isNotEmpty)
                     HoverableHorizontalScroll(
@@ -1037,11 +1037,11 @@ class PlatformRecommendSection extends ConsumerWidget {
                           controller: controller,
                           scrollDirection: Axis.horizontal,
                           padding: EdgeInsets.symmetric(
-                            horizontal: context.echoPageHorizontalPadding,
+                            horizontal: context.musicFlowPageHorizontalPadding,
                           ),
                           itemCount: channel.playlists.length,
                           separatorBuilder: (context, index) =>
-                              SizedBox(width: context.echoSpacing.sm),
+                              SizedBox(width: context.musicFlowSpacing.sm),
                           itemBuilder: (context, index) {
                             final pl = channel.playlists[index];
                             final isImporting = importingId == pl.id;
@@ -1075,11 +1075,11 @@ class PlatformRecommendSection extends ConsumerWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(
-                horizontal: context.echoPageHorizontalPadding,
+                horizontal: context.musicFlowPageHorizontalPadding,
               ),
               itemCount: 4,
               separatorBuilder: (context, index) =>
-                  SizedBox(width: context.echoSpacing.sm),
+                  SizedBox(width: context.musicFlowSpacing.sm),
               itemBuilder: (context, index) =>
                   DiscoverPlaylistCardLoading(width: _playlistCardWidth),
             ),

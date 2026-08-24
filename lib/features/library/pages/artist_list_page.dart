@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/artist.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
@@ -60,8 +60,8 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
       debugLabel: 'artist_list_page',
       shouldRetry: (ref) => _list.hasError,
       onRetry: (ref) => _list.retry(),
-      child: EchoScaffold(
-        topBar: EchoTopBar.back(context: context, title: '所有艺术家'),
+      child: MusicFlowScaffold(
+        topBar: MusicFlowTopBar.back(context: context, title: '所有艺术家'),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -73,7 +73,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
                 if (query.isEmpty) _list.load('');
               },
             ),
-            SizedBox(height: context.echoSpacing.xs),
+            SizedBox(height: context.musicFlowSpacing.xs),
             Expanded(child: _body()),
           ],
         ),
@@ -100,7 +100,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
             artist: SearchArtist.fromLocal(artist),
             onPlay: () => unawaited(_playLocalArtist(ref, artist)),
             onOpen: () => Navigator.of(context).push<void>(
-              EchoPageRoute<void>(
+              MusicFlowPageRoute<void>(
                 context: context,
                 builder: (_) => ArtistDetailPage(artistId: artist.id),
               ),
@@ -121,26 +121,26 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
             controller: _list,
             placeholderExtent: 72,
             padding: EdgeInsets.only(
-              left: context.echoPageHorizontalPadding,
-              right: context.echoPageHorizontalPadding,
-              top: context.echoSpacing.xs,
-              bottom: context.echoSpacing.xxl +
-                  context.echoShellBottomObstruction,
+              left: context.musicFlowPageHorizontalPadding,
+              right: context.musicFlowPageHorizontalPadding,
+              top: context.musicFlowSpacing.xs,
+              bottom: context.musicFlowSpacing.xxl +
+                  context.musicFlowShellBottomObstruction,
             ),
             emptyTitle: '暂无歌手',
             emptyDescription: '同步音乐库后，歌手会显示在这里。',
             emptyIcon: AppIcons.profile,
-            itemBuilder: (context, index, artist) => EchoArtistRow(
+            itemBuilder: (context, index, artist) => MusicFlowArtistRow(
               key: ValueKey('artist-row-${artist!.id}'),
               artist: artist,
               contentPadding: EdgeInsetsDirectional.fromSTEB(
                 0,
-                context.echoSpacing.xs,
+                context.musicFlowSpacing.xs,
                 0,
-                context.echoSpacing.xs,
+                context.musicFlowSpacing.xs,
               ),
               onPressed: () => Navigator.of(context).push<void>(
-                EchoPageRoute<void>(
+                MusicFlowPageRoute<void>(
                   context: context,
                   builder: (_) => ArtistDetailPage(artistId: artist.id),
                 ),

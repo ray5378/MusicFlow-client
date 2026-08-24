@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../core/design/echo_design.dart';
+import '../core/design/music_flow_design.dart';
 
 /// Windows runner 窗口控制通道(对应 windows/runner/flutter_window.cpp)。
 const MethodChannel kWindowsWindowChannel = MethodChannel(
@@ -51,9 +51,9 @@ class WindowsTitleBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isWindowsDesktop) return const SizedBox.shrink();
 
-    final colors = context.echoColors;
-    final spacing = context.echoSpacing;
-    final typography = context.echoTypography;
+    final colors = context.musicFlowColors;
+    final spacing = context.musicFlowSpacing;
+    final typography = context.musicFlowTypography;
 
     return Material(
       key: const ValueKey<String>('windows-title-bar'),
@@ -115,13 +115,13 @@ class _WindowControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     return SizedBox(
       width: 46,
       height: 40,
       child: Tooltip(
         message: tooltip,
-        child: EchoPressable(
+        child: MusicFlowPressable(
           onPressed: onPressed,
           borderRadius: BorderRadius.zero,
           minimumSize: Size.zero,

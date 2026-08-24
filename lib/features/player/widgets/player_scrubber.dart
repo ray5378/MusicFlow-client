@@ -3,17 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/design/echo_design.dart';
+import '../../../core/design/music_flow_design.dart';
 
-typedef EchoScrubberSemanticFormatter = String Function(double value);
+typedef MusicFlowScrubberSemanticFormatter = String Function(double value);
 
 /// A playback-specific scrubber that stays visually quiet until interaction.
 ///
 /// The track and thumb grow only while the user is seeking. The full surface
 /// remains a 48dp semantic target so the compact resting treatment does not
 /// reduce accessibility.
-class EchoPlayerScrubber extends StatefulWidget {
-  const EchoPlayerScrubber({
+class MusicFlowPlayerScrubber extends StatefulWidget {
+  const MusicFlowPlayerScrubber({
     super.key,
     required this.value,
     required this.min,
@@ -42,7 +42,7 @@ class EchoPlayerScrubber extends StatefulWidget {
   final String? semanticValue;
   final double? secondaryValue;
   final double? semanticStep;
-  final EchoScrubberSemanticFormatter? semanticValueFormatter;
+  final MusicFlowScrubberSemanticFormatter? semanticValueFormatter;
   final ValueChanged<double>? onChangeStart;
   final ValueChanged<double>? onChangeEnd;
   final ValueChanged<double>? onChangeCancel;
@@ -52,10 +52,10 @@ class EchoPlayerScrubber extends StatefulWidget {
   final Color? thumbColor;
 
   @override
-  State<EchoPlayerScrubber> createState() => _EchoPlayerScrubberState();
+  State<MusicFlowPlayerScrubber> createState() => _EchoPlayerScrubberState();
 }
 
-class _EchoPlayerScrubberState extends State<EchoPlayerScrubber> {
+class _EchoPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
   bool _interacting = false;
   bool _horizontalDragActive = false;
   double? _interactionValue;
@@ -167,7 +167,7 @@ class _EchoPlayerScrubberState extends State<EchoPlayerScrubber> {
     final secondaryProgress = widget.secondaryValue == null
         ? 0.0
         : _progress(widget.secondaryValue!);
-    final colors = context.echoColors;
+    final colors = context.musicFlowColors;
     final active = widget.activeColor ?? colors.accent;
     final secondary = widget.secondaryColor ?? active.withValues(alpha: 0.42);
     final inactive = widget.inactiveColor ?? colors.controlBoundary;
@@ -181,9 +181,9 @@ class _EchoPlayerScrubberState extends State<EchoPlayerScrubber> {
     final decreasedValue = _formatSemanticValue(
       (displayedValue - semanticStep).clamp(widget.min, widget.max).toDouble(),
     );
-    final duration = context.echoMotion.resolve(
+    final duration = context.musicFlowMotion.resolve(
       context,
-      context.echoMotion.feedback,
+      context.musicFlowMotion.feedback,
     );
 
     return Semantics(
@@ -220,11 +220,11 @@ class _EchoPlayerScrubberState extends State<EchoPlayerScrubber> {
               onHorizontalDragCancel: _enabled ? _cancel : null,
               child: SizedBox(
                 key: const ValueKey<String>('echo-player-scrubber'),
-                height: context.echoInteraction.minimumTouchTarget,
+                height: context.musicFlowInteraction.minimumTouchTarget,
                 child: TweenAnimationBuilder<double>(
                   tween: Tween<double>(end: _interacting ? 1 : 0),
                   duration: duration,
-                  curve: context.echoMotion.easeOut,
+                  curve: context.musicFlowMotion.easeOut,
                   builder: (context, emphasis, child) {
                     final trackHeight = 3 + emphasis * 2;
                     final thumbSize = 6 + emphasis * 8;
@@ -243,7 +243,7 @@ class _EchoPlayerScrubberState extends State<EchoPlayerScrubber> {
                             key: const ValueKey<String>(
                               'echo-player-scrubber-track',
                             ),
-                            borderRadius: context.echoRadii.pill,
+                            borderRadius: context.musicFlowRadii.pill,
                             child: SizedBox(
                               height: trackHeight,
                               child: Stack(
