@@ -49,7 +49,10 @@ jobs:
           ECHO_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ECHO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ECHO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: flutter build apk --release
+        # --target-platform android-arm64:只构建 arm64-v8a(ARMv8 及以上),
+        # 显著减小安装包体积。gradle abiFilters 对 Flutter 打包不一定生效,
+        # 这里用 Flutter 官方 target-platform 参数确保只打包 arm64。
+        run: flutter build apk --release --target-platform android-arm64
 
       - name: Rename APK for release
         run: cp build/app/outputs/flutter-apk/app-release.apk "MusicFlow-${{ github.run_number }}-android.apk"

@@ -276,6 +276,10 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   /// 同时后台拉取远程最新结果,避免每次都阻塞在远程请求与后端惰性刷新上。
   List<Song>? _lastKnownSongs;
 
+  /// 本轮随机歌曲的 id 集合:用于判断当前播放队列是否仍是随机轮次,
+  /// 避免歌单更新推送把随机歌曲误追加到用户手动切换的其他歌单。
+  Set<String> _roundSongIds = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -285,7 +289,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     _randomSongsSubscription = randomSongsChangedStream().listen((_) {
       if (!mounted) return;
       Logger.infoWithTag('DISCOVER', 'random songs changed, refreshing');
-      unawaited(_fetchLatestForDisplay());
+      // 歌单更新:正在播放随机轮次时**追加**到队列末尾(不替换、不中断),
+      // 否则仅刷新展示。
+      unawaited(_handleRandomSongsChanged());
     });
     // 活跃库就绪后若还没有内容(无缓存 + 首次冷启动),补一次缓存读取/后台拉取。
     ref.listen<MusicLibrary?>(activeLibraryProvider, (prev, next) {
@@ -356,6 +362,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     if (!mounted || token != _roundToken) return;
     if (songs.isEmpty) return;
     _autoContinue = true;
+    _roundSongIds = songs.map((s) => s.id).toSet();
     setState(() => _lastKnownSongs = songs);
     await playEffectiveQueue(ref, songs);
   }
@@ -365,12 +372,63 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     final songs = await ref.refresh(randomSongsProvider.future);
     if (!mounted || token != _roundToken || !_autoContinue) return;
     if (songs.isEmpty) return;
+    _roundSongIds = songs.map((s) => s.id).toSet();
     setState(() => _lastKnownSongs = songs);
     await playEffectiveQueue(ref, songs);
   }
 
+  /// 随机歌曲歌单更新后的处理:
+  /// - 刷新区块展示;
+  /// - 若当前正在播放本轮随机歌曲(自动续播中且队列仍是随机轮次),
+  ///   把新歌**追加**到播放队列末尾,而非替换队列 —— 保证播放不中断、
+  ///   当前轮播完后能无缝接上最新一批。
+  Future<void> _handleRandomSongsChanged() async {
+    List<Song> songs;
+    try {
+      songs = await ref.refresh(randomSongsProvider.future);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || songs.isEmpty) return;
+    setState(() => _lastKnownSongs = songs);
+    if (!_autoContinue || _roundSongIds.isEmpty) return;
+    // 仅当当前播放队列仍是本轮随机歌曲时才追加,避免污染用户切到的其他歌单。
+    final cast = ref.read(castPeerControllerProvider);
+    final fresh = <Song>[];
+    if (cast.activePeer != null) {
+      final queuedIds = <String>{
+        for (final it in cast.castQueue)
+          if (it['songId'] is String) it['songId'] as String,
+      };
+      if (queuedIds.isEmpty ||
+          !queuedIds.any(_roundSongIds.contains)) {
+        return;
+      }
+      for (final s in songs) {
+        if (!queuedIds.contains(s.id)) fresh.add(s);
+      }
+      if (fresh.isEmpty) return;
+      await ref
+          .read(castPeerControllerProvider.notifier)
+          .enqueueSongs(fresh);
+    } else {
+      final queue = ref.read(playerProvider).queue;
+      if (queue.isEmpty || !queue.any((s) => _roundSongIds.contains(s.id))) {
+        return;
+      }
+      final queuedIds = queue.map((s) => s.id).toSet();
+      for (final s in songs) {
+        if (!queuedIds.contains(s.id)) fresh.add(s);
+      }
+      if (fresh.isEmpty) return;
+      ref.read(playerProvider.notifier).addAllToQueue(fresh);
+    }
+    Logger.infoWithTag('DISCOVER', 'appended ${fresh.length} new random songs');
+  }
+
   void _refresh() {
     _autoContinue = false;
+    _roundSongIds = <String>{};
     _roundToken++;
     unawaited(_fetchLatestForDisplay());
   }
