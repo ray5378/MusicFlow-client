@@ -326,12 +326,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       behavior: HitTestBehavior.translucent,
       child: Stack(
         children: <Widget>[
-          // 右上角音量控制:点击弹出音量调节弹窗(替代原「更多」按钮)。
-          Positioned(
-            top: spacing.sm,
-            right: spacing.sm,
-            child: const VolumeButton(anchorTop: true),
-          ),
           // 主内容:整体垂直居中,不产生上沿白边。
           Center(
             child: Container(
@@ -398,12 +392,12 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             ),
           ),
           // 顶层:整条顶部横幅可拖拽移动窗口(与正常标题栏一致)。置于内容之上,
-          // 但让出右上角 64px,保证「更多」按钮仍可点击;单击不关闭播放器。
+          // 点击不关闭播放器;音量已并入底部播放控件,顶栏不再悬浮按钮。
           if (isWindowsDesktop)
             const Positioned(
               left: 0,
               top: 0,
-              right: 64,
+              right: 0,
               height: 36,
               child: _WideDragBanner(),
             ),
@@ -691,12 +685,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       children: <Widget>[
         const ProgressBar(),
         SizedBox(height: compact ? spacing.xxs : spacing.sm),
-        // 手机端全屏播放器：音量控制滑杆（对齐 Windows 端音量弹窗，
-        // 投屏实时下发后端 / 本机实时 setVolumeLive，松手落盘）。
-        if (!compact) ...[
-          const _PlayerVolumeBar(),
-          SizedBox(height: spacing.sm),
-        ],
         PlaybackControls(
           key: const ValueKey<String>('full_player_transport_controls'),
           compact: compact,
@@ -1453,143 +1441,6 @@ class PlaybackControls extends ConsumerWidget {
   }
 }
 
-/// 手机端全屏播放器音量控制行（对齐 Windows 端音量弹窗逻辑）：
-/// - 投屏态：实时（节流）下发所选播放器 volume，并随后端 status 回读；
-/// - 本机：实时 setVolumeLive，松手后由 setVolume 防抖落盘。
-class _PlayerVolumeBar extends ConsumerStatefulWidget {
-  const _PlayerVolumeBar();
-
-  @override
-  ConsumerState<_PlayerVolumeBar> createState() => _PlayerVolumeBarState();
-}
-
-class _PlayerVolumeBarState extends ConsumerState<_PlayerVolumeBar> {
-  /// 拖动中的临时音量（0.0~1.0）。拖动期间优先显示它，松手后置空。
-  double? _dragValue;
-
-  /// 投屏端节流发送时间戳。
-  DateTime? _lastCastVolumeSend;
-
-  /// 本机端节流：避免拖动时高频走 media_kit FFI（全局锁串行会堆积假死）。
-  DateTime? _lastLocalVolumeSend;
-  double? _pendingLocalVolume;
-  Timer? _localVolumeThrottleTimer;
-
-  /// 当前音量（0.0~1.0）：投屏取 peer status.volume(0-100)，本机取 player.volume。
-  double _effectiveVolume() {
-    final cast = ref.watch(castPeerControllerProvider);
-    if (cast.activePeer != null && cast.status.volume != null) {
-      return (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
-    }
-    return ref.watch(playerProvider.select((s) => s.volume));
-  }
-
-  void _sendLocalVolumeLive(double v) {
-    _pendingLocalVolume = v;
-    final now = DateTime.now();
-    if (_lastLocalVolumeSend != null &&
-        now.difference(_lastLocalVolumeSend!).inMilliseconds < 80) {
-      _localVolumeThrottleTimer ??= Timer(
-        const Duration(milliseconds: 80),
-        () {
-          _localVolumeThrottleTimer = null;
-          final pending = _pendingLocalVolume;
-          if (pending != null) {
-            _lastLocalVolumeSend = DateTime.now();
-            ref.read(playerProvider.notifier).setVolumeLive(pending);
-          }
-        },
-      );
-      return;
-    }
-    _lastLocalVolumeSend = now;
-    ref.read(playerProvider.notifier).setVolumeLive(v);
-  }
-
-  void _onChanged(double v) {
-    final clamped = v.clamp(0.0, 1.0).toDouble();
-    setState(() => _dragValue = clamped);
-    final cast = ref.read(castPeerControllerProvider);
-    if (cast.activePeer == null) {
-      _sendLocalVolumeLive(clamped);
-      return;
-    }
-    final now = DateTime.now();
-    if (_lastCastVolumeSend == null ||
-        now.difference(_lastCastVolumeSend!).inMilliseconds >= 100) {
-      _lastCastVolumeSend = now;
-      unawaited(
-        ref
-            .read(castPeerControllerProvider.notifier)
-            .setVolume((clamped * 100).round()),
-      );
-    }
-  }
-
-  void _onCommit(double v) {
-    final clamped = v.clamp(0.0, 1.0).toDouble();
-    setState(() => _dragValue = null);
-    _lastCastVolumeSend = null;
-    _localVolumeThrottleTimer?.cancel();
-    _localVolumeThrottleTimer = null;
-    _pendingLocalVolume = null;
-    final cast = ref.read(castPeerControllerProvider);
-    if (cast.activePeer != null) {
-      unawaited(
-        ref
-            .read(castPeerControllerProvider.notifier)
-            .setVolume((clamped * 100).round()),
-      );
-    } else {
-      unawaited(ref.read(playerProvider.notifier).setVolume(clamped));
-    }
-  }
-
-  @override
-  void dispose() {
-    _localVolumeThrottleTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final volume = _dragValue ?? _effectiveVolume();
-    final percent = (volume * 100).round();
-    return Row(
-      children: <Widget>[
-        Icon(
-          volume > 0 ? AppIcons.volumeHigh : AppIcons.volumeMute,
-          size: 18,
-          color: context.echoColors.muted,
-        ),
-        SizedBox(width: context.echoSpacing.sm),
-        Expanded(
-          child: EchoSlider(
-            value: volume,
-            min: 0,
-            max: 1,
-            onChanged: _onChanged,
-            onChangeEnd: _onCommit,
-            semanticLabel: '音量',
-            semanticValue: '$percent%',
-          ),
-        ),
-        SizedBox(width: context.echoSpacing.sm),
-        SizedBox(
-          width: 40,
-          child: Text(
-            '$percent%',
-            textAlign: TextAlign.end,
-            style: context.echoTypography.metadata.copyWith(
-              color: context.echoColors.muted,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _PlayerUtilityBar extends ConsumerWidget {
   const _PlayerUtilityBar({
     super.key,
@@ -1678,6 +1529,8 @@ class _PlayerUtilityBar extends ConsumerWidget {
                 ref.read(playerProvider.notifier).toggleFavorite();
               },
             ),
+            // 音量：弹出式音量调节弹窗，与「喜欢」「切换播放器」并排。
+            const VolumeButton(),
             _PlayerIconButton(
               icon: AppIcons.speaker,
               label: '切换播放器，当前：${currentPlayerName(cast)}',
