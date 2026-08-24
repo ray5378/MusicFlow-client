@@ -15,6 +15,28 @@ import 'song_options_sheet.dart';
 /// 桌面端右侧队列面板是否已打开(防止重复叠加)。
 bool _queuePanelOpen = false;
 
+/// 桌面端右侧队列面板是否已打开(防止重复叠加)。
+bool _queuePanelOpen = false;
+
+/// 已打开的右侧队列面板的关闭回调(供「队列」按钮二次点击切换关闭)。
+VoidCallback? _activeQueueClose;
+
+/// 同步关闭已打开的右侧队列面板(幂等,未打开时无副作用)。
+void closeRightQueuePanel() {
+  final cb = _activeQueueClose;
+  _activeQueueClose = null;
+  cb?.call();
+}
+
+/// 桌面端「播放队列」按钮:面板已打开则关闭,否则打开。
+void toggleRightQueuePanel({required BuildContext context}) {
+  if (_queuePanelOpen) {
+    closeRightQueuePanel();
+    return;
+  }
+  unawaited(showRightQueuePanel(context));
+}
+
 /// 播放队列入口:
 /// - 移动端(compact):沿用底部弹窗(全宽、可滑动、不遮挡顶部内容)。
 /// - 桌面端(medium/expanded):改为**非模态右侧面板**,只占窗口右侧一列,
