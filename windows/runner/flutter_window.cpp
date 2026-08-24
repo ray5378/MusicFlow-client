@@ -113,7 +113,10 @@ void FlutterWindow::HandleWindowMethod(
   if (method == "set_tray_tooltip") {
     // 任务栏/托盘歌词:把当前歌词行写进托盘 tooltip(空文本恢复默认应用名)。
     std::wstring tip;
-    const auto* args = std::get_if<flutter::EncodableMap>(&call.arguments());
+    // Flutter Windows 的 arguments() 返回右值,先绑定具名变量再取地址,
+    // 避免 `&call.arguments()` 触发 C2102 '&' requires l-value。
+    const auto arguments = call.arguments();
+    const auto* args = std::get_if<flutter::EncodableMap>(&arguments);
     if (args != nullptr) {
       const auto it = args->find(flutter::EncodableValue("text"));
       if (it != args->end()) {
