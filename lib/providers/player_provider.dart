@@ -4070,11 +4070,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // 通用计数随之被清零，导致看门狗对 Windows 末尾卡死失效。这里只要
       // 「确实在播 + 位置停在末段 2.5s 窗口内不再前进」就累计；暂停/前进/
       // 离开末段任一情况立即清零，避免误判。
+      // 附加：另有部分容器与媒体后端在 EOF 处会把 playing 置 false、processing
+      // 搁到 idle/其他 ≠completed，同样不上报 completed —— 此时 position 恰好
+      // 到达/越过声明 duration。故「位置已到声明末尾」也计为「该结束了」，覆盖
+      // 0秒/中途/近末尾三道看门狗(都要求 playing)原本都漏判的 Windows 场景。
       final inNearEndWindow =
           state.duration > const Duration(seconds: 3) &&
           state.duration - state.position <=
               const Duration(milliseconds: 2500);
-      if (player.playing && inNearEndWindow && deltaFromLast <= 150) {
+      final endEngaged =
+          inNearEndWindow &&
+          (player.playing || state.position >= state.duration);
+      if (endEngaged && deltaFromLast <= 150) {
         _nearEndStuckTicks += 1;
       } else {
         _nearEndStuckTicks = 0;
@@ -4210,17 +4217,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
       }
       // 近末尾守卫(Windows 专项增强)：某些源尾段 position 会停在 duration
-      // 前一小段不再前推，导致 completed 永不触发 → 最后一秒永久卡死。Windows
-      // 解码器(via just_audio/media_kit)撞到容器 EOF 常把 processing 置于
-      // buffering 而非 completed，`isReadyPlaying` 恒 false；因此这里使用与
-      // processing 无关的 `_nearEndStuckTicks`——只要「确实在播 + 位置停在
-      // 末段 2.5s 窗口内不前进」累计满阈值，即视为播完并走正式完成流程
-      // (尊重 随机/单曲循环/顺序)。同时允许 position 恰好 == duration 的场景。
-      if (player.playing &&
-          !shouldUseSyntheticPosition &&
+      // 前一小段不再前推，或到达/越过声明末尾而 completed 永不触发 → 末尾永久
+      // 卡死、不自动接续。Windows 解码器(via just_audio/media_kit)撞到容器 EOF
+      // 常见三种异常：processing 停在 buffering；或 playing 被置 false、processing
+      // 搁到 idle/其他 ≠completed。因此这里用与 processing 无关的
+      // `_nearEndStuckTicks`——只要「(确实在播) 或 (位置已到声明末尾)」且位置停在
+      // 末段 2.5s 窗口内不前进，累计满阈值即视为播完并走正式完成流程
+      // (尊重 随机/单曲循环/顺序)。
+      if (!shouldUseSyntheticPosition &&
           state.duration > const Duration(seconds: 3) &&
           state.duration - state.position <=
               const Duration(milliseconds: 2500) &&
+          (player.playing || state.position >= state.duration) &&
           _nearEndStuckTicks >= _nearEndStuckTicksThreshold) {
         final doneSongId = state.currentSong?.id;
         final hasPartialStuckTicks = _nearEndStuckTicks;
