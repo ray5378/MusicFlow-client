@@ -74,6 +74,11 @@ class Watchdog:
         src = pos
         ready_playing = playing and proc == Proc.ready
 
+        # 真实播放到终点触发 completed 状态 → 视为自然播完(对应 just_audio 的
+        # ProcessingState.completed 自动推进下一首)。与"末段停滞兜底判完成"无关。
+        if proc == Proc.completed:
+            return Action.COMPLETE
+
         if self.suppress_synth and self.using_lock:
             synthetic_carrying = (
                 self.synth_active and ready_playing and src <= 50
@@ -202,12 +207,18 @@ class World:
 
 
 class W_NormalDriver(World):
-    """正常播放:位置每 tick +500,直至接近 duration。"""
+    """正常播放:位置每 tick +500,直至接近 duration;到终点后转为真实
+       completed 状态(对应 just_audio 播完自动推进),不再停留在 end 让看门狗误判。"""
     def __init__(self, duration_ms=180000):
         self.pos = 0
         self.duration_ms = duration_ms
+        self.done = False
     def next(self, _w):
+        if self.done:
+            return Snap(False, Proc.completed, self.duration_ms)
         self.pos = min(self.pos + 500, self.duration_ms)
+        if self.pos >= self.duration_ms:
+            self.done = True
         return Snap(True, Proc.ready, self.pos)
 
 
@@ -370,6 +381,53 @@ def verdict(label, r, ok):
           f"ui_adv={r['ui_adv']} final_ui={r['final_ui']}ms")
 
 
+def run_queue(world_factories, *, max_ticks_per_song=120,
+              suppress_synth=False, using_lock=False, duration_ms=0):
+    """按队列顺序播放,复刻 _handlePlaybackError 语义:
+       - give_up(0秒卡死 连续重载达上限 → 判不可播)→ `_markSongDead` + 跳下一首,
+         同时记入死曲计数;
+       - 中途停滞中转跳过(非死源,next 直接前进)不计入死曲;
+       - 所有歌曲都被判不可播 → 整队不可播,停止(对应 Dart 整队停止并提示)。
+       world_factories: 逐首歌曲的行为工厂(接受 run 相同的默认参数)。"""
+    total_songs = len(world_factories)
+    dead_songs = 0
+    played_to_completion = 0
+    self_healed = 0
+    skipped_mid = 0
+    for f in world_factories:
+        w = f()
+        chunk = run(
+            w, max_ticks=max_ticks_per_song,
+            suppress_synth=suppress_synth, using_lock=using_lock,
+            duration_ms=duration_ms,
+        )
+        if chunk["gave_up"]:
+            dead_songs += 1
+        elif chunk["skip"]:
+            skipped_mid += 1
+        elif chunk["complete"]:
+            played_to_completion += 1
+        elif chunk["reload"] and chunk["ui_adv"]:
+            self_healed += 1
+    # 整队不可播:每首歌都被判死,且没有一首完成/自愈。
+    whole_dead = (
+        dead_songs == total_songs
+        and played_to_completion == 0 and self_healed == 0
+    )
+    return {
+        "total": total_songs, "dead": dead_songs,
+        "played": played_to_completion, "healed": self_healed,
+        "skipped_mid": skipped_mid, "whole_dead": whole_dead,
+    }
+
+
+def qverdict(label, r, ok):
+    tag = "OK " if ok else "FAIL"
+    print(f"  [{tag}] {label}: total={r['total']} dead={r['dead']} "
+          f"played={r['played']} healed={r['healed']} "
+          f"skipped_mid={r['skipped_mid']} whole_dead={r['whole_dead']}")
+
+
 def main():
     print("=" * 70)
     print("播放停滞/卡死 专项模拟测试  (tick=500ms)")
@@ -435,6 +493,41 @@ def main():
             duration_ms=180000, max_ticks=200)
     verdict("场景8b 中途卡死(60s/180s,应跳下一首)",
             r, r["skip"])
+
+    print("----- 队列维度(整队/坏源跳过/坏源后恢复) -----")
+
+    # 9. 队列全为可播歌 → 全部正常播完,无死曲
+    r = run_queue([
+        lambda: W_NormalDriver(duration_ms=12000),
+        lambda: W_NormalDriver(duration_ms=12000),
+    ], max_ticks_per_song=40, duration_ms=12000)
+    qverdict("场景9 队列全可播(应无死曲,全部完成)",
+             r, r["dead"] == 0 and r["played"] == 2 and not r["whole_dead"])
+
+    # 10. 坏源在前,可播歌在后 → 死曲被跳过,后续可播歌照常播放
+    r = run_queue([
+        lambda: W_PermanentNoSource(),
+        lambda: W_NormalDriver(duration_ms=12000),
+    ], max_ticks_per_song=60, suppress_synth=True, duration_ms=12000)
+    qverdict("场景10 坏源后跟可播歌(跳过死曲,后续正常播完)",
+             r, r["dead"] == 1 and r["played"] == 1 and not r["whole_dead"])
+
+    # 11. 整队全为坏源 → 整队不可播,停止并提示(不无限跳过)
+    r = run_queue([
+        lambda: W_PermanentNoSource(),
+        lambda: W_PermanentNoSource(),
+        lambda: W_PermanentNoSource(),
+    ], max_ticks_per_song=60, suppress_synth=True)
+    qverdict("场景11 整队全坏源(应判整队不可播,停止而非无限跳过)",
+             r, r["dead"] == 3 and r["played"] == 0 and r["whole_dead"])
+
+    # 12. 瞬时挂起在前(自愈),随后正常歌 → 无死曲,首曲并非死曲
+    r = run_queue([
+        lambda: W_TransientLoadHang(),
+        lambda: W_NormalDriver(duration_ms=12000),
+    ], max_ticks_per_song=60, suppress_synth=True, duration_ms=12000)
+    qverdict("场景12 瞬时挂起后接正常歌(挂起自愈,不判死)",
+             r, r["dead"] == 0 and r["healed"] == 1 and not r["whole_dead"])
 
     print("=" * 70)
 
