@@ -396,6 +396,7 @@ class PlayQueueSheetView extends StatelessWidget {
                                     onOpenSongActions(context, index, song),
                                   ),
                                   moreSemanticLabel: '${song.title}，更多操作',
+                                  showMoreButton: false,
                                 );
                               },
                             ),

@@ -31,6 +31,7 @@ class EchoSongRow extends StatelessWidget {
     this.isDownloaded = false,
     this.isFavorite,
     this.isPreview,
+    this.showMoreButton = true,
   });
 
   static const double _coverSize = 48;
@@ -53,6 +54,7 @@ class EchoSongRow extends StatelessWidget {
   final bool isDownloaded;
   final bool? isFavorite;
   final bool? isPreview;
+  final bool showMoreButton;
 
   bool get _favorite => isFavorite ?? song.starred;
   bool get _preview => isPreview ?? song.isPreview;
@@ -64,7 +66,8 @@ class EchoSongRow extends StatelessWidget {
     final selectionAction = onToggleSelected ?? onPressed;
     final mainAction = selectionMode ? selectionAction : onPressed;
     final mainLongPress = selectionMode ? selectionAction : onLongPress;
-    final moreAction = selectionMode ? null : onMorePressed ?? onLongPress;
+    final moreAction =
+        selectionMode || !showMoreButton ? null : onMorePressed ?? onLongPress;
     final semanticLabel = selectionMode
         ? <String>[
             song.title,
