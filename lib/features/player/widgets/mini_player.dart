@@ -86,7 +86,10 @@ class MiniPlayer extends ConsumerWidget {
       context,
       context.echoMotion.scene,
     );
-    Navigator.of(context).push(
+    // 压入「根」导航器:全屏播放器需盖住整个窗口(含 Windows 自绘标题栏),
+    // 否则 Play 页会落在 40px 标题栏之下,顶部残留一条标题栏色带(用户感知为
+    // 「大屏顶部白边」),且下方 shell/迷你条不参与沉浸视图。
+    Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
         pageBuilder: (context, animation, secondaryAnimation) {
           return const FullPlayerPage();

@@ -4164,14 +4164,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
       }
       // 近末尾守卫：某些源尾段 position 会停在 duration 前一小段不再前推，
-      // 导致 completed 永不触发 → 最后一秒永久卡死。这里一旦确认进入末段
-      // 却持续停滞，就视为已播完并走正式完成流程(尊重 随机/单曲循环/顺序)。
+      // 导致 completed 永不触发 → 最后一秒永久卡死。Windows 解码器(via
+      // just_audio / media_kit)对部分容器会把 position 顶到接近甚至恰好等于
+      // 声明的 duration，却迟迟不上报 completed；Android 同一源可正常触发完成。
+      // 这里一旦确认进入末段(≤2.5s，允许 position 恰好 == duration)却持续停滞，
+      // 就视为已播完并走正式完成流程(尊重 随机/单曲循环/顺序)。
+      // 去掉原来的严格 state.position < state.duration,否则 position 到达
+      // duration 被拦下后既不会走 completed 又不会被本守卫兜底 → 末尾卡死。
       if (isReadyPlaying &&
           !shouldUseSyntheticPosition &&
           state.duration > const Duration(seconds: 3) &&
-          state.position < state.duration &&
           state.duration - state.position <=
-              const Duration(milliseconds: 1500) &&
+              const Duration(milliseconds: 2500) &&
           _stagnantPositionTicks >= _stagnantNearEndTicks) {
         final doneSongId = state.currentSong?.id;
         final hasPartialStuckTicks = _stagnantPositionTicks;

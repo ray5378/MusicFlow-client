@@ -77,7 +77,16 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final playing = ref.read(effectiveIsPlayingProvider);
-    _appForeground = state == AppLifecycleState.resumed;
+    // Windows/macOS 桌面只要窗口「失焦」(AppLifecycleState.inactive)就会收到
+    // 通知。若把「仅 resumed 才旋转」一刀切,用户一切到别的窗口黑胶就停转,
+    // 观感上像「播放器不在大屏/前台就停止」。因此只在窗口真正隐藏/最小化
+    // (paused)或销毁(detached)时才暂停,普通的 inactive(仍处于前台可见)
+    // 照常旋转——歌曲还在播,封面就不该停。
+    final trulyHidden = switch (state) {
+      AppLifecycleState.paused || AppLifecycleState.detached => true,
+      _ => false,
+    };
+    _appForeground = !trulyHidden;
     _syncRotation(playing);
   }
 
