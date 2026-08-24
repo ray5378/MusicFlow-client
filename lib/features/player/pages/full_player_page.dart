@@ -326,18 +326,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       behavior: HitTestBehavior.translucent,
       child: Stack(
         children: <Widget>[
-          // Windows 大屏顶栏:与正常(非大屏)标题栏行为一致——长按/拖拽移动窗口,
-          // 双击最大化/还原。放在 Stack 最底层(最矮 z),上层的「更多」按钮与正文
-          // 仍可命中;仅当命中最上方空白区域时才落在这里,避免干扰正文交互。
-          // (MarcusFig 全屏播放走 rootNavigator 盖住系统/自绘标题栏,故需自建拖拽区)
-          if (isWindowsDesktop)
-            const Positioned(
-              left: 0,
-              top: 0,
-              right: 0,
-              height: 36,
-              child: _WideDragBanner(),
-            ),
           // 右上角「更多操作」:唯一悬浮操作,点击不缩小播放器。
           Positioned(
             top: spacing.sm,
@@ -354,9 +342,11 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
               constraints: BoxConstraints(
                 maxWidth: context.echoBreakpoints.maxContentWidth * 1.2,
               ),
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: spacing.md,
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                0, // 顶内边距=0:内容从窗口最顶端(y=0)起,消除浅色舞台上沿露出的白色细边
+                horizontalPadding,
+                spacing.md,
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -411,6 +401,16 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
               ),
             ),
           ),
+          // 顶层:整条顶部横幅可拖拽移动窗口(与正常标题栏一致)。置于内容之上,
+          // 但让出右上角 64px,保证「更多」按钮仍可点击;单击不关闭播放器。
+          if (isWindowsDesktop)
+            const Positioned(
+              left: 0,
+              top: 0,
+              right: 64,
+              height: 36,
+              child: _WideDragBanner(),
+            ),
         ],
       ),
     );
@@ -978,6 +978,8 @@ class _WideDragBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
+      // 单击吞掉(不触发外层 onTap=_closeToMini),仅拖拽/双击交给窗口。
+      onTap: () {},
       onPanStart: (_) => _invoke('start_move'),
       onDoubleTap: () => _invoke('maximize_toggle'),
       child: const SizedBox.expand(),
