@@ -344,11 +344,11 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           // 主要内容
           Padding(
             padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              spacing.md, // 给顶部留空间给右上角按钮
-              horizontalPadding,
-              spacing.md,
-            ),
+                horizontalPadding,
+                0, // 不保留顶部留白,杜绝大屏上沿白边
+                horizontalPadding,
+                spacing.md,
+              ),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -374,53 +374,52 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                           // 左侧：封面 + 信息 + 控件
                           SizedBox(
                             width: leftPaneWidth,
-                            child: GestureDetector(
-                              onTap: () {}, // 阻止冒泡
-                              behavior: HitTestBehavior.translucent,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: <Widget>[
-                                  // 上半部：封面 (居中)
-                                  Expanded(
-                                    flex: 3,
-                                    child: _buildWideArtworkPane(song),
-                                  ),
-                                  SizedBox(height: spacing.sm),
-                                  // 下半部：信息 + 控件 (垂直排列)
-                                  Expanded(
-                                    flex: 2,
-                                    child: GestureDetector(
-                                      onTap: () {}, // 阻止冒泡
-                                      behavior: HitTestBehavior.translucent,
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: <Widget>[
-                                          // 歌曲信息
-                                          _buildWideDetailsPane(
-                                            song,
-                                            subtitle: subtitle,
-                                            showControls: false,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                // 上半部：封面 (居中)
+                                Expanded(
+                                  flex: 3,
+                                  child: _buildWideArtworkPane(song),
+                                ),
+                                SizedBox(height: spacing.sm),
+                                // 下半部：信息 + 控件 (垂直排列)
+                                Expanded(
+                                  flex: 2,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: <Widget>[
+                                      // 歌曲信息：占剩余空间,居中且可滚动防溢出
+                                      Expanded(
+                                        child: Center(
+                                          child: SingleChildScrollView(
+                                            child: _buildWideDetailsPane(
+                                              song,
+                                              subtitle: subtitle,
+                                              showControls: false,
+                                            ),
                                           ),
-                                          SizedBox(height: spacing.sm),
-                                          // 播放控件（居中显示）
-                                          _buildControlPanel(song, compact: true, showLyricsToggle: false),
-                                        ],
+                                        ),
                                       ),
-                                    ),
+                                      SizedBox(height: spacing.sm),
+                                      // 播放控件（始终显示）
+                                      _buildControlPanel(
+                                        song,
+                                        compact: true,
+                                        showLyricsToggle: false,
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                           SizedBox(width: leftRightGap),
                           // 右侧：歌词 (常驻)
                           SizedBox(
                             width: rightPaneWidth,
-                            child: GestureDetector(
-                              onTap: () {}, // 阻止冒泡
-                              behavior: HitTestBehavior.translucent,
-                              child: const _PlayerLyricsPane(),
-                            ),
+                            child: const _PlayerLyricsPane(),
                           ),
                         ],
                       );
@@ -463,53 +462,37 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   }
 
   Widget _buildWideDetailsPane(Song song, {required String subtitle, bool showControls = true}) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final spacing = context.echoSpacing;
-        final compactHeight = constraints.maxHeight < 520;
-        final titleStyle =
-            (compactHeight
-                    ? context.echoTypography.title
-                    : context.echoTypography.headline)
-                .copyWith(color: context.echoColors.ink);
-        final subtitleStyle =
-            (compactHeight
-                    ? context.echoTypography.metadata
-                    : context.echoTypography.body)
-                .copyWith(color: context.echoColors.muted);
+    final spacing = context.echoSpacing;
+    final titleStyle = context.echoTypography.headline.copyWith(
+      color: context.echoColors.ink,
+    );
+    final subtitleStyle = context.echoTypography.body.copyWith(
+      color: context.echoColors.muted,
+    );
 
-        return SingleChildScrollView(
-          key: const ValueKey<String>('full_player_details_pane'),
-          primary: false,
-          physics: const ClampingScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                _buildSongIdentity(
-                  song: song,
-                  subtitle: subtitle,
-                  titleStyle: titleStyle,
-                  subtitleStyle: subtitleStyle,
-                  textAlign: TextAlign.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  titleMaxLines: 2,
-                  subtitleMaxLines: compactHeight ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  scrollable: false,
-                ),
-                if (showControls) ...[
-                  SizedBox(height: spacing.xs),
-                  _buildControlPanel(song, compact: true),
-                ],
-              ],
-            ),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _buildSongIdentity(
+            song: song,
+            subtitle: subtitle,
+            titleStyle: titleStyle,
+            subtitleStyle: subtitleStyle,
+            textAlign: TextAlign.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            titleMaxLines: 2,
+            subtitleMaxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            scrollable: false,
           ),
-        );
-      },
+          if (showControls) ...[
+            SizedBox(height: spacing.xs),
+            _buildControlPanel(song, compact: true),
+          ],
+        ],
+      ),
     );
   }
 
