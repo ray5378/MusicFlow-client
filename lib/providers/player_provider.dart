@@ -139,6 +139,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   int _stagnantPositionTicks = 0;
   int _lastStagnantLogTick = -1;
   int _lastIgnoredSyntheticPositionLogTick = -1;
+
+  /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
+  /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
+  static const int _stagnantSkipThresholdTicks = 10;
   bool _syntheticPositionFallbackActive = false;
   int _playDebugSession = 0;
   bool _loggedDurationUnavailableForSong = false;
@@ -3940,10 +3944,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final deltaFromLast = (sourcePlayerPos - _lastPolledPlayerPosition)
           .inMilliseconds
           .abs();
-      if (deltaFromLast <= 150) {
-        _stagnantPositionTicks += 1;
-      } else {
+      // 仅「就绪播放」状态累计停滞计数；暂停/缓冲/加载一律清零，
+      // 否则暂停很久后恢复会因计数已越阈值而被看门狗误跳下一首。
+      if (!isReadyPlaying || deltaFromLast > 150) {
         _stagnantPositionTicks = 0;
+      } else {
+        _stagnantPositionTicks += 1;
       }
       _lastPolledPlayerPosition = sourcePlayerPos;
 
@@ -4024,6 +4030,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
       }
       if (!shouldUseSyntheticPosition) return;
+
+      // 停滞看门狗：就绪播放但进度持续不走(排除 lock-cache 合成进度场景，
+      // 那类音频其实在播放，跳了反而错)，达到阈值即自动跳下一首自愈。
+      // 统一作用于本机与远程试听(保持继续跳直到找到能前進的歌曲)。
+      if (!shouldUseSyntheticPosition &&
+          _stagnantPositionTicks >= _stagnantSkipThresholdTicks) {
+        final stuckTicks = _stagnantPositionTicks;
+        _stagnantPositionTicks = 0;
+        _playDbg(
+          'stall_watchdog skip_to_next song=${state.currentSong?.id} '
+          'ticks=$stuckTicks sourcePlayerPos=$sourcePlayerPos '
+          'statePos=${state.position} '
+          'processing=${processing.name} playing=${player.playing}',
+        );
+        unawaited(next());
+        return;
+      }
 
       final next = _normalizeSeekPosition(
         state.position + const Duration(milliseconds: 500),
