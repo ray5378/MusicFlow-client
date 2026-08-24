@@ -26,6 +26,15 @@ constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
   L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
 
+// Registry key for remembering the window frame (position + size), so the
+// width/height the user last set is preserved across launches.
+constexpr const wchar_t kWindowFrameRegKey[] =
+  L"Software\\MusicFlow\\MusicFlowClient";
+constexpr const wchar_t kWindowFrameRegLeft[] = L"WindowLeft";
+constexpr const wchar_t kWindowFrameRegTop[] = L"WindowTop";
+constexpr const wchar_t kWindowFrameRegWidth[] = L"WindowWidth";
+constexpr const wchar_t kWindowFrameRegHeight[] = L"WindowHeight";
+
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
 
@@ -51,6 +60,73 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
     enable_non_client_dpi_scaling(hwnd);
   }
   FreeLibrary(user32_module);
+}
+
+// 把当前窗口位置与大小写进注册表,供下次启动恢复。最小化/最大化时不保存,
+// 避免把「还原/最大化」误记为正常窗口大小。
+void SaveWindowFrame(HWND hwnd) {
+  if (hwnd == nullptr || IsIconic(hwnd) || IsZoomed(hwnd)) {
+    return;
+  }
+  RECT rect;
+  if (!GetWindowRect(hwnd, &rect)) {
+    return;
+  }
+  HKEY key = nullptr;
+  if (RegCreateKeyExW(HKEY_CURRENT_USER, kWindowFrameRegKey, 0, nullptr, 0,
+                      KEY_SET_VALUE, nullptr, &key, nullptr) !=
+      ERROR_SUCCESS) {
+    return;
+  }
+  DWORD width = static_cast<DWORD>(rect.right - rect.left);
+  DWORD height = static_cast<DWORD>(rect.bottom - rect.top);
+  RegSetValueExW(key, kWindowFrameRegLeft, 0, REG_DWORD,
+                 reinterpret_cast<const BYTE*>(&rect.left), sizeof(DWORD));
+  RegSetValueExW(key, kWindowFrameRegTop, 0, REG_DWORD,
+                 reinterpret_cast<const BYTE*>(&rect.top), sizeof(DWORD));
+  RegSetValueExW(key, kWindowFrameRegWidth, 0, REG_DWORD,
+                 reinterpret_cast<const BYTE*>(&width), sizeof(DWORD));
+  RegSetValueExW(key, kWindowFrameRegHeight, 0, REG_DWORD,
+                 reinterpret_cast<const BYTE*>(&height), sizeof(DWORD));
+  RegCloseKey(key);
+}
+
+// 恢复上次保存的窗口位置与大小。仅当保存的矩形仍与某个屏幕相交时才应用,
+// 避免显示器变更(拔掉外接屏)后窗口落到可见区域之外。
+void RestoreWindowFrame(HWND hwnd) {
+  if (hwnd == nullptr) {
+    return;
+  }
+  HKEY key = nullptr;
+  if (RegOpenKeyExW(HKEY_CURRENT_USER, kWindowFrameRegKey, 0, KEY_QUERY_VALUE,
+                    &key) != ERROR_SUCCESS) {
+    return;
+  }
+  DWORD left = 0, top = 0, width = 0, height = 0;
+  DWORD size = sizeof(DWORD);
+  bool ok = RegQueryValueExW(key, kWindowFrameRegLeft, nullptr, nullptr,
+                             reinterpret_cast<BYTE*>(&left), &size) ==
+                ERROR_SUCCESS &&
+            RegQueryValueExW(key, kWindowFrameRegTop, nullptr, nullptr,
+                             reinterpret_cast<BYTE*>(&top), &size) ==
+                ERROR_SUCCESS &&
+            RegQueryValueExW(key, kWindowFrameRegWidth, nullptr, nullptr,
+                             reinterpret_cast<BYTE*>(&width), &size) ==
+                ERROR_SUCCESS &&
+            RegQueryValueExW(key, kWindowFrameRegHeight, nullptr, nullptr,
+                             reinterpret_cast<BYTE*>(&height), &size) ==
+                ERROR_SUCCESS;
+  RegCloseKey(key);
+  if (!ok || width == 0 || height == 0) {
+    return;
+  }
+  RECT rect{left, top, left + static_cast<LONG>(width),
+            top + static_cast<LONG>(height)};
+  if (MonitorFromRect(&rect, MONITOR_DEFAULTTONULL) == nullptr) {
+    return;
+  }
+  MoveWindow(hwnd, rect.left, rect.top, rect.right - rect.left,
+             rect.bottom - rect.top, TRUE);
 }
 
 }  // namespace
@@ -156,6 +232,10 @@ bool Win32Window::Create(const std::wstring& title,
                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                    SWP_NOACTIVATE);
 
+  // 恢复上次保存的窗口位置/大小(若无记录则保持默认 1280x720)。
+  // 需在 OnCreate 之前执行,以便 Flutter 子窗口按恢复后的尺寸创建。
+  RestoreWindowFrame(window);
+
   return OnCreate();
 }
 
@@ -190,6 +270,7 @@ Win32Window::MessageHandler(HWND hwnd,
                             LPARAM const lparam) noexcept {
   switch (message) {
     case WM_DESTROY:
+      SaveWindowFrame(hwnd);
       window_handle_ = nullptr;
       Destroy();
       if (quit_on_close_) {
@@ -212,6 +293,11 @@ Win32Window::MessageHandler(HWND hwnd,
       // 在窗口顶部绘制一条非客户区边框线(白/亮色细边，横贯整窗)。
       // 让客户区铺满整个窗口、裁掉这条白边；WS_THICKFRAME 仍在，
       // 调整大小的边缘热区不受影响。(Windows 11 下 DWM 仍提供圆角阴影。)
+      return 0;
+
+    case WM_EXITSIZEMOVE:
+      // 拖拽/外框调整结束后才落盘,避免拖动过程中高频写注册表。
+      SaveWindowFrame(hwnd);
       return 0;
 
     case WM_SIZE: {

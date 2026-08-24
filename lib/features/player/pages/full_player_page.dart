@@ -706,7 +706,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           },
         ),
         SizedBox(height: spacing.xxs),
-        _buildQualityIndicator(),
       ],
     );
 

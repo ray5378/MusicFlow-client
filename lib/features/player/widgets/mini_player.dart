@@ -75,7 +75,14 @@ class MiniPlayer extends ConsumerWidget {
           : ref.read(playerProvider.notifier).cyclePlaybackMode(),
       onToggleFavorite: () =>
           ref.read(playerProvider.notifier).toggleFavorite(),
-      onOpenQueue: () => showPlayQueueSheet(context: context),
+      onOpenQueue: () {
+        // 移动端:底部弹窗;桌面端:右侧队列面板点开/点关切换(与播放页一致)。
+        if (context.echoWindowClass == EchoWindowClass.compact) {
+          showPlayQueueSheet(context: context);
+        } else {
+          toggleRightQueuePanel(context: context);
+        }
+      },
       currentPlayerName: currentPlayerName(cast),
       isCasting: isCasting,
     );

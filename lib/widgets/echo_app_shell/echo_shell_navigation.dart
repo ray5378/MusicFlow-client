@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import '../../core/design/echo_design.dart';
 import '../../features/download/pages/download_manager_page.dart';
@@ -75,106 +74,29 @@ class EchoCompactNavigation extends StatelessWidget {
   }
 }
 
-/// 主界面侧栏顶部的「应用菜单」按钮。
-///
-/// 桌面端(medium/expanded)不再打开铺满整窗的抽屉遮罩,而是弹出一个
-/// 收在按钮下方的 Windows 风格下拉菜单(切换线路 / 下载管理 / 设置)。
-enum _EchoAppMenuAction { switchLine, downloads, settings }
+/// 侧栏底部「应用菜单」动作(切换线路 / 下载管理 / 设置)。
+enum _SidebarAppAction { switchLine, downloads, settings }
 
-class EchoAppMenuButton extends StatefulWidget {
-  const EchoAppMenuButton({super.key});
+/// 侧栏底部常驻的应用动作组:
+/// - 展开态:图标 + 文字;
+/// - 收起态:仅图标,悬浮显示 Tooltip。
+class _SidebarAppActions extends StatelessWidget {
+  const _SidebarAppActions({required this.collapsed});
 
-  @override
-  State<EchoAppMenuButton> createState() => _EchoAppMenuButtonState();
-}
+  final bool collapsed;
 
-class _EchoAppMenuButtonState extends State<EchoAppMenuButton> {
-  final GlobalKey _buttonKey = GlobalKey();
-
-  Future<void> _showMenu() async {
-    final renderObject = _buttonKey.currentContext?.findRenderObject();
-    final overlay = Overlay.of(context).context.findRenderObject();
-    if (renderObject is! RenderBox || overlay is! RenderBox) return;
-
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        renderObject.localToGlobal(Offset.zero, ancestor: overlay),
-        renderObject.localToGlobal(
-          renderObject.size.bottomRight(Offset.zero),
-          ancestor: overlay,
-        ),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    final action = await showMenu<_EchoAppMenuAction>(
-      context: context,
-      position: position,
-      color: context.echoColors.surface,
-      elevation: 8.0,
-      constraints: const BoxConstraints(minWidth: 216, maxWidth: 280),
-      shape: RoundedRectangleBorder(
-        borderRadius: context.echoRadii.control,
-        side: BorderSide(color: context.echoColors.controlBoundary),
-      ),
-      items: <PopupMenuEntry<_EchoAppMenuAction>>[
-        _menuItem(
-          context,
-          value: _EchoAppMenuAction.switchLine,
-          icon: AppIcons.route,
-          title: '切换线路',
-        ),
-        _menuItem(
-          context,
-          value: _EchoAppMenuAction.downloads,
-          icon: AppIcons.downloadOutline,
-          title: '下载管理',
-        ),
-        _menuItem(
-          context,
-          value: _EchoAppMenuAction.settings,
-          icon: AppIcons.settings,
-          title: '设置',
-        ),
-      ],
-    );
-
-    if (action != null && mounted) _dispatch(action);
-  }
-
-  PopupMenuEntry<_EchoAppMenuAction> _menuItem(
-    BuildContext context, {
-    required _EchoAppMenuAction value,
-    required IconData icon,
-    required String title,
-  }) {
-    return PopupMenuItem<_EchoAppMenuAction>(
-      value: value,
-      height: 44,
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 18, color: context.echoColors.ink),
-          SizedBox(width: context.echoSpacing.sm),
-          Expanded(
-            child: Text(title, style: context.echoTypography.body),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _dispatch(_EchoAppMenuAction action) {
+  void _dispatch(BuildContext context, _SidebarAppAction action) {
     switch (action) {
-      case _EchoAppMenuAction.switchLine:
+      case _SidebarAppAction.switchLine:
         unawaited(showRouteSelectionSheet(context));
-      case _EchoAppMenuAction.downloads:
-        unawaited(_push(const DownloadManagerPage()));
-      case _EchoAppMenuAction.settings:
-        unawaited(_push(const AppSettingsPage()));
+      case _SidebarAppAction.downloads:
+        unawaited(_push(context, const DownloadManagerPage()));
+      case _SidebarAppAction.settings:
+        unawaited(_push(context, const AppSettingsPage()));
     }
   }
 
-  Future<void> _push(Widget page) {
+  Future<void> _push(BuildContext context, Widget page) {
     return Navigator.of(
       context,
     ).push(EchoPageRoute<void>(context: context, builder: (_) => page));
@@ -182,11 +104,31 @@ class _EchoAppMenuButtonState extends State<EchoAppMenuButton> {
 
   @override
   Widget build(BuildContext context) {
-    return EchoIconButton(
-      key: _buttonKey,
-      icon: AppIcons.menu,
-      label: '打开应用菜单',
-      onPressed: _showMenu,
+    const actions = <(IconData, String, _SidebarAppAction)>[
+      (AppIcons.route, '切换线路', _SidebarAppAction.switchLine),
+      (AppIcons.downloadOutline, '下载管理', _SidebarAppAction.downloads),
+      (AppIcons.settings, '设置', _SidebarAppAction.settings),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        for (final (icon, title, action) in actions)
+          Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: collapsed
+                ? _SidebarIconEntry(
+                    label: title,
+                    icon: icon,
+                    onPressed: () => _dispatch(context, action),
+                  )
+                : _SidebarActionEntry(
+                    label: title,
+                    icon: icon,
+                    onPressed: () => _dispatch(context, action),
+                  ),
+          ),
+      ],
     );
   }
 }
@@ -222,10 +164,7 @@ class EchoMediumNavigationRail extends StatelessWidget {
             width: 96,
             child: Column(
               children: <Widget>[
-                Padding(
-                  padding: EdgeInsets.all(spacing.xs),
-                  child: const EchoAppMenuButton(),
-                ),
+                SizedBox(height: spacing.sm),
                 EchoDivider(inset: spacing.sm, endInset: spacing.sm),
                 Expanded(
                   child: ListView.builder(
@@ -245,6 +184,11 @@ class EchoMediumNavigationRail extends StatelessWidget {
                       );
                     },
                   ),
+                ),
+                EchoDivider(inset: spacing.sm, endInset: spacing.sm),
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: spacing.sm),
+                  child: const _SidebarAppActions(collapsed: true),
                 ),
               ],
             ),
@@ -324,20 +268,18 @@ class _EchoExpandedNavigationSidebarState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                // 头部：展开态显示品牌名 + 收起按钮；折叠态只留菜单与展开按钮。
+                // 头部:菜单按钮即侧边栏「收起/展开」开关;不再使用左右箭头按钮。
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: spacing.xs,
+                    horizontal: collapsed ? spacing.xxs : spacing.xs,
                     vertical: spacing.xs,
                   ),
                   child: collapsed
                       ? Column(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            const EchoAppMenuButton(),
-                            SizedBox(height: spacing.xs),
                             EchoIconButton(
-                              icon: AppIcons.chevronRight,
+                              icon: AppIcons.menu,
                               label: '展开侧边栏',
                               onPressed: _toggleCollapsed,
                             ),
@@ -345,7 +287,11 @@ class _EchoExpandedNavigationSidebarState
                         )
                       : Row(
                           children: <Widget>[
-                            const EchoAppMenuButton(),
+                            EchoIconButton(
+                              icon: AppIcons.menu,
+                              label: '收起侧边栏',
+                              onPressed: _toggleCollapsed,
+                            ),
                             SizedBox(width: spacing.sm),
                             Expanded(
                               child: Semantics(
@@ -355,11 +301,6 @@ class _EchoExpandedNavigationSidebarState
                                   style: context.echoTypography.title,
                                 ),
                               ),
-                            ),
-                            EchoIconButton(
-                              icon: AppIcons.chevronLeft,
-                              label: '收起侧边栏',
-                              onPressed: _toggleCollapsed,
                             ),
                           ],
                         ),
@@ -431,6 +372,18 @@ class _EchoExpandedNavigationSidebarState
                       );
                     },
                   ),
+                ),
+                EchoDivider(
+                  inset: collapsed ? spacing.sm : spacing.md,
+                  endInset: collapsed ? spacing.sm : spacing.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: collapsed ? spacing.xxs : spacing.sm,
+                    right: collapsed ? spacing.xxs : spacing.sm,
+                    bottom: spacing.md,
+                  ),
+                  child: _SidebarAppActions(collapsed: collapsed),
                 ),
               ],
             ),

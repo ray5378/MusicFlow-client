@@ -87,10 +87,10 @@ class RightQueuePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spacing = context.echoSpacing;
-    // 队列面板随窗口缩放(约 1/3 窗宽),并让最小/最大宽度都收窄,
-    // 避免在较窄的桌面窗口里显得过宽。
-    final width = MediaQuery.sizeOf(context).width * 0.33;
-    final panelWidth = width.clamp(280.0, 400.0);
+    // 队列面板随窗口缩放(约 1/6 窗宽),并让最小/最大宽度进一步收窄,
+    // 让面板更窄、更悬浮,避免在桌面窗口里占据过大横向空间。
+    final width = MediaQuery.sizeOf(context).width * 0.17;
+    final panelWidth = width.clamp(150.0, 220.0);
     final motion = context.echoMotion;
     final duration = motion.resolve(context, motion.scene);
 
