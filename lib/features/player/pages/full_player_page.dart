@@ -847,7 +847,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           onPressed: () => _showQualityDetailSheet(
             context: context,
             title: song?.title ?? '播放详情',
-            subtitle: song?.artistName,
+            subtitle: song?.artist,
             isPreview: song?.isPreview == true,
             sourceLabel: sourceLabel,
             qualityLabel: qualityLabel,
