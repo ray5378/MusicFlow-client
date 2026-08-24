@@ -120,8 +120,10 @@ void RestoreWindowFrame(HWND hwnd) {
   if (!ok || width == 0 || height == 0) {
     return;
   }
-  RECT rect{left, top, left + static_cast<LONG>(width),
-            top + static_cast<LONG>(height)};
+  RECT rect{static_cast<LONG>(left),
+            static_cast<LONG>(top),
+            static_cast<LONG>(left) + static_cast<LONG>(width),
+            static_cast<LONG>(top) + static_cast<LONG>(height)};
   if (MonitorFromRect(&rect, MONITOR_DEFAULTTONULL) == nullptr) {
     return;
   }
