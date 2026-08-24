@@ -70,11 +70,16 @@ class RightQueuePanel extends StatelessWidget {
     final motion = context.echoMotion;
     final duration = motion.resolve(context, motion.scene);
 
+    final size = MediaQuery.sizeOf(context);
+    // 上下各留固定比例空白:桌面端队列改为「中间带」形态(对齐网易云客户端),
+    // 不占满整窗高度,顶部给窗口留白、底部给留白,更接近悬浮面板。
+    final verticalInset = (size.height * 0.12).clamp(44.0, 152.0);
+
     return Positioned(
       key: const ValueKey<String>('right-queue-panel'),
-      top: 0,
+      top: verticalInset,
       right: 0,
-      bottom: 0,
+      bottom: verticalInset,
       width: panelWidth,
       child: Material(
         type: MaterialType.transparency,
@@ -332,38 +337,45 @@ class PlayQueueSheetView extends StatelessWidget {
                           description: '开始播放一首歌曲后，接下来的曲目会出现在这里。',
                           icon: AppIcons.queue,
                         )
-                      : ListView.separated(
-                          controller: scrollController,
-                          padding: EdgeInsets.symmetric(
-                            vertical: context.echoSpacing.xs,
-                          ),
-                          itemCount: queue.length,
-                          separatorBuilder: (context, index) =>
-                              SizedBox(height: context.echoSpacing.xxs),
-                          itemBuilder: (context, index) {
-                            final song = queue[index];
-                            return EchoSongRow(
-                              index: index,
-                              song: song,
-                              variant: EchoSongRowVariant.standard,
-                              isCurrent: index == currentIndex,
-                              contentPadding: EdgeInsetsDirectional.fromSTEB(
-                                context.echoSpacing.md,
-                                context.echoSpacing.xs,
-                                context.echoSpacing.xs,
-                                context.echoSpacing.xs,
+                      : panel
+                          ? _AutoCenterQueueList(
+                              queue: queue,
+                              currentIndex: currentIndex,
+                              onSelect: onSelect,
+                              onOpenSongActions: onOpenSongActions,
+                            )
+                          : ListView.separated(
+                              controller: scrollController,
+                              padding: EdgeInsets.symmetric(
+                                vertical: context.echoSpacing.xs,
                               ),
-                              onPressed: () => unawaited(onSelect(index)),
-                              onLongPress: () => unawaited(
-                                onOpenSongActions(context, index, song),
-                              ),
-                              onMorePressed: () => unawaited(
-                                onOpenSongActions(context, index, song),
-                              ),
-                              moreSemanticLabel: '${song.title}，更多操作',
-                            );
-                          },
-                        ),
+                              itemCount: queue.length,
+                              separatorBuilder: (context, index) =>
+                                  SizedBox(height: context.echoSpacing.xxs),
+                              itemBuilder: (context, index) {
+                                final song = queue[index];
+                                return EchoSongRow(
+                                  index: index,
+                                  song: song,
+                                  variant: EchoSongRowVariant.standard,
+                                  isCurrent: index == currentIndex,
+                                  contentPadding: EdgeInsetsDirectional.fromSTEB(
+                                    context.echoSpacing.md,
+                                    context.echoSpacing.xs,
+                                    context.echoSpacing.xs,
+                                    context.echoSpacing.xs,
+                                  ),
+                                  onPressed: () => unawaited(onSelect(index)),
+                                  onLongPress: () => unawaited(
+                                    onOpenSongActions(context, index, song),
+                                  ),
+                                  onMorePressed: () => unawaited(
+                                    onOpenSongActions(context, index, song),
+                                  ),
+                                  moreSemanticLabel: '${song.title}，更多操作',
+                                );
+                              },
+                            ),
                 ),
                 const EchoDivider(),
                 Padding(
@@ -590,6 +602,135 @@ class CastQueueSheetView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 桌面右下侧队列列表:自动把「当前播放」滚动到视口中间(对齐网易云客户端)。
+/// 行高不定(文本可换行),不依赖固定 itemExtent,用 Scrollable.ensureVisible
+/// (alignment:0.5) 精确居中;当前曲目变化后重新滚动到中间。
+class _AutoCenterQueueList extends StatefulWidget {
+  const _AutoCenterQueueList({
+    required this.queue,
+    required this.currentIndex,
+    required this.onSelect,
+    required this.onOpenSongActions,
+  });
+
+  final List<Song> queue;
+  final int currentIndex;
+  final Future<void> Function(int index) onSelect;
+  final QueueSongAction onOpenSongActions;
+
+  @override
+  State<_AutoCenterQueueList> createState() => _AutoCenterQueueListState();
+}
+
+class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
+  final ScrollController _controller = ScrollController();
+  final GlobalKey _currentKey = GlobalKey();
+
+  // 行高不定但大体均匀;仅用于懒加载下「先跳到附近」的粗估,
+  // 最终由 ensureVisible 精确定位,不依赖精确 itemExtent。
+  static const double _kEstRowHeight = 56.0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.queue.isNotEmpty && widget.currentIndex >= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+    }
+  }
+
+  @override
+  void didUpdateWidget(_AutoCenterQueueList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 只响应「当前曲目下标」变化而居中,避免列表引用变化引发的抖动。
+    if (widget.currentIndex != oldWidget.currentIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _centerOnCurrent() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _currentKey.currentContext;
+      if (ctx != null) {
+        _revealCentered(ctx);
+        return;
+      }
+      // 当前行尚未构建(ListView 懒加载):先用均高粗估跳到附近,
+      // 下一帧当前行已实例化,再精确居中。
+      if (!_controller.hasClients || widget.queue.isEmpty) return;
+      final last = widget.queue.length - 1;
+      final index =
+          (last <= 0 ? 0 : widget.currentIndex.clamp(0, last)).toInt();
+      final target = index * _kEstRowHeight;
+      final offset = target.clamp(
+        0.0,
+        _controller.position.maxScrollExtent,
+      ).toDouble();
+      _controller.jumpTo(offset);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final refined = _currentKey.currentContext;
+        if (refined == null) return;
+        _revealCentered(refined);
+      });
+    });
+  }
+
+  void _revealCentered(BuildContext target) {
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = widget.currentIndex;
+    return ListView.separated(
+      controller: _controller,
+      padding: EdgeInsets.symmetric(vertical: context.echoSpacing.xs),
+      itemCount: widget.queue.length,
+      separatorBuilder: (context, index) =>
+          SizedBox(height: context.echoSpacing.xxs),
+      itemBuilder: (context, i) {
+        final song = widget.queue[i];
+        final isCurrent = i == current;
+        final row = EchoSongRow(
+          index: i,
+          song: song,
+          variant: EchoSongRowVariant.standard,
+          isCurrent: isCurrent,
+          contentPadding: EdgeInsetsDirectional.fromSTEB(
+            context.echoSpacing.md,
+            context.echoSpacing.xs,
+            context.echoSpacing.xs,
+            context.echoSpacing.xs,
+          ),
+          onPressed: () => unawaited(widget.onSelect(i)),
+          onLongPress: () => unawaited(
+            widget.onOpenSongActions(context, i, song),
+          ),
+          onMorePressed: () => unawaited(
+            widget.onOpenSongActions(context, i, song),
+          ),
+          moreSemanticLabel: '${song.title}，更多操作',
+        );
+        // 只在当前行挂 GlobalKey,供 ensureVisible 精确定位居中。
+        return isCurrent ? KeyedSubtree(key: _currentKey, child: row) : row;
+      },
     );
   }
 }
