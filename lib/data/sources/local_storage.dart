@@ -22,6 +22,7 @@ class LocalStorage {
   static const String _keyCrossfadeDurationMs = 'crossfade_duration_ms';
   static const String _keyPlayerVolume = 'player_volume';
   static const String _keyStatusLyricsEnabled = 'status_lyrics_enabled';
+  static const String _keyLyricsScrollDwellSeconds = 'lyrics_scroll_dwell_seconds';
 
   /// 是否开启 Windows 托盘/任务栏歌词(状态栏歌词)。
   static Future<bool> getStatusLyricsEnabled() async {
@@ -367,6 +368,24 @@ class LocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyCrossfadeDurationMs, ms);
     Logger.infoWithTag(_logTag, 'crossfadeDurationMs saved: $ms');
+  }
+
+  /// 读取歌词停下跟随滚动的停靠时长（秒，默认 3）
+  static Future<int> getLyricsScrollDwellSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_keyLyricsScrollDwellSeconds) ?? 3;
+    Logger.debugWithTag(_logTag, 'lyricsScrollDwellSeconds loaded: $value');
+    return value;
+  }
+
+  /// 保存歌词停靠时长（秒）
+  static Future<void> setLyricsScrollDwellSeconds(int seconds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyLyricsScrollDwellSeconds, seconds);
+    Logger.infoWithTag(
+      _logTag,
+      'lyricsScrollDwellSeconds saved: $seconds',
+    );
   }
 
   /// 读取本机播放音量（0.0~1.0，默认 0.8）

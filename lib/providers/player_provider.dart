@@ -140,9 +140,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   int _lastStagnantLogTick = -1;
   int _lastIgnoredSyntheticPositionLogTick = -1;
 
+  /// 0 秒卡死兜底计数：播放意图存在但长时间卡在 loading/buffering 且
+  /// 位置无进展时累计；一旦离开该状态或超出阈值即清零/reset。
+  int _startupStuckTicks = 0;
+
+  /// 期望正在自动播放（尚未被用户暂停）的意图标记。
+  /// 仅在 playSong(autoPlay:true) 时置位、用户暂停时清除。
+  /// 必要性：若底层 setSource(网络/缓存/转码)卡住不返回,play() 永远
+  /// 不被调用,just_audio 的 `player.playing` 恒为 false,0 秒卡死看门狗
+  /// (仅当 playing=true 才累计)会永不触发——正是「切下一首再切回」能恢复、
+  /// 而看门狗却放任不管的根因。此标记让看门狗在「想播但还没真正开始播」
+  /// 的阶段也能累计,覆盖源加载挂起这一最常被漏掉的场景。
+  bool _expectingAutoplay = false;
+
   /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
   /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
   static const int _stagnantSkipThresholdTicks = 10;
+
+  /// 0 秒卡死兜底阈值：播放意图存在且位置持续卡在起点(loading/buffering
+  /// 或 position 长期 <=0)，连续达到该 tick 数(每 500ms) 即重载当前曲目，
+  /// 模拟「切下一首再切回」的效果。12 tick = 6 秒。
+  static const int _startupStuckSkipThresholdTicks = 12;
 
   /// 近末尾守卫阈值：位置已进入最后一 1.5s 却迟迟不触发 completed，
   /// 连续停滞满该 tick 数即视为播完并走正式完成流程。6 tick = 3 秒。
@@ -600,6 +618,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       recordHistory: recordShuffleHistory,
       clearForwardHistory: clearShuffleForwardHistory,
     );
+
+    // 记录「期望自动播放」意图：看门狗据此在源加载挂起(play() 未执行、
+    // playing=false)时也能识别并重载，覆盖 0 秒卡死场景。
+    _expectingAutoplay = autoPlay;
 
     if (song.isPreview) {
       await _playPreviewSongInternal(
@@ -2260,6 +2282,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
     }
+    // 用户主动暂停：清除「期望自动播放」意图，避免 0 秒卡死看门狗
+    // 把停在起点的暂停歌曲误判为卡死而去重载/自动播放。
+    _expectingAutoplay = false;
     await _audioPlayer?.pause();
     if (_playDebugSession != playbackSession ||
         _transportRequestGeneration != transportRequest) {
@@ -3948,6 +3973,28 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final deltaFromLast = (sourcePlayerPos - _lastPolledPlayerPosition)
           .inMilliseconds
           .abs();
+      // 0 秒卡死独立计数：播放意图存在但卡在起点(loading/buffering 或位置
+      // 长期 <=0)且位置无进展时累计；一旦真的开始播/位置前进/暂停即清零。
+      // just_audio 在 buffering/loading 时 player.playing 仍保持 true。
+      // 播放意图 = playing 或「尚未真正开始播放但期望自动播放」(_expectingAutoplay)：
+      // 源加载本身若挂起不返回,player.playing 恒为 false,仅凭 playing 会漏判。
+      final atStart =
+          sourcePlayerPos <= const Duration(milliseconds: 1500) ||
+          state.position <= const Duration(milliseconds: 1500);
+      final hasNoProgress = deltaFromLast <= 150 ||
+          (processing == ProcessingState.loading ||
+              processing == ProcessingState.buffering);
+      final wantsPlaying = player.playing || _expectingAutoplay;
+      if (wantsPlaying && atStart && hasNoProgress && !_shouldPreserveSeekPosition()) {
+        _startupStuckTicks += 1;
+      } else {
+        _startupStuckTicks = 0;
+      }
+      // 一旦位置确有前进(迈出起点)，视为已恢复，清空期望意图标记与计数，
+      // 避免后续看门狗仅凭旧标记误判。
+      if (sourcePlayerPos > const Duration(milliseconds: 1500)) {
+        _expectingAutoplay = false;
+      }
       // 仅「就绪播放」状态累计停滞计数；暂停/缓冲/加载一律清零，
       // 否则暂停很久后恢复会因计数已越阈值而被看门狗误跳下一首。
       if (!isReadyPlaying || deltaFromLast > 150) {
@@ -3956,6 +4003,35 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         _stagnantPositionTicks += 1;
       }
       _lastPolledPlayerPosition = sourcePlayerPos;
+
+      // 0 秒卡死兜底看门狗：播放意图存在但长时间(≥阈值)卡在起点
+      // (loading/buffering 或位置长期 ≤0)且位置无进展时，重载当前曲目，
+      // 等效于「切下一首再切回」——同一歌手动操作被确认能恢复播放。
+      // 与 _stagnantPositionTicks 语义不同：后者仅在「就绪播放」累计，
+      // 而 0 秒卡死恰恰发生在 loading/buffering 阶段(player.playing 仍 true)，
+      // 若复用旧看门狗，该阶段计数会被恒清零、永不触发。
+      if (_startupStuckTicks >= _startupStuckSkipThresholdTicks) {
+        final stuckSong = state.currentSong;
+        final startTicks = _startupStuckTicks;
+        final stuckSongId = stuckSong?.id;
+        _startupStuckTicks = 0;
+        _playDbg(
+          'startup_stuck_watchdog reload song=$stuckSongId '
+          'ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
+          'statePos=${state.position} processing=${processing.name} '
+          'playing=${player.playing}',
+        );
+        if (stuckSong != null) {
+          unawaited(
+            playSong(
+              stuckSong,
+              queue: state.queue,
+              index: state.currentIndex,
+            ),
+          );
+          return;
+        }
+      }
 
       // 正常情况下用底层播放器位置对齐 UI 进度。
       final drift = (playerPos - state.position).inMilliseconds.abs();

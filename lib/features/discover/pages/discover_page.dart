@@ -267,6 +267,11 @@ class RandomSongsSection extends ConsumerStatefulWidget {
 }
 
 class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
+  /// 首页随机歌曲本地缓存的有效期(TTL):超过该时长即便本地有缓存,
+  /// 也会后台拉取一次最新结果,避免「换了一批 / 歌单更新后首页仍显示旧歌」。
+  /// 30 分钟内视为新鲜,直接使用本地缓存秒开。
+  static const Duration _randomCacheTtl = Duration(minutes: 30);
+
   bool _autoContinue = false;
   int _roundToken = 0;
   final ScrollController _scrollCtrl = ScrollController();
@@ -322,12 +327,24 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
         libraryId = await cache.getLastLibraryId();
       }
       if (libraryId == null || libraryId.isEmpty) return;
-      final cached = await cache.getRandomSongs(libraryId);
+      // 带写入时间的缓存:即使命中,也据此判断是否已超过 TTL,需要后台刷新。
+      final cachedMeta = await cache.getRandomSongsWithMeta(libraryId);
       if (!mounted) return;
-      if (cached != null && cached.isNotEmpty) {
+      if (cachedMeta != null && cachedMeta.songs.isNotEmpty) {
         // 远程数据已就绪时不再用旧缓存覆盖,避免「新内容 → 旧缓存」的闪回。
         if (_lastKnownSongs == null) {
-          setState(() => _lastKnownSongs = cached);
+          setState(() => _lastKnownSongs = cachedMeta.songs);
+        }
+        // 库指纹失效 + TTL:缓存按库 id 分区,库切换天然用各自缓存;
+        // 超过有效期即便有缓存也后台拉最新,保证首页不会一直显示过期旧歌。
+        final age = DateTime.now().difference(cachedMeta.cachedAt);
+        if (age > _randomCacheTtl) {
+          Logger.infoWithTag(
+            'DISCOVER',
+            'random songs cache stale (age=${age.inMinutes}m), '
+            'refreshing in background',
+          );
+          unawaited(_fetchLatestForDisplay());
         }
         return;
       }
@@ -434,56 +451,68 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   }
 
   /// 歌曲横滑网格(每列 3 行),供数据态与缓存占位态共用,布局完全一致。
-  /// 注意:这里必须用 SingleChildScrollView(horizontal),和 _RandomSongsLoading
-  /// 保持一致 —— 页面外层的 CustomScrollView 滑片给的是无界高度,横向
-  /// ListView 需要有界高度,直接放进 sliver 会让水平 viewport 高度异常,
-  /// 导致随机歌曲重叠、无法操作,并拖垮下方歌单区块的布局。
+/// 使用有界高度 + ListView.builder 实现**真懒加载**:只对可视列惰性构建,
+/// 不再一次性创建全部 20 首歌曲的 widget,降低大歌单的内存占用。
+/// 注意:外层 sliver 给的是无界高度,横向 ListView 必须有界高度,
+/// 否则(同样的问题)会导致水平 viewport 高度异常、随机歌曲重叠无法操作,
+/// 并拖垮下方歌单区块的布局。
   Widget _buildSongsContent(List<Song> songs) {
     final itemWidth =
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
+    if (songs.isEmpty) return const SizedBox.shrink();
 
-    return HoverableHorizontalScroll(
-      builder: (context, controller) => SingleChildScrollView(
-        controller: controller,
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: context.echoSpacing.xs,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            for (var col = 0; col * 3 < songs.length; col++)
-              Padding(
+    final columnCount = (songs.length + 2) ~/ 3;
+    // 每列最多 3 行。《随机歌曲》行高最小约束 72 + 两处 2px 行距,再留少量
+    // 余量兜底(个别长标题换行时避免溢出),ClipRect 负责裁剪。
+    const double tileRowMinHeight = 72;
+    const double rowGap = 2;
+    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 230
+
+    return ClipRect(
+      child: SizedBox(
+        height: columnHeight,
+        child: HoverableHorizontalScroll(
+          builder: (context, controller) => ListView.builder(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: context.echoSpacing.xs,
+            ),
+            itemCount: columnCount,
+            itemBuilder: (context, col) {
+              final firstRow = col * 3;
+              final rowsInColumn = (songs.length - firstRow).clamp(0, 3);
+              return Padding(
                 padding: EdgeInsets.only(right: context.echoSpacing.sm),
                 child: Column(
+                  mainAxisSize: MainAxisSize.max,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    for (var row = 0;
-                        row < 3 && col * 3 + row < songs.length;
-                        row++) ...<Widget>[
+                    for (var row = 0; row < rowsInColumn; row++) ...<Widget>[
                       SizedBox(
                         width: itemWidth,
                         child: DiscoverSongTile(
-                          song: songs[col * 3 + row],
+                          song: songs[firstRow + row],
                           onPressed: () {
                             playEffectiveQueue(
                               ref,
                               songs,
-                              startIndex: col * 3 + row,
+                              startIndex: firstRow + row,
                             );
                           },
                           onOpenActions: () => showSongOptionsSheet(
                             context: context,
-                            song: songs[col * 3 + row],
+                            song: songs[firstRow + row],
                           ),
                         ),
                       ),
-                      if (row < 2) SizedBox(height: 2),
+                      if (row + 1 < rowsInColumn) const SizedBox(height: rowGap),
                     ],
                   ],
                 ),
-              ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -581,33 +610,40 @@ class _RandomSongsLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     final itemWidth =
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
-    return HoverableHorizontalScroll(
-      builder: (context, controller) => SingleChildScrollView(
-        controller: controller,
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: context.echoSpacing.xs,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            for (var col = 0; col < 3; col++)
-              Padding(
-                padding: EdgeInsets.only(right: context.echoSpacing.sm),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    for (var row = 0; row < 3; row++) ...[
-                      SizedBox(
-                        width: itemWidth,
-                        child: const _RandomSongTileSkeleton(),
-                      ),
-                      if (row < 2) const SizedBox(height: 2),
-                    ],
-                  ],
-                ),
-              ),
-          ],
+    // 高度与数据态 _buildSongsContent 保持一致,避免「加载态→数据态」跳变。
+    const double skeletonColumnHeight = 230;
+    return ClipRect(
+      child: SizedBox(
+        height: skeletonColumnHeight,
+        child: HoverableHorizontalScroll(
+          builder: (context, controller) => SingleChildScrollView(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: context.echoSpacing.xs,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (var col = 0; col < 3; col++)
+                  Padding(
+                    padding: EdgeInsets.only(right: context.echoSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        for (var row = 0; row < 3; row++) ...[
+                          SizedBox(
+                            width: itemWidth,
+                            child: const _RandomSongTileSkeleton(),
+                          ),
+                          if (row < 2) const SizedBox(height: 2),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

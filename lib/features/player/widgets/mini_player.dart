@@ -326,6 +326,54 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     ];
   }
 
+  /// 响应式桌面端控件：随窗口宽度「渐隐」非核心按钮。
+  /// 保留最关键的 上一首/播放暂停/下一首(列表前三个)，其余
+  /// (播放模式/红心/队列/音量/切换播放器)在窗口变窄时从右往左
+  /// 依次淡出；最边缘的一个按钮按剩余空间比例降低透明度，形成
+  /// 平滑淡入淡出而非突兀截断。同时避免迷你条溢出。
+  List<Widget> _buildResponsiveDesktopControls(
+    BuildContext context, {
+    required double windowWidth,
+  }) {
+    const double trackMinWidth = 180;
+    const double buttonStep = 48;
+    final allControls = _buildDesktopControls(context);
+    if (allControls.isEmpty) return allControls;
+
+    // 可变空间不足以容纳任何按钮时，仅保留播放核心按钮。
+    final budget = windowWidth - trackMinWidth;
+    if (budget <= buttonStep) {
+      return <Widget>[
+        if (allControls.isNotEmpty) allControls.first,
+      ];
+    }
+
+    final fullCount = allControls.length;
+    final shownCount = (budget / buttonStep)
+        .floor()
+        .clamp(1, fullCount);
+    final result = <Widget>[];
+    for (var i = 0; i < shownCount; i++) {
+      double opacity = 1.0;
+      // 最后一个勉强放下的按钮按剩余空间比例淡化，形成渐隐过渡。
+      if (i == shownCount - 1 && shownCount < fullCount) {
+        final consumed = buttonStep * (shownCount - 1);
+        final leftover = (budget - consumed).clamp(0.0, buttonStep);
+        opacity = (leftover / buttonStep).clamp(0.15, 1.0);
+      }
+      result.add(
+        AnimatedOpacity(
+          key: ValueKey('mini-control-$i'),
+          opacity: opacity,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          child: allControls[i],
+        ),
+      );
+    }
+    return result;
+  }
+
   /// 手机端简略版：播放暂停 + 投屏控制
   List<Widget> _buildMobileControls(BuildContext context) {
     return <Widget>[
@@ -424,31 +472,36 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                         context.echoSpacing.xs,
                         context.echoSpacing.xs,
                       ),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: GestureDetector(
-                              key: const Key('mini-player-track'),
-                              behavior: HitTestBehavior.opaque,
-                              onTap: widget.onOpenPlayer,
-                              onDoubleTap: _togglePlayPause,
-                              child: ClipRect(
-                                child: _MiniPlayerTrack(
-                                  song: song,
-                                  useHero: true,
-                                  showSubtitle: showSubtitle,
-                                  lyricLine: widget.lyricLine,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: GestureDetector(
+                                key: const Key('mini-player-track'),
+                                behavior: HitTestBehavior.opaque,
+                                onTap: widget.onOpenPlayer,
+                                onDoubleTap: _togglePlayPause,
+                                child: ClipRect(
+                                  child: _MiniPlayerTrack(
+                                    song: song,
+                                    useHero: true,
+                                    showSubtitle: showSubtitle,
+                                    lyricLine: widget.lyricLine,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          // 桌面端(Windows/macOS/Linux)全控件:上一首/播放暂停/下一首/随机/循环/投屏
-                          // 手机端简略版:播放暂停 + 投屏控制
-                          if (_isDesktop)
-                            ..._buildDesktopControls(context)
-                          else
-                            ..._buildMobileControls(context),
-                        ],
+                            // 桌面端(Windows/macOS/Linux)全控件:上一首/播放暂停/下一首/随机/循环/投屏
+                            // 手机端简略版:播放暂停 + 投屏控制
+                            if (_isDesktop)
+                              ..._buildResponsiveDesktopControls(
+                                context,
+                                windowWidth: constraints.maxWidth,
+                              )
+                            else
+                              ..._buildMobileControls(context),
+                          ],
+                        ),
                       ),
                     ),
                     Positioned.fill(

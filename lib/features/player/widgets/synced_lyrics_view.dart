@@ -9,6 +9,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../../core/design/echo_design.dart';
 import '../../../data/models/structured_lyrics.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/lyrics_dwell_provider.dart';
 
 class _LyricsRenderParts {
   const _LyricsRenderParts(this.primary, [this.secondary]);
@@ -36,6 +37,7 @@ class SyncedLyricsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final position = ref.watch(effectivePositionProvider);
+    final dwellSeconds = ref.watch(lyricsScrollDwellProvider);
     return SyncedLyricsSurface(
       lyrics: lyrics,
       position: position,
@@ -43,6 +45,7 @@ class SyncedLyricsView extends ConsumerWidget {
       activeSecondaryColor: activeSecondaryColor,
       inactivePrimaryColor: inactivePrimaryColor,
       inactiveSecondaryColor: inactiveSecondaryColor,
+      dwellDuration: Duration(seconds: dwellSeconds),
       onSeek: (target) => seekEffectivePlayback(ref, target),
     );
   }
@@ -56,6 +59,7 @@ class SyncedLyricsSurface extends StatefulWidget {
     required this.lyrics,
     required this.position,
     required this.onSeek,
+    this.dwellDuration = const Duration(seconds: 3),
     this.activePrimaryColor,
     this.activeSecondaryColor,
     this.inactivePrimaryColor,
@@ -65,6 +69,9 @@ class SyncedLyricsSurface extends StatefulWidget {
   final StructuredLyrics lyrics;
   final Duration position;
   final Future<void> Function(Duration target) onSeek;
+
+  /// 用户手动滚动后，恢复「跟随当前歌词」前的停靠时长。
+  final Duration dwellDuration;
   final Color? activePrimaryColor;
   final Color? activeSecondaryColor;
   final Color? inactivePrimaryColor;
@@ -245,7 +252,7 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
           } else if (notification is ScrollEndNotification &&
               _isUserScrolling) {
             _userScrollTimer?.cancel();
-            _userScrollTimer = Timer(const Duration(seconds: 3), () {
+            _userScrollTimer = Timer(widget.dwellDuration, () {
               if (!mounted) return;
               _isUserScrolling = false;
               _scrollToLine(_currentIndex);

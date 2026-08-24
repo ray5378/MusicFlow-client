@@ -17,6 +17,7 @@ import '../../../providers/api_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crossfade_provider.dart';
 import '../../../providers/library_provider.dart';
+import '../../../providers/lyrics_dwell_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
@@ -218,6 +219,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     final autoFallback = ref.watch(autoFallbackProvider);
     final themeSettings = ref.watch(themeSettingsProvider);
     final crossfadeMs = ref.watch(crossfadeDurationMsProvider);
+    final lyricsDwellSeconds = ref.watch(lyricsScrollDwellProvider);
     final statusLyricsEnabled = ref.watch(statusLyricsEnabledProvider);
     final availableLibraries = librariesAsync.valueOrNull;
     final switchDescription = librariesAsync.when(
@@ -338,6 +340,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     value: _crossfadeLabel(crossfadeMs),
                     description: '设置相邻曲目之间的交叉衰减时长。',
                     onPressed: () => _showCrossfadeSheet(crossfadeMs),
+                  ),
+                  EchoSettingRow(
+                    icon: AppIcons.lyrics,
+                    title: '歌词跟随停靠时长',
+                    value: _lyricsDwellLabel(lyricsDwellSeconds),
+                    description: '手动滚动歌词后，过多久恢复自动跟随当前歌词。',
+                    onPressed: () =>
+                        _showLyricsDwellSheet(lyricsDwellSeconds),
                   ),
                   EchoToggleSettingRow(
                     icon: AppIcons.play,
@@ -520,6 +530,39 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     ref.read(crossfadeDurationMsProvider.notifier).setDuration(selected);
   }
 
+  Future<void> _showLyricsDwellSheet(int currentValue) async {
+    const values = <int>[1, 2, 3, 4, 5, 8, 10];
+    final selected = await showEchoBottomSheet<int>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => EchoBottomSheet(
+        title: '歌词跟随停靠时长',
+        subtitle: '手动滚动并停下后，等待该时长再恢复「跟随当前歌词」自动滚动。',
+        constrainToAvailableHeight: true,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              for (final value in values)
+                EchoChoiceRow(
+                  title: _lyricsDwellLabel(value),
+                  description: value == 3
+                      ? '默认：停下 3 秒后恢复跟随'
+                      : '停下 ${_lyricsDwellLabel(value)} 后恢复跟随',
+                  selected: value == currentValue,
+                  icon: AppIcons.lyrics,
+                  onPressed: () => Navigator.of(sheetContext).pop(value),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    ref.read(lyricsScrollDwellProvider.notifier).setDwell(selected);
+  }
+
   void _showAboutSheet() {
     showEchoBottomSheet<void>(
       context: context,
@@ -686,4 +729,8 @@ class _SettingsInfoLine extends StatelessWidget {
 String _crossfadeLabel(int milliseconds) {
   if (milliseconds <= 0) return '关闭';
   return '${(milliseconds / 1000).toStringAsFixed(1)} 秒';
+}
+
+String _lyricsDwellLabel(int seconds) {
+  return '$seconds 秒';
 }

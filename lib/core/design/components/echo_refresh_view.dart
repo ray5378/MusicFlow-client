@@ -96,19 +96,15 @@ class _EchoRefreshViewState extends State<EchoRefreshView> {
 
   @override
   Widget build(BuildContext context) {
-    // 安卓触屏端:滚动容器处于顶部时,任意轻微下拉都会进入 drag 阶段并弹出
-    // "下拉刷新"气泡,与正常向下滚动冲突(用户反馈"每次向下滚动都提示下拉刷新")。
-    // 这里在安卓端直接去掉下拉刷新手势与气泡,页面内容改为纯滚动。
+    // 安卓触屏端:恢复下拉刷新手势(可整页下拉刷新),但不再弹出文字气泡,
+    // 避免与正常向下滚动冲突时出现的"下拉刷新"文字提示干扰。
     final isAndroidTouch =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-    if (isAndroidTouch) {
-      return widget.child;
-    }
 
     final motion = context.echoMotion;
     final colors = context.echoColors;
     final feedback = _RefreshFeedback.from(_phase);
-    final visible = feedback != null;
+    final visible = !isAndroidTouch && feedback != null;
     final emphasisColor = feedback?.kind == _RefreshFeedbackKind.failed
         ? colors.error
         : colors.accent;
@@ -124,7 +120,9 @@ class _EchoRefreshViewState extends State<EchoRefreshView> {
             child: widget.child,
           ),
         ),
-        PositionedDirectional(
+        // 安卓触屏端不渲染文字气泡:下拉刷新可用但全程无文字提示。
+        if (!isAndroidTouch)
+          PositionedDirectional(
           top: context.echoSpacing.sm,
           start: 0,
           end: 0,

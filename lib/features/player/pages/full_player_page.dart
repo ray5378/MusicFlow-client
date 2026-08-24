@@ -253,10 +253,22 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                       child: SafeArea(
                         child: LayoutBuilder(
                           builder: (context, constraints) {
-                            final useWideLayout =
-                                constraints.maxWidth > constraints.maxHeight ||
-                                constraints.maxWidth >=
-                                    context.echoBreakpoints.expanded;
+                            // 布局断点区分「触屏 / 桌面」:安卓/iOS 平板即使横屏
+                            // 或够宽,也保持触屏友好的竖版布局;只有桌面(键鼠/指针)
+                            // 平台才启用「封面+右侧常驻歌词」的分栏大屏布局,
+                            // 避免单纯按尺寸一刀切。
+                            final isTouchLike =
+                                switch (Theme.of(context).platform) {
+                                  TargetPlatform.android ||
+                                  TargetPlatform.iOS => true,
+                                  _ => false,
+                                };
+                            final wideAvailable =
+                                constraints.maxWidth >
+                                        constraints.maxHeight ||
+                                    constraints.maxWidth >=
+                                        context.echoBreakpoints.expanded;
+                            final useWideLayout = !isTouchLike && wideAvailable;
                             return useWideLayout
                                 ? _buildWidePlayerLayout(
                                     currentSong,
@@ -338,9 +350,14 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                       final leftRightGap = spacing.xl;
 
                       // 左半部分：封面 + 信息 + 控件 (Column)
-                      // 右半部分：歌词 (Expanded)
-                      final leftPaneWidth = (constraints.maxWidth - columnGap - leftRightGap) * 0.55;
-                      final rightPaneWidth = (constraints.maxWidth - columnGap - leftRightGap) * 0.45;
+                      // 右半部分：歌词 (常驻面板)
+                      // 歌词宽度取「最舒服」的阅读区间(340~540)，大屏下不再无限拉宽，
+                      // 剩余空间全部留给左半部分，保证封面与控件不被挤压。
+                      final availableWidth = constraints.maxWidth - columnGap - leftRightGap;
+                      final rightPaneWidth = (availableWidth * 0.45)
+                          .clamp(340.0, 540.0)
+                          .toDouble();
+                      final leftPaneWidth = availableWidth - rightPaneWidth;
 
                       return Row(
                         children: <Widget>[
@@ -387,7 +404,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                           // 右侧：歌词 (常驻)
                           SizedBox(
                             width: rightPaneWidth,
-                            child: const _PlayerLyricsPane(activeColor: Colors.yellow),
+                            child: const _PlayerLyricsPane(),
                           ),
                         ],
                       );
@@ -933,7 +950,8 @@ class _PlayerLyricsPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
-    final lyricActiveColor = activeColor ?? Colors.yellow;
+    // 高亮颜色跟随当前主题强调色；未显式指定时不再使用硬编码黄色。
+    final lyricActiveColor = activeColor ?? context.echoColors.accent;
     return lyricsAsync.when(
       data: (lyrics) {
         if (lyrics == null || lyrics.isEmpty) {
