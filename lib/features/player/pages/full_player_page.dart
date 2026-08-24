@@ -321,52 +321,73 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           child: Padding(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              spacing.xxs,
+              0, // 去除顶部留白
               horizontalPadding,
               spacing.xs,
             ),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: context.echoBreakpoints.maxContentWidth,
+                  maxWidth: context.echoBreakpoints.maxContentWidth * 1.2, // 放大宽度以容纳右侧歌词
                 ),
                 child: SizedBox(
                   width: double.infinity,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final compactWidth =
-                          constraints.maxWidth < context.echoBreakpoints.medium;
-                      final columnGap = compactWidth ? spacing.sm : spacing.lg;
-                      final minimumDetailsWidth = compactWidth ? 248.0 : 320.0;
-                      final maxArtworkByWidth =
-                          (constraints.maxWidth -
-                                  columnGap -
-                                  minimumDetailsWidth)
-                              .clamp(spacing.xxl, 520.0)
-                              .toDouble();
-                      final maxArtworkByHeight = constraints.maxHeight
-                          .clamp(spacing.xxl, 520.0)
-                          .toDouble();
-                      final artworkPaneWidth =
-                          maxArtworkByWidth < maxArtworkByHeight
-                          ? maxArtworkByWidth
-                          : maxArtworkByHeight;
+                      final columnGap = spacing.lg;
+                      final leftRightGap = spacing.xl;
+
+                      // 左半部分：封面 + 信息 + 控件 (Column)
+                      // 右半部分：歌词 (Expanded)
+                      final leftPaneWidth = (constraints.maxWidth - columnGap - leftRightGap) * 0.55;
+                      final rightPaneWidth = (constraints.maxWidth - columnGap - leftRightGap) * 0.45;
 
                       return Row(
                         children: <Widget>[
+                          // 左侧：封面 + 信息 + 控件
                           SizedBox(
-                            key: const ValueKey<String>(
-                              'full_player_artwork_pane',
+                            width: leftPaneWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                // 上半部：封面 (居中)
+                                Expanded(
+                                  flex: 3,
+                                  child: _buildWideArtworkPane(song),
+                                ),
+                                SizedBox(height: spacing.sm),
+                                // 下半部：信息 + 控件 (Row)
+                                Expanded(
+                                  flex: 2,
+                                  child: LayoutBuilder(
+                                    builder: (context, innerConstraints) {
+                                      return Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: <Widget>[
+                                          // 左侧信息
+                                          Expanded(
+                                            child: _buildWideDetailsPane(
+                                              song,
+                                              subtitle: subtitle,
+                                              showControls: false,
+                                            ),
+                                          ),
+                                          SizedBox(width: spacing.md),
+                                          // 右侧控件
+                                          _buildControlPanel(song, compact: true, showLyricsToggle: false),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                            width: artworkPaneWidth,
-                            child: _buildWideArtworkPane(song),
                           ),
-                          SizedBox(width: columnGap),
-                          Expanded(
-                            child: _buildWideDetailsPane(
-                              song,
-                              subtitle: subtitle,
-                            ),
+                          SizedBox(width: leftRightGap),
+                          // 右侧：歌词 (常驻)
+                          SizedBox(
+                            width: rightPaneWidth,
+                            child: const _PlayerLyricsPane(activeColor: Colors.yellow),
                           ),
                         ],
                       );
@@ -397,45 +418,18 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             ? maxCoverByWidth
             : maxCoverByHeight;
 
-        return AnimatedBuilder(
-          animation: _lyricsProgress,
-          builder: (context, child) {
-            final progress = _lyricsProgress.value;
-            final currentCoverSize = coverSize * (1 - progress);
-            final shouldBuildLyrics = _showLyrics || progress > 0.001;
-
-            return Stack(
-              alignment: Alignment.center,
-              fit: StackFit.expand,
-              children: <Widget>[
-                if (currentCoverSize > 0.5)
-                  Center(
-                    child: _buildCoverHero(
-                      song,
-                      currentCoverSize,
-                      opacity: 1 - progress,
-                    ),
-                  ),
-                if (shouldBuildLyrics)
-                  ExcludeSemantics(
-                    excluding: progress < 0.5,
-                    child: IgnorePointer(
-                      ignoring: progress < 0.5,
-                      child: Opacity(
-                        opacity: progress,
-                        child: const _PlayerLyricsPane(),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
+        return Center(
+          child: _buildCoverHero(
+            song,
+            coverSize,
+            opacity: 1.0,
+          ),
         );
       },
     );
   }
 
-  Widget _buildWideDetailsPane(Song song, {required String subtitle}) {
+  Widget _buildWideDetailsPane(Song song, {required String subtitle, bool showControls = true}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final spacing = context.echoSpacing;
@@ -474,8 +468,10 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   overflow: TextOverflow.ellipsis,
                   scrollable: false,
                 ),
-                SizedBox(height: spacing.xs),
-                _buildControlPanel(song, compact: true),
+                if (showControls) ...[
+                  SizedBox(height: spacing.xs),
+                  _buildControlPanel(song, compact: true),
+                ],
               ],
             ),
           ),
@@ -676,7 +672,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     );
   }
 
-  Widget _buildControlPanel(Song song, {bool compact = false}) {
+  Widget _buildControlPanel(Song song, {bool compact = false, bool showLyricsToggle = true}) {
     final spacing = context.echoSpacing;
     final content = Column(
       key: const ValueKey<String>('full_player_control_panel'),
@@ -700,6 +696,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           currentSong: song,
           showLyrics: _showLyrics,
           onToggleLyrics: _toggleLyrics,
+          showLyricsToggle: showLyricsToggle,
           onOpenQueue: () => unawaited(showPlayQueueSheet(context: context)),
         ),
         SizedBox(height: spacing.xxs),
@@ -927,11 +924,16 @@ class _PlayerTopBar extends StatelessWidget {
 }
 
 class _PlayerLyricsPane extends ConsumerWidget {
-  const _PlayerLyricsPane();
+  const _PlayerLyricsPane({
+    this.activeColor,
+  });
+
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
+    final lyricActiveColor = activeColor ?? Colors.yellow;
     return lyricsAsync.when(
       data: (lyrics) {
         if (lyrics == null || lyrics.isEmpty) {
@@ -951,8 +953,8 @@ class _PlayerLyricsPane extends ConsumerWidget {
         }
         return SyncedLyricsView(
           lyrics: bestLyrics,
-          activePrimaryColor: context.echoColors.ink,
-          activeSecondaryColor: context.echoColors.ink,
+          activePrimaryColor: lyricActiveColor,
+          activeSecondaryColor: lyricActiveColor,
           inactivePrimaryColor: context.echoColors.muted,
           inactiveSecondaryColor: context.echoColors.muted,
         );
@@ -1484,12 +1486,14 @@ class _PlayerUtilityBar extends ConsumerWidget {
     required this.showLyrics,
     required this.onToggleLyrics,
     required this.onOpenQueue,
+    this.showLyricsToggle = true,
   });
 
   final Song currentSong;
   final bool showLyrics;
   final VoidCallback onToggleLyrics;
   final VoidCallback onOpenQueue;
+  final bool showLyricsToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1543,12 +1547,13 @@ class _PlayerUtilityBar extends ConsumerWidget {
                 }
               },
             ),
-            _PlayerIconButton(
-              icon: showLyrics ? AppIcons.lyricsFilled : AppIcons.lyrics,
-              label: showLyrics ? '显示封面' : '显示歌词',
-              selected: showLyrics,
-              onPressed: onToggleLyrics,
-            ),
+            if (showLyricsToggle)
+              _PlayerIconButton(
+                icon: showLyrics ? AppIcons.lyricsFilled : AppIcons.lyrics,
+                label: showLyrics ? '显示封面' : '显示歌词',
+                selected: showLyrics,
+                onPressed: onToggleLyrics,
+              ),
             _PlayerIconButton(
               icon: AppIcons.queue,
               label: '播放队列',
