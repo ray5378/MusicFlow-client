@@ -228,7 +228,7 @@ class _EchoPressableState extends State<EchoPressable> {
   void _handlePointerDown(PointerDownEvent event) {
     if (!_interactive) return;
     // 排除鼠标右键/中键：仅主键(触屏或鼠标左键)触发按压反馈。
-    if (event.buttons == kSecondaryButton || event.buttons == kMiddleButton) {
+    if (event.buttons == kSecondaryButton || event.buttons == kMiddleMouseButton) {
       return;
     }
     _setDepressed(true);
