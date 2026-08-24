@@ -22,6 +22,8 @@ from enum import Enum
 STARTUP_SKIP = 12
 STAGNANT_SKIP = 10
 STAGNANT_NEAREND = 6
+# 与 Dart _startupReloadTolerance 一致:同曲连续重载达到该次数仍无进展 → 判不可播
+STARTUP_RELOAD_TOLERANCE = 2
 
 
 class Proc(str, Enum):
@@ -61,6 +63,12 @@ class Watchdog:
         self.synth_active = False
         self.using_lock = False
         self.duration_ms = 0
+        # 0 秒卡死「连续重载」容错:同一首曲(via song_id)连续达到容错上限仍无
+        # 进展 → 判不可播,给 up(gave_up=True)并转跳过(skip),而非无限重载空转。
+        self.song_id = "song"
+        self.startup_stuck_song = None
+        self.startup_reload_streak = 0
+        self.gave_up = False
 
     def step(self, playing, proc, pos):
         src = pos
@@ -91,6 +99,10 @@ class Watchdog:
 
         if src > 1500:
             self.expecting_autoplay = False
+            # 真正开播:清零连续重载计数与标记(对齐 Dart)
+            if self.startup_reload_streak > 0 or self.startup_stuck_song is not None:
+                self.startup_reload_streak = 0
+                self.startup_stuck_song = None
 
         # ---- 只读停滞计数(仅就绪播放) ----
         if not ready_playing or delta > 150:
@@ -102,6 +114,18 @@ class Watchdog:
 
         if self.startup_ticks >= STARTUP_SKIP:
             self.startup_ticks = 0
+            # 与 Dart 一致:同一首曲连续重载达到容错上限仍无进展 → 判不可播,
+            # 转跳过(等效 _handlePlaybackError 跳下一首),而非无限重载同一首。
+            if self.startup_stuck_song == self.song_id:
+                self.startup_reload_streak += 1
+            else:
+                self.startup_stuck_song = self.song_id
+                self.startup_reload_streak = 1
+            if self.startup_reload_streak >= STARTUP_RELOAD_TOLERANCE:
+                self.startup_stuck_song = None
+                self.startup_reload_streak = 0
+                self.gave_up = True
+                return Action.SKIP
             return Action.RELOAD
 
         # ---- 位置同步 ----
@@ -208,6 +232,16 @@ class W_TransientLoadHang(World):
         w.on_reload()
 
 
+class W_PermanentNoSource(World):
+    """后端确无可播源:无论重载多少次仍是 loading/0,永不恢复。
+       看门狗应在连续重载达到容错上限后判死并跳下一首,而非无限重载同一首空转。"""
+    def next(self, w):
+        return Snap(False, Proc.loading, 0)
+    def on_reload(self, w):
+        # 重载无效:仍是不可播(永久)
+        w.on_reload()
+
+
 class W_StuckZeroReady(World):
     """ready 播放但 pos 恒 0(playing=True)。看门狗应触发跳过/重载。"""
     def next(self, w):
@@ -281,10 +315,11 @@ class W_StartJitter(World):
 
 
 def run(world, *, duration_ms=0, using_lock=False, suppress_synth=False,
-        max_ticks=80):
+        max_ticks=80, song_id="song"):
     wd = Watchdog(suppress_synth_reload=suppress_synth)
     wd.using_lock = using_lock
     wd.duration_ms = duration_ms
+    wd.song_id = song_id
     wd.expecting_autoplay = True  # 播放意图(与 Dart 一致,playSong 时置位)
 
     had_reload = False
@@ -292,11 +327,16 @@ def run(world, *, duration_ms=0, using_lock=False, suppress_synth=False,
     had_complete = False
     advanced_ui = False
     recovery_via_reload = False
+    gave_up = False
     actions = []
     for _ in range(max_ticks):
         snap = world.next(wd)
         res = wd.step(snap.playing, snap.proc, snap.pos)
         actions.append(res)
+        if wd.gave_up:
+            gave_up = True
+            had_skip = True
+            break
         if res == Action.SKIP:
             had_skip = True
             break
@@ -319,14 +359,15 @@ def run(world, *, duration_ms=0, using_lock=False, suppress_synth=False,
         "reload": recovery_via_reload or had_reload,
         "skip": had_skip, "complete": had_complete,
         "ui_adv": advanced_ui, "final_ui": wd.ui_pos, "actions": actions,
+        "gave_up": gave_up,
     }
 
 
 def verdict(label, r, ok):
     tag = "OK " if ok else "FAIL"
     print(f"  [{tag}] {label}: reload={r['reload']} skip={r['skip']} "
-          f"complete={r['complete']} ui_adv={r['ui_adv']} "
-          f"final_ui={r['final_ui']}ms")
+          f"complete={r['complete']} giveup={r['gave_up']} "
+          f"ui_adv={r['ui_adv']} final_ui={r['final_ui']}ms")
 
 
 def main():
@@ -367,15 +408,21 @@ def main():
     verdict("场景6a 缓冲8tick后恢复(不误判)",
             r, not (r["reload"] or r["skip"]) and r["ui_adv"])
 
-    # 6b. 缓冲永不结束 → 看门狗应重载自愈/重试
+    # 6b. 缓冲永不结束 → 确无可播源,应放弃并跳下一首(而非无限重载)
     r = run(W_BufferNever(), suppress_synth=True)
-    verdict("场景6b 缓冲永不结束(应触发重载恢复)",
-            r, r["reload"] or r["skip"])
+    verdict("场景6b 缓冲永不结束(应判不可播,放弃跳歌)",
+            r, r["gave_up"])
 
     # 7. 起点位置抖动但实际在播 → 不应误判卡死
     r = run(W_StartJitter(), max_ticks=40)
     verdict("场景7 起点位置抖动(不误判卡死)",
             r, not (r["reload"] or r["skip"]) and r["ui_adv"])
+
+    # 7b. 真无可播源(模拟用户疑虑:0秒卡死可能是后端没源):
+    #     重载 1 次仍无进展即达到容错上限,判不可播并跳下一首,绝非无限重载空转。
+    r = run(W_PermanentNoSource(), suppress_synth=True)
+    verdict("场景7b 后端确无可播源(连续重载达上限,判不可播跳下一首)",
+            r, r["gave_up"] and r["skip"] and r["reload"])
 
     # 8a. 逼近末尾卡死(3:17/3:18) → 应判完成兜底
     r = run(W_MidSongStuck(duration_ms=198000, stuck_at_ms=197000),

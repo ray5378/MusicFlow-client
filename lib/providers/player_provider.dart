@@ -162,6 +162,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 模拟「切下一首再切回」的效果。12 tick = 6 秒。
   static const int _startupStuckSkipThresholdTicks = 12;
 
+  /// 0 秒卡死「连续重载」容错上限：同一首曲因卡在起点被看门狗连续重载达到
+  /// 该次数仍无任何进展(位置始终不前进)，判定为「后端确无可播源」而非
+  /// 瞬时挂起，转入既有失败跳歌逻辑(_handlePlaybackError)标记死歌并跳下一首，
+  /// 避免对一首永远无法起播的歌无限重载原地空转。0 秒卡死重载走的是模拟
+  /// 「切下一首再切回」路径，瞬时可恢复的挂起在 1 次重载后即会推进位置并
+  /// 清零本计数；因此容错设为 2：允许 1 次自愈重试，若第 2 次连续重载仍无
+  /// 进展则判死跳歌。
+  static const int _startupReloadTolerance = 2;
+
+  /// 当前正在被 0 秒卡死看门狗重载的曲目 id 与该曲的连续重载次数。
+  /// 用于区分「瞬时挂起可自愈」与「真无可播源应放弃」。
+  String? _startupStuckSongId;
+  int _startupReloadStreak = 0;
+
   /// 近末尾守卫阈值：位置已进入最后一 1.5s 却迟迟不触发 completed，
   /// 连续停滞满该 tick 数即视为播完并走正式完成流程。6 tick = 3 秒。
   static const int _stagnantNearEndTicks = 6;
@@ -4005,6 +4019,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // 避免后续看门狗仅凭旧标记误判。
       if (sourcePlayerPos > const Duration(milliseconds: 1500)) {
         _expectingAutoplay = false;
+        // 真正开始播放：清零「连续重载」计数与标记，同曲后续再停滞从 1 重新计，
+        // 不会因历史卡死而被立刻判死。
+        if (_startupReloadStreak > 0 || _startupStuckSongId != null) {
+          _startupReloadStreak = 0;
+          _startupStuckSongId = null;
+        }
       }
       // 仅「就绪播放」状态累计停滞计数；暂停/缓冲/加载一律清零，
       // 否则暂停很久后恢复会因计数已越阈值而被看门狗误跳下一首。
@@ -4026,8 +4046,31 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final startTicks = _startupStuckTicks;
         final stuckSongId = stuckSong?.id;
         _startupStuckTicks = 0;
+        // 区分「瞬时挂起」(重载一次即恢复)与「真无可播源」(重载仍卡 0 秒):
+        // 同一首连续达到重载容错上限仍无进展,判定为不可播,转入既有失败跳歌
+        // 逻辑(_handlePlaybackError)标记死歌并跳下一首,而非无限重载同一首
+        // 原地空转——若后端确无可播源,重载多少次都无济于事。
+        if (stuckSongId != null && _startupStuckSongId == stuckSongId) {
+          _startupReloadStreak += 1;
+        } else {
+          _startupStuckSongId = stuckSongId;
+          _startupReloadStreak = 1;
+        }
+        if (stuckSongId != null &&
+            _startupReloadStreak >= _startupReloadTolerance) {
+          _playDbg(
+            'startup_stuck_watchdog GIVE_UP reload_streak=$_startupReloadStreak '
+            'song=$stuckSongId ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
+            'processing=${processing.name} — 判不可播,跳下一首',
+          );
+          _startupStuckSongId = null;
+          _startupReloadStreak = 0;
+          _handlePlaybackError(stuckSongId);
+          return;
+        }
         _playDbg(
           'startup_stuck_watchdog reload song=$stuckSongId '
+          'reload_streak=$_startupReloadStreak/$_startupReloadTolerance '
           'ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
           'statePos=${state.position} processing=${processing.name} '
           'playing=${player.playing}',
