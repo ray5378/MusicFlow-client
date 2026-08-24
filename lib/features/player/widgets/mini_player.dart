@@ -324,7 +324,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       Tooltip(
         message: '切换播放器，当前：${widget.currentPlayerName}',
         child: EchoIconButton(
-          icon: AppIcons.speaker,
+          icon: AppIcons.dlna,
           label: '切换播放器，当前：${widget.currentPlayerName}',
           foregroundColor: widget.isCasting
               ? context.echoColors.accent
@@ -395,7 +395,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         onPressed: _togglePlayPause,
       ),
       EchoIconButton(
-        icon: AppIcons.speaker,
+        icon: AppIcons.dlna,
         label: '切换播放器，当前：${widget.currentPlayerName}',
         foregroundColor: widget.isCasting
             ? context.echoColors.accent

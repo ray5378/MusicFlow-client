@@ -312,24 +312,27 @@ Win32Window::MessageHandler(HWND hwnd,
         break;  // 最大化时交给默认处理,不需要边缘拉伸热区。
       }
       {
+        // 用整窗矩形(GetWindowRect 返回的是屏幕坐标)与 lParam 的屏幕坐标直接
+        // 比较,不再经 ScreenToClient/GetClientRect 换算,避免客户区原点或 DPI
+        // 偏移导致的边缘判定错位(之前那种写法在某些环境会命中不到边缘)。
+        const LONG mouse_x =
+            static_cast<LONG>(static_cast<SHORT>(LOWORD(lparam)));
+        const LONG mouse_y =
+            static_cast<LONG>(static_cast<SHORT>(HIWORD(lparam)));
         const LONG border =
             GetSystemMetrics(SM_CXSIZEFRAME) +
             GetSystemMetrics(SM_CXPADDEDBORDER);  // 左右边框总宽
         const LONG border_y =
             GetSystemMetrics(SM_CYSIZEFRAME) +
             GetSystemMetrics(SM_CXPADDEDBORDER);  // 上下边框总高
-        // WM_NCHITTEST 的 lParam 是屏幕坐标,需转成客户区坐标再判断。
-        POINT pt{
-            static_cast<LONG>(static_cast<SHORT>(LOWORD(lparam))),
-            static_cast<LONG>(static_cast<SHORT>(HIWORD(lparam))),
-        };
-        ScreenToClient(hwnd, &pt);
         RECT rc;
-        GetClientRect(hwnd, &rc);
-        const bool on_left = pt.x < rc.left + border;
-        const bool on_right = pt.x >= rc.right - border;
-        const bool on_top = pt.y < rc.top + border_y;
-        const bool on_bottom = pt.y >= rc.bottom - border_y;
+        GetWindowRect(hwnd, &rc);
+        const bool on_left = mouse_x >= rc.left && mouse_x < rc.left + border;
+        const bool on_right =
+            mouse_x < rc.right && mouse_x >= rc.right - border;
+        const bool on_top = mouse_y >= rc.top && mouse_y < rc.top + border_y;
+        const bool on_bottom =
+            mouse_y < rc.bottom && mouse_y >= rc.bottom - border_y;
         if (on_top && on_left) return HTTOPLEFT;
         if (on_top && on_right) return HTTOPRIGHT;
         if (on_bottom && on_left) return HTBOTTOMLEFT;

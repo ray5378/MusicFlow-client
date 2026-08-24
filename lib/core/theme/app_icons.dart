@@ -81,6 +81,10 @@ abstract final class AppIcons {
   static const wifiOff = Remix.signal_wifi_off_line;
   static const signal = Remix.signal_cellular_2_line;
   static const signalTower = Remix.base_station_line;
+  // 投屏/切换播放器(DLNA 语义)。Remix 无独立 DLNA 字形，
+  // 采用通用「投放(cast)到其他设备」的 airplay 图标表示(对齐主项目前端投屏语义)。
+  static const dlna = Remix.airplay_line;
+  static const dlnaFilled = Remix.airplay_fill;
 
   // Selection and editing.
   static const add = Remix.add_large_line;

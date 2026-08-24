@@ -140,8 +140,8 @@ void main() {
 
     // 非投屏时 MiniPlayer 默认名称为「本机」,这里传入设备名验证透传:
     // 语义标签携带当前播放器名称,作为切换播放器的状态反馈。
-    // 切换播放器图标与主项目一致(统一使用 speaker)。
-    expect(find.byIcon(AppIcons.speaker), findsOneWidget);
+    // 切换播放器图标统一使用 DLNA(投放)图标。
+    expect(find.byIcon(AppIcons.dlna), findsOneWidget);
     final labeled = find.bySemanticsLabel(RegExp('切换播放器，当前：客厅音箱'));
     expect(labeled, findsOneWidget);
 

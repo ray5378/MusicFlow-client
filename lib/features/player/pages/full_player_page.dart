@@ -1532,7 +1532,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
             // 音量：弹出式音量调节弹窗，与「喜欢」「切换播放器」并排。
             const VolumeButton(),
             _PlayerIconButton(
-              icon: AppIcons.speaker,
+              icon: AppIcons.dlna,
               label: '切换播放器，当前：${currentPlayerName(cast)}',
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
