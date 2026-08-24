@@ -15,9 +15,6 @@ import 'song_options_sheet.dart';
 /// 桌面端右侧队列面板是否已打开(防止重复叠加)。
 bool _queuePanelOpen = false;
 
-/// 桌面端右侧队列面板是否已打开(防止重复叠加)。
-bool _queuePanelOpen = false;
-
 /// 已打开的右侧队列面板的关闭回调(供「队列」按钮二次点击切换关闭)。
 VoidCallback? _activeQueueClose;
 
@@ -66,6 +63,7 @@ Future<void> showRightQueuePanel(BuildContext context) async {
   final completer = Completer<void>();
   late OverlayEntry entry;
   void close() {
+    _activeQueueClose = null;
     if (entry.mounted) entry.remove();
     _queuePanelOpen = false;
     if (!completer.isCompleted) completer.complete();
@@ -74,6 +72,7 @@ Future<void> showRightQueuePanel(BuildContext context) async {
   entry = OverlayEntry(
     builder: (panelContext) => RightQueuePanel(onClose: close),
   );
+  _activeQueueClose = close;
   overlay.insert(entry);
   await completer.future;
 }

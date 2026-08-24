@@ -696,7 +696,14 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           showLyrics: _showLyrics,
           onToggleLyrics: _toggleLyrics,
           showLyricsToggle: showLyricsToggle,
-          onOpenQueue: () => unawaited(showPlayQueueSheet(context: context)),
+          onOpenQueue: () {
+            // 移动端:打开底部弹窗(可下滑/叉号关闭);桌面端:右侧面板点开/点关切换。
+            if (context.echoWindowClass == EchoWindowClass.compact) {
+              unawaited(showPlayQueueSheet(context: context));
+            } else {
+              toggleRightQueuePanel(context: context);
+            }
+          },
         ),
         SizedBox(height: spacing.xxs),
         _buildQualityIndicator(),
