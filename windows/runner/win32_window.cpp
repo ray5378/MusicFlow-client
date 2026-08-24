@@ -302,6 +302,45 @@ Win32Window::MessageHandler(HWND hwnd,
       SaveWindowFrame(hwnd);
       return 0;
 
+    case WM_NCHITTEST:
+      // 关键:<WS_CAPTION> 被移除且 WM_NCCALCSIZE 返回 0 后,非客户区被完全
+      // 裁掉,系统默认的边缘调整大小热区也随之消失 —— 这就是窗口变成「固定大小、
+      // 无法用鼠标拉伸」的原因。这里在窗口 4 条边与 4 个角按系统边框宽度手动
+      // 命中对应 HT* 调整大小码,恢复鼠标拖拽缩放;
+      // 其余区域返回 HTCLIENT(交界面处理 = 客户端自绘内容)。
+      if (IsZoomed(hwnd)) {
+        break;  // 最大化时交给默认处理,不需要边缘拉伸热区。
+      }
+      {
+        const LONG border =
+            GetSystemMetrics(SM_CXSIZEFRAME) +
+            GetSystemMetrics(SM_CXPADDEDBORDER);  // 左右边框总宽
+        const LONG border_y =
+            GetSystemMetrics(SM_CYSIZEFRAME) +
+            GetSystemMetrics(SM_CXPADDEDBORDER);  // 上下边框总高
+        // WM_NCHITTEST 的 lParam 是屏幕坐标,需转成客户区坐标再判断。
+        POINT pt{
+            static_cast<LONG>(static_cast<SHORT>(LOWORD(lparam))),
+            static_cast<LONG>(static_cast<SHORT>(HIWORD(lparam))),
+        };
+        ScreenToClient(hwnd, &pt);
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        const bool on_left = pt.x < rc.left + border;
+        const bool on_right = pt.x >= rc.right - border;
+        const bool on_top = pt.y < rc.top + border_y;
+        const bool on_bottom = pt.y >= rc.bottom - border_y;
+        if (on_top && on_left) return HTTOPLEFT;
+        if (on_top && on_right) return HTTOPRIGHT;
+        if (on_bottom && on_left) return HTBOTTOMLEFT;
+        if (on_bottom && on_right) return HTBOTTOMRIGHT;
+        if (on_left) return HTLEFT;
+        if (on_right) return HTRIGHT;
+        if (on_top) return HTTOP;
+        if (on_bottom) return HTBOTTOM;
+        return HTCLIENT;
+      }
+
     case WM_SIZE: {
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {
