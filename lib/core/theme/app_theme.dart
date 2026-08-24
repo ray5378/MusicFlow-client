@@ -45,7 +45,7 @@ abstract final class AppTheme {
       brightness: brightness,
       useMaterial3: true,
       // 全局默认字体（Material 组件、弹窗、悬浮提示等统一走 HarmonyOS Sans SC）。
-      fontFamily: typography.fontFamily,
+      fontFamily: EchoTypography.fontFamily,
       colorScheme: colorScheme,
       primaryColor: colors.accent,
       scaffoldBackgroundColor: colors.canvas,
