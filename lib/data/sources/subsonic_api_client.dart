@@ -12,6 +12,12 @@ class SubsonicApiClient {
   final Dio _dio;
   MusicLibrary? _library;
 
+  // 稳定凭证:若每次 _addAuthParamsMap 都重新生成随机 salt,getCoverArtUrl 每次
+  // 返回的 URL 都会不同,Image.network 会因 URL 变化反复重新加载 → 播放时封面闪烁。
+  // 因此在同一次登录会话内复用同一组 salt/token,切换账号时再重新生成。
+  String? _tokenSalt;
+  String? _tokenDigest;
+
   SubsonicApiClient({required Dio dio}) : _dio = dio {
     // Remove any existing auth interceptor (may reference a stale client instance)
     // then add a new one pointing to this client.
@@ -22,6 +28,8 @@ class SubsonicApiClient {
   /// Set the current music library configuration
   void setLibrary(MusicLibrary? library) {
     _library = library;
+    _tokenSalt = null;
+    _tokenDigest = null;
     // Note: Base URL is handled by AddressPool/Dio options updates in Provider.
     // Here we just store library for Auth params.
   }
@@ -320,21 +328,31 @@ class SubsonicApiClient {
         ),
       );
     } else if (_library!.password != null) {
-      params.addAll(
-        SubsonicAuth.generateTokenAuthParams(
-          username: _library!.username ?? '',
-          password: _library!.password!,
-          version: ApiConstants.apiVersion,
-          clientName: ApiConstants.clientName,
-          format: ApiConstants.format,
-        ),
-      );
+      _ensureTokenAuth(_library!.password!);
+      params.addAll({
+        'u': _library!.username ?? '',
+        't': _tokenDigest!,
+        's': _tokenSalt!,
+        'v': ApiConstants.apiVersion,
+        'c': ApiConstants.clientName,
+        'f': ApiConstants.format,
+      });
     } else {
       // Only common params if auth data incomplete
       params['v'] = ApiConstants.apiVersion;
       params['c'] = ApiConstants.clientName;
       params['f'] = ApiConstants.format;
     }
+  }
+
+  /// 为当前账号生成一次 salt/token 并复用,保证 URL/凭证在会话内确定。
+  /// 若每次调用都生成随机 salt,封面 URL 每次重建都不同,
+  /// Image.network 会因此反复重新加载 → 音乐播放时封面持续闪烁。
+  void _ensureTokenAuth(String password) {
+    if (_tokenSalt != null && _tokenDigest != null) return;
+    final salt = SubsonicAuth.generateSalt();
+    _tokenSalt = salt;
+    _tokenDigest = SubsonicAuth.generateToken(password, salt);
   }
 }
 
