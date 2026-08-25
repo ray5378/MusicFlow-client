@@ -85,6 +85,14 @@ class MusicFlowSongRow extends StatelessWidget {
       ],
     );
     final hasMainAction = mainAction != null || mainLongPress != null;
+    // 正在播放的高亮:背景淡 accent 铺底 + 一层柔和的同色阴影,让「当前播放」
+    // 在播放队列与所有列表里都能一眼认出(与选中/收藏等文字状态互补)。
+    final bool highlightCurrent = isCurrent && !selectionMode;
+    final Color rowColor = highlightCurrent
+        ? context.musicFlowColors.accent.withValues(alpha: 0.12)
+        : selectionMode && selected
+              ? context.musicFlowColors.accent.withValues(alpha: 0.1)
+              : Colors.transparent;
     final main = hasMainAction
         ? MusicFlowPressable(
             semanticLabel: semanticLabel,
@@ -115,10 +123,17 @@ class MusicFlowSongRow extends StatelessWidget {
       curve: context.musicFlowMotion.easeOut,
       margin: contentPadding,
       decoration: BoxDecoration(
-        color: selectionMode && selected
-            ? context.musicFlowColors.accent.withValues(alpha: 0.1)
-            : Colors.transparent,
+        color: rowColor,
         borderRadius: context.musicFlowRadii.control,
+        boxShadow: highlightCurrent
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: context.musicFlowColors.accent.withValues(alpha: 0.16),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

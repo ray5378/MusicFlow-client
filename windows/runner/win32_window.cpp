@@ -302,47 +302,45 @@ Win32Window::MessageHandler(HWND hwnd,
       SaveWindowFrame(hwnd);
       return 0;
 
-    case WM_NCHITTEST:
-      // 关键:<WS_CAPTION> 被移除且 WM_NCCALCSIZE 返回 0 后,非客户区被完全
-      // 裁掉,系统默认的边缘调整大小热区也随之消失 —— 这就是窗口变成「固定大小、
-      // 无法用鼠标拉伸」的原因。这里在窗口 4 条边与 4 个角按系统边框宽度手动
-      // 命中对应 HT* 调整大小码,恢复鼠标拖拽缩放;
-      // 其余区域返回 HTCLIENT(交界面处理 = 客户端自绘内容)。
+    case WM_NCHITTEST: {
       if (IsZoomed(hwnd)) {
-        break;  // 最大化时交给默认处理,不需要边缘拉伸热区。
+        break;  // 最大化:交给默认处理,无需边缘热区。
       }
-      {
-        // 用整窗矩形(GetWindowRect 返回的是屏幕坐标)与 lParam 的屏幕坐标直接
-        // 比较,不再经 ScreenToClient/GetClientRect 换算,避免客户区原点或 DPI
-        // 偏移导致的边缘判定错位(之前那种写法在某些环境会命中不到边缘)。
-        const LONG mouse_x =
-            static_cast<LONG>(static_cast<SHORT>(LOWORD(lparam)));
-        const LONG mouse_y =
-            static_cast<LONG>(static_cast<SHORT>(HIWORD(lparam)));
-        const LONG border =
-            GetSystemMetrics(SM_CXSIZEFRAME) +
-            GetSystemMetrics(SM_CXPADDEDBORDER);  // 左右边框总宽
-        const LONG border_y =
-            GetSystemMetrics(SM_CYSIZEFRAME) +
-            GetSystemMetrics(SM_CXPADDEDBORDER);  // 上下边框总高
-        RECT rc;
-        GetWindowRect(hwnd, &rc);
-        const bool on_left = mouse_x >= rc.left && mouse_x < rc.left + border;
-        const bool on_right =
-            mouse_x < rc.right && mouse_x >= rc.right - border;
-        const bool on_top = mouse_y >= rc.top && mouse_y < rc.top + border_y;
-        const bool on_bottom =
-            mouse_y < rc.bottom && mouse_y >= rc.bottom - border_y;
-        if (on_top && on_left) return HTTOPLEFT;
-        if (on_top && on_right) return HTTOPRIGHT;
-        if (on_bottom && on_left) return HTBOTTOMLEFT;
-        if (on_bottom && on_right) return HTBOTTOMRIGHT;
-        if (on_left) return HTLEFT;
-        if (on_right) return HTRIGHT;
-        if (on_top) return HTTOP;
-        if (on_bottom) return HTBOTTOM;
-        return HTCLIENT;
+      // 无标题栏(WS_CAPTION 被移除)且 WM_NCCALCSIZE 返回 0 后,非客户区不复存在,
+      // 系统默认的「按住边缘缩放」热区也随之消失 —— 这会让窗口变成固定大小、
+      // 无法用鼠标拉伸。这里按窗口所在监视器的 DPI 换算一个稳定的边缘带(逻辑
+      // 6px),对四边四角手动返回 HT* 调整大小码,恢复鼠标拖拽缩放;
+      // 其余区域回 HTCLIENT(内容交给客户端自绘)。
+      const int mouse_x = static_cast<int>(static_cast<short>(LOWORD(lparam)));
+      const int mouse_y = static_cast<int>(static_cast<short>(HIWORD(lparam)));
+      // 动态加载 GetDpiForWindow(Windows 10 1607+),避免依赖编译环境的 SDK 版本,
+      // 也避免 GetSystemMetrics(SM_CXSIZEFRAME) 只按系统 DPI 返回导致的高分屏错位。
+      static UINT(WINAPI* s_get_dpi)(HWND) = nullptr;
+      if (s_get_dpi == nullptr) {
+        HMODULE user32 = GetModuleHandleW(L"User32.dll");
+        if (user32 != nullptr) {
+          s_get_dpi = reinterpret_cast<UINT(WINAPI*)(HWND)>(
+              GetProcAddress(user32, "GetDpiForWindow"));
+        }
       }
+      const UINT dpi = s_get_dpi != nullptr ? s_get_dpi(hwnd) : 96u;
+      const LONG border = MulDiv(6, static_cast<int>(dpi), 96);
+      RECT rc;
+      GetWindowRect(hwnd, &rc);
+      const bool on_left = mouse_x >= rc.left && mouse_x <= rc.left + border;
+      const bool on_right = mouse_x >= rc.right - border;
+      const bool on_top = mouse_y >= rc.top && mouse_y <= rc.top + border;
+      const bool on_bottom = mouse_y >= rc.bottom - border;
+      if (on_left && on_top) return HTTOPLEFT;
+      if (on_right && on_top) return HTTOPRIGHT;
+      if (on_left && on_bottom) return HTBOTTOMLEFT;
+      if (on_right && on_bottom) return HTBOTTOMRIGHT;
+      if (on_left) return HTLEFT;
+      if (on_right) return HTRIGHT;
+      if (on_top) return HTTOP;
+      if (on_bottom) return HTBOTTOM;
+      return HTCLIENT;
+    }
 
     case WM_SIZE: {
       RECT rect = GetClientArea();
