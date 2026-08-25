@@ -196,6 +196,11 @@ jobs:
             - Windows 系统托盘(关闭按钮最小化到托盘)
 
             ### 修复
+            - 修复 Windows 播放队列「白底白字」(媒体配色区域彻底重映射 Material
+              前景,任何基于 colorScheme/textTheme 的兜底文字都保证可读对比)
+            - 修复 Windows 窗口无法用鼠标拉伸(对铺满客户区的 Flutter 子窗口做
+              WM_NCHITTEST 子类化,恢复四边四角缩放热区,含 DPI 适配)
+            - 切换线路弹窗文案与历史品牌名统一改为 MusicFlow
             - 修复定时重渲染(health check级联刷新)
             - CoverArtImage/palette_provider 多余watch
             - mini_player 桌面全控+编译错误

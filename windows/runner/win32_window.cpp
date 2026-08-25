@@ -1,9 +1,13 @@
 #include "win32_window.h"
 
+#include <commctrl.h>
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
 #include "resource.h"
+
+// SetWindowSubclass / DefSubclassProc live in Comctl32.dll.
+#pragma comment(lib, "comctl32.lib")
 
 namespace {
 
@@ -129,6 +133,65 @@ void RestoreWindowFrame(HWND hwnd) {
   }
   MoveWindow(hwnd, rect.left, rect.top, rect.right - rect.left,
              rect.bottom - rect.top, TRUE);
+}
+
+// 计算鼠标(屏幕坐标)相对窗口边框的命中区域。无标题栏窗口在 WM_NCCALCSIZE
+// 返回 0 后非客户区消失,系统默认的「按住边缘缩放」热区随之不可用 —— 这会让
+// 窗口变成固定大小、无法用鼠标拉伸。这里按目标窗口所在监视器的 DPI 换算一个
+// 稳定的边缘带(逻辑 6px),对四边四角返回沿用系统的 HT* 调整大小码;内部区域
+// 一律回 HTCLIENT(内容交给客户端处理)。窗口最大化时由调用方跳过本函数。
+//
+// 动态加载 GetDpiForWindow(Windows 10 1607+),避免依赖编译环境的 SDK 版本。
+LRESULT HitTestWindowEdges(HWND target, LPARAM lparam) {
+  const int mouse_x = static_cast<int>(static_cast<short>(LOWORD(lparam)));
+  const int mouse_y = static_cast<int>(static_cast<short>(HIWORD(lparam)));
+
+  static UINT(WINAPI* s_get_dpi)(HWND) = nullptr;
+  if (s_get_dpi == nullptr) {
+    HMODULE user32 = GetModuleHandleW(L"User32.dll");
+    if (user32 != nullptr) {
+      s_get_dpi = reinterpret_cast<UINT(WINAPI*)(HWND)>(
+          GetProcAddress(user32, "GetDpiForWindow"));
+    }
+  }
+  const UINT dpi = s_get_dpi != nullptr ? s_get_dpi(target) : 96u;
+  const LONG border = MulDiv(6, static_cast<int>(dpi), 96);
+
+  RECT rc;
+  if (!GetWindowRect(target, &rc)) {
+    return HTCLIENT;
+  }
+  const bool on_left = mouse_x >= rc.left && mouse_x <= rc.left + border;
+  const bool on_right = mouse_x >= rc.right - border;
+  const bool on_top = mouse_y >= rc.top && mouse_y <= rc.top + border;
+  const bool on_bottom = mouse_y >= rc.bottom - border;
+  if (on_left && on_top) return HTTOPLEFT;
+  if (on_right && on_top) return HTTOPRIGHT;
+  if (on_left && on_bottom) return HTBOTTOMLEFT;
+  if (on_right && on_bottom) return HTBOTTOMRIGHT;
+  if (on_left) return HTLEFT;
+  if (on_right) return HTRIGHT;
+  if (on_top) return HTTOP;
+  if (on_bottom) return HTBOTTOM;
+  return HTCLIENT;
+}
+
+// Flutter 的渲染窗口以子窗口形式铺满整个客户区(见 SetChildContent)。当光标
+// 位于其上时,Windows 会把 WM_NCHITTEST 先派发给这个子窗口而非顶层框架窗口,
+// 因此仅在顶层处理边缘命中不一定生效 —— 这正是 1.0.25 里「窗口仍无法拉伸」
+// 的根因。这里对子窗口套一个子类化过程:边缘处照样返回 HT* 缩放码(缩放作用于
+// 顶层框架),内部回应 HTCLIENT,其余消息原样透传给 Flutter 引擎。
+LRESULT CALLBACK ChildWindowSubclassProc(HWND hwnd, UINT message,
+                                         WPARAM wparam, LPARAM lparam,
+                                         UINT_PTR /*idSubclass*/,
+                                         DWORD_PTR /*dwRefData*/) {
+  if (message == WM_NCHITTEST) {
+    HWND root = GetAncestor(hwnd, GA_ROOT);
+    if (root != nullptr && !IsZoomed(root)) {
+      return HitTestWindowEdges(root, lparam);
+    }
+  }
+  return DefSubclassProc(hwnd, message, wparam, lparam);
 }
 
 }  // namespace
@@ -307,39 +370,10 @@ Win32Window::MessageHandler(HWND hwnd,
         break;  // 最大化:交给默认处理,无需边缘热区。
       }
       // 无标题栏(WS_CAPTION 被移除)且 WM_NCCALCSIZE 返回 0 后,非客户区不复存在,
-      // 系统默认的「按住边缘缩放」热区也随之消失 —— 这会让窗口变成固定大小、
-      // 无法用鼠标拉伸。这里按窗口所在监视器的 DPI 换算一个稳定的边缘带(逻辑
-      // 6px),对四边四角手动返回 HT* 调整大小码,恢复鼠标拖拽缩放;
-      // 其余区域回 HTCLIENT(内容交给客户端自绘)。
-      const int mouse_x = static_cast<int>(static_cast<short>(LOWORD(lparam)));
-      const int mouse_y = static_cast<int>(static_cast<short>(HIWORD(lparam)));
-      // 动态加载 GetDpiForWindow(Windows 10 1607+),避免依赖编译环境的 SDK 版本,
-      // 也避免 GetSystemMetrics(SM_CXSIZEFRAME) 只按系统 DPI 返回导致的高分屏错位。
-      static UINT(WINAPI* s_get_dpi)(HWND) = nullptr;
-      if (s_get_dpi == nullptr) {
-        HMODULE user32 = GetModuleHandleW(L"User32.dll");
-        if (user32 != nullptr) {
-          s_get_dpi = reinterpret_cast<UINT(WINAPI*)(HWND)>(
-              GetProcAddress(user32, "GetDpiForWindow"));
-        }
-      }
-      const UINT dpi = s_get_dpi != nullptr ? s_get_dpi(hwnd) : 96u;
-      const LONG border = MulDiv(6, static_cast<int>(dpi), 96);
-      RECT rc;
-      GetWindowRect(hwnd, &rc);
-      const bool on_left = mouse_x >= rc.left && mouse_x <= rc.left + border;
-      const bool on_right = mouse_x >= rc.right - border;
-      const bool on_top = mouse_y >= rc.top && mouse_y <= rc.top + border;
-      const bool on_bottom = mouse_y >= rc.bottom - border;
-      if (on_left && on_top) return HTTOPLEFT;
-      if (on_right && on_top) return HTTOPRIGHT;
-      if (on_left && on_bottom) return HTBOTTOMLEFT;
-      if (on_right && on_bottom) return HTBOTTOMRIGHT;
-      if (on_left) return HTLEFT;
-      if (on_right) return HTRIGHT;
-      if (on_top) return HTTOP;
-      if (on_bottom) return HTBOTTOM;
-      return HTCLIENT;
+      // 系统默认的「按住边缘缩放」热区也随之消失。这里按 DPI 换算边缘带,对四边
+      // 四角返回 HT* 缩放码,恢复鼠标拖拽拉伸;子窗口铺满客户区时该消息改由
+      // ChildWindowSubclassProc 拦截,此处兜底处理顶层直达的 WM_NCHITTEST。
+      return HitTestWindowEdges(hwnd, lparam);
     }
 
     case WM_SIZE: {
@@ -386,6 +420,10 @@ Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
+  // 子窗口铺满整个客户区,会拦截边缘的 WM_NCHITTEST;套上子类化过程把边缘命中
+  // 恢复为 HT* 缩放码(缩放作用于顶层框架),保证无论消息投递给哪一层窗口,
+  // 鼠标都能正常拉伸窗口大小。
+  SetWindowSubclass(content, &ChildWindowSubclassProc, 1, 0);
   RECT frame = GetClientArea();
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,

@@ -312,7 +312,7 @@ Future<void> showRouteSelectionSheet(
 
               return MusicFlowBottomSheet(
                 title: '切换线路',
-                subtitle: '手动锁定一条线路，或让 Echo 根据可用性和延迟自动选择。',
+                subtitle: '手动锁定一条线路，或让 MusicFlow 根据可用性和延迟自动选择。',
                 constrainToAvailableHeight: true,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

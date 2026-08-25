@@ -43,10 +43,55 @@ class MusicFlowMediaColorScope extends StatelessWidget {
           );
     extensions.addAll(<ThemeExtension<dynamic>>[colors, typography]);
 
-    return Theme(
-      data: parentTheme.copyWith(extensions: extensions),
+    // 媒体面板表面取自专辑调色板,可能与全局主题的明暗不一致(例如深色主题 +
+    // 浅色封面会把 panel 表面拉近白)。此时若任何控件退回 Material 默认前景
+    // (暗色主题下 colorScheme.onSurface = 白),就会在白底上渲染出白字。这里把
+    // 基础 Material 角色的前景一并重映射到已保证对比的 ink/muted,使「白底白字」
+    // 在地域内被彻底封死,而不仅仅是 musicFlow 语义色。
+    final bool mediaIsDark = colors.ink.computeLuminance() > 0.45;
+    final ColorScheme scheme = parentTheme.colorScheme.copyWith(
+      brightness: mediaIsDark ? Brightness.dark : Brightness.light,
+      surface: colors.surface,
+      surfaceContainerLowest: colors.canvas,
+      surfaceContainerLow: colors.raised,
+      surfaceContainer: colors.raised,
+      surfaceContainerHigh: colors.surface,
+      surfaceContainerHighest: colors.raised,
+      onSurface: colors.ink,
+      onSurfaceVariant: colors.muted,
+      primary: colors.accent,
+      onPrimary: colors.onAccent,
+      secondary: colors.accent,
+      onSecondary: colors.onAccent,
+      error: colors.error,
+      onError: colors.onError,
+      outline: colors.controlBoundary,
+      outlineVariant: colors.divider,
+    );
+
+    // 只重映射前景色,不整包替换 textTheme,以免覆盖应用的自定义字体/字重/字号;
+    // 同时把 Material 各层级默认文字前景统一压到已保证对比的 ink(对浅色面板即黑色),
+    // 使任何走 DefaultTextStyle / colorScheme.onSurface 的兜底文字在地域内都不再
+    // 出现「白底白字」。
+    final TextTheme themedText = parentTheme.textTheme.apply(
+      displayColor: colors.ink,
+      bodyColor: colors.ink,
+      titleColor: colors.ink,
+      labelColor: colors.ink,
+    );
+    final Widget themed = Theme(
+      data: parentTheme.copyWith(
+        colorScheme: scheme,
+        textTheme: themedText,
+        scaffoldBackgroundColor: colors.canvas,
+        canvasColor: colors.canvas,
+        cardColor: colors.surface,
+        dividerColor: colors.divider,
+        extensions: extensions,
+      ),
       child: child,
     );
+    return themed;
   }
 }
 
