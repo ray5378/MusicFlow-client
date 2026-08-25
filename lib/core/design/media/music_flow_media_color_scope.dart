@@ -101,15 +101,23 @@ MusicFlowColors _mediaColors(
   // 文字用固定高对比前景(黑/白),不随封面主色调漂移,保证任何封面都清晰可读。
   // 歌手/辅助文字(muted)用同一前景按表面轻微融合以区分层级。
   final fixedMuted = Color.lerp(onSurface, surface, 0.22)!;
+  // accent 既作背景(激活控件)也作前景(当前播放行标题/图标)。仅靠
+  // readableOn 保证的 ink 不足以覆盖它:浅色专辑封面会把 controlAccent 和
+  // 面板表面都拉近白,导致「白底白字」文案不可读。这里强制 accent 相对它所在
+  // 的媒体表面(surface = panel/mini/stage)达到足够对比,前景随表面自动压深/提亮。
+  final accent = MusicFlowColors.ensureColorContrast(
+    visuals.controlAccent,
+    background: surface,
+  );
   final onAccent = MusicFlowColors.ensureColorContrast(
-    MusicFlowColors.readableOn(visuals.controlAccent),
-    background: visuals.controlAccent,
+    MusicFlowColors.readableOn(accent),
+    background: accent,
   );
 
   return parent.copyWith(
-    accent: visuals.controlAccent,
+    accent: accent,
     onAccent: onAccent,
-    contentTint: visuals.controlAccent,
+    contentTint: accent,
     onContentTint: onAccent,
     canvas: canvas,
     surface: surface,
@@ -117,7 +125,7 @@ MusicFlowColors _mediaColors(
     ink: onSurface,
     muted: fixedMuted,
     divider: divider,
-    controlBoundary: visuals.controlAccent,
+    controlBoundary: accent,
     error: error,
     onError: MusicFlowColors.readableOn(error),
     warning: warning,
