@@ -1,7 +1,9 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter_windows.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <string>
 
 #include "flutter_window.h"
@@ -118,6 +120,41 @@ bool TrayHandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
   return false;
 }
 
+namespace {
+
+// 自适应默认窗口大小的等比基准：3840x2160 屏幕下默认窗口为 2720x1730。
+// 该基准的选取原则是让首页「为你推荐」(8 张歌单卡片一行)在宽、高上都完整显示。
+constexpr double kAnchorScreenWidth = 3840.0;
+constexpr double kAnchorScreenHeight = 2160.0;
+constexpr double kAnchorWindowWidth = 2720.0;
+constexpr double kAnchorWindowHeight = 1730.0;
+// 下限兜底：极低分辨率屏幕也避免默认窗口小到不可用。
+constexpr int kMinDefaultWindowWidth = 1000;
+constexpr int kMinDefaultWindowHeight = 640;
+
+// 按目标显示器分辨率计算默认窗口大小(逻辑像素)。
+// Create 内部会用同一块屏幕的 DPI 再放大到物理像素,这里直接返回逻辑尺寸即可。
+Win32Window::Size ComputeDefaultWindowSize(const Win32Window::Point& origin) {
+  const POINT pt = {static_cast<LONG>(origin.x), static_cast<LONG>(origin.y)};
+  HMONITOR monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO mi{};
+  mi.cbSize = sizeof(mi);
+  if (GetMonitorInfoW(monitor, &mi)) {
+    const double scale = FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+    const double screenW = (mi.rcMonitor.right - mi.rcMonitor.left) / scale;
+    const double screenH = (mi.rcMonitor.bottom - mi.rcMonitor.top) / scale;
+    int w = static_cast<int>(screenW * (kAnchorWindowWidth / kAnchorScreenWidth) + 0.5);
+    int h = static_cast<int>(screenH * (kAnchorWindowHeight / kAnchorScreenHeight) + 0.5);
+    w = std::min(std::max(w, kMinDefaultWindowWidth), static_cast<int>(screenW));
+    h = std::min(std::max(h, kMinDefaultWindowHeight), static_cast<int>(screenH));
+    return Win32Window::Size(w, h);
+  }
+  // 取不到监视器信息(异常路径):回退到历史默认值。
+  return Win32Window::Size(1280, 720);
+}
+
+}  // namespace
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -135,7 +172,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
+  // 默认窗口大小自适应：以「3840x2160 屏 → 2720x1730」为基准做等比换算。
+  // 选这个基准的出发点是要让首页「为你推荐」整类(8 张歌单)在宽/高上都完整
+  // 显示 —— 宽刚好铺下 8 卡+留白,高刚好放下标题+歌单行。其它分辨率按同比例
+  // 推得默认值。用户一旦自己拖过窗口,后续以注册表保存的尺寸为准
+  // (RestoreWindowFrame 优先级更高),这里的默认只在"从未设置过"时生效。
+  Win32Window::Size size = ComputeDefaultWindowSize(origin);
   if (!window.Create(L"MusicFlow", origin, size)) {
     return EXIT_FAILURE;
   }
