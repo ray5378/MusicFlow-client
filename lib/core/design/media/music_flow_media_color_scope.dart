@@ -141,8 +141,16 @@ MusicFlowColors _mediaColors(
   );
   final onSurface = MusicFlowColors.readableOn(surface);
   // 文字用固定高对比前景(黑/白),不随封面主色调漂移,保证任何封面都清晰可读。
-  // 歌手/辅助文字(muted)用同一前景按表面轻微融合以区分层级。
-  final fixedMuted = Color.lerp(onSurface, surface, 0.22)!;
+  // 歌手/辅助文字(muted)为了和主文字区分层级,会略向表面色靠近;但绝不能离表面
+  // 太近 —— 浅色封面的 panelSurface 接近白,过去「往表面掺 22%」会把 muted 掺成
+  // #D9D9D9 之类,在近白背景上对比只有 ~1.5:1,正是「白底白字」的来源。这里用
+  // ensureColorContrast 给 muted 一个保底 4.5:1(WCAG AA)对比:层级不丢,浅/深
+  // 表面的元数据(歌手·时长、状态角标、序号)都保证可读。
+  final fixedMuted = MusicFlowColors.ensureColorContrast(
+    Color.lerp(onSurface, surface, 0.30)!,
+    background: surface,
+    minimumRatio: 4.5,
+  );
   // accent 既作背景(激活控件)也作前景(当前播放行标题/图标)。仅靠
   // readableOn 保证的 ink 不足以覆盖它:浅色专辑封面会把 controlAccent 和
   // 面板表面都拉近白,导致「白底白字」文案不可读。这里强制 accent 相对它所在

@@ -179,8 +179,17 @@ LRESULT HitTestWindowEdges(HWND target, LPARAM lparam) {
 // Flutter 的渲染窗口以子窗口形式铺满整个客户区(见 SetChildContent)。当光标
 // 位于其上时,Windows 会把 WM_NCHITTEST 先派发给这个子窗口而非顶层框架窗口,
 // 因此仅在顶层处理边缘命中不一定生效 —— 这正是 1.0.25 里「窗口仍无法拉伸」
-// 的根因。这里对子窗口套一个子类化过程:边缘处照样返回 HT* 缩放码(缩放作用于
-// 顶层框架),内部回应 HTCLIENT,其余消息原样透传给 Flutter 引擎。
+// 的根因。
+//
+// 注意:子窗口不能直接返回 HT* 缩放码。缩放模态循环会作用在「返回该码的窗口」
+// 上,也就是这个子窗口;可子窗口铺满客户区、其左下角被顶层限制,而且顶层收到
+// WM_SIZE 后会把子窗口 MoveWindow 拉回原样 —— 结果就是光标显示成可拉伸
+// (HT* 已生效),但一拖就被拉回、根本拖不动(1.0.26 里只剩右下斜角勉强动)。
+//
+// 正确做法:命中落在顶层缩放边缘带时,子窗口返回 HTTRANSPARENT,让系统把命中
+// 穿透到底下的顶层框架窗口(WS_THICKFRAME 仍在),由顶层自家的 WM_NCHITTEST
+// 返回 HT* 缩放码,并在「顶层窗口」上开启尺寸模态循环 —— 缩放真正作用于整个
+// 窗口,四条边和四个角都能稳定拉伸。内部区域由子窗口回 HTCLIENT,交给 Flutter。
 LRESULT CALLBACK ChildWindowSubclassProc(HWND hwnd, UINT message,
                                          WPARAM wparam, LPARAM lparam,
                                          UINT_PTR /*idSubclass*/,
@@ -188,8 +197,12 @@ LRESULT CALLBACK ChildWindowSubclassProc(HWND hwnd, UINT message,
   if (message == WM_NCHITTEST) {
     HWND root = GetAncestor(hwnd, GA_ROOT);
     if (root != nullptr && !IsZoomed(root)) {
-      return HitTestWindowEdges(root, lparam);
+      if (HitTestWindowEdges(root, lparam) != HTCLIENT) {
+        // 落在顶层缩放边缘带:穿透给顶层框架窗口处理缩放。
+        return HTTRANSPARENT;
+      }
     }
+    return HTCLIENT;  // 内部:内容归 Flutter。
   }
   return DefSubclassProc(hwnd, message, wparam, lparam);
 }
