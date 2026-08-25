@@ -179,8 +179,8 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             value: overlayStyle,
             child: PopScope<void>(
               canPop: false,
-              onPopInvokedWithResult: (didPop, result) async {
-                if (!didPop) await _closeToMini();
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop) _closeToMini();
               },
               child: Scaffold(
                 backgroundColor: Colors.transparent,
