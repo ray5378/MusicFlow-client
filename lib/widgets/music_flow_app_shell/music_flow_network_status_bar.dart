@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/design/music_flow_design.dart';
+import '../../core/utils/network_error_notifier.dart';
 
 /// The reachability states surfaced by MusicFlow's application shell.
 ///
@@ -55,15 +56,11 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
       return;
     }
 
-    // 连接中断时，右上角弹文字 Toast 提醒。
+    // 连接中断时，经启动宽限期/节流确认连接不上才弹出提醒，
+    // 避免刚打开软件、探测与首屏请求尚未完成时立刻误报连接不到服务器。
     if (widget.status != MusicFlowNetworkStatus.online &&
         oldWidget.status == MusicFlowNetworkStatus.online) {
-      showMusicFlowToast(
-        context,
-        '连接不到服务器',
-        kind: MusicFlowMessageKind.error,
-        duration: widget.recoveryDisplayDuration,
-      );
+      NetworkErrorNotifier.show('连接不到服务器');
     }
 
     setState(() {
