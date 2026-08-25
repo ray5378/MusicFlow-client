@@ -65,6 +65,8 @@ class MusicFlowMediaVisuals {
         foreground: foreground,
         saturationFactor: 0.62,
         lightnessShift: 0.035,
+        darkLightness: (0.08, 0.34),
+        lightLightness: (0.66, 0.92),
       ),
       foreground,
     );
@@ -74,6 +76,8 @@ class MusicFlowMediaVisuals {
         foreground: foreground,
         saturationFactor: 0.48,
         lightnessShift: 0.065,
+        darkLightness: (0.08, 0.34),
+        lightLightness: (0.66, 0.92),
       ),
       foreground,
     );
@@ -216,20 +220,35 @@ Color _stageBottomColor({
       .withValues(alpha: 1);
 }
 
+/// Quiet (desaturated) panel/mini surface for media-led chrome.
+///
+/// Beyond desaturating, the resulting lightness is clamped into a *decisive*
+/// band — clearly dark for dark stages and clearly light for light stages —
+/// rather than the old 0.04–0.96 window. A medium, roughly-50% surface (e.g.
+/// rgb(111, 107, 112)) made every accent/text colour get washed toward white,
+/// which then failed against the tinted "now playing" highlight and produced
+/// white-on-white. Bounding out the ambiguous middle keeps ink and accent
+/// decisively contrasting on every cover.
 Color _quietSurface(
   Color base, {
   required Color foreground,
   required double saturationFactor,
   required double lightnessShift,
+  required (double, double) darkLightness,
+  required (double, double) lightLightness,
 }) {
   final hsl = HSLColor.fromColor(base);
   final isDarkStage = foreground.computeLuminance() > 0.5;
+  final raw = isDarkStage
+      ? hsl.lightness + lightnessShift
+      : hsl.lightness - lightnessShift;
+  final (minLightness, maxLightness) = isDarkStage
+      ? darkLightness
+      : lightLightness;
+  final clamped = raw.clamp(minLightness, maxLightness);
   return hsl
       .withSaturation(hsl.saturation * saturationFactor)
-      .withLightness(
-        (hsl.lightness + (isDarkStage ? lightnessShift : -lightnessShift))
-            .clamp(0.04, 0.96),
-      )
+      .withLightness(clamped)
       .toColor()
       .withValues(alpha: 1);
 }
