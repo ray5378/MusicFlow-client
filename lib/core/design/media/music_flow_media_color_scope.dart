@@ -69,16 +69,13 @@ class MusicFlowMediaColorScope extends StatelessWidget {
       outlineVariant: colors.divider,
     );
 
-    // 只重映射前景色,不整包替换 textTheme,以免覆盖应用的自定义字体/字重/字号;
-    // 同时把 Material 各层级默认文字前景统一压到已保证对比的 ink(对浅色面板即黑色),
-    // 使任何走 DefaultTextStyle / colorScheme.onSurface 的兜底文字在地域内都不再
-    // 出现「白底白字」。
-    final TextTheme themedText = parentTheme.textTheme.apply(
-      displayColor: colors.ink,
-      bodyColor: colors.ink,
-      titleColor: colors.ink,
-      labelColor: colors.ink,
-    );
+    // 把 Material 默认文字前景统一压到已保证对比的 ink(对浅色面板即黑色):
+    // 直接基于上面重映射后的 colorScheme 重建一套 media 版 textTheme,以
+    // onSurface=ink 驱动各层级文字色,使任何走 DefaultTextStyle / Theme.textTheme
+    // 的兜底文字在地域内都不再出现「白底白字」。应用的自定义排版走独立的
+    // MusicFlowTypography 扩展(下一段已重映射),不受此替换影响。
+    final TextTheme themedText =
+        ThemeData(colorScheme: scheme, useMaterial3: true).textTheme;
     final Widget themed = Theme(
       data: parentTheme.copyWith(
         colorScheme: scheme,
