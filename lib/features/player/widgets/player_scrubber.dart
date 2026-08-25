@@ -52,10 +52,10 @@ class MusicFlowPlayerScrubber extends StatefulWidget {
   final Color? thumbColor;
 
   @override
-  State<MusicFlowPlayerScrubber> createState() => _EchoPlayerScrubberState();
+  State<MusicFlowPlayerScrubber> createState() => _MusicFlowPlayerScrubberState();
 }
 
-class _EchoPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
+class _MusicFlowPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
   bool _interacting = false;
   bool _horizontalDragActive = false;
   double? _interactionValue;
@@ -219,7 +219,7 @@ class _EchoPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
               onHorizontalDragEnd: _enabled ? (_) => _finish() : null,
               onHorizontalDragCancel: _enabled ? _cancel : null,
               child: SizedBox(
-                key: const ValueKey<String>('echo-player-scrubber'),
+                key: const ValueKey<String>('musicflow-player-scrubber'),
                 height: context.musicFlowInteraction.minimumTouchTarget,
                 child: TweenAnimationBuilder<double>(
                   tween: Tween<double>(end: _interacting ? 1 : 0),
@@ -241,7 +241,7 @@ class _EchoPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
                           end: 0,
                           child: ClipRRect(
                             key: const ValueKey<String>(
-                              'echo-player-scrubber-track',
+                              'musicflow-player-scrubber-track',
                             ),
                             borderRadius: context.musicFlowRadii.pill,
                             child: SizedBox(
@@ -275,7 +275,7 @@ class _EchoPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
                           start: thumbStart,
                           child: DecoratedBox(
                             key: const ValueKey<String>(
-                              'echo-player-scrubber-thumb',
+                              'musicflow-player-scrubber-thumb',
                             ),
                             decoration: BoxDecoration(
                               color: _enabled ? thumb : colors.onDisabled,

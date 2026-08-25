@@ -39,7 +39,7 @@ Future<void> showSongOptionsSheet({
   List<SongOptionsExtraAction> extraActions = const <SongOptionsExtraAction>[],
   MusicFlowMediaVisuals? mediaVisuals,
 }) async {
-  await showEchoBottomSheet<void>(
+  await showMusicFlowBottomSheet<void>(
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,
@@ -139,7 +139,7 @@ class _SongOptionsSheet extends ConsumerWidget {
           onPressed: () => unawaited(
             _closeAndRun(context, () async {
               if (!hostContext.mounted) return;
-              await showEchoBottomSheet<void>(
+              await showMusicFlowBottomSheet<void>(
                 context: hostContext,
                 useRootNavigator: true,
                 isScrollControlled: true,
@@ -295,7 +295,7 @@ class _SongOptionsSheet extends ConsumerWidget {
 
   void _showMessage(String message) {
     if (!hostContext.mounted) return;
-    showEchoMessage(hostContext, message);
+    showMusicFlowMessage(hostContext, message);
   }
 }
 
@@ -513,7 +513,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       ref.invalidate(playlistsProvider);
                       ref.invalidate(playlistDetailProvider(playlist.id));
                       if (hostContext.mounted) {
-                        showEchoMessage(
+                        showMusicFlowMessage(
                           hostContext,
                           '已添加到歌单「${playlist.name}」',
                         );

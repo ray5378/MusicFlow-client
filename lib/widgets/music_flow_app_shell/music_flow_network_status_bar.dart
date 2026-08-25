@@ -4,17 +4,17 @@ import 'package:flutter/material.dart';
 
 import '../../core/design/music_flow_design.dart';
 
-/// The reachability states surfaced by Echo's application shell.
+/// The reachability states surfaced by MusicFlow's application shell.
 ///
 /// [online] is intentionally quiet. The shell only becomes visible when the
 /// connection affects remote work, then briefly confirms recovery.
 enum MusicFlowNetworkStatus { online, weak, offline }
 
-enum _EchoNetworkBannerState { hidden, weak, offline, restored }
+enum _MusicFlowNetworkBannerState { hidden, weak, offline, restored }
 
 /// A layout-bound network status strip that preserves already loaded content.
 ///
-/// This is deliberately not a Material banner or snackbar. It uses Echo's
+/// This is deliberately not a Material banner or snackbar. It uses MusicFlow's
 /// semantic colors, typography, spacing, motion, and icon vocabulary while
 /// remaining inside the shell's normal layout flow.
 class MusicFlowNetworkStatusBar extends StatefulWidget {
@@ -30,12 +30,12 @@ class MusicFlowNetworkStatusBar extends StatefulWidget {
   final bool includeBottomSafeArea;
 
   @override
-  State<MusicFlowNetworkStatusBar> createState() => _EchoNetworkStatusBarState();
+  State<MusicFlowNetworkStatusBar> createState() => _MusicFlowNetworkStatusBarState();
 }
 
-class _EchoNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
+class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   Timer? _recoveryTimer;
-  late _EchoNetworkBannerState _bannerState;
+  late _MusicFlowNetworkBannerState _bannerState;
 
   @override
   void initState() {
@@ -68,21 +68,21 @@ class _EchoNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
 
   void _showRecovery() {
     setState(() {
-      _bannerState = _EchoNetworkBannerState.restored;
+      _bannerState = _MusicFlowNetworkBannerState.restored;
     });
     _recoveryTimer = Timer(widget.recoveryDisplayDuration, () {
       if (!mounted || widget.status != MusicFlowNetworkStatus.online) return;
       setState(() {
-        _bannerState = _EchoNetworkBannerState.hidden;
+        _bannerState = _MusicFlowNetworkBannerState.hidden;
       });
     });
   }
 
-  static _EchoNetworkBannerState _stateForStatus(MusicFlowNetworkStatus status) {
+  static _MusicFlowNetworkBannerState _stateForStatus(MusicFlowNetworkStatus status) {
     return switch (status) {
-      MusicFlowNetworkStatus.online => _EchoNetworkBannerState.hidden,
-      MusicFlowNetworkStatus.weak => _EchoNetworkBannerState.weak,
-      MusicFlowNetworkStatus.offline => _EchoNetworkBannerState.offline,
+      MusicFlowNetworkStatus.online => _MusicFlowNetworkBannerState.hidden,
+      MusicFlowNetworkStatus.weak => _MusicFlowNetworkBannerState.weak,
+      MusicFlowNetworkStatus.offline => _MusicFlowNetworkBannerState.offline,
     };
   }
 
@@ -92,21 +92,21 @@ class _EchoNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
     final duration = motion.resolve(context, motion.state);
 
     return SizedBox(
-      key: const ValueKey<String>('echo-network-status-slot'),
+      key: const ValueKey<String>('musicflow-network-status-slot'),
       width: double.infinity,
       child: ClipRect(
         child: AnimatedSize(
           alignment: Alignment.bottomCenter,
           duration: duration,
           curve: motion.easeOut,
-          child: _bannerState == _EchoNetworkBannerState.hidden
+          child: _bannerState == _MusicFlowNetworkBannerState.hidden
               ? const SizedBox.shrink()
               : AnimatedSwitcher(
                   duration: duration,
                   switchInCurve: motion.easeOut,
                   switchOutCurve: motion.easeOut,
-                  child: _EchoNetworkStatusContent(
-                    key: ValueKey<_EchoNetworkBannerState>(_bannerState),
+                  child: _MusicFlowNetworkStatusContent(
+                    key: ValueKey<_MusicFlowNetworkBannerState>(_bannerState),
                     state: _bannerState,
                     includeBottomSafeArea: widget.includeBottomSafeArea,
                   ),
@@ -117,20 +117,20 @@ class _EchoNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   }
 }
 
-class _EchoNetworkStatusContent extends StatelessWidget {
-  const _EchoNetworkStatusContent({
+class _MusicFlowNetworkStatusContent extends StatelessWidget {
+  const _MusicFlowNetworkStatusContent({
     super.key,
     required this.state,
     required this.includeBottomSafeArea,
   });
 
-  final _EchoNetworkBannerState state;
+  final _MusicFlowNetworkBannerState state;
   final bool includeBottomSafeArea;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
-    final isRestored = state == _EchoNetworkBannerState.restored;
+    final isRestored = state == _MusicFlowNetworkBannerState.restored;
     final statusColor = isRestored ? colors.accent : colors.warning;
     final background = Color.alphaBlend(
       statusColor.withValues(
@@ -155,7 +155,7 @@ class _EchoNetworkStatusContent extends StatelessWidget {
     final semanticsLabel = '${presentation.title}。${presentation.description}';
 
     return Semantics(
-      key: ValueKey<String>('echo-network-status-${state.name}'),
+      key: ValueKey<String>('musicflow-network-status-${state.name}'),
       container: true,
       liveRegion: true,
       label: semanticsLabel,
@@ -163,7 +163,7 @@ class _EchoNetworkStatusContent extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.sm),
           child: MusicFlowSurface(
-            key: const ValueKey<String>('echo-network-status-surface'),
+            key: const ValueKey<String>('musicflow-network-status-surface'),
             level: MusicFlowSurfaceLevel.surface,
             color: background,
             borderRadius: context.musicFlowRadii.surface,
@@ -222,34 +222,34 @@ class _EchoNetworkStatusContent extends StatelessWidget {
     );
   }
 
-  static _EchoNetworkPresentation _presentationFor(
-    _EchoNetworkBannerState state,
+  static _MusicFlowNetworkPresentation _presentationFor(
+    _MusicFlowNetworkBannerState state,
   ) {
     return switch (state) {
-      _EchoNetworkBannerState.weak => const _EchoNetworkPresentation(
+      _MusicFlowNetworkBannerState.weak => const _MusicFlowNetworkPresentation(
         title: '网络不稳定',
         description: '正在重试可用线路，已加载内容和离线歌曲仍可使用',
         icon: AppIcons.signal,
       ),
-      _EchoNetworkBannerState.offline => const _EchoNetworkPresentation(
+      _MusicFlowNetworkBannerState.offline => const _MusicFlowNetworkPresentation(
         title: '当前离线',
         description: '已加载内容和离线歌曲仍可使用，在线操作将在联网后恢复',
         icon: AppIcons.wifiOff,
       ),
-      _EchoNetworkBannerState.restored => const _EchoNetworkPresentation(
+      _MusicFlowNetworkBannerState.restored => const _MusicFlowNetworkPresentation(
         title: '网络已恢复',
         description: '已重新连接可用线路',
         icon: AppIcons.checkCircle,
       ),
-      _EchoNetworkBannerState.hidden => throw StateError(
+      _MusicFlowNetworkBannerState.hidden => throw StateError(
         'Hidden network state has no visible presentation.',
       ),
     };
   }
 }
 
-class _EchoNetworkPresentation {
-  const _EchoNetworkPresentation({
+class _MusicFlowNetworkPresentation {
+  const _MusicFlowNetworkPresentation({
     required this.title,
     required this.description,
     required this.icon,

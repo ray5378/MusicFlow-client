@@ -416,7 +416,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
   }
 
   Future<void> _showSongSourceInfo() {
-    return showEchoBottomSheet<void>(
+    return showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,

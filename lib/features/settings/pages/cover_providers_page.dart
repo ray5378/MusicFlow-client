@@ -119,7 +119,7 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
 
   Future<void> _editFanartApiKey(ProviderConfig config) async {
     final controller = TextEditingController(text: _fanartApiKey(config));
-    final result = await showEchoBottomSheet<String>(
+    final result = await showMusicFlowBottomSheet<String>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,

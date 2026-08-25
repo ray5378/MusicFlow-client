@@ -11,7 +11,7 @@ Future<SongSortOption?> showMediaSongSortSheet({
   required BuildContext context,
   required SongSortOption current,
 }) {
-  return showEchoBottomSheet<SongSortOption>(
+  return showMusicFlowBottomSheet<SongSortOption>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
@@ -89,7 +89,7 @@ class MediaDetailHeaderSurface extends ConsumerWidget {
   }
 }
 
-/// Builds a restrained artwork tint while keeping Echo text readable.
+/// Builds a restrained artwork tint while keeping MusicFlow text readable.
 ///
 /// The fallback seed is [MusicFlowColors.contentTint], so missing artwork and
 /// extraction failures retain the same stable visual identity. Tint strength

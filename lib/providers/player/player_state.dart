@@ -59,7 +59,7 @@ class PlayerState {
     this.playbackSource,
     this.currentBitRateKbps = 0,
     this.bufferedPosition = Duration.zero,
-    this.volume = 1.0,
+    this.volume = 0.8,
   });
 
   PlayerState copyWith({

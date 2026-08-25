@@ -11,7 +11,7 @@ void main() {
   group('MainScaffold back decision', () {
     test('keeps the established priority levels', () {
       expect(
-        resolveEchoBackAction(
+        resolveMusicFlowBackAction(
           drawerOpen: true,
           rootCanPop: true,
           branchCanPop: true,
@@ -20,7 +20,7 @@ void main() {
         MusicFlowBackAction.closeDrawer,
       );
       expect(
-        resolveEchoBackAction(
+        resolveMusicFlowBackAction(
           drawerOpen: false,
           rootCanPop: true,
           branchCanPop: true,
@@ -29,7 +29,7 @@ void main() {
         MusicFlowBackAction.popRootNavigator,
       );
       expect(
-        resolveEchoBackAction(
+        resolveMusicFlowBackAction(
           drawerOpen: false,
           rootCanPop: false,
           branchCanPop: true,
@@ -39,7 +39,7 @@ void main() {
       );
       // 探索/我的分支已移除,音乐流即根分支 → 退到后台。
       expect(
-        resolveEchoBackAction(
+        resolveMusicFlowBackAction(
           drawerOpen: false,
           rootCanPop: false,
           branchCanPop: false,

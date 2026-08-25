@@ -125,7 +125,7 @@ class MiniPlayer extends ConsumerWidget {
       _showDesktopPlayerSwitcherPopover(context: context);
       return;
     }
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -133,7 +133,7 @@ class MiniPlayer extends ConsumerWidget {
     );
     if (context.mounted) {
       final cast = ref.read(castPeerControllerProvider);
-      showEchoToast(
+      showMusicFlowToast(
         context,
         cast.activePeer != null
             ? '正在远控「${currentPlayerName(cast)}」'
@@ -156,7 +156,7 @@ class MiniPlayer extends ConsumerWidget {
         onSwitched: (message) {
           if (entry.mounted) entry.remove();
           if (message != null && context.mounted) {
-            showEchoToast(context, message, kind: MusicFlowMessageKind.success);
+            showMusicFlowToast(context, message, kind: MusicFlowMessageKind.success);
           }
         },
       ),
@@ -1370,7 +1370,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                       final navigator = Navigator.of(context);
                       final ok = await controller.switchTo(peer);
                       if (!ok && context.mounted) {
-                        showEchoMessage(
+                        showMusicFlowMessage(
                           context,
                           '切换到「${peer.name}」失败,请检查设备是否在线',
                           kind: MusicFlowMessageKind.error,
@@ -1560,7 +1560,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                                     final ok = await controller.switchTo(peer);
                                     if (!ok) {
                                       if (context.mounted) {
-                                        showEchoMessage(
+                                        showMusicFlowMessage(
                                           context,
                                           '切换到「${peer.name}」失败,请检查设备是否在线',
                                           kind: MusicFlowMessageKind.error,

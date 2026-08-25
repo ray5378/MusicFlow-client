@@ -31,7 +31,7 @@ void main() {
     expect(find.text('已加载内容和离线歌曲仍可使用，在线操作将在联网后恢复'), findsOneWidget);
     expect(tester.getSize(_statusSlot).height, greaterThan(0));
     final statusSurface = find.byKey(
-      const ValueKey<String>('echo-network-status-surface'),
+      const ValueKey<String>('musicflow-network-status-surface'),
     );
     final surfaceContext = tester.element(statusSurface);
     final surfaceSize = tester.getSize(statusSurface);
@@ -92,7 +92,7 @@ void main() {
 }
 
 Finder get _statusSlot =>
-    find.byKey(const ValueKey<String>('echo-network-status-slot'));
+    find.byKey(const ValueKey<String>('musicflow-network-status-slot'));
 
 Future<void> _pumpStatusBar(
   WidgetTester tester, {

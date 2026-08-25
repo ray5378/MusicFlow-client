@@ -6,7 +6,7 @@ import 'package:musicflow_client/core/utils/toast_notifier.dart';
 
 class FallbackInterceptor extends Interceptor {
   static const _tag = 'FALLBACK';
-  static const allowRetryExtraKey = 'echo.allowFallbackRetry';
+  static const allowRetryExtraKey = 'musicflow.allowFallbackRetry';
   final AddressPool _addressPool;
   final Dio _dio; // The customized Dio instance (with this interceptor)
 

@@ -6,7 +6,7 @@ import 'music_flow_media_visuals.dart';
 
 enum MusicFlowMediaSurfaceRole { stage, mini, panel }
 
-/// Installs artwork-derived Echo tokens for one media-led subtree.
+/// Installs artwork-derived MusicFlow tokens for one media-led subtree.
 ///
 /// Spacing, radii, motion, breakpoints, and interaction extensions are kept
 /// from the parent theme. Only colour and typography semantics are replaced.

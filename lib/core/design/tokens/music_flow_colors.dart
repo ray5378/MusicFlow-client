@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Stable, semantic colors for Echo's quiet application chrome.
+/// Stable, semantic colors for MusicFlow's quiet application chrome.
 ///
 /// Material color roles are deliberately absent here. Framework roles are
 /// derived from this extension in `AppColorScheme`, never the other way round.

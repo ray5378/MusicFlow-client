@@ -44,7 +44,7 @@ class MusicFlowCompactNavigation extends StatelessWidget {
       explicitChildNodes: true,
       label: '主导航',
       child: ColoredBox(
-        key: const ValueKey<String>('echo-compact-navigation'),
+        key: const ValueKey<String>('musicflow-compact-navigation'),
         color: colors.surface,
         child: SafeArea(
           top: false,
@@ -156,7 +156,7 @@ class MusicFlowMediumNavigationRail extends StatelessWidget {
       explicitChildNodes: true,
       label: '主导航',
       child: ColoredBox(
-        key: const ValueKey<String>('echo-medium-navigation'),
+        key: const ValueKey<String>('musicflow-medium-navigation'),
         color: context.musicFlowColors.surface,
         child: SafeArea(
           right: false,
@@ -231,12 +231,12 @@ class MusicFlowExpandedNavigationSidebar extends StatefulWidget {
 
   @override
   State<MusicFlowExpandedNavigationSidebar> createState() =>
-      _EchoExpandedNavigationSidebarState();
+      _MusicFlowExpandedNavigationSidebarState();
 }
 
 /// 宽屏侧边栏：点击「收起」可折叠为图标窄栏（再点击「展开」恢复），
 /// 对齐箭头音乐 Windows 版可收起的左侧栏。
-class _EchoExpandedNavigationSidebarState
+class _MusicFlowExpandedNavigationSidebarState
     extends State<MusicFlowExpandedNavigationSidebar> {
   /// 是否折叠为图标窄栏。收起状态只保留图标与 Tooltip，节省横向空间。
   bool _collapsed = false;
@@ -257,7 +257,7 @@ class _EchoExpandedNavigationSidebarState
       explicitChildNodes: true,
       label: collapsed ? '主导航（已收起）' : '主导航',
       child: ColoredBox(
-        key: const ValueKey<String>('echo-expanded-navigation'),
+        key: const ValueKey<String>('musicflow-expanded-navigation'),
         color: context.musicFlowColors.surface,
         child: SafeArea(
           right: false,
@@ -425,7 +425,7 @@ class _CompactDestination extends StatelessWidget {
             alignment: Alignment.topCenter,
             child: _SelectionMarker(
               markerKey: ValueKey<String>(
-                'echo-compact-selection-indicator-'
+                'musicflow-compact-selection-indicator-'
                 '${destination.branchIndex}',
               ),
               selected: selected,
@@ -499,7 +499,7 @@ class _RailDestination extends StatelessWidget {
           children: <Widget>[
             _SelectionMarker(
               markerKey: ValueKey<String>(
-                'echo-medium-selection-indicator-'
+                'musicflow-medium-selection-indicator-'
                 '${destination.branchIndex}',
               ),
               selected: selected,
@@ -571,7 +571,7 @@ class _SidebarDestination extends StatelessWidget {
           children: <Widget>[
             _SelectionMarker(
               markerKey: ValueKey<String>(
-                'echo-expanded-selection-indicator-'
+                'musicflow-expanded-selection-indicator-'
                 '${destination.branchIndex}',
               ),
               selected: selected,
@@ -818,7 +818,7 @@ class _SidebarIconDestination extends StatelessWidget {
             children: <Widget>[
               _SelectionMarker(
                 markerKey: ValueKey<String>(
-                  'echo-expanded-collapsed-selection-indicator-'
+                  'musicflow-expanded-collapsed-selection-indicator-'
                   '${destination.branchIndex}',
                 ),
                 selected: selected,

@@ -46,7 +46,7 @@ Future<void> showPlayQueueSheet({
   if (context.musicFlowWindowClass != MusicFlowWindowClass.compact) {
     return showRightQueuePanel(context);
   }
-  return showEchoBottomSheet<void>(
+  return showMusicFlowBottomSheet<void>(
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,

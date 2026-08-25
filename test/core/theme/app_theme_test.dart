@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('AppColorScheme token bridge', () {
     test(
-      'maps Echo tokens into framework roles without generating a palette',
+      'maps MusicFlow tokens into framework roles without generating a palette',
       () {
         for (final brightness in Brightness.values) {
           final colors = AppColorScheme.colorsFor(brightness);
@@ -82,7 +82,7 @@ void main() {
   });
 
   group('AppTheme compatibility bridge', () {
-    test('registers every Echo token extension in both brightness modes', () {
+    test('registers every MusicFlow token extension in both brightness modes', () {
       for (final theme in [AppTheme.light(), AppTheme.dark()]) {
         final colors = theme.extension<MusicFlowColors>()!;
 
@@ -100,7 +100,7 @@ void main() {
       }
     });
 
-    test('does not encode Echo component silhouettes in Material themes', () {
+    test('does not encode MusicFlow component silhouettes in Material themes', () {
       final source = File('lib/core/theme/app_theme.dart').readAsStringSync();
       const componentThemeTypes = [
         'ButtonThemeData',
@@ -121,7 +121,7 @@ void main() {
         expect(
           source,
           isNot(contains(type)),
-          reason: '$type belongs in Echo UI',
+          reason: '$type belongs in MusicFlow UI',
         );
       }
       expect(source, isNot(contains('ColorScheme.fromSeed')));

@@ -1,10 +1,10 @@
 import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 import 'package:flutter/material.dart';
 
-/// One-way compatibility bridge from Echo semantics to Flutter roles.
+/// One-way compatibility bridge from MusicFlow semantics to Flutter roles.
 ///
 /// Business UI consumes [MusicFlowColors]. [ColorScheme] exists only for Flutter,
-/// third-party widgets, and code that has not yet migrated to Echo primitives.
+/// third-party widgets, and code that has not yet migrated to MusicFlow primitives.
 abstract final class AppColorScheme {
   static const Color defaultSeedColor = MusicFlowColors.defaultAccent;
 

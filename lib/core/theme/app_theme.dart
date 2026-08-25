@@ -7,9 +7,9 @@ import 'package:musicflow_client/core/design/tokens/music_flow_typography.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
 import 'package:flutter/material.dart';
 
-/// Flutter compatibility theme backed entirely by Echo semantic tokens.
+/// Flutter compatibility theme backed entirely by MusicFlow semantic tokens.
 ///
-/// Visible component silhouettes belong to Echo components, not this class.
+/// Visible component silhouettes belong to MusicFlow components, not this class.
 abstract final class AppTheme {
   static ThemeData light({Color? seedColor}) {
     return _build(Brightness.light, seedColor);

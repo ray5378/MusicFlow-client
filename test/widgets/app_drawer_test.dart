@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Echo drawer avoids default Material drawer silhouettes', (
+  testWidgets('MusicFlow drawer avoids default Material drawer silhouettes', (
     tester,
   ) async {
     await _pumpDrawer(tester);

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Echo semantic tokens', () {
+  group('MusicFlow semantic tokens', () {
     test('light and dark palettes keep stable chrome', () {
       final light = MusicFlowColors.light();
       final dark = MusicFlowColors.dark();
@@ -201,7 +201,7 @@ void main() {
   });
 
   group('AppTheme bridge', () {
-    test('registers every Echo ThemeExtension in both modes', () {
+    test('registers every MusicFlow ThemeExtension in both modes', () {
       for (final theme in <ThemeData>[AppTheme.light(), AppTheme.dark()]) {
         expect(theme.extension<MusicFlowColors>(), isNotNull);
         expect(theme.extension<MusicFlowTypography>(), isNotNull);
@@ -241,7 +241,7 @@ void main() {
     });
   });
 
-  group('Echo interaction primitives', () {
+  group('MusicFlow interaction primitives', () {
     testWidgets('buttons expose 48dp targets and activate', (tester) async {
       var activations = 0;
       await tester.pumpWidget(

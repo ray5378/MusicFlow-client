@@ -42,12 +42,12 @@ void main() {
       ),
     );
 
-    final scrubber = find.byKey(const ValueKey<String>('echo-player-scrubber'));
+    final scrubber = find.byKey(const ValueKey<String>('musicflow-player-scrubber'));
     expect(tester.getSize(scrubber).height, 48);
     expect(
       tester
           .getSize(
-            find.byKey(const ValueKey<String>('echo-player-scrubber-thumb')),
+            find.byKey(const ValueKey<String>('musicflow-player-scrubber-thumb')),
           )
           .width,
       6,
@@ -58,7 +58,7 @@ void main() {
     expect(
       tester
           .getSize(
-            find.byKey(const ValueKey<String>('echo-player-scrubber-thumb')),
+            find.byKey(const ValueKey<String>('musicflow-player-scrubber-thumb')),
           )
           .width,
       14,
@@ -73,7 +73,7 @@ void main() {
     expect(
       tester
           .getSize(
-            find.byKey(const ValueKey<String>('echo-player-scrubber-thumb')),
+            find.byKey(const ValueKey<String>('musicflow-player-scrubber-thumb')),
           )
           .width,
       6,
@@ -113,7 +113,7 @@ void main() {
       ),
     );
 
-    final scrubber = find.byKey(const ValueKey<String>('echo-player-scrubber'));
+    final scrubber = find.byKey(const ValueKey<String>('musicflow-player-scrubber'));
     await tester.tapAt(tester.getCenter(scrubber));
     await tester.pump();
     expect((startCount, endCount, cancelCount), (1, 1, 0));

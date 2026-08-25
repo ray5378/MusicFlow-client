@@ -1,4 +1,4 @@
-// Public Echo UI surface. Semantic tokens remain the source of truth; the
+// Public MusicFlow UI surface. Semantic tokens remain the source of truth; the
 // framework theme is intentionally kept outside this barrel.
 export '../theme/app_icons.dart';
 export 'components/music_flow_bottom_sheet.dart';

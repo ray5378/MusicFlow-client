@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'music_flow_colors.dart';
 
-/// Echo's single-family, content-first type hierarchy.
+/// MusicFlow's single-family, content-first type hierarchy.
 @immutable
 class MusicFlowTypography extends ThemeExtension<MusicFlowTypography> {
   const MusicFlowTypography({

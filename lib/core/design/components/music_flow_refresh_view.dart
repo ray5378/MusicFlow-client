@@ -18,10 +18,10 @@ class MusicFlowRefreshView extends StatefulWidget {
   final Widget child;
 
   @override
-  State<MusicFlowRefreshView> createState() => _EchoRefreshViewState();
+  State<MusicFlowRefreshView> createState() => _MusicFlowRefreshViewState();
 }
 
-class _EchoRefreshViewState extends State<MusicFlowRefreshView> {
+class _MusicFlowRefreshViewState extends State<MusicFlowRefreshView> {
   _RefreshPhase _phase = _RefreshPhase.idle;
   Timer? _resultTimer;
 

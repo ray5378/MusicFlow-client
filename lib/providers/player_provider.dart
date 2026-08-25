@@ -290,6 +290,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     _audioPlayer = player;
 
+    // 优先恢复本机音量：桌面端 SharedPreferences 读取极快，player 一就绪就
+    // 落库并写入 real 引擎。放在最前，避免后续模式/会话恢复失败时音量恢复被
+    // 跳过（否则每次重开都停在默认值、观感上"回到 100%"）。也保证任何播放
+    // 源就绪前，real 引擎音量已是用户上次设置。
+    await _restorePlayerVolume();
+
     // 监听播放状态
     player.playingStream.listen((isPlaying) {
       _playDbg(
@@ -445,6 +451,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       if (playerState.processingState == ProcessingState.ready ||
           playerState.processingState == ProcessingState.completed) {
+        // 播放源就绪时把音量重写成用户设置值：Windows 的播放引擎在载入新源
+        // 后可能把音量重置为 1.0，这里再压回上次保存的音量，确保重启后实际
+        // 读音与 UI 都是保存值，而不是被顶回 100%。
+        _audioPlayer?.setVolume(state.volume);
         unawaited(_applyPendingSeekIfNeeded());
       }
 
@@ -499,7 +509,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     await _restorePlaybackMode();
     await _restorePlaybackSession();
-    await _restorePlayerVolume();
   }
 
   void _initConnectivityRetryHandling() {

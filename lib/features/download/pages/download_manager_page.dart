@@ -72,7 +72,7 @@ class DownloadManagerPage extends ConsumerWidget {
 
   Future<void> _showBulkActions(BuildContext context, WidgetRef ref) async {
     final service = ref.read(downloadServiceProvider);
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
@@ -123,7 +123,7 @@ class DownloadManagerPage extends ConsumerWidget {
 
   Future<void> _showScanSheet(BuildContext context, WidgetRef ref) async {
     final service = ref.read(downloadServiceProvider);
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -674,7 +674,7 @@ Future<void> _showTaskActions(
   DownloadTask task,
 ) async {
   final service = ref.read(downloadServiceProvider);
-  await showEchoBottomSheet<void>(
+  await showMusicFlowBottomSheet<void>(
     context: context,
     useRootNavigator: true,
     builder: (sheetContext) => MusicFlowBottomSheet(

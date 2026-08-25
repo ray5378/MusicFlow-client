@@ -355,10 +355,10 @@ class MusicFlowAzIndexReveal extends StatefulWidget {
   final bool enabled;
 
   @override
-  State<MusicFlowAzIndexReveal> createState() => _EchoAzIndexRevealState();
+  State<MusicFlowAzIndexReveal> createState() => _MusicFlowAzIndexRevealState();
 }
 
-class _EchoAzIndexRevealState extends State<MusicFlowAzIndexReveal> {
+class _MusicFlowAzIndexRevealState extends State<MusicFlowAzIndexReveal> {
   static const Duration _lingerDuration = Duration(milliseconds: 1200);
   static const double _edgeActivationWidth = 40;
 

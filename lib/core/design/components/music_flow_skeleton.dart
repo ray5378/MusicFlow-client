@@ -26,10 +26,10 @@ class MusicFlowSkeleton extends StatefulWidget {
   final BorderRadiusGeometry? borderRadius;
 
   @override
-  State<MusicFlowSkeleton> createState() => _EchoSkeletonState();
+  State<MusicFlowSkeleton> createState() => _MusicFlowSkeletonState();
 }
 
-class _EchoSkeletonState extends State<MusicFlowSkeleton>
+class _MusicFlowSkeletonState extends State<MusicFlowSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool _animationsDisabled = false;

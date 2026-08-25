@@ -20,7 +20,7 @@ class ToastNotifier {
       _pendingKind = kind;
       return;
     }
-    showEchoMessage(
+    showMusicFlowMessage(
       messenger.context,
       message,
       kind: kind,
@@ -33,13 +33,13 @@ class ToastNotifier {
     if (message == null) return;
     final messenger = rootScaffoldMessengerKey.currentState;
     if (messenger == null) {
-      Logger.warnWithTag(_tag, 'Echo message host is not ready');
+      Logger.warnWithTag(_tag, 'MusicFlow message host is not ready');
       return;
     }
     final kind = _pendingKind;
     _pendingMessage = null;
     _pendingKind = MusicFlowMessageKind.info;
-    showEchoMessage(
+    showMusicFlowMessage(
       messenger.context,
       message,
       kind: kind,

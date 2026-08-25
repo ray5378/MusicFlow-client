@@ -474,34 +474,34 @@ void main() {
 }
 
 Finder get _compactNavigation =>
-    find.byKey(const ValueKey<String>('echo-compact-navigation'));
+    find.byKey(const ValueKey<String>('musicflow-compact-navigation'));
 Finder get _mediumNavigation =>
-    find.byKey(const ValueKey<String>('echo-medium-navigation'));
+    find.byKey(const ValueKey<String>('musicflow-medium-navigation'));
 Finder get _expandedNavigation =>
-    find.byKey(const ValueKey<String>('echo-expanded-navigation'));
+    find.byKey(const ValueKey<String>('musicflow-expanded-navigation'));
 Finder get _compactBottomChrome =>
-    find.byKey(const ValueKey<String>('echo-compact-bottom-chrome'));
+    find.byKey(const ValueKey<String>('musicflow-compact-bottom-chrome'));
 Finder get _shellContent =>
-    find.byKey(const ValueKey<String>('echo-shell-content'));
+    find.byKey(const ValueKey<String>('musicflow-shell-content'));
 Finder get _content => find.byKey(const ValueKey<String>('test-content'));
 Finder get _miniPlayer =>
     find.byKey(const ValueKey<String>('test-mini-player'));
 Finder get _miniPlayerSlot =>
-    find.byKey(const ValueKey<String>('echo-mini-player-slot'));
+    find.byKey(const ValueKey<String>('musicflow-mini-player-slot'));
 Finder get _miniPlayerChrome =>
-    find.byKey(const ValueKey<String>('echo-mini-player-chrome'));
+    find.byKey(const ValueKey<String>('musicflow-mini-player-chrome'));
 Finder get _networkStatusSlot =>
-    find.byKey(const ValueKey<String>('echo-network-status-slot'));
+    find.byKey(const ValueKey<String>('musicflow-network-status-slot'));
 Finder get _verticalShellDividers => find.byWidgetPredicate(
   (widget) => widget is MusicFlowDivider && widget.axis == Axis.vertical,
 );
 
 Finder _compactSelectionIndicator(int branchIndex) => find.byKey(
-  ValueKey<String>('echo-compact-selection-indicator-$branchIndex'),
+  ValueKey<String>('musicflow-compact-selection-indicator-$branchIndex'),
 );
 
 Finder _mediumSelectionIndicator(int branchIndex) => find.byKey(
-  ValueKey<String>('echo-medium-selection-indicator-$branchIndex'),
+  ValueKey<String>('musicflow-medium-selection-indicator-$branchIndex'),
 );
 
 Future<void> _pumpShell(

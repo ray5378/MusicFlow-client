@@ -157,7 +157,7 @@ class MusicFlowToggleSettingRow extends StatelessWidget {
       semanticLabel:
           '$title，${value ? '已开启' : '已关闭'}${description == null ? '' : '，$description'}',
       onPressed: () => onChanged(!value),
-      trailing: _EchoToggle(value: value),
+      trailing: _MusicFlowToggle(value: value),
     );
   }
 }
@@ -290,7 +290,7 @@ class MusicFlowProviderSettingRow extends StatelessWidget {
               onPressed: () => onChanged(!enabled),
               minimumSize: const Size(60, 48),
               borderRadius: context.musicFlowRadii.pill,
-              child: Center(child: _EchoToggle(value: enabled)),
+              child: Center(child: _MusicFlowToggle(value: enabled)),
             );
             final textScale = MediaQuery.textScalerOf(context).scale(1);
             final stackActions = constraints.maxWidth < 420 || textScale >= 1.4;
@@ -478,8 +478,8 @@ class MusicFlowMetricBlock extends StatelessWidget {
   }
 }
 
-class _EchoToggle extends StatelessWidget {
-  const _EchoToggle({required this.value});
+class _MusicFlowToggle extends StatelessWidget {
+  const _MusicFlowToggle({required this.value});
 
   final bool value;
 

@@ -351,7 +351,7 @@ Future<void> _confirmClear({
   required String message,
   required Future<void> Function() onConfirm,
 }) async {
-  final confirmed = await showEchoBottomSheet<bool>(
+  final confirmed = await showMusicFlowBottomSheet<bool>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,

@@ -12,7 +12,7 @@ Future<PlaylistOptionsAction?> showPlaylistOptionsSheet({
   bool hasSongs = true,
   bool useRootNavigator = true,
 }) async {
-  return showEchoBottomSheet<PlaylistOptionsAction>(
+  return showMusicFlowBottomSheet<PlaylistOptionsAction>(
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,

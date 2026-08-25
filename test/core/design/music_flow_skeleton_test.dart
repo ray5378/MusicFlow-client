@@ -14,7 +14,7 @@ void main() {
     );
   }
 
-  testWidgets('normal motion animates with Echo skeleton colors', (
+  testWidgets('normal motion animates with MusicFlow skeleton colors', (
     tester,
   ) async {
     await tester.pumpWidget(app(const MusicFlowSkeleton(width: 120, height: 16)));

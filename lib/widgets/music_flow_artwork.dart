@@ -5,7 +5,7 @@ import 'cover_art_image.dart';
 
 enum MusicFlowArtworkShape { rounded, circle }
 
-/// Echo's shared artwork frame.
+/// MusicFlow's shared artwork frame.
 ///
 /// Network resolution, loading, and missing-cover states remain owned by
 /// [CoverArtImage]. This wrapper standardizes shape, Hero transitions, and the

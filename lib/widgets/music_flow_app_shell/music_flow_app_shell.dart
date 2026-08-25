@@ -72,7 +72,7 @@ class MusicFlowAppShell extends StatelessWidget {
       },
       bottomNavigationBar: windowClass == MusicFlowWindowClass.compact
           ? Column(
-              key: const ValueKey<String>('echo-compact-bottom-chrome'),
+              key: const ValueKey<String>('musicflow-compact-bottom-chrome'),
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 networkStatusBar,
@@ -108,7 +108,7 @@ class _CompactShellBody extends StatelessWidget {
       child: MediaQuery(
         data: mediaQuery.removePadding(removeBottom: true),
         child: ColoredBox(
-          key: const ValueKey<String>('echo-shell-content'),
+          key: const ValueKey<String>('musicflow-shell-content'),
           color: color,
           child: body,
         ),
@@ -135,7 +135,7 @@ class MusicFlowMiniPlayerSlot extends StatelessWidget {
     final spacing = context.musicFlowSpacing;
 
     return SizedBox(
-      key: const ValueKey<String>('echo-mini-player-slot'),
+      key: const ValueKey<String>('musicflow-mini-player-slot'),
       width: double.infinity,
       child: ClipRect(
         child: AnimatedSize(
@@ -145,14 +145,14 @@ class MusicFlowMiniPlayerSlot extends StatelessWidget {
           child: visible
               ? Listener(
                   key: const ValueKey<String>(
-                    'echo-mini-player-pointer-shield',
+                    'musicflow-mini-player-pointer-shield',
                   ),
                   behavior: HitTestBehavior.opaque,
                   child: SafeArea(
                     top: false,
                     bottom: includeBottomSafeArea,
                     child: Padding(
-                      key: const ValueKey<String>('echo-mini-player-chrome'),
+                      key: const ValueKey<String>('musicflow-mini-player-chrome'),
                       padding: EdgeInsets.fromLTRB(
                         spacing.sm,
                         spacing.xs,
@@ -219,7 +219,7 @@ class _WideShellBody extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: ColoredBox(
-                  key: const ValueKey<String>('echo-shell-content'),
+                  key: const ValueKey<String>('musicflow-shell-content'),
                   color: context.musicFlowColors.canvas,
                   child: MusicFlowShellObstructionScope(bottom: 0, child: body),
                 ),

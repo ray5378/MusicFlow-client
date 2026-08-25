@@ -8,7 +8,7 @@ import 'tokens/music_flow_radii.dart';
 import 'tokens/music_flow_spacing.dart';
 import 'tokens/music_flow_typography.dart';
 
-/// Typed access to Echo's semantic design vocabulary.
+/// Typed access to MusicFlow's semantic design vocabulary.
 extension MusicFlowDesignContext on BuildContext {
   MusicFlowColors get musicFlowColors {
     final theme = Theme.of(this);

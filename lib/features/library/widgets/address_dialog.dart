@@ -51,7 +51,7 @@ class _AddressDialogState extends State<AddressDialog> {
   }
 
   Future<void> _showHttpHint() async {
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
@@ -79,7 +79,7 @@ class _AddressDialogState extends State<AddressDialog> {
   }
 
   Future<bool> _confirmHttpSave(String normalizedUrl) async {
-    final confirmed = await showEchoBottomSheet<bool>(
+    final confirmed = await showMusicFlowBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(

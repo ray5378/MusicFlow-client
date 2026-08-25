@@ -21,7 +21,7 @@ Future<void> showAlbumOptionsSheet({
   required Album album,
   bool useRootNavigator = true,
 }) async {
-  await showEchoBottomSheet<void>(
+  await showMusicFlowBottomSheet<void>(
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,
@@ -123,7 +123,7 @@ class _AlbumOptionsSheet extends ConsumerWidget {
                   return;
                 }
 
-                await showEchoBottomSheet<void>(
+                await showMusicFlowBottomSheet<void>(
                   context: hostContext,
                   useRootNavigator: true,
                   isScrollControlled: true,

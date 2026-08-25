@@ -22,7 +22,7 @@ import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
 import 'music_flow_app_shell/music_flow_drawer.dart';
 
-/// Echo's application drawer. [Scaffold] still supplies platform drawer
+/// MusicFlow's application drawer. [Scaffold] still supplies platform drawer
 /// routing, focus, and back behavior; every visible surface is owned here.
 class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key, this.onReturnFocus});
@@ -48,7 +48,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         libraryName: activeLibrary?.name ?? '未选择',
         addressLabel: activeAddress?.label ?? '没有活动线路',
         connectionState: _connectionState(activeAddress),
-        avatarUrl: resolveEchoDrawerAvatarUrl(activeLibrary),
+        avatarUrl: resolveMusicFlowDrawerAvatarUrl(activeLibrary),
         showingLibraries: _showLibraries,
         onToggleLibraries: () {
           setState(() {
@@ -78,7 +78,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         }
 
         return ListView.builder(
-          key: const PageStorageKey<String>('echo-drawer-libraries'),
+          key: const PageStorageKey<String>('musicflow-drawer-libraries'),
           padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           itemCount: items.length + 2,
@@ -201,7 +201,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     ];
 
     return ListView.builder(
-      key: const PageStorageKey<String>('echo-drawer-navigation'),
+      key: const PageStorageKey<String>('musicflow-drawer-navigation'),
       padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       itemCount: entries.length,
       itemBuilder: (context, index) {
@@ -297,7 +297,7 @@ Future<void> showRouteSelectionSheet(
   VoidCallback? onClosed,
 }) async {
   try {
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: hostContext,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -462,7 +462,7 @@ Future<void> showRouteSelectionSheet(
   }
 
 @visibleForTesting
-String? resolveEchoDrawerAvatarUrl(MusicLibrary? library) {
+String? resolveMusicFlowDrawerAvatarUrl(MusicLibrary? library) {
   if (library == null) return null;
   final raw = library.extensions['avatarUrl'];
   if (raw is! String || raw.trim().isEmpty) return null;

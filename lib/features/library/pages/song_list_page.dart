@@ -57,7 +57,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   }
 
   Future<void> _showSortSheet() async {
-    final selected = await showEchoBottomSheet<_SongSort>(
+    final selected = await showMusicFlowBottomSheet<_SongSort>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,

@@ -22,7 +22,7 @@ Future<PlaylistFormResult?> showPlaylistFormDialog({
   String initialComment = '',
   bool initialPublic = false,
 }) async {
-  return showEchoBottomSheet<PlaylistFormResult>(
+  return showMusicFlowBottomSheet<PlaylistFormResult>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
@@ -40,7 +40,7 @@ Future<bool> showDeletePlaylistConfirmDialog({
   required BuildContext context,
   required String playlistName,
 }) async {
-  final confirmed = await showEchoBottomSheet<bool>(
+  final confirmed = await showMusicFlowBottomSheet<bool>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
@@ -180,7 +180,7 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                     textInputAction: TextInputAction.newline,
                   ),
                   SizedBox(height: context.musicFlowSpacing.md),
-                  _EchoToggleRow(
+                  _MusicFlowToggleRow(
                     title: '公开歌单',
                     description: _isPublic
                         ? '服务器上的其他用户可以看到这个歌单。'
@@ -216,8 +216,8 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
   }
 }
 
-class _EchoToggleRow extends StatelessWidget {
-  const _EchoToggleRow({
+class _MusicFlowToggleRow extends StatelessWidget {
+  const _MusicFlowToggleRow({
     required this.title,
     required this.description,
     required this.value,

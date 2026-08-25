@@ -111,7 +111,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   void _showUpdateSheet(UpdateCheckResult result) {
-    showEchoBottomSheet<void>(
+    showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -207,7 +207,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   }) {
     if (!mounted) return;
-    showEchoMessage(context, message, kind: kind);
+    showMusicFlowMessage(context, message, kind: kind);
   }
 
   @override
@@ -447,7 +447,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     List<MusicLibrary> libraries,
     MusicLibrary? currentLibrary,
   ) async {
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -499,7 +499,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   Future<void> _showCrossfadeSheet(int currentValue) async {
     const values = <int>[0, 500, 1000, 1500, 2000, 2500, 3000];
-    final selected = await showEchoBottomSheet<int>(
+    final selected = await showMusicFlowBottomSheet<int>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -532,7 +532,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   Future<void> _showLyricsDwellSheet(int currentValue) async {
     const values = <int>[1, 2, 3, 4, 5, 8, 10];
-    final selected = await showEchoBottomSheet<int>(
+    final selected = await showMusicFlowBottomSheet<int>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -564,7 +564,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   void _showAboutSheet() {
-    showEchoBottomSheet<void>(
+    showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,

@@ -59,10 +59,10 @@ class MusicFlowTextField extends StatefulWidget {
   final AutovalidateMode autovalidateMode;
 
   @override
-  State<MusicFlowTextField> createState() => _EchoTextFieldState();
+  State<MusicFlowTextField> createState() => _MusicFlowTextFieldState();
 }
 
-class _EchoTextFieldState extends State<MusicFlowTextField> {
+class _MusicFlowTextFieldState extends State<MusicFlowTextField> {
   final GlobalKey<FormFieldState<String>> _fieldKey =
       GlobalKey<FormFieldState<String>>();
   FocusNode? _ownedFocusNode;
@@ -236,7 +236,7 @@ class _EchoTextFieldState extends State<MusicFlowTextField> {
                                 child: ValueListenableBuilder<TextEditingValue>(
                                   valueListenable: widget.controller,
                                   // 仅借用 Flutter 的原生文本选择、菜单和手势；
-                                  // Echo 的可见轮廓仍由外层组件完整控制。
+                                  // MusicFlow 的可见轮廓仍由外层组件完整控制。
                                   child: TextField(
                                     controller: widget.controller,
                                     focusNode: _focusNode,

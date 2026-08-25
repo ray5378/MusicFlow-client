@@ -172,7 +172,7 @@ final currentSongPaletteProvider =
 
 /// Semantic media visuals for the active song.
 ///
-/// A song without usable artwork receives the stable Echo fallback. No active
+/// A song without usable artwork receives the stable MusicFlow fallback. No active
 /// song remains `null`, matching the lifecycle of [currentSongPaletteProvider]
 /// without forcing player chrome to render when playback has no current item.
 final currentSongMediaVisualsProvider =

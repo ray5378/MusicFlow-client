@@ -137,7 +137,7 @@ class ThemeSettingsPage extends ConsumerWidget {
     WidgetRef ref,
     Color initialColor,
   ) async {
-    final selected = await showEchoBottomSheet<Color>(
+    final selected = await showMusicFlowBottomSheet<Color>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,

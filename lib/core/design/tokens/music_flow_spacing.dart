@@ -2,7 +2,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
-/// The 4dp-based spacing rhythm used throughout Echo.
+/// The 4dp-based spacing rhythm used throughout MusicFlow.
 @immutable
 class MusicFlowSpacing extends ThemeExtension<MusicFlowSpacing> {
   const MusicFlowSpacing({

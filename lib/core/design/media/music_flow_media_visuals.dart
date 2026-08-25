@@ -27,7 +27,7 @@ class MusicFlowMediaVisuals {
 
   /// Resolves semantic media colours from all useful PaletteGenerator roles.
   ///
-  /// Missing and empty palettes use Echo's stable content tint. Bright covers
+  /// Missing and empty palettes use MusicFlow's stable content tint. Bright covers
   /// remain bright and receive dark ink; dark covers receive light ink. Every
   /// text surface is normalized to WCAG AA, while [controlAccent] maintains at
   /// least 3:1 against the same surfaces.

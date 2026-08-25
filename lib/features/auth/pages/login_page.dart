@@ -104,7 +104,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (!isInsecureHttpUrl(serverUrl)) return true;
     if (_confirmedInsecureHttpUrl == serverUrl) return true;
 
-    final confirmed = await showEchoBottomSheet<bool>(
+    final confirmed = await showMusicFlowBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
@@ -144,7 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _showError(String message) {
     if (!mounted) return;
-    showEchoMessage(context, message, kind: MusicFlowMessageKind.error);
+    showMusicFlowMessage(context, message, kind: MusicFlowMessageKind.error);
   }
 
   @override

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('global notifications use the Echo message surface', (
+  testWidgets('global notifications use the MusicFlow message surface', (
     tester,
   ) async {
     await tester.pumpWidget(

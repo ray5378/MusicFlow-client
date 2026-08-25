@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:remixicon/remixicon.dart';
 
-/// Semantic icon vocabulary used by Echo's current interface.
+/// Semantic icon vocabulary used by MusicFlow's current interface.
 ///
-/// Call sites name the intent rather than a glyph. Remix supplies Echo's
+/// Call sites name the intent rather than a glyph. Remix supplies MusicFlow's
 /// product symbols; only platform-standard navigation and dismissal actions
 /// use Cupertino symbols.
 abstract final class AppIcons {

@@ -105,7 +105,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     ? MusicFlowIconButton(
                         icon: AppIcons.menu,
                         label: '打开应用菜单',
-                        onPressed: openEchoAppDrawer,
+                        onPressed: openMusicFlowAppDrawer,
                       )
                     : null,
                 trailing: MusicFlowIconButton(

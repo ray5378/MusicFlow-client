@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Exposes the vertical space occupied by Echo's bottom shell chrome.
+/// Exposes the vertical space occupied by MusicFlow's bottom shell chrome.
 ///
 /// Compact pages can use this value to keep their final interactive content
 /// clear of the overlaid MiniPlayer and navigation while still painting behind

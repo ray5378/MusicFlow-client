@@ -49,7 +49,7 @@ void main() {
   testWidgets('uses native mobile and desktop text selection behavior', (
     tester,
   ) async {
-    final controller = TextEditingController(text: 'Echo selection');
+    final controller = TextEditingController(text: 'MusicFlow selection');
     addTearDown(controller.dispose);
 
     Future<EditableText> pumpFor(TargetPlatform platform) async {

@@ -5,10 +5,10 @@ import '../music_flow_context.dart';
 import '../layout/music_flow_shell_obstruction.dart';
 import 'music_flow_icon_button.dart';
 
-/// Stable page frame for Echo feature surfaces.
+/// Stable page frame for MusicFlow feature surfaces.
 ///
 /// Flutter's [Scaffold] remains the route, keyboard and messenger
-/// infrastructure; every visible surface is supplied by Echo tokens.
+/// infrastructure; every visible surface is supplied by MusicFlow tokens.
 class MusicFlowScaffold extends StatelessWidget {
   const MusicFlowScaffold({
     super.key,

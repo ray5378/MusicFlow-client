@@ -4,7 +4,7 @@ class ApiConstants {
   static const String apiVersion = '1.16.1';
 
   // 客户端标识
-  static const String clientName = 'echo';
+  static const String clientName = 'musicflow';
 
   // 返回格式
   static const String format = 'json';

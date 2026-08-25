@@ -648,7 +648,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     final playlist = _displayMeta;
     if (playlist == null) return;
     final count = _selectedSongIndexes.length;
-    final confirmed = await showEchoBottomSheet<bool>(
+    final confirmed = await showMusicFlowBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(

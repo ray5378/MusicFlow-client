@@ -25,7 +25,7 @@ import '../widgets/synced_lyrics_view.dart';
 import '../widgets/vinyl_record_cover.dart';
 import '../../../widgets/windows_title_bar.dart';
 
-/// Echo's immersive now-playing scene.
+/// MusicFlow's immersive now-playing scene.
 class FullPlayerPage extends ConsumerStatefulWidget {
   const FullPlayerPage({super.key});
 
@@ -99,7 +99,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   }) {
     if (!mounted) return;
-    showEchoMessage(context, message, kind: kind);
+    showMusicFlowMessage(context, message, kind: kind);
   }
 
   void _showSongActions(Song song) {
@@ -789,7 +789,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     required String bitRateText,
     required String audioSpecText,
   }) async {
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
@@ -1440,7 +1440,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
   }
 
   Future<void> _openPlayerSwitcher(BuildContext context, WidgetRef ref) async {
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -1448,7 +1448,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
     );
     if (!context.mounted) return;
     final cast = ref.read(castPeerControllerProvider);
-    showEchoToast(
+    showMusicFlowToast(
       context,
       cast.activePeer != null
           ? '正在投屏到「${currentPlayerName(cast)}」'

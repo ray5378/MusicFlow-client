@@ -35,7 +35,7 @@ FocusNode? _appDrawerTriggerFocus;
 ///
 /// Compact pages and the wide shell share this entry point so a drawer-owned
 /// overlay can return focus to the exact menu control that launched it.
-void openEchoAppDrawer() {
+void openMusicFlowAppDrawer() {
   final currentFocus = FocusManager.instance.primaryFocus;
   if (currentFocus != null &&
       currentFocus.context != null &&
@@ -55,7 +55,7 @@ bool shouldShowPageDrawerTrigger(BuildContext context) {
   return context.musicFlowBreakpoints.classify(width) == MusicFlowWindowClass.compact;
 }
 
-void _restoreEchoAppDrawerFocus() {
+void _restoreMusicFlowAppDrawerFocus() {
   final triggerFocus = _appDrawerTriggerFocus;
   _appDrawerTriggerFocus = null;
   if (triggerFocus == null ||
@@ -75,7 +75,7 @@ enum MusicFlowBackAction {
 }
 
 @visibleForTesting
-MusicFlowBackAction resolveEchoBackAction({
+MusicFlowBackAction resolveMusicFlowBackAction({
   required bool drawerOpen,
   required bool rootCanPop,
   required bool branchCanPop,
@@ -290,7 +290,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       );
     }
 
-    final action = resolveEchoBackAction(
+    final action = resolveMusicFlowBackAction(
       drawerOpen: scaffold?.isDrawerOpen ?? false,
       rootCanPop: rootNavigator.canPop(),
       branchCanPop: branchNavigator?.canPop() ?? false,
@@ -370,7 +370,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               scaffoldKey: scaffoldKey,
               drawer:
                   widget.drawerOverride ??
-                  AppDrawer(onReturnFocus: _restoreEchoAppDrawerFocus),
+                  AppDrawer(onReturnFocus: _restoreMusicFlowAppDrawerFocus),
               body: widget.navigationShell,
               destinations: destinations,
               selectedBranchIndex: currentBranchIsVisible
@@ -386,7 +386,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               showMiniPlayer: hasMiniPlayer,
               networkStatus: networkStatus,
               showNavigationBar: false,
-              onOpenDrawer: openEchoAppDrawer,
+              onOpenDrawer: openMusicFlowAppDrawer,
               // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
               libraryEntries: _libraryEntries(context),
             ),

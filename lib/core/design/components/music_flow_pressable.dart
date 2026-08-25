@@ -22,7 +22,7 @@ enum MusicFlowPressableSemanticsMode {
   explicitChildren,
 }
 
-/// Echo's shared interaction target.
+/// MusicFlow's shared interaction target.
 ///
 /// Pointer feedback is delegated to [InkWell]. Keyboard activation is exposed
 /// through Flutter's [Shortcuts] and [Actions] system, so a long-press-only
@@ -74,10 +74,10 @@ class MusicFlowPressable extends StatefulWidget {
   final Color? pressedOverlayColor;
 
   @override
-  State<MusicFlowPressable> createState() => _EchoPressableState();
+  State<MusicFlowPressable> createState() => _MusicFlowPressableState();
 }
 
-class _EchoPressableState extends State<MusicFlowPressable>
+class _MusicFlowPressableState extends State<MusicFlowPressable>
     with SingleTickerProviderStateMixin {
   static const Map<ShortcutActivator, Intent> _shortcuts =
       <ShortcutActivator, Intent>{
@@ -172,7 +172,7 @@ class _EchoPressableState extends State<MusicFlowPressable>
                 },
             ),
           },
-          child: _EchoPressableFocus(
+          child: _MusicFlowPressableFocus(
             canRequestFocus: _interactive,
             autofocus: widget.autofocus && _interactive,
             builder: (focusContext, showFocusHighlight) {
@@ -294,8 +294,8 @@ class _EchoPressableState extends State<MusicFlowPressable>
   }
 }
 
-class _EchoPressableFocus extends StatefulWidget {
-  const _EchoPressableFocus({
+class _MusicFlowPressableFocus extends StatefulWidget {
+  const _MusicFlowPressableFocus({
     required this.canRequestFocus,
     required this.autofocus,
     required this.builder,
@@ -306,10 +306,10 @@ class _EchoPressableFocus extends StatefulWidget {
   final Widget Function(BuildContext context, bool showFocusHighlight) builder;
 
   @override
-  State<_EchoPressableFocus> createState() => _EchoPressableFocusState();
+  State<_MusicFlowPressableFocus> createState() => _MusicFlowPressableFocusState();
 }
 
-class _EchoPressableFocusState extends State<_EchoPressableFocus> {
+class _MusicFlowPressableFocusState extends State<_MusicFlowPressableFocus> {
   late final FocusNode _focusNode;
   late FocusHighlightMode _highlightMode;
   bool _hasPrimaryFocus = false;

@@ -8,7 +8,7 @@ import 'music_flow_icon_button.dart';
 import 'music_flow_pressable.dart';
 import 'music_flow_surface.dart';
 
-Future<T?> showEchoBottomSheet<T>({
+Future<T?> showMusicFlowBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool useRootNavigator = false,

@@ -280,7 +280,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Future<void> _showAddressSheet({ServerAddress? address}) async {
-    final result = await showEchoBottomSheet<ServerAddress>(
+    final result = await showMusicFlowBottomSheet<ServerAddress>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -294,7 +294,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     final library = libraries.firstWhere((item) => item.id == widget.libraryId);
 
     if (address == null || address.url != result.url) {
-      showEchoMessage(
+      showMusicFlowMessage(
         context,
         '正在验证服务器一致性…',
         duration: const Duration(seconds: 1),
@@ -323,7 +323,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Future<void> _showVerificationFailure() async {
-    await showEchoBottomSheet<void>(
+    await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
@@ -380,7 +380,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     );
     await repository.updateLibrary(updated);
     if (!mounted) return;
-    showEchoMessage(context, '保存成功', kind: MusicFlowMessageKind.success);
+    showMusicFlowMessage(context, '保存成功', kind: MusicFlowMessageKind.success);
     context.pop();
   }
 
@@ -419,7 +419,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     required String description,
     required String confirmLabel,
   }) async {
-    final result = await showEchoBottomSheet<bool>(
+    final result = await showMusicFlowBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(

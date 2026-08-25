@@ -4,7 +4,7 @@ import '../music_flow_context.dart';
 
 enum MusicFlowSurfaceLevel { canvas, surface, raised, floating, modal }
 
-/// A semantic Echo surface. Ordinary content remains flat; shadows are reserved
+/// A semantic MusicFlow surface. Ordinary content remains flat; shadows are reserved
 /// for floating and modal layers.
 class MusicFlowSurface extends StatelessWidget {
   const MusicFlowSurface({

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../music_flow_context.dart';
 
-/// Echo's spatial page transition for imperative navigation.
+/// MusicFlow's spatial page transition for imperative navigation.
 ///
 /// The route resolves its durations before it is pushed, so a system request
 /// for reduced motion becomes an actual jump cut instead of an invisible wait.
