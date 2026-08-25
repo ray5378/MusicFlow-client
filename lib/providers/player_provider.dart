@@ -3506,8 +3506,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final wantsPlaying = player.playing || _expectingAutoplay;
       // 合成进度兜底正在承担推进时(锁缓存流可能以 0 上报真实位置但音频在播),
       // 不把“定位在起点”当作 0 秒卡死,否则看门狗会重载一首正常在播的歌。
+      // 已移除边播边缓存(LockCachingAudioSource)，不再需要对锁缓存流做
+      // “位置报 0 但音频在播”的合成进度护航，相关分支恒为 false。
       final syntheticCarrying =
-          _usingLockCachingSource &&
           _syntheticPositionFallbackActive &&
           isReadyPlaying &&
           sourcePlayerPos <= const Duration(milliseconds: 50);
@@ -3624,12 +3625,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final drift = (playerPos - state.position).inMilliseconds.abs();
       final keepSyntheticProgress =
           _syntheticPositionFallbackActive &&
-          _usingLockCachingSource &&
           isReadyPlaying &&
           sourcePlayerPos <= const Duration(milliseconds: 50);
       final preserveSyntheticPosition =
           _syntheticPositionFallbackActive &&
-          _usingLockCachingSource &&
           state.position > const Duration(milliseconds: 250) &&
           (!isReadyPlaying ||
               playerPos + const Duration(seconds: 5) < state.position);
@@ -3676,7 +3675,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // iOS + LockCachingAudioSource 某些流上 position 可能卡在 0。
       // 当确认持续卡住时，按时间片推进 UI 进度，避免进度条一直 0:00。
       final shouldUseSyntheticPosition =
-          _usingLockCachingSource &&
           isReadyPlaying &&
           sourcePlayerPos <= const Duration(milliseconds: 50) &&
           state.duration > Duration.zero &&

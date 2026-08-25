@@ -47,7 +47,6 @@ class DownloadService {
   int get activeCount => _activeDownloads.length;
 
   /// 添加下载任务（单曲）
-  /// 如果歌曲已缓存，直接将缓存文件复制为下载文件，无需重新下载
   Future<void> enqueue(Song song, {required String libraryId}) async {
     // Android 下载到公共目录前先检查权限
     if (!kIsWeb && Platform.isAndroid) {
