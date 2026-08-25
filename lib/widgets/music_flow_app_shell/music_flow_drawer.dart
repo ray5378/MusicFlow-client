@@ -21,8 +21,8 @@ class MusicFlowDrawerFrame extends StatelessWidget {
       MediaQuery.sizeOf(context).width - spacing.lg,
     );
     final preferredWidth = context.musicFlowWindowClass == MusicFlowWindowClass.compact
-        ? 360.0
-        : 400.0;
+        ? 240.0
+        : 267.0;
     final width = math.min(preferredWidth, availableWidth);
 
     return Align(

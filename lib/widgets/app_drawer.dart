@@ -4,6 +4,11 @@ import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/features/download/pages/download_manager_page.dart';
+import 'package:musicflow_client/features/library/pages/album_list_page.dart';
+import 'package:musicflow_client/features/library/pages/artist_list_page.dart';
+import 'package:musicflow_client/features/library/pages/playlist_search_page.dart';
+import 'package:musicflow_client/features/library/pages/song_list_page.dart';
+import 'package:musicflow_client/features/library/pages/starred_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
@@ -140,6 +145,37 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
   Widget _buildNavigationList(ServerAddress? activeAddress) {
     final routeLabel = activeAddress?.label.trim();
     final entries = <_DrawerNavigationEntry?>[
+      _DrawerNavigationEntry(
+        title: '艺术家',
+        icon: AppIcons.profile,
+        onPressed: () =>
+            _closeDrawerAndPushPage((context) => const ArtistListPage()),
+      ),
+      _DrawerNavigationEntry(
+        title: '专辑',
+        icon: AppIcons.album,
+        onPressed: () =>
+            _closeDrawerAndPushPage((context) => const AlbumListPage()),
+      ),
+      _DrawerNavigationEntry(
+        title: '歌曲',
+        icon: AppIcons.music,
+        onPressed: () =>
+            _closeDrawerAndPushPage((context) => const SongListPage()),
+      ),
+      _DrawerNavigationEntry(
+        title: '歌单',
+        icon: AppIcons.playlist,
+        onPressed: () =>
+            _closeDrawerAndPushPage((context) => const PlaylistSearchPage()),
+      ),
+      _DrawerNavigationEntry(
+        title: '喜爱',
+        icon: AppIcons.heart,
+        onPressed: () =>
+            _closeDrawerAndPushPage((context) => const StarredPage()),
+      ),
+      null,
       _DrawerNavigationEntry(
         title: '切换线路',
         icon: AppIcons.router,
