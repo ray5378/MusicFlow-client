@@ -374,12 +374,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       },
       // 根级指针位置捕获:桌面端锚点弹窗据此定位到触发按钮附近。
       child: MusicFlowTapAnchorScope(
-        child: Column(
-          key: const ValueKey<String>('main-scaffold-column'),
+        // Windows 去掉自绘标题栏:侧边栏与内容区均从顶到底铺满。
+        // 窗口控制按钮由 WindowsWindowChrome 覆盖在内容区右上角,
+        // 其透明拖拽区保留了大屏下顶部长按拖动/双击最大化。
+        child: Stack(
+          key: const ValueKey<String>('main-scaffold-stack'),
           children: <Widget>[
-            // Windows 桌面端去掉系统标题栏后,顶部自绘标题栏(拖拽/最小化/最大化/关闭)。
-            const WindowsTitleBar(),
-            Expanded(
+            SizedBox.expand(
               child: MusicFlowAppShell(
                 scaffoldKey: scaffoldKey,
                 drawer:
@@ -409,6 +410,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                 onOpenPage: _openPageInContentArea,
               ),
             ),
+            // Windows 无标题栏:顶部透明拖拽区 + 右上角窗口控制按钮。
+            const WindowsWindowChrome(),
           ],
         ),
       ),

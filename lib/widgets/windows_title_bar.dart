@@ -28,14 +28,16 @@ Future<void> setTrayTooltip(String text) async {
   }
 }
 
-/// Windows 客户端自绘标题栏。
+/// Windows 客户端无标题栏的顶部窗口控制覆盖层。
 ///
-/// 去掉系统标题栏(win32_window.cpp 剥离 WS_CAPTION)后,由本组件提供
-/// 拖拽移动、双击最大化,以及最小化/最大化/关闭按钮(任务2)。
-class WindowsTitleBar extends StatelessWidget {
-  const WindowsTitleBar({super.key, this.title = 'MusicFlow'});
+/// 去掉系统/自绘标题栏后,由本组件在窗口最顶上提供一个透明的拖拽区
+/// (拖动移动窗口、双击最大化),并在右上角无缝嵌入最小化/最大化/关闭
+/// 按钮。仅 Windows 桌面端生效;安卓/Web 走系统窗口装饰。
+class WindowsWindowChrome extends StatelessWidget {
+  const WindowsWindowChrome({super.key});
 
-  final String title;
+  // 与窗口控制按钮的高度一致(40)对齐,保证右上角按钮完整可见。
+  static const double _height = 40;
 
   Future<void> _invoke(String method) async {
     try {
@@ -51,50 +53,52 @@ class WindowsTitleBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isWindowsDesktop) return const SizedBox.shrink();
 
-    final colors = context.musicFlowColors;
-    final spacing = context.musicFlowSpacing;
-    final typography = context.musicFlowTypography;
-
-    return Material(
-      key: const ValueKey<String>('windows-title-bar'),
-      color: colors.surface,
-      child: SizedBox(
-        height: 40,
-        width: double.infinity,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          // 拖拽标题栏空白区域移动窗口;双击切换最大化/还原。
-          onPanStart: (_) => _invoke('start_move'),
-          onDoubleTap: () => _invoke('maximize_toggle'),
-          child: Row(
-            children: <Widget>[
-              SizedBox(width: spacing.md),
-              Icon(AppIcons.music, size: 16, color: colors.muted),
-              SizedBox(width: spacing.xs),
-              Text(
-                title,
-                style: typography.label.copyWith(color: colors.muted),
-              ),
-              const Spacer(),
-              _WindowControlButton(
-                tooltip: '最小化',
-                icon: Icons.remove,
-                onPressed: () => _invoke('minimize'),
-              ),
-              _WindowControlButton(
-                tooltip: '最大化/还原',
-                icon: Icons.crop_square,
-                onPressed: () => _invoke('maximize_toggle'),
-              ),
-              _WindowControlButton(
-                tooltip: '关闭',
-                icon: Icons.close,
-                isClose: true,
-                onPressed: () => _invoke('close'),
-              ),
-            ],
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: _height,
+      // 透明覆盖层不拦截非本层的普通点击:仅精确命中水平/当右部按钮可点。
+      child: Stack(
+        children: <Widget>[
+          // 整条透明拖拽区:拖动移动窗口、双击最大化。
+          // translucent 命中让顶部页面头部按钮仍可正常点击,只有平移/双击在此消费。
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanStart: (_) => _invoke('start_move'),
+              onDoubleTap: () => _invoke('maximize_toggle'),
+              child: const SizedBox.expand(),
+            ),
           ),
-        ),
+          // 右上角窗口控制按钮,盖在拖拽区之上,始终可点。
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _WindowControlButton(
+                  tooltip: '最小化',
+                  icon: Icons.remove,
+                  onPressed: () => _invoke('minimize'),
+                ),
+                _WindowControlButton(
+                  tooltip: '最大化/还原',
+                  icon: Icons.crop_square,
+                  onPressed: () => _invoke('maximize_toggle'),
+                ),
+                _WindowControlButton(
+                  tooltip: '关闭',
+                  icon: Icons.close,
+                  isClose: true,
+                  onPressed: () => _invoke('close'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

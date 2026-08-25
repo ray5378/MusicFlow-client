@@ -31,7 +31,6 @@ import '../../library/pages/starred_page.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../widgets/discover_media_widgets.dart';
 import '../widgets/hoverable_horizontal_scroll.dart';
-import 'search_page.dart';
 
 const double _playlistCardWidth = 152;
 
@@ -121,18 +120,6 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         onPressed: openMusicFlowAppDrawer,
                       )
                     : null,
-                trailing: MusicFlowIconButton(
-                  icon: AppIcons.search,
-                  label: '搜索音乐库',
-                  onPressed: () {
-                    Navigator.of(context).push<void>(
-                      MusicFlowPageRoute<void>(
-                        context: context,
-                        builder: (context) => const SearchPage(),
-                      ),
-                    );
-                  },
-                ),
               ),
               const CategoryNavBar(),
               Expanded(
