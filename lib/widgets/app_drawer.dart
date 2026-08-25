@@ -25,9 +25,12 @@ import 'music_flow_app_shell/music_flow_drawer.dart';
 /// MusicFlow's application drawer. [Scaffold] still supplies platform drawer
 /// routing, focus, and back behavior; every visible surface is owned here.
 class AppDrawer extends ConsumerStatefulWidget {
-  const AppDrawer({super.key, this.onReturnFocus});
+  const AppDrawer({super.key, this.onReturnFocus, this.onOpenPage});
 
   final VoidCallback? onReturnFocus;
+
+  /// 打开页面的回调：由 MainScaffold 提供，统一落到内容区分支导航器。
+  final Future<void> Function(Widget page)? onOpenPage;
 
   @override
   ConsumerState<AppDrawer> createState() => _AppDrawerState();
@@ -258,12 +261,19 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
 
   void _closeDrawerAndPushPage(WidgetBuilder builder) {
     final navigator = Navigator.of(context);
+    final page = builder(context);
+    final opener = widget.onOpenPage;
     navigator.pop();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!navigator.mounted) return;
-      navigator.push(
-        MusicFlowPageRoute<void>(context: navigator.context, builder: builder),
-      );
+      if (opener != null) {
+        unawaited(opener(page));
+        return;
+      }
+      navigator.push(MusicFlowPageRoute<void>(
+        context: navigator.context,
+        builder: (_) => page,
+      ));
     });
   }
 

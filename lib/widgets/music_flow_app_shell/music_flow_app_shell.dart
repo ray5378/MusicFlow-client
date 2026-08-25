@@ -19,6 +19,7 @@ class MusicFlowAppShell extends StatelessWidget {
     this.onOpenDrawer,
     this.showNavigationBar = true,
     this.libraryEntries = const <MusicFlowSidebarLibraryEntry>[],
+    this.onOpenPage,
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -33,6 +34,10 @@ class MusicFlowAppShell extends StatelessWidget {
   final VoidCallback? onOpenDrawer;
   final bool showNavigationBar;
   final List<MusicFlowSidebarLibraryEntry> libraryEntries;
+
+  /// 侧栏/抽屉「打开页面」回调：统一落到内容区分支导航器，
+  /// 避免推到根导航器造成全屏覆盖壳（Windows 侧栏场景）。
+  final Future<void> Function(Widget page)? onOpenPage;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +73,7 @@ class MusicFlowAppShell extends StatelessWidget {
           showMiniPlayer: showMiniPlayer,
           networkStatusBar: networkStatusBar,
           libraryEntries: libraryEntries,
+          onOpenPage: onOpenPage,
         ),
       },
       bottomNavigationBar: windowClass == MusicFlowWindowClass.compact
@@ -182,6 +188,7 @@ class _WideShellBody extends StatelessWidget {
     required this.showMiniPlayer,
     required this.networkStatusBar,
     required this.libraryEntries,
+    this.onOpenPage,
   });
 
   final MusicFlowWindowClass windowClass;
@@ -194,6 +201,7 @@ class _WideShellBody extends StatelessWidget {
   final bool showMiniPlayer;
   final Widget networkStatusBar;
   final List<MusicFlowSidebarLibraryEntry> libraryEntries;
+  final Future<void> Function(Widget page)? onOpenPage;
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +213,7 @@ class _WideShellBody extends StatelessWidget {
             selectedBranchIndex: selectedBranchIndex,
             onDestinationSelected: onDestinationSelected,
             onOpenDrawer: onOpenDrawer,
+            onOpenPage: onOpenPage,
           )
         else
           MusicFlowExpandedNavigationSidebar(
@@ -213,6 +222,7 @@ class _WideShellBody extends StatelessWidget {
             onDestinationSelected: onDestinationSelected,
             onOpenDrawer: onOpenDrawer,
             libraryEntries: libraryEntries,
+            onOpenPage: onOpenPage,
           ),
         Expanded(
           child: Column(

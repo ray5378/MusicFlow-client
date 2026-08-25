@@ -81,9 +81,10 @@ enum _SidebarAppAction { switchLine, downloads, settings }
 /// - 展开态:图标 + 文字;
 /// - 收起态:仅图标,悬浮显示 Tooltip。
 class _SidebarAppActions extends StatelessWidget {
-  const _SidebarAppActions({required this.collapsed});
+  const _SidebarAppActions({required this.collapsed, this.onOpenPage});
 
   final bool collapsed;
+  final Future<void> Function(Widget page)? onOpenPage;
 
   void _dispatch(BuildContext context, _SidebarAppAction action) {
     switch (action) {
@@ -97,6 +98,10 @@ class _SidebarAppActions extends StatelessWidget {
   }
 
   Future<void> _push(BuildContext context, Widget page) {
+    final opener = onOpenPage;
+    if (opener != null) {
+      return opener(page);
+    }
     return Navigator.of(
       context,
     ).push(MusicFlowPageRoute<void>(context: context, builder: (_) => page));
@@ -140,12 +145,14 @@ class MusicFlowMediumNavigationRail extends StatelessWidget {
     required this.selectedBranchIndex,
     required this.onDestinationSelected,
     required this.onOpenDrawer,
+    this.onOpenPage,
   });
 
   final List<MusicFlowShellDestination> destinations;
   final int selectedBranchIndex;
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onOpenDrawer;
+  final Future<void> Function(Widget page)? onOpenPage;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +195,10 @@ class MusicFlowMediumNavigationRail extends StatelessWidget {
                 MusicFlowDivider(inset: spacing.sm, endInset: spacing.sm),
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: spacing.sm),
-                  child: const _SidebarAppActions(collapsed: true),
+                  child: _SidebarAppActions(
+                    collapsed: true,
+                    onOpenPage: onOpenPage,
+                  ),
                 ),
               ],
             ),
@@ -221,6 +231,7 @@ class MusicFlowExpandedNavigationSidebar extends StatefulWidget {
     required this.onDestinationSelected,
     required this.onOpenDrawer,
     this.libraryEntries = const <MusicFlowSidebarLibraryEntry>[],
+    this.onOpenPage,
   });
 
   final List<MusicFlowShellDestination> destinations;
@@ -228,6 +239,7 @@ class MusicFlowExpandedNavigationSidebar extends StatefulWidget {
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onOpenDrawer;
   final List<MusicFlowSidebarLibraryEntry> libraryEntries;
+  final Future<void> Function(Widget page)? onOpenPage;
 
   @override
   State<MusicFlowExpandedNavigationSidebar> createState() =>
@@ -383,7 +395,10 @@ class _MusicFlowExpandedNavigationSidebarState
                     right: collapsed ? spacing.xxs : spacing.sm,
                     bottom: spacing.md,
                   ),
-                  child: _SidebarAppActions(collapsed: collapsed),
+                  child: _SidebarAppActions(
+                    collapsed: collapsed,
+                    onOpenPage: widget.onOpenPage,
+                  ),
                 ),
               ],
             ),

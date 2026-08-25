@@ -370,7 +370,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               scaffoldKey: scaffoldKey,
               drawer:
                   widget.drawerOverride ??
-                  AppDrawer(onReturnFocus: _restoreMusicFlowAppDrawerFocus),
+                  AppDrawer(
+                    onReturnFocus: _restoreMusicFlowAppDrawerFocus,
+                    onOpenPage: _openPageInContentArea,
+                  ),
               body: widget.navigationShell,
               destinations: destinations,
               selectedBranchIndex: currentBranchIsVisible
@@ -388,23 +391,47 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               showNavigationBar: false,
               onOpenDrawer: openMusicFlowAppDrawer,
               // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-              libraryEntries: _libraryEntries(context),
+              libraryEntries: _libraryEntries(),
+              onOpenPage: _openPageInContentArea,
             ),
           ),
         ],
       ),
     );
   }
+
+  /// 当前分支的内容区导航器。Windows 宽屏下侧栏/抽屉位于分支导航器
+  /// 之外，直接 Navigator.of(context) 会推到根导航器导致全屏覆盖壳；
+  /// 统一改由分支导航器打开，使侧栏保持可见、仅内容区切换。
+  NavigatorState? _currentBranchNavigator() {
+    final index = widget.navigationShell.currentIndex;
+    if (index < 0 || index >= widget.branchNavigatorKeys.length) return null;
+    return widget.branchNavigatorKeys[index].currentState;
+  }
+
+  /// 把页面推入内容区（分支导航器），对齐首页横排「库」条目的行为。
+  Future<void> _openPageInContentArea(Widget page) async {
+    final navigator = _currentBranchNavigator();
+    if (navigator != null && navigator.mounted) {
+      await navigator.push<void>(
+        MusicFlowPageRoute<void>(
+          context: navigator.context,
+          builder: (_) => page,
+        ),
+      );
+      return;
+    }
+    // 分支导航器尚未就绪时回退到根导航器（保持原行为）。
+    await Navigator.of(context).push<void>(
+      MusicFlowPageRoute<void>(context: context, builder: (_) => page),
+    );
+  }
 }
 
 /// 侧栏「曲库」快捷入口(宽屏)。点击直接打开对应列表页,
 /// 页面内部为窗口化分页加载。对标主项目 web 端侧栏。
-List<MusicFlowSidebarLibraryEntry> _libraryEntries(BuildContext context) {
-  Future<void> open(Widget page) async {
-    Navigator.of(context).push<void>(
-      MusicFlowPageRoute<void>(context: context, builder: (_) => page),
-    );
-  }
+List<MusicFlowSidebarLibraryEntry> _libraryEntries() {
+  Future<void> open(Widget page) => _openPageInContentArea(page);
 
   return <MusicFlowSidebarLibraryEntry>[
     MusicFlowSidebarLibraryEntry(
