@@ -35,11 +35,10 @@ class FullPlayerPage extends ConsumerStatefulWidget {
 
 class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     with TickerProviderStateMixin {
-  bool _showLyrics = false;
   bool _isClosingRoute = false;
 
-  late final AnimationController _lyricsController;
-  late final Animation<double> _lyricsProgress;
+  /// 封面页 ↔ 歌词页 的滑页控制器：封面左滑进歌词、歌词右滑回封面，实时渲染无缝切换。
+  late final PageController _lyricsPageController;
   Animation<double> _routeForegroundOpacity =
       const AlwaysStoppedAnimation<double>(1);
   CurvedAnimation? _routeForegroundCurvedAnimation;
@@ -47,24 +46,13 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   @override
   void initState() {
     super.initState();
-    _lyricsController = AnimationController(
-      vsync: this,
-      duration: MusicFlowMotion.standard.state,
-      value: _showLyrics ? 1 : 0,
-    );
-    _lyricsProgress = CurvedAnimation(
-      parent: _lyricsController,
-      curve: MusicFlowMotion.standard.sceneCurve,
-      reverseCurve: MusicFlowMotion.standard.easeOut,
-    );
+    _lyricsPageController = PageController(initialPage: 0);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final motion = context.musicFlowMotion;
-    final stateDuration = motion.resolve(context, motion.state);
-    _lyricsController.duration = stateDuration;
 
     _routeForegroundCurvedAnimation?.dispose();
     final routeAnimation = ModalRoute.of(context)?.animation;
@@ -83,47 +71,19 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       _routeForegroundCurvedAnimation = foregroundOpacity;
       _routeForegroundOpacity = foregroundOpacity;
     }
-
-    if (context.musicFlowReduceMotion) {
-      _lyricsController.value = _showLyrics ? 1 : 0;
-    }
   }
 
   @override
   void dispose() {
     _routeForegroundCurvedAnimation?.dispose();
-    _lyricsController.dispose();
+    _lyricsPageController.dispose();
     super.dispose();
   }
 
-  Future<void> _closeToMini() async {
+  void _closeToMini() {
     if (_isClosingRoute || !mounted) return;
     _isClosingRoute = true;
-    final navigator = Navigator.of(context);
-
-    try {
-      final motion = context.musicFlowMotion;
-      final settleDuration = motion.resolve(context, motion.feedback);
-      if (_showLyrics || _lyricsController.value > 0) {
-        setState(() => _showLyrics = false);
-        if (settleDuration == Duration.zero) {
-          _lyricsController.value = 0;
-        } else {
-          await _lyricsController.animateBack(
-            0,
-            duration: settleDuration,
-            curve: motion.easeOut,
-          );
-        }
-        if (!mounted) return;
-        await WidgetsBinding.instance.endOfFrame;
-      }
-
-      if (!mounted) return;
-      navigator.pop();
-    } catch (_) {
-      _isClosingRoute = false;
-    }
+    Navigator.of(context).pop();
   }
 
   String _buildSubtitle(Song song) {
@@ -151,18 +111,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         mediaVisuals: mediaVisuals,
       ),
     );
-  }
-
-  void _toggleLyrics() {
-    final next = !_showLyrics;
-    setState(() => _showLyrics = next);
-    if (context.musicFlowReduceMotion) {
-      _lyricsController.value = next ? 1 : 0;
-    } else if (next) {
-      _lyricsController.forward();
-    } else {
-      _lyricsController.reverse();
-    }
   }
 
   @override
@@ -513,93 +461,41 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         final expandedTitleStyle = context.musicFlowTypography.headline.copyWith(
           color: context.musicFlowColors.ink,
         );
-        final compactTitleStyle = context.musicFlowTypography.title.copyWith(
-          color: context.musicFlowColors.ink,
-        );
-        final expandedSubtitleStyle = context.musicFlowTypography.body.copyWith(
-          color: context.musicFlowColors.muted,
-        );
-        final compactSubtitleStyle = context.musicFlowTypography.metadata.copyWith(
+        final subtitleStyle = context.musicFlowTypography.body.copyWith(
           color: context.musicFlowColors.muted,
         );
 
-        return AnimatedBuilder(
-          animation: _lyricsProgress,
-          builder: (context, child) {
-            final progress = _lyricsProgress.value;
-            final currentCoverSize = coverSize * (1 - progress);
-            final topSpace = coverTopSpace * (1 - progress);
-            final coverGap = spacing.lg + (spacing.xs - spacing.lg) * progress;
-            final titleStyle = TextStyle.lerp(
-              expandedTitleStyle,
-              compactTitleStyle,
-              progress,
-            )!;
-            final subtitleStyle = TextStyle.lerp(
-              expandedSubtitleStyle,
-              compactSubtitleStyle,
-              progress,
-            )!;
-            final shouldBuildLyrics = _showLyrics || progress > 0.001;
-            final identity = _buildSongIdentity(
-              song: song,
-              subtitle: subtitle,
-              titleStyle: titleStyle,
-              subtitleStyle: subtitleStyle,
-            );
-
-            return Padding(
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-              child: Column(
+        // 封面页 ↔ 歌词页：左右滑动实时渲染、无缝切换。取代原先「点封面开歌词、
+        // 点歌词空白回封面」——封面左滑进入歌词页，歌词页右滑返回封面页。
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: PageView(
+            controller: _lyricsPageController,
+            physics: const BouncingScrollPhysics(),
+            children: <Widget>[
+              // 页 0：封面页（歌曲信息 + 大封面）。
+              Column(
                 children: <Widget>[
-                  SizedBox(height: topSpace),
-                  if (currentCoverSize > 0.5)
-                    // 点击封面打开歌词(播放控件已不再放歌词按钮)。
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _toggleLyrics,
-                      child: _buildCoverHero(
-                        song,
-                        currentCoverSize,
-                        opacity: 1 - progress,
+                  SizedBox(height: coverTopSpace),
+                  _buildCoverHero(song, coverSize, opacity: 1),
+                  SizedBox(height: spacing.lg),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: _buildSongIdentity(
+                        song: song,
+                        subtitle: subtitle,
+                        titleStyle: expandedTitleStyle,
+                        subtitleStyle: subtitleStyle,
                       ),
                     ),
-                  SizedBox(height: coverGap),
-                  if (shouldBuildLyrics) ...<Widget>[
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: (constraints.maxHeight * 0.32)
-                            .clamp(72.0, 180.0)
-                            .toDouble(),
-                      ),
-                      child: identity,
-                    ),
-                    SizedBox(height: spacing.xxs),
-                    Expanded(
-                      child: ClipRect(
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          heightFactor: progress,
-                          // 点击歌词区域恢复封面。
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: _toggleLyrics,
-                            child: const _PlayerLyricsPane(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ] else
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: identity,
-                      ),
-                    ),
+                  ),
                 ],
               ),
-            );
-          },
+              // 页 1：歌词页（常驻歌词，右滑返回封面页）。
+              const _PlayerLyricsPane(),
+            ],
+          ),
         );
       },
     );

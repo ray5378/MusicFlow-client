@@ -136,7 +136,7 @@ class MiniPlayer extends ConsumerWidget {
       showEchoToast(
         context,
         cast.activePeer != null
-            ? '正在投屏到「${currentPlayerName(cast)}」'
+            ? '正在远控「${currentPlayerName(cast)}」'
             : '已切换为本机播放',
         kind: MusicFlowMessageKind.success,
       );
