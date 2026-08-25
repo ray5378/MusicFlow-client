@@ -279,153 +279,181 @@ class PlayQueueSheetView extends StatelessWidget {
           );
 
     Widget surface(ScrollController? scrollController) {
-      return Semantics(
-        container: true,
-        scopesRoute: true,
-        namesRoute: true,
-        explicitChildNodes: true,
-        label: '播放队列',
-        child: MusicFlowSurface(
-          level: MusicFlowSurfaceLevel.modal,
-          color: context.musicFlowColors.surface,
-          borderRadius: borderRadius,
-          clipBehavior: Clip.antiAlias,
-          child: SafeArea(
-            top: false,
-            child: Column(
-              children: <Widget>[
-                if (!panel) ...[
-                  SizedBox(height: context.musicFlowSpacing.xs),
-                  Center(
-                    child: ExcludeSemantics(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: context.musicFlowColors.divider,
-                          borderRadius: context.musicFlowRadii.pill,
-                        ),
-                        child: const SizedBox(width: 36, height: 4),
-                      ),
-                    ),
-                  ),
-                ],
-                Padding(
-                  padding: EdgeInsetsDirectional.fromSTEB(
-                    context.musicFlowSpacing.md,
-                    context.musicFlowSpacing.sm,
-                    context.musicFlowSpacing.xs,
-                    context.musicFlowSpacing.sm,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Semantics(
-                              header: true,
-                              child: Text(
-                                '播放队列',
-                                style: context.musicFlowTypography.headline,
-                              ),
+      // 关键修复:在 media scope 内部再包一层 Builder,以 scope 内的 context 取色。
+      // 否则本方法闭包捕获的是 PlayQueueSheetView.build 的 context(位于 scope
+      // 之上),`context.musicFlowColors.surface` 会解析成全局主题表面。深色封面下
+      // media 文字是白色,叠加在全局白色 surface 上即为「白底白字」;反之浅色封面在
+      // 深色主题下又会「黑底黑字」。改用 scope 内的 context 后,背景与文字同源一致。
+      return Builder(
+        builder: (scopedContext) {
+          final scopedColors = scopedContext.musicFlowColors;
+          final scopedTypography = scopedContext.musicFlowTypography;
+          final scopedSpacing = scopedContext.musicFlowSpacing;
+          final scopedRadii = scopedContext.musicFlowRadii;
+          return Semantics(
+            container: true,
+            scopesRoute: true,
+            namesRoute: true,
+            explicitChildNodes: true,
+            label: '播放队列',
+            child: MusicFlowSurface(
+              level: MusicFlowSurfaceLevel.modal,
+              color: scopedColors.surface,
+              borderRadius: borderRadius,
+              clipBehavior: Clip.antiAlias,
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  children: <Widget>[
+                    if (!panel) ...[
+                      SizedBox(height: scopedSpacing.xs),
+                      Center(
+                        child: ExcludeSemantics(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: scopedColors.divider,
+                              borderRadius: scopedRadii.pill,
                             ),
-                            SizedBox(height: context.musicFlowSpacing.xxs),
-                            Text(
-                              '${queue.length} 首曲目',
-                              style: context.musicFlowTypography.metadata,
-                            ),
-                          ],
+                            child: const SizedBox(width: 36, height: 4),
+                          ),
                         ),
-                      ),
-                      SizedBox(width: context.musicFlowSpacing.sm),
-                      MusicFlowIconButton(
-                        icon: AppIcons.close,
-                        label: '关闭播放队列',
-                        onPressed: () {
-                          if (onClose != null) {
-                            onClose!();
-                          } else {
-                            Navigator.of(context).maybePop();
-                          }
-                        },
                       ),
                     ],
-                  ),
-                ),
-                const MusicFlowDivider(),
-                Expanded(
-                  child: queue.isEmpty
-                      ? const MusicFlowEmptyState(
-                          title: '队列为空',
-                          description: '开始播放一首歌曲后，接下来的曲目会出现在这里。',
-                          icon: AppIcons.queue,
-                        )
-                      : panel
-                          ? _AutoCenterQueueList(
-                              queue: queue,
-                              currentIndex: currentIndex,
-                              onSelect: onSelect,
-                              onOpenSongActions: onOpenSongActions,
-                            )
-                          : ListView.separated(
-                              controller: scrollController,
-                              padding: EdgeInsets.symmetric(
-                                vertical: context.musicFlowSpacing.xs,
-                              ),
-                              itemCount: queue.length,
-                              separatorBuilder: (context, index) =>
-                                  SizedBox(height: context.musicFlowSpacing.xxs),
-                              itemBuilder: (context, index) {
-                                final song = queue[index];
-                                return MusicFlowSongRow(
-                                  index: index,
-                                  song: song,
-                                  variant: MusicFlowSongRowVariant.standard,
-                                  isCurrent: index == currentIndex,
-                                  contentPadding: EdgeInsetsDirectional.fromSTEB(
-                                    context.musicFlowSpacing.md,
-                                    context.musicFlowSpacing.xs,
-                                    context.musicFlowSpacing.xs,
-                                    context.musicFlowSpacing.xs,
+                    Padding(
+                      padding: EdgeInsetsDirectional.fromSTEB(
+                        scopedSpacing.md,
+                        scopedSpacing.sm,
+                        scopedSpacing.xs,
+                        scopedSpacing.sm,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Semantics(
+                                  header: true,
+                                  child: Text(
+                                    '播放队列',
+                                    style: scopedTypography.headline,
                                   ),
-                                  onPressed: () => unawaited(onSelect(index)),
-                                  onLongPress: () => unawaited(
-                                    onOpenSongActions(context, index, song),
-                                  ),
-                                  onMorePressed: () => unawaited(
-                                    onOpenSongActions(context, index, song),
-                                  ),
-                                  moreSemanticLabel: '${song.title}，更多操作',
-                                  showMoreButton: false,
-                                );
-                              },
+                                ),
+                                SizedBox(height: scopedSpacing.xxs),
+                                Text(
+                                  '${queue.length} 首曲目',
+                                  style: scopedTypography.metadata,
+                                ),
+                              ],
                             ),
-                ),
-                const MusicFlowDivider(),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    context.musicFlowSpacing.md,
-                    context.musicFlowSpacing.xs,
-                    context.musicFlowSpacing.md,
-                    context.musicFlowSpacing.sm,
-                  ),
-                  child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: MusicFlowButton.ghost(
-                      label: '清空后续队列',
-                      semanticLabel: '清空后续播放队列，保留当前曲目',
-                      leadingIcon: AppIcons.clearAll,
-                      onPressed: queue.isEmpty
-                          ? null
-                          : () => unawaited(onClear()),
+                          ),
+                          SizedBox(width: scopedSpacing.sm),
+                          MusicFlowIconButton(
+                            icon: AppIcons.close,
+                            label: '关闭播放队列',
+                            onPressed: () {
+                              if (onClose != null) {
+                                onClose!();
+                              } else {
+                                Navigator.of(scopedContext).maybePop();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const MusicFlowDivider(),
+                    Expanded(
+                      child: queue.isEmpty
+                          ? const MusicFlowEmptyState(
+                              title: '队列为空',
+                              description: '开始播放一首歌曲后，接下来的曲目会出现在这里。',
+                              icon: AppIcons.queue,
+                            )
+                          : panel
+                              ? _AutoCenterQueueList(
+                                  queue: queue,
+                                  currentIndex: currentIndex,
+                                  onSelect: onSelect,
+                                  onOpenSongActions: onOpenSongActions,
+                                )
+                              : ListView.separated(
+                                  controller: scrollController,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: scopedSpacing.xs,
+                                  ),
+                                  itemCount: queue.length,
+                                  separatorBuilder: (context, index) =>
+                                      SizedBox(
+                                        height:
+                                            context.musicFlowSpacing.xxs,
+                                      ),
+                                  itemBuilder: (context, index) {
+                                    final song = queue[index];
+                                    return MusicFlowSongRow(
+                                      index: index,
+                                      song: song,
+                                      variant:
+                                          MusicFlowSongRowVariant.standard,
+                                      isCurrent: index == currentIndex,
+                                      contentPadding:
+                                          EdgeInsetsDirectional.fromSTEB(
+                                            context.musicFlowSpacing.md,
+                                            context.musicFlowSpacing.xs,
+                                            context.musicFlowSpacing.xs,
+                                            context.musicFlowSpacing.xs,
+                                          ),
+                                      onPressed: () =>
+                                          unawaited(onSelect(index)),
+                                      onLongPress: () => unawaited(
+                                        onOpenSongActions(
+                                          context,
+                                          index,
+                                          song,
+                                        ),
+                                      ),
+                                      onMorePressed: () => unawaited(
+                                        onOpenSongActions(
+                                          context,
+                                          index,
+                                          song,
+                                        ),
+                                      ),
+                                      moreSemanticLabel:
+                                          '${song.title}，更多操作',
+                                      showMoreButton: false,
+                                    );
+                                  },
+                                ),
+                    ),
+                    const MusicFlowDivider(),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        scopedSpacing.md,
+                        scopedSpacing.xs,
+                        scopedSpacing.md,
+                        scopedSpacing.sm,
+                      ),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: MusicFlowButton.ghost(
+                          label: '清空后续队列',
+                          semanticLabel: '清空后续播放队列，保留当前曲目',
+                          leadingIcon: AppIcons.clearAll,
+                          onPressed: queue.isEmpty
+                              ? null
+                              : () => unawaited(onClear()),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     }
 
