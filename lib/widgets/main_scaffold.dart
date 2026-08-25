@@ -426,38 +426,41 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       MusicFlowPageRoute<void>(context: context, builder: (_) => page),
     );
   }
-}
 
-/// 侧栏「曲库」快捷入口(宽屏)。点击直接打开对应列表页,
-/// 页面内部为窗口化分页加载。对标主项目 web 端侧栏。
-List<MusicFlowSidebarLibraryEntry> _libraryEntries() {
-  Future<void> open(Widget page) => _openPageInContentArea(page);
+  /// 侧栏「曲库」快捷入口(宽屏)。点击直接打开对应列表页,
+  /// 页面内部为窗口化分页加载。对标主项目 web 端侧栏。
+  ///
+  /// 注意:必须是 State 的实例方法——它通过 [_openPageInContentArea]
+  /// 把页面推到内容区分支导航器,而该方法依赖 State 的 widget 状态。
+  List<MusicFlowSidebarLibraryEntry> _libraryEntries() {
+    Future<void> open(Widget page) => _openPageInContentArea(page);
 
-  return <MusicFlowSidebarLibraryEntry>[
-    MusicFlowSidebarLibraryEntry(
-      label: '歌单',
-      icon: AppIcons.playlist,
-      onTap: () => unawaited(open(const PlaylistSearchPage())),
-    ),
-    MusicFlowSidebarLibraryEntry(
-      label: '音乐',
-      icon: AppIcons.headphones,
-      onTap: () => unawaited(open(const SongListPage())),
-    ),
-    MusicFlowSidebarLibraryEntry(
-      label: '艺术家',
-      icon: AppIcons.profile,
-      onTap: () => unawaited(open(const ArtistListPage())),
-    ),
-    MusicFlowSidebarLibraryEntry(
-      label: '专辑',
-      icon: AppIcons.album,
-      onTap: () => unawaited(open(const AlbumListPage())),
-    ),
-    MusicFlowSidebarLibraryEntry(
-      label: '我喜欢',
-      icon: AppIcons.heart,
-      onTap: () => unawaited(open(const StarredPage())),
-    ),
-  ];
+    return <MusicFlowSidebarLibraryEntry>[
+      MusicFlowSidebarLibraryEntry(
+        label: '歌单',
+        icon: AppIcons.playlist,
+        onTap: () => unawaited(open(const PlaylistSearchPage())),
+      ),
+      MusicFlowSidebarLibraryEntry(
+        label: '音乐',
+        icon: AppIcons.headphones,
+        onTap: () => unawaited(open(const SongListPage())),
+      ),
+      MusicFlowSidebarLibraryEntry(
+        label: '艺术家',
+        icon: AppIcons.profile,
+        onTap: () => unawaited(open(const ArtistListPage())),
+      ),
+      MusicFlowSidebarLibraryEntry(
+        label: '专辑',
+        icon: AppIcons.album,
+        onTap: () => unawaited(open(const AlbumListPage())),
+      ),
+      MusicFlowSidebarLibraryEntry(
+        label: '我喜欢',
+        icon: AppIcons.heart,
+        onTap: () => unawaited(open(const StarredPage())),
+      ),
+    ];
+  }
 }
