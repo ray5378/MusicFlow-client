@@ -2204,12 +2204,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// 试听歌曲可以先作为普通队列项加入；真正轮到播放时再补齐临时 URL。
+  ///
+  /// 注意：临时签名 URL（网易/QQ 等）通常分钟级就过期，**不能跨进程复用**。
+  /// 会话恢复（_isRestoringPlaybackSession）时为上次进程内下发的 URL 早已失效，
+  /// 必须强制重新解析一次；只有同进程内正在播放（未经过重启）才可复用已有 URL。
   Future<Song> _resolvePreviewSongForPlayback(Song song) async {
     final existingUrl = song.previewStreamUrl?.trim() ?? '';
-    if (existingUrl.isNotEmpty) return song;
+    if (existingUrl.isNotEmpty && !_isRestoringPlaybackSession) return song;
 
     final source = song.previewSource?.trim() ?? '';
     final trackId = song.previewTrackId?.trim() ?? '';
+    // 恢复进程内旧临时 URL 已过期：若可重新解析则强制重解析；缺 source/trackId
+    // 无法重解析时退回既有 URL（尽力而为，避免把会话恢复成死歌）。
+    if (_isRestoringPlaybackSession && source.isNotEmpty && trackId.isNotEmpty) {
+      // fallthrough 到下方 resolveSongUrl
+    } else if (existingUrl.isNotEmpty) {
+      return song;
+    }
     if (source.isEmpty || trackId.isEmpty) {
       throw StateError('试听歌曲缺少 source/trackId');
     }
@@ -2846,6 +2857,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         await LocalStorage.clearPlaybackSession();
         return;
       }
+      Logger.infoWithTag(
+        _playerLogTag,
+        'persist session currentSongId=${payload['currentSongId']} '
+        'index=${payload['currentIndex']} '
+        'posMs=${payload['positionMs']} isPlaying=${payload['isPlaying']} '
+        'queueLen=${(payload['queue'] as List).length} '
+        'updatedAt=${payload['updatedAt']}',
+      );
       await LocalStorage.savePlaybackSession(payload);
       // 顺带持久化音量：随会话周期反复落盘，即使滑块松手那次写入丢失，
       // 下次周期也会补上，避免「直接退出客户端后音量回到 100%」。
@@ -2891,6 +2910,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         'restoring playback session queue=${queue.length} '
         'index=$restoredIndex posMs=${restoredPosition.inMilliseconds} '
         'wasPlaying=$wasPlaying',
+      );
+      // 诊断：打印恢复队列的实际歌曲(用于定位"每次都恢复成固定试听歌")。
+      Logger.infoWithTag(
+        _playerLogTag,
+        'session queue ids=${queue.map((s) => s.id).toList()} '
+        'titles=${queue.map((s) => s.title).toList()} '
+        'previewFlags=${queue.map((s) => s.isPreview).toList()} '
+        'storedCurrentSongId=$currentSongId storedIndex=$preferredIndex '
+        'sessionUpdatedAt=${session['updatedAt']}',
       );
       await playSong(
         queue[restoredIndex],
