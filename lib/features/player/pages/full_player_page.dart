@@ -404,11 +404,16 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   }
 
   Widget _buildWideDetailsPane(Song song, {required String subtitle}) {
-    final titleStyle = context.musicFlowTypography.headline.copyWith(
-      color: context.musicFlowColors.ink,
+    final typography = context.musicFlowTypography;
+    // 大屏(Windows)下歌名与歌手名双倍放大，颜色与播放控件(进度条)
+    // 取色一致，统一用媒体强调色 accent。
+    final titleStyle = typography.headline.copyWith(
+      fontSize: (typography.headline.fontSize ?? 19) * 2,
+      color: context.musicFlowColors.accent,
     );
-    final subtitleStyle = context.musicFlowTypography.body.copyWith(
-      color: context.musicFlowColors.muted,
+    final subtitleStyle = typography.body.copyWith(
+      fontSize: (typography.body.fontSize ?? 13) * 2,
+      color: context.musicFlowColors.accent,
     );
 
     return Center(
