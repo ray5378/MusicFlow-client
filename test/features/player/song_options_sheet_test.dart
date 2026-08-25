@@ -68,7 +68,6 @@ void main() {
 
     expect(find.text('红心'), findsOneWidget);
     expect(find.text('添加到歌单'), findsOneWidget);
-    expect(find.text('下载'), findsOneWidget);
     expect(find.text('歌手：Artist name'), findsOneWidget);
     expect(find.text('专辑：Album name'), findsOneWidget);
     expect(hostContext.mounted, isTrue);

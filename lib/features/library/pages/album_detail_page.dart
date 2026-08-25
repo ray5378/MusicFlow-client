@@ -5,8 +5,6 @@ import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/download_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
@@ -99,9 +97,6 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                             ? null
                             : () => playEffectiveQueue(ref, songs),
                         onToggleStarred: () => _toggleStarred(album),
-                        onDownload: songs.isEmpty
-                            ? null
-                            : () => _downloadAlbum(songs),
                       ),
                     ),
                     if (loadFailed)
@@ -227,21 +222,6 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       }
     }
   }
-
-  Future<void> _downloadAlbum(List<Song> songs) async {
-    final libraryId = ref.read(authStateProvider).currentLibrary?.id ?? '';
-    if (libraryId.isEmpty) return;
-
-    await ref
-        .read(downloadServiceProvider)
-        .enqueueBatch(songs, libraryId: libraryId);
-    if (mounted) {
-      ToastNotifier.show(
-        '已添加 ${songs.length} 首歌曲到下载队列',
-        kind: MusicFlowMessageKind.success,
-      );
-    }
-  }
 }
 
 class _AlbumIdentityHeader extends StatelessWidget {
@@ -250,14 +230,12 @@ class _AlbumIdentityHeader extends StatelessWidget {
     required this.songs,
     required this.onPlay,
     required this.onToggleStarred,
-    required this.onDownload,
   });
 
   final Album album;
   final List<Song> songs;
   final VoidCallback? onPlay;
   final VoidCallback onToggleStarred;
-  final VoidCallback? onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -300,7 +278,6 @@ class _AlbumIdentityHeader extends StatelessWidget {
                       album: album,
                       onPlay: onPlay,
                       onToggleStarred: onToggleStarred,
-                      onDownload: onDownload,
                     ),
                   ),
                 ],
@@ -329,7 +306,6 @@ class _AlbumIdentityHeader extends StatelessWidget {
               album: album,
               onPlay: onPlay,
               onToggleStarred: onToggleStarred,
-              onDownload: onDownload,
             ),
           );
 
@@ -450,13 +426,11 @@ class _AlbumActions extends StatelessWidget {
     required this.album,
     required this.onPlay,
     required this.onToggleStarred,
-    required this.onDownload,
   });
 
   final Album album;
   final VoidCallback? onPlay;
   final VoidCallback onToggleStarred;
-  final VoidCallback? onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -475,11 +449,6 @@ class _AlbumActions extends StatelessWidget {
           label: album.starred ? '取消收藏专辑' : '收藏专辑',
           selected: album.starred,
           onPressed: onToggleStarred,
-        ),
-        MusicFlowIconButton(
-          icon: AppIcons.downloadOutline,
-          label: '下载专辑',
-          onPressed: onDownload,
         ),
       ],
     );

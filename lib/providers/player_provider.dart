@@ -14,7 +14,6 @@ import '../data/sources/local_storage.dart';
 import '../data/repositories/music_repository.dart';
 
 import '../core/network/connectivity_monitor.dart';
-import '../core/platform/platform_file_bridge.dart';
 import '../core/utils/logger.dart';
 import '../core/utils/network_error_notifier.dart';
 import '../core/utils/server_url_security.dart';
@@ -23,10 +22,8 @@ import '../core/services/audio_handler_service.dart';
 import 'music_provider.dart';
 import 'api_provider.dart';
 import 'audio_quality_provider.dart';
-import 'download_provider.dart';
 import 'crossfade_provider.dart';
 import 'gd_music_provider.dart';
-import '../providers/auth_provider.dart';
 
 export 'player/player_state.dart';
 export 'player/favorite_scrobble_handler.dart';
@@ -359,12 +356,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     player.bufferedPositionStream.listen((buffered) {
       if (mounted) {
         if (_shouldPreserveSeekPosition()) return;
-        // 本地文件（下载）的 bufferedPositionStream 仅反映解码缓冲窗口，
-        // 不代表文件可用进度，应跳过以保持 100%。
-        final source = state.playbackSource;
-        if (source == PlaybackSource.downloaded) {
-          return;
-        }
         state = state.copyWith(
           bufferedPosition: _logicalPlayerPosition(buffered),
         );
@@ -748,58 +739,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       // 获取当前音质设置
       final effectiveQuality = _ref.read(effectiveQualityProvider);
-      final downloadService = _ref.read(downloadServiceProvider);
-
-      // 获取当前活跃的音乐库 ID
-      final authState = _ref.read(authStateProvider);
-      final libraryId = authState.currentLibrary?.id ?? '';
-
-      // ---- 音源选择 ----
-
-      // 1. 检查是否已下载
-      final downloadedPath = await downloadService.getDownloadedPath(
-        song.id,
-        libraryId,
-      );
-      if (downloadedPath != null && fileExistsSync(downloadedPath)) {
-        Logger.info('Playing from download: ${song.title}');
-        _playDbg(
-          'sid=$debugSession source=download setFilePath path=$downloadedPath',
-        );
-        final sourceReady = await _replaceLoadedSource(
-          songId: song.id,
-          label: 'download',
-          ownsSource: () =>
-              _isPlaybackContextCurrent(session: debugSession, songId: song.id),
-          setSource: (player) async {
-            await player.setFilePath(downloadedPath);
-          },
-        );
-        if (!sourceReady) return;
-        _currentStreamUrl = null;
-        _clearStreamContext();
-        await _syncPlaybackAfterSourceReady(autoPlay: autoPlay);
-        if (!isCurrentSession()) return;
-        await _applyPendingSeekIfNeeded();
-        if (!isCurrentSession()) return;
-        _seekDbg('source=download path=$downloadedPath');
-        state = state.copyWith(
-          currentQuality: AudioQualityLevel.original,
-          playbackSource: PlaybackSource.downloaded,
-          currentBitRateKbps: _resolveCurrentBitRateKbps(
-            song: song,
-            quality: AudioQualityLevel.original,
-            source: PlaybackSource.downloaded,
-          ),
-          bufferedPosition: initialDuration,
-        );
-        _clearCurrentPlaybackRetry(reason: 'playback_ready_downloaded');
-        if (autoPlay) {
-          await _scrobble(song.id, submission: false);
-          if (!isCurrentSession()) return;
-        }
-        return;
-      }
 
       // 2. 流式播放
       final String? transcodeFormat = _needsTranscoding(song.suffix);
@@ -1026,8 +965,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     try {
-      final authState = _ref.read(authStateProvider);
-      final libraryId = authState.currentLibrary?.id ?? '';
       final streamUrl = _buildStreamUrlOrThrow(
         song.id,
         session: sid,
@@ -1215,8 +1152,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     switch (source) {
-      case PlaybackSource.downloaded:
-        return songBitRate;
       case PlaybackSource.stream:
         if (maxBitRate != null && maxBitRate > 0) return maxBitRate;
         if (quality != AudioQualityLevel.original &&

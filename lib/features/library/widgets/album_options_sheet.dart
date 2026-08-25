@@ -9,8 +9,6 @@ import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/api_provider.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/download_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
@@ -52,10 +50,6 @@ class _AlbumOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final libraryId = ref.watch(
-      authStateProvider.select((state) => state.currentLibrary?.id ?? ''),
-    );
-    final canDownload = libraryId.isNotEmpty;
     final artistName = album.artist?.trim().isNotEmpty == true
         ? album.artist!.trim()
         : '未知歌手';
@@ -90,30 +84,6 @@ class _AlbumOptionsSheet extends ConsumerWidget {
                   NetworkErrorNotifier.show('网络异常，操作失败');
                 }
               }),
-            ),
-            MusicFlowActionRow(
-              icon: AppIcons.downloadOutline,
-              title: '下载专辑',
-              subtitle: canDownload ? null : '请先选择音乐库',
-              onPressed: canDownload
-                  ? () => _closeAndRun(context, () async {
-                      final songs = await _loadAlbumSongs();
-                      if (songs == null || songs.isEmpty) return;
-
-                      final currentLibraryId =
-                          hostRef.read(authStateProvider).currentLibrary?.id ??
-                          '';
-                      if (currentLibraryId.isEmpty) {
-                        NetworkErrorNotifier.show('未选择音乐库');
-                        return;
-                      }
-
-                      await hostRef
-                          .read(downloadServiceProvider)
-                          .enqueueBatch(songs, libraryId: currentLibraryId);
-                      _showMessage('已添加 ${songs.length} 首到下载队列');
-                    })
-                  : null,
             ),
             MusicFlowActionRow(
               icon: AppIcons.queueAdd,

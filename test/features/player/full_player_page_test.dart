@@ -52,7 +52,7 @@ void main() {
     bufferedPosition: const Duration(minutes: 2),
     loopMode: LoopMode.all,
     currentQuality: AudioQualityLevel.original,
-    playbackSource: PlaybackSource.downloaded,
+    playbackSource: PlaybackSource.stream,
     currentBitRateKbps: 320,
   );
 

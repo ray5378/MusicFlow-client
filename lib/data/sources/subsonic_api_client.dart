@@ -270,21 +270,6 @@ class SubsonicApiClient {
     return uri.replace(queryParameters: params).toString();
   }
 
-  /// Generate Download URL（始终下载原始无损文件）
-  String getDownloadUrl(String songId) {
-    if (_library == null) return '';
-    final baseUrl = _dio.options.baseUrl;
-    if (baseUrl.isEmpty) return '';
-
-    final params = <String, String>{};
-    _addAuthParamsMap(params);
-    params['id'] = songId;
-
-    final uri = Uri.parse(joinServerUrl(baseUrl, ApiConstants.download));
-    final urlWithParams = uri.replace(queryParameters: params);
-    return urlWithParams.toString();
-  }
-
   /// Get Music Folders
   Future<List<Map<String, dynamic>>> getMusicFolders() async {
     try {

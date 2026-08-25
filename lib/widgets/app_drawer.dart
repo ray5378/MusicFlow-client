@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
-import 'package:musicflow_client/features/download/pages/download_manager_page.dart';
 import 'package:musicflow_client/features/library/pages/album_list_page.dart';
 import 'package:musicflow_client/features/library/pages/artist_list_page.dart';
 import 'package:musicflow_client/features/library/pages/playlist_search_page.dart';
@@ -190,13 +189,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
             : routeLabel,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const RouteSelectionPage()),
-      ),
-      null,
-      _DrawerNavigationEntry(
-        icon: AppIcons.downloadOutline,
-        title: '下载管理',
-        onPressed: () =>
-            _closeDrawerAndPushPage((context) => const DownloadManagerPage()),
       ),
       null,
       _DrawerNavigationEntry(

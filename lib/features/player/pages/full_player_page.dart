@@ -720,7 +720,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             song?.isPreview == true
                 ? '试听'
                 : switch (source) {
-                    PlaybackSource.downloaded => '本地已下载',
                     PlaybackSource.stream => switch (ref
                         .watch(currentNetworkTypeProvider)
                         .valueOrNull) {

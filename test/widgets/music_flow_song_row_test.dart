@@ -19,7 +19,7 @@ void main() {
   );
 
   testWidgets(
-    'song row exposes current, favorite, download, preview, and more states',
+    'song row exposes current, favorite, preview, and more states',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -39,7 +39,6 @@ void main() {
                 child: MusicFlowSongRow(
                   song: song,
                   isCurrent: true,
-                  isDownloaded: true,
                   onPressed: () => playCount += 1,
                   onMorePressed: () => moreCount += 1,
                 ),
@@ -50,7 +49,7 @@ void main() {
       );
       await tester.pump();
 
-      final rowSemantics = find.bySemanticsLabel(RegExp('正在播放.*已收藏.*已下载.*试听'));
+      final rowSemantics = find.bySemanticsLabel(RegExp('正在播放.*已收藏.*试听'));
       final moreSemantics = find.bySemanticsLabel('${song.title}，更多操作');
 
       expect(rowSemantics, findsOneWidget);
@@ -60,7 +59,6 @@ void main() {
       expect(moreSize.height, greaterThanOrEqualTo(48));
       expect(find.byIcon(AppIcons.equalizer), findsOneWidget);
       expect(find.byIcon(AppIcons.heart), findsOneWidget);
-      expect(find.byIcon(AppIcons.download), findsOneWidget);
       expect(find.byIcon(AppIcons.cloud), findsOneWidget);
       expect(find.byIcon(AppIcons.more), findsOneWidget);
       final title = tester.widget<Text>(find.text(song.title));

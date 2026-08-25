@@ -5,7 +5,6 @@ import 'tables/music_libraries_table.dart';
 import 'tables/server_addresses_table.dart';
 import 'tables/lyrics_provider_configs_table.dart';
 import 'tables/cover_provider_configs_table.dart';
-import 'tables/download_tasks_table.dart';
 
 part 'app_database.g.dart';
 
@@ -15,14 +14,13 @@ part 'app_database.g.dart';
     ServerAddresses,
     LyricsProviderConfigs,
     CoverProviderConfigs,
-    DownloadTasks,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -36,26 +34,9 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(coverProviderConfigs);
         await _insertDefaultProviderConfigs();
       }
-      if (from < 3) {
-        await m.createTable(downloadTasks);
-      }
-      if (from < 4) {
-        // Add bitRate and contentType columns to downloadTasks
-        // Use try-catch to handle cases where columns already exist
-        try {
-          await customStatement(
-            'ALTER TABLE download_tasks ADD COLUMN bit_rate INTEGER',
-          );
-        } catch (_) {
-          // Column may already exist
-        }
-        try {
-          await customStatement(
-            'ALTER TABLE download_tasks ADD COLUMN content_type TEXT',
-          );
-        } catch (_) {
-          // Column may already exist
-        }
+      if (from < 5) {
+        // 下载功能已整体移除：清理历史遗留的 download_tasks 表及其列。
+        await customStatement('DROP TABLE IF EXISTS download_tasks');
       }
     },
   );

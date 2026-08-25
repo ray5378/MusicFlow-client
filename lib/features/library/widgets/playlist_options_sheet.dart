@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/playlist.dart';
 
-enum PlaylistOptionsAction { download, addToQueue, edit, delete }
+enum PlaylistOptionsAction { addToQueue, edit, delete }
 
 Future<PlaylistOptionsAction?> showPlaylistOptionsSheet({
   required BuildContext context,
   required Playlist playlist,
-  bool canDownload = true,
   bool hasSongs = true,
   bool useRootNavigator = true,
 }) async {
@@ -20,7 +19,6 @@ Future<PlaylistOptionsAction?> showPlaylistOptionsSheet({
         context.musicFlowWindowClass != MusicFlowWindowClass.compact,
     builder: (_) => _PlaylistOptionsSheet(
       playlist: playlist,
-      canDownload: canDownload,
       hasSongs: hasSongs,
       compactSheet:
           context.musicFlowWindowClass == MusicFlowWindowClass.compact,
@@ -30,13 +28,11 @@ Future<PlaylistOptionsAction?> showPlaylistOptionsSheet({
 
 class _PlaylistOptionsSheet extends StatelessWidget {
   final Playlist playlist;
-  final bool canDownload;
   final bool hasSongs;
   final bool compactSheet;
 
   const _PlaylistOptionsSheet({
     required this.playlist,
-    required this.canDownload,
     required this.hasSongs,
     required this.compactSheet,
   });
@@ -52,16 +48,6 @@ class _PlaylistOptionsSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            MusicFlowActionRow(
-              icon: AppIcons.downloadOutline,
-              title: '下载歌单',
-              subtitle: canDownload ? null : '请先选择音乐库',
-              onPressed: hasSongs && canDownload
-                  ? () => Navigator.of(
-                      context,
-                    ).pop(PlaylistOptionsAction.download)
-                  : null,
-            ),
             MusicFlowActionRow(
               icon: AppIcons.queueAdd,
               title: '添加到播放列表',

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/design/music_flow_design.dart';
-import '../../features/download/pages/download_manager_page.dart';
 import '../../features/settings/pages/app_settings_page.dart';
 import '../route_selection_page.dart';
 
@@ -74,8 +73,8 @@ class MusicFlowCompactNavigation extends StatelessWidget {
   }
 }
 
-/// 侧栏底部「应用菜单」动作(切换线路 / 下载管理 / 设置)。
-enum _SidebarAppAction { switchLine, downloads, settings }
+/// 侧栏底部「应用菜单」动作(切换线路 / 设置)。
+enum _SidebarAppAction { switchLine, settings }
 
 /// 侧栏底部常驻的应用动作组:
 /// - 展开态:图标 + 文字;
@@ -90,8 +89,6 @@ class _SidebarAppActions extends StatelessWidget {
     switch (action) {
       case _SidebarAppAction.switchLine:
         unawaited(_push(context, const RouteSelectionPage()));
-      case _SidebarAppAction.downloads:
-        unawaited(_push(context, const DownloadManagerPage()));
       case _SidebarAppAction.settings:
         unawaited(_push(context, const AppSettingsPage()));
     }
@@ -111,7 +108,6 @@ class _SidebarAppActions extends StatelessWidget {
   Widget build(BuildContext context) {
     const actions = <(IconData, String, _SidebarAppAction)>[
       (AppIcons.route, '切换线路', _SidebarAppAction.switchLine),
-      (AppIcons.downloadOutline, '下载管理', _SidebarAppAction.downloads),
       (AppIcons.settings, '设置', _SidebarAppAction.settings),
     ];
 

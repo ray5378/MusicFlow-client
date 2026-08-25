@@ -9,9 +9,7 @@ import '../../../core/utils/network_error_notifier.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/api_provider.dart';
-import '../../../providers/auth_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
-import '../../../providers/download_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../widgets/music_flow_artwork.dart';
@@ -96,10 +94,6 @@ class _SongOptionsSheet extends ConsumerWidget {
         : '未知专辑';
     final canOpenArtist = song.artistId?.trim().isNotEmpty == true;
     final canOpenAlbum = song.albumId?.trim().isNotEmpty == true;
-    final libraryId = ref.watch(
-      authStateProvider.select((state) => state.currentLibrary?.id ?? ''),
-    );
-    final canDownload = libraryId.isNotEmpty;
 
     final actions = <Widget>[];
     if (song.isPreview) {
@@ -157,20 +151,6 @@ class _SongOptionsSheet extends ConsumerWidget {
               );
             }),
           ),
-        ),
-        _SongOptionRow(
-          icon: AppIcons.downloadOutline,
-          title: '下载',
-          onPressed: !canDownload
-              ? null
-              : () => unawaited(
-                  _closeAndRun(context, () async {
-                    await ref
-                        .read(downloadServiceProvider)
-                        .enqueue(song, libraryId: libraryId);
-                    _showMessage('已添加「${song.title}」到下载队列');
-                  }),
-                ),
         ),
         if (!isCurrentSong)
           _SongOptionRow(

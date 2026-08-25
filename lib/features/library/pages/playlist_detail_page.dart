@@ -12,8 +12,6 @@ import '../../../data/models/playlist.dart';
 import '../../../data/models/song.dart';
 import '../../../data/sources/subsonic_api_client.dart';
 import '../../../providers/api_provider.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/download_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -181,11 +179,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     final currentSongCount = _totalCount;
     final allSongsSelected =
         currentSongCount > 0 && _selectedSongIndexes.length >= currentSongCount;
-    final hasActiveLibrary = ref.watch(
-      authStateProvider.select((state) {
-        return (state.currentLibrary?.id ?? '').isNotEmpty;
-      }),
-    );
 
     final topBar = _selectionMode
         ? MusicFlowTopBar(
@@ -227,7 +220,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 label: '歌单操作',
                 onPressed: _meta == null || _isRemovingSongs
                     ? null
-                    : () => _showPlaylistActions(_meta!, hasActiveLibrary),
+                    : () => _showPlaylistActions(_meta!),
               ),
             ],
           );
@@ -801,14 +794,10 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     ToastNotifier.show('歌单内容已更新，请重新选择');
   }
 
-  Future<void> _showPlaylistActions(
-    Playlist playlist,
-    bool hasActiveLibrary,
-  ) async {
+  Future<void> _showPlaylistActions(Playlist playlist) async {
     final action = await showPlaylistOptionsSheet(
       context: context,
       playlist: playlist,
-      canDownload: hasActiveLibrary,
       hasSongs: _totalCount > 0,
     );
     if (!mounted || action == null) return;
@@ -820,37 +809,12 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     PlaylistOptionsAction action,
   ) async {
     switch (action) {
-      case PlaylistOptionsAction.download:
-        await _downloadPlaylist();
       case PlaylistOptionsAction.addToQueue:
         await _addPlaylistToQueue();
       case PlaylistOptionsAction.edit:
         await _editPlaylist(playlist);
       case PlaylistOptionsAction.delete:
         await _deletePlaylist(playlist);
-    }
-  }
-
-  Future<void> _downloadPlaylist() async {
-    final libraryId = ref.read(authStateProvider).currentLibrary?.id ?? '';
-    if (libraryId.isEmpty) {
-      NetworkErrorNotifier.show('未选择音乐库');
-      return;
-    }
-    final songs = await _loadAllSortedSongs();
-    if (songs.isEmpty) {
-      NetworkErrorNotifier.show('歌单暂无可用歌曲');
-      return;
-    }
-
-    await ref
-        .read(downloadServiceProvider)
-        .enqueueBatch(songs, libraryId: libraryId);
-    if (mounted) {
-      ToastNotifier.show(
-        '已添加 ${songs.length} 首歌曲到下载队列',
-        kind: MusicFlowMessageKind.success,
-      );
     }
   }
 

@@ -28,7 +28,6 @@ class MusicFlowSongRow extends StatelessWidget {
     this.selected = false,
     this.onToggleSelected,
     this.isCurrent = false,
-    this.isDownloaded = false,
     this.isFavorite,
     this.isPreview,
     this.showMoreButton = true,
@@ -51,7 +50,6 @@ class MusicFlowSongRow extends StatelessWidget {
   final bool selected;
   final VoidCallback? onToggleSelected;
   final bool isCurrent;
-  final bool isDownloaded;
   final bool? isFavorite;
   final bool? isPreview;
   final bool showMoreButton;
@@ -165,8 +163,6 @@ class MusicFlowSongRow extends StatelessWidget {
     final statusMarkers = <Widget>[
       if (_favorite)
         const _SongStatusMarker(icon: AppIcons.heart, label: '已收藏'),
-      if (isDownloaded)
-        const _SongStatusMarker(icon: AppIcons.download, label: '已下载'),
       if (_preview) const _SongStatusMarker(icon: AppIcons.cloud, label: '试听'),
     ];
 
@@ -249,7 +245,6 @@ class MusicFlowSongRow extends StatelessWidget {
       artistText,
       song.durationString,
       if (_favorite) '已收藏',
-      if (isDownloaded) '已下载',
       if (_preview) '试听',
     ].join('，');
   }
@@ -368,7 +363,6 @@ class SongListItem extends StatelessWidget {
     this.selected = false,
     this.onToggleSelected,
     this.isCurrent = false,
-    this.isDownloaded = false,
     this.isFavorite,
     this.isPreview,
   });
@@ -385,7 +379,6 @@ class SongListItem extends StatelessWidget {
   final bool selected;
   final VoidCallback? onToggleSelected;
   final bool isCurrent;
-  final bool isDownloaded;
   final bool? isFavorite;
   final bool? isPreview;
 
@@ -407,7 +400,6 @@ class SongListItem extends StatelessWidget {
       selected: selected,
       onToggleSelected: onToggleSelected,
       isCurrent: isCurrent,
-      isDownloaded: isDownloaded,
       isFavorite: isFavorite,
       isPreview: isPreview,
     );
