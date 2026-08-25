@@ -8,7 +8,6 @@ import '../../data/repositories/cover_repository.dart';
 import '../../data/repositories/download_repository.dart';
 import '../../data/sources/subsonic_api_client.dart';
 import '../utils/logger.dart';
-import 'audio_cache_service.dart';
 
 class DownloadService {
   static const _logTag = 'DOWNLOAD';
@@ -22,7 +21,6 @@ class DownloadService {
     required SubsonicApiClient apiClient,
     required DownloadRepository repository,
     required CoverRepository coverRepository,
-    required AudioCacheService cacheService,
     int maxConcurrent = 3,
   }) : _repository = repository;
 

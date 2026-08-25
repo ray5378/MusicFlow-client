@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
-import '../../data/models/audio_quality.dart';
 import '../../data/models/download_task.dart';
 import '../../data/repositories/cover_repository.dart';
 import '../../data/models/song.dart';
@@ -13,7 +12,6 @@ import '../../data/repositories/download_repository.dart';
 import '../../data/sources/subsonic_api_client.dart';
 import '../utils/cover_ref_security.dart';
 import '../utils/logger.dart';
-import 'audio_cache_service.dart';
 import 'storage_permission_service.dart';
 import '../utils/download_path_utils.dart';
 
@@ -24,7 +22,6 @@ class DownloadService {
   final SubsonicApiClient _apiClient;
   final DownloadRepository _repository;
   final CoverRepository _coverRepository;
-  final AudioCacheService _cacheService;
   final int maxConcurrent;
 
   final _activeDownloads = <String, CancelToken>{};
@@ -37,13 +34,11 @@ class DownloadService {
     required SubsonicApiClient apiClient,
     required DownloadRepository repository,
     required CoverRepository coverRepository,
-    required AudioCacheService cacheService,
     this.maxConcurrent = 3,
   }) : _dio = dio,
        _apiClient = apiClient,
        _repository = repository,
-       _coverRepository = coverRepository,
-       _cacheService = cacheService;
+       _coverRepository = coverRepository;
 
   /// 下载进度 Stream
   Stream<Map<String, double>> get progressStream => _progressController.stream;
@@ -78,17 +73,6 @@ class DownloadService {
       await _repository.deleteTask(existing.id);
     }
 
-    // 检查是否已有缓存文件 → 直接复制为下载文件
-    final cachedPath = await _cacheService.getCachedPath(
-      songId: song.id,
-      libraryId: libraryId,
-      quality: AudioQualityLevel.original,
-    );
-    if (cachedPath != null && File(cachedPath).existsSync()) {
-      await _promoteCacheToDownload(song, libraryId, cachedPath);
-      return;
-    }
-
     final task = DownloadTask(
       id: const Uuid().v4(),
       libraryId: libraryId,
@@ -106,61 +90,6 @@ class DownloadService {
 
     await _repository.createTask(task);
     _processQueue();
-  }
-
-  /// 将已缓存文件提升为下载文件（复制到下载目录 + 创建任务记录）
-  Future<void> _promoteCacheToDownload(
-    Song song,
-    String libraryId,
-    String cachedPath,
-  ) async {
-    final suffix = song.suffix ?? p.extension(cachedPath).replaceAll('.', '');
-    final savePath = await _getSavePath(
-      libraryId,
-      song.id,
-      suffix.isNotEmpty ? suffix : 'cache',
-      title: song.title,
-      artist: song.artist,
-    );
-
-    // 确保目录存在
-    final dir = Directory(p.dirname(savePath));
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    // 复制缓存文件到下载目录
-    final cacheFile = File(cachedPath);
-    await cacheFile.copy(savePath);
-    final fileSize = await File(savePath).length();
-
-    // 创建已完成的下载任务记录
-    final task = DownloadTask(
-      id: const Uuid().v4(),
-      libraryId: libraryId,
-      songId: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      coverArt: song.coverArt,
-      duration: song.duration,
-      suffix: suffix,
-      bitRate: song.bitRate,
-      contentType: song.contentType,
-      filePath: savePath,
-      fileSize: fileSize,
-      status: DownloadTaskStatus.completed,
-      progress: 1.0,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-      completedAt: DateTime.now().millisecondsSinceEpoch,
-    );
-    await _repository.createTask(task);
-
-    Logger.infoWithTag(
-      _logTag,
-      'promoted cache→download title="${song.title}" songId=${song.id} '
-      'from=$cachedPath to=$savePath size=$fileSize',
-    );
   }
 
   /// 批量添加（专辑/歌单）
@@ -365,27 +294,6 @@ class DownloadService {
         fileSize: fileSize,
         completedAt: DateTime.now().millisecondsSinceEpoch,
       );
-
-      // 下载完成 → 注册到缓存系统，避免重复缓存
-      try {
-        await _cacheService.registerCache(
-          songId: task.songId,
-          libraryId: task.libraryId,
-          filePath: savePath,
-          fileSize: fileSize,
-          quality: AudioQualityLevel.original,
-        );
-        Logger.infoWithTag(
-          _logTag,
-          'registered download as cache songId=${task.songId}',
-        );
-      } catch (e) {
-        Logger.warnWithTag(
-          _logTag,
-          'failed to register download as cache songId=${task.songId}',
-          e,
-        );
-      }
 
       Logger.infoWithTag(
         _logTag,

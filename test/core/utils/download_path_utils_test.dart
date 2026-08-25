@@ -85,42 +85,6 @@ void main() {
     });
   });
 
-  group('buildCacheFilePath', () {
-    final root = p.join('cache', 'music_flow_audio_cache');
-
-    test('keeps cache files under the cache root', () {
-      final path = buildCacheFilePath(
-        rootDir: root,
-        libraryId: 'lib-1',
-        songId: 'song_42',
-        qualityName: 'original',
-      );
-
-      expect(isPathWithinRoot(rootDir: root, candidatePath: path), isTrue);
-      expect(p.dirname(path), p.join(root, 'lib-1'));
-      expect(p.basename(path), 'song_42_original.cache');
-    });
-
-    test('sanitizes traversal payloads in cache paths', () {
-      final path = buildCacheFilePath(
-        rootDir: root,
-        libraryId: '../library',
-        songId: r'..\..\evil',
-        qualityName: 'original',
-      );
-
-      expect(isPathWithinRoot(rootDir: root, candidatePath: path), isTrue);
-      expect(
-        p.basename(p.dirname(path)),
-        matches(RegExp(r'^library_[0-9a-f]{12}$')),
-      );
-      expect(
-        p.basenameWithoutExtension(path),
-        matches(RegExp(r'^evil_[0-9a-f]{12}_original$')),
-      );
-    });
-  });
-
   group('isPathWithinRoot', () {
     final root = p.join('root', 'safe');
 

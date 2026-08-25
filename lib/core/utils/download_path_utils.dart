@@ -94,47 +94,6 @@ String _truncateDownloadFileName(String name) {
   return finalName.replaceAll(RegExp(r'[. ]+$'), '');
 }
 
-/// Builds a cache file path that is guaranteed to stay under [rootDir].
-String buildCacheFilePath({
-  required String rootDir,
-  required String libraryId,
-  required String songId,
-  required String qualityName,
-}) {
-  final trimmedRoot = rootDir.trim();
-  if (trimmedRoot.isEmpty) {
-    throw ArgumentError.value(rootDir, 'rootDir', 'Cache root cannot be empty');
-  }
-
-  final safeLibraryId = sanitizeDownloadPathSegment(
-    libraryId,
-    fallback: 'library',
-  );
-  final safeSongId = sanitizeDownloadPathSegment(songId, fallback: 'song');
-  final safeQualityName = sanitizeDownloadPathSegment(
-    qualityName,
-    fallback: 'quality',
-  );
-  final normalizedRoot = p.normalize(trimmedRoot);
-  final candidate = p.normalize(
-    p.join(
-      normalizedRoot,
-      safeLibraryId,
-      '${safeSongId}_$safeQualityName.cache',
-    ),
-  );
-
-  if (!isPathWithinRoot(rootDir: normalizedRoot, candidatePath: candidate)) {
-    throw ArgumentError.value(
-      candidate,
-      'candidate',
-      'Resolved cache path escaped the cache root',
-    );
-  }
-
-  return candidate;
-}
-
 bool isPathWithinRoot({
   required String rootDir,
   required String candidatePath,

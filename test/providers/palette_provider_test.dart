@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:musicflow_client/providers/palette_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,9 +113,9 @@ void main() {
       );
 
       expect(result, same(expected));
-      expect(requestedImage, isA<CachedNetworkImageProvider>());
+      expect(requestedImage, isA<NetworkImage>());
       expect(
-        (requestedImage! as CachedNetworkImageProvider).url,
+        (requestedImage! as NetworkImage).url,
         'https://images.example.test/preview.jpg',
       );
     },

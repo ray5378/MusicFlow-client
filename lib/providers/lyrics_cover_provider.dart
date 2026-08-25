@@ -112,7 +112,6 @@ List<String> _extractOpenSubsonicExtensions(
 }
 
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
-  final db = ref.watch(appDatabaseProvider);
   final apiClient = ref.watch(subsonicApiClientProvider);
   final activeLib = ref.watch(activeLibraryProvider);
   final configs = ref.watch(lyricsProviderConfigsProvider).valueOrNull ?? [];
@@ -125,7 +124,7 @@ final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
       .map((c) => _createLyricsSource(c.sourceId, c.config, subsonicSource))
       .toList();
 
-  return LyricsRepository(sources: sources, db: db);
+  return LyricsRepository(sources: sources);
 });
 
 final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {

@@ -721,7 +721,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                 ? '试听'
                 : switch (source) {
                     PlaybackSource.downloaded => '本地已下载',
-                    PlaybackSource.cached => '本地缓存',
                     PlaybackSource.stream => switch (ref
                         .watch(currentNetworkTypeProvider)
                         .valueOrNull) {

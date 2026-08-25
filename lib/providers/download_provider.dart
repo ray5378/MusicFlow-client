@@ -6,7 +6,6 @@ import '../data/models/song.dart';
 import '../data/repositories/download_repository.dart';
 import '../data/sources/database/database_provider.dart';
 import 'api_provider.dart';
-import 'audio_cache_provider.dart';
 import 'lyrics_cover_provider.dart';
 import 'music_provider.dart';
 
@@ -21,7 +20,6 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   final repository = ref.watch(downloadRepositoryProvider);
   final apiClient = ref.watch(subsonicApiClientProvider);
   final coverRepository = ref.watch(coverRepositoryProvider);
-  final cacheService = ref.watch(audioCacheServiceProvider);
 
   // 使用独立的 Dio 实例进行下载（不走 FallbackInterceptor）
   final downloadDio = Dio(
@@ -36,7 +34,6 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     apiClient: apiClient,
     repository: repository,
     coverRepository: coverRepository,
-    cacheService: cacheService,
   );
 
   ref.onDispose(() => service.dispose());

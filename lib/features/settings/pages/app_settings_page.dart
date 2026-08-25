@@ -26,7 +26,6 @@ import '../../../providers/theme_provider.dart';
 import '../../../widgets/windows_title_bar.dart';
 import '../widgets/music_flow_settings_components.dart';
 import 'audio_quality_page.dart';
-import 'cache_management_page.dart';
 import 'cover_providers_page.dart';
 import 'lyrics_providers_page.dart';
 import 'theme_settings_page.dart';
@@ -379,19 +378,6 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     title: '封面提供商',
                     description: '调整获取顺序并配置 Fanart.tv',
                     onPressed: () => _pushPage(const CoverProvidersPage()),
-                  ),
-                ],
-              ),
-              SizedBox(height: context.musicFlowSpacing.xl),
-              MusicFlowSettingsSection(
-                title: '存储与数据',
-                description: '管理本机缓存。',
-                children: <Widget>[
-                  MusicFlowSettingRow(
-                    icon: AppIcons.storage,
-                    title: '缓存管理',
-                    description: '音频、图片与歌词缓存',
-                    onPressed: () => _pushPage(const CacheManagementPage()),
                   ),
                 ],
               ),

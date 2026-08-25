@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
@@ -98,9 +97,9 @@ void main() {
     await tester.pump();
 
     final resolved = headerColor(tester);
-    expect(requestedImage, isA<CachedNetworkImageProvider>());
+    expect(requestedImage, isA<NetworkImage>());
     expect(
-      (requestedImage! as CachedNetworkImageProvider).url,
+      (requestedImage! as NetworkImage).url,
       'https://images.example.test/preview.jpg',
     );
     expect(resolved, isNot(fallback));
@@ -159,9 +158,9 @@ void main() {
     await tester.pump();
 
     expect(loadCount, 1);
-    expect(requestedImage, isA<CachedNetworkImageProvider>());
+    expect(requestedImage, isA<NetworkImage>());
     expect(
-      (requestedImage! as CachedNetworkImageProvider).url,
+      (requestedImage! as NetworkImage).url,
       contains('id=cover-1'),
     );
 

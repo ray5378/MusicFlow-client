@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,15 +41,7 @@ class CoverArtImage extends ConsumerWidget {
         size: resolvedCoverSize,
       );
       if (proxiedUrl.isNotEmpty) {
-        // 必须给稳定 cacheKey：getCoverArtUrl 每次调用都会带上新盐值/新 token，
-        // 同一封面的 URL 每次重建都不同。若以 URL 做缓存键，任何 rebuild
-        // （切线路、导入态变化、进歌单详情返回等）都会让全部平台封面重新下载，
-        // 表现为「点进一个歌单，所有平台歌单封面一起刷新」。
-        return _buildNetworkImage(
-          context,
-          proxiedUrl,
-          cacheKey: 'trusted_${trustedCoverUrl}_$resolvedCoverSize',
-        );
+        return _buildNetworkImage(context, proxiedUrl);
       }
       return _buildPlaceholder(context);
     }
@@ -70,11 +61,7 @@ class CoverArtImage extends ConsumerWidget {
       return _buildPlaceholder(context);
     }
 
-    return _buildNetworkImage(
-      context,
-      coverUrl,
-      cacheKey: '${safeCoverArtId}_$resolvedCoverSize',
-    );
+    return _buildNetworkImage(context, coverUrl);
   }
 
   int _resolveCoverSize(BuildContext context) {
@@ -91,35 +78,30 @@ class CoverArtImage extends ConsumerWidget {
 
   Widget _buildNetworkImage(
     BuildContext context,
-    String imageUrl, {
-    String? cacheKey,
-  }) {
+    String imageUrl,
+  ) {
     final loadedLabel = semanticLabel ?? '专辑封面';
     return RepaintBoundary(
-      child: CachedNetworkImage(
-        imageUrl: imageUrl,
-        cacheKey: cacheKey,
+      child: Image.network(
+        imageUrl,
         width: size,
         height: size,
         fit: fit,
-        imageBuilder: (context, imageProvider) => Semantics(
-          image: true,
-          label: loadedLabel,
-          child: ExcludeSemantics(
-            child: Image(
-              image: imageProvider,
-              width: size,
-              height: size,
-              fit: fit,
-            ),
-          ),
-        ),
-        placeholder: (context, url) => _buildPlaceholder(
-          context,
-          isLoading: true,
-          accessibilityLabel: loadedLabel,
-        ),
-        errorWidget: (context, url, error) => _buildPlaceholder(
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (frame == null) {
+            return _buildPlaceholder(
+              context,
+              isLoading: true,
+              accessibilityLabel: loadedLabel,
+            );
+          }
+          return Semantics(
+            image: true,
+            label: loadedLabel,
+            child: ExcludeSemantics(child: child),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(
           context,
           accessibilityLabel: semanticLabel == null
               ? '暂无封面'

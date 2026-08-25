@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
@@ -48,14 +47,14 @@ void main() {
     await tester.pumpWidget(buildSubject('file:///sdcard/secret.jpg'));
     await tester.pump();
 
-    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.byType(Image), findsNothing);
     expect(find.byIcon(AppIcons.music), findsOneWidget);
     expect(find.bySemanticsLabel('暂无封面'), findsOneWidget);
 
     await tester.pumpWidget(buildSubject('https://evil.example/cover.jpg'));
     await tester.pump();
 
-    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.byType(Image), findsNothing);
     expect(find.byIcon(AppIcons.music), findsOneWidget);
   });
 
@@ -69,7 +68,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byType(CachedNetworkImage), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.byType(MusicFlowSkeleton), findsOneWidget);
     expect(find.bySemanticsLabel('专辑封面'), findsOneWidget);
   });

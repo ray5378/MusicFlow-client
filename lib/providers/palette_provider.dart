@@ -1,6 +1,5 @@
 import 'dart:collection';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -226,10 +225,7 @@ _MediaPaletteResource? _resolvePaletteResource(
   final key = 'subsonic:$sourceId:$coverArtId';
   return _MediaPaletteResource(
     key: key,
-    imageProvider: CachedNetworkImageProvider(
-      imageUrl,
-      cacheKey: 'palette:$key',
-    ),
+    imageProvider: NetworkImage(imageUrl),
   );
 }
 
@@ -238,7 +234,7 @@ _MediaPaletteResource? _directUrlResource(String rawUrl) {
   if (normalizedUrl == null) return null;
   return _MediaPaletteResource(
     key: 'url:$normalizedUrl',
-    imageProvider: CachedNetworkImageProvider(normalizedUrl),
+    imageProvider: NetworkImage(normalizedUrl),
   );
 }
 

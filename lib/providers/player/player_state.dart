@@ -5,7 +5,6 @@ import '../../../data/models/audio_quality.dart';
 /// 播放来源
 enum PlaybackSource {
   downloaded, // 已下载的本地文件
-  cached, // 缓存的本地文件
   stream, // 在线流式播放
 }
 
