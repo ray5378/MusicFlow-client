@@ -121,7 +121,6 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   },
                 ),
               ),
-              const CategoryNavBar(),
               Expanded(
                 child: MusicFlowRefreshView(
                   onRefresh: _refresh,
@@ -144,6 +143,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             sliver: SliverList(
                               delegate: SliverChildListDelegate(
                                 <Widget>[
+                                  const CategoryNavBar(),
+                                  SizedBox(height: context.musicFlowSpacing.sm),
                                   const RandomSongsSection(),
                                   SizedBox(height: context.musicFlowSpacing.sm),
                                   const RecentPlaylistsSection(),
@@ -185,32 +186,34 @@ class CategoryNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       label: '分类导航',
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: context.musicFlowPageHorizontalPadding,
-          vertical: context.musicFlowSpacing.xs,
-        ),
-        child: Row(
-          children: <Widget>[
-            for (var i = 0; i < _items.length; i++) ...<Widget>[
-              if (i > 0)
-                SizedBox(width: context.musicFlowSpacing.md),
-              _CategoryNavItem(
-                label: _items[i].$1,
-                icon: _items[i].$2,
-                onPressed: () {
-                  Navigator.of(context).push<void>(
-                    MusicFlowPageRoute<void>(
-                      context: context,
-                      builder: (context) => _items[i].$3,
-                    ),
-                  );
-                },
-              ),
-            ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: context.musicFlowSpacing.sm,
+              top: context.musicFlowSpacing.xs,
+            ),
+            child: Text('音乐库', style: context.musicFlowTypography.title),
+          ),
+          for (var i = 0; i < _items.length; i++) ...<Widget>[
+            if (i > 0)
+              SizedBox(height: context.musicFlowSpacing.sm),
+            _CategoryNavItem(
+              label: _items[i].$1,
+              icon: _items[i].$2,
+              onPressed: () {
+                Navigator.of(context).push<void>(
+                  MusicFlowPageRoute<void>(
+                    context: context,
+                    builder: (context) => _items[i].$3,
+                  ),
+                );
+              },
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -234,20 +237,29 @@ class _CategoryNavItem extends StatelessWidget {
       label: label,
       child: MusicFlowPressable(
         onPressed: onPressed,
-        minimumSize: const Size(64, 64),
+        minimumSize: const Size(0, 56),
         borderRadius: context.musicFlowRadii.surface,
-        child: SizedBox(
-          width: 64,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: context.musicFlowSpacing.md,
+            vertical: context.musicFlowSpacing.xs,
+          ),
+          child: Row(
             children: <Widget>[
               Icon(icon, size: 26, color: context.musicFlowColors.accent),
-              SizedBox(height: context.musicFlowSpacing.xxs),
-              Text(
-                label,
-                style: context.musicFlowTypography.metadata,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              SizedBox(width: context.musicFlowSpacing.md),
+              Expanded(
+                child: Text(
+                  label,
+                  style: context.musicFlowTypography.body,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                AppIcons.chevronRight,
+                size: 18,
+                color: context.musicFlowColors.muted,
               ),
             ],
           ),
