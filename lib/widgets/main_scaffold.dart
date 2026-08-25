@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/design/components/music_flow_anchor.dart';
 import '../core/design/music_flow_design.dart';
 import '../core/network/connectivity_monitor.dart';
 import '../core/utils/logger.dart';
@@ -371,42 +372,45 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         await _handleBackPressed();
         return true;
       },
-      child: Column(
-        key: const ValueKey<String>('main-scaffold-column'),
-        children: <Widget>[
-          // Windows 桌面端去掉系统标题栏后,顶部自绘标题栏(拖拽/最小化/最大化/关闭)。
-          const WindowsTitleBar(),
-          Expanded(
-            child: MusicFlowAppShell(
-              scaffoldKey: scaffoldKey,
-              drawer:
-                  widget.drawerOverride ??
-                  AppDrawer(
-                    onReturnFocus: _restoreMusicFlowAppDrawerFocus,
-                    onOpenPage: _openPageInContentArea,
-                  ),
-              body: widget.navigationShell,
-              destinations: destinations,
-              selectedBranchIndex: currentBranchIsVisible
-                  ? currentBranchIndex
-                  : discoverBranchIndex,
-              onDestinationSelected: (branchIndex) {
-                _goToBranch(
-                  branchIndex,
-                  initialLocation: branchIndex == currentBranchIndex,
-                );
-              },
-              miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
-              showMiniPlayer: hasMiniPlayer,
-              networkStatus: networkStatus,
-              showNavigationBar: false,
-              onOpenDrawer: openMusicFlowAppDrawer,
-              // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-              libraryEntries: _libraryEntries(),
-              onOpenPage: _openPageInContentArea,
+      // 根级指针位置捕获:桌面端锚点弹窗据此定位到触发按钮附近。
+      child: MusicFlowTapAnchorScope(
+        child: Column(
+          key: const ValueKey<String>('main-scaffold-column'),
+          children: <Widget>[
+            // Windows 桌面端去掉系统标题栏后,顶部自绘标题栏(拖拽/最小化/最大化/关闭)。
+            const WindowsTitleBar(),
+            Expanded(
+              child: MusicFlowAppShell(
+                scaffoldKey: scaffoldKey,
+                drawer:
+                    widget.drawerOverride ??
+                    AppDrawer(
+                      onReturnFocus: _restoreMusicFlowAppDrawerFocus,
+                      onOpenPage: _openPageInContentArea,
+                    ),
+                body: widget.navigationShell,
+                destinations: destinations,
+                selectedBranchIndex: currentBranchIsVisible
+                    ? currentBranchIndex
+                    : discoverBranchIndex,
+                onDestinationSelected: (branchIndex) {
+                  _goToBranch(
+                    branchIndex,
+                    initialLocation: branchIndex == currentBranchIndex,
+                  );
+                },
+                miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
+                showMiniPlayer: hasMiniPlayer,
+                networkStatus: networkStatus,
+                showNavigationBar: false,
+                onOpenDrawer: openMusicFlowAppDrawer,
+                // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
+                libraryEntries: _libraryEntries(),
+                onOpenPage: _openPageInContentArea,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

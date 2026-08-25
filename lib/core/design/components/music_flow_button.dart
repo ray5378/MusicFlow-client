@@ -16,6 +16,8 @@ class MusicFlowButton extends StatelessWidget {
     this.expand = false,
     this.enableHaptics = false,
     this.semanticLabel,
+    this.height,
+    this.minimumWidth,
   });
 
   const MusicFlowButton.primary({
@@ -27,6 +29,8 @@ class MusicFlowButton extends StatelessWidget {
     this.expand = false,
     this.enableHaptics = false,
     this.semanticLabel,
+    this.height,
+    this.minimumWidth,
   }) : variant = MusicFlowButtonVariant.primary;
 
   const MusicFlowButton.secondary({
@@ -38,6 +42,8 @@ class MusicFlowButton extends StatelessWidget {
     this.expand = false,
     this.enableHaptics = false,
     this.semanticLabel,
+    this.height,
+    this.minimumWidth,
   }) : variant = MusicFlowButtonVariant.secondary;
 
   const MusicFlowButton.ghost({
@@ -49,6 +55,8 @@ class MusicFlowButton extends StatelessWidget {
     this.expand = false,
     this.enableHaptics = false,
     this.semanticLabel,
+    this.height,
+    this.minimumWidth,
   }) : variant = MusicFlowButtonVariant.ghost;
 
   const MusicFlowButton.destructive({
@@ -60,6 +68,8 @@ class MusicFlowButton extends StatelessWidget {
     this.expand = false,
     this.enableHaptics = false,
     this.semanticLabel,
+    this.height,
+    this.minimumWidth,
   }) : variant = MusicFlowButtonVariant.destructive;
 
   final String label;
@@ -70,6 +80,12 @@ class MusicFlowButton extends StatelessWidget {
   final bool expand;
   final bool enableHaptics;
   final String? semanticLabel;
+
+  /// 自定义按钮高度；为 null 时使用交互规范里的默认按钮高度。
+  final double? height;
+
+  /// 自定义按钮最小宽度；为 null 时使用规范里的最小触摸目标。
+  final double? minimumWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -104,8 +120,10 @@ class MusicFlowButton extends StatelessWidget {
       semanticLabel: semanticLabel ?? label,
       onPressed: onPressed,
       minimumSize: Size(
-        expand ? double.infinity : context.musicFlowInteraction.minimumTouchTarget,
-        context.musicFlowInteraction.buttonHeight,
+        expand
+            ? double.infinity
+            : minimumWidth ?? context.musicFlowInteraction.minimumTouchTarget,
+        height ?? context.musicFlowInteraction.buttonHeight,
       ),
       borderRadius: context.musicFlowRadii.control,
       enableHaptics: enableHaptics,

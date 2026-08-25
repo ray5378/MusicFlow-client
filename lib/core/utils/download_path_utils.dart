@@ -5,13 +5,18 @@ import 'package:path/path.dart' as p;
 
 const _defaultPathSegmentMaxLength = 64;
 const _defaultSuffixMaxLength = 16;
+const _downloadFileNameMaxLength = 96;
 
 /// Builds a download file path that is guaranteed to stay under [rootDir].
+/// When [title]/[artist] are provided, the drop-in file is named
+/// 「歌名 - 歌手」（可读，保留中文），否则回退为 [songId] 的稳定安全名。
 String buildDownloadFilePath({
   required String rootDir,
   required String libraryId,
   required String songId,
   required String suffix,
+  String? title,
+  String? artist,
 }) {
   final trimmedRoot = rootDir.trim();
   if (trimmedRoot.isEmpty) {
@@ -26,11 +31,15 @@ String buildDownloadFilePath({
     libraryId,
     fallback: 'library',
   );
-  final safeSongId = sanitizeDownloadPathSegment(songId, fallback: 'song');
+  final fileName = buildDownloadFileName(
+    title: title,
+    artist: artist,
+    songId: songId,
+  );
   final safeSuffix = sanitizeDownloadFileSuffix(suffix);
   final normalizedRoot = p.normalize(trimmedRoot);
   final candidate = p.normalize(
-    p.join(normalizedRoot, safeLibraryId, '$safeSongId.$safeSuffix'),
+    p.join(normalizedRoot, safeLibraryId, '$fileName.$safeSuffix'),
   );
 
   if (!p.isWithin(normalizedRoot, candidate)) {
@@ -42,6 +51,47 @@ String buildDownloadFilePath({
   }
 
   return candidate;
+}
+
+/// 构建可读的下载文件名「歌名 - 歌手」。
+/// 仅删除文件名非法字符（`\ / : * ? " < > |` 与控制符），保留中文等可读字符；
+/// 无可用标题时回退到 [songId] 的稳定安全名。
+String buildDownloadFileName({
+  String? title,
+  String? artist,
+  String? songId,
+}) {
+  final titlePart = sanitizeDownloadFileNameText(title);
+  final artistPart = sanitizeDownloadFileNameText(artist);
+
+  final String name;
+  if (titlePart.isEmpty && artistPart.isEmpty) {
+    name = sanitizeDownloadPathSegment(songId ?? 'song', fallback: 'song');
+  } else {
+    name = artistPart.isNotEmpty
+        ? '$titlePart - $artistPart'
+        : titlePart;
+  }
+  return _truncateDownloadFileName(name);
+}
+
+/// 清理单个文件名片段：删除文件名非法字符/控制符，合并多余下划线。
+String sanitizeDownloadFileNameText(String? value) {
+  final trimmed = value?.trim() ?? '';
+  final cleaned = trimmed
+      .replaceAll(RegExp(r'[\\/:*?"<>|\u0000-\u001f]'), '_')
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'^[.\s_]+|[.\s_]+$'), '');
+  return (cleaned == '.' || cleaned == '..') ? '' : cleaned;
+}
+
+String _truncateDownloadFileName(String name) {
+  final trimmed = name.replaceAll(RegExp(r'[. ]+$'), '');
+  final finalName =
+      trimmed.length <= _downloadFileNameMaxLength
+      ? trimmed
+      : trimmed.substring(0, _downloadFileNameMaxLength);
+  return finalName.replaceAll(RegExp(r'[. ]+$'), '');
 }
 
 /// Builds a cache file path that is guaranteed to stay under [rootDir].

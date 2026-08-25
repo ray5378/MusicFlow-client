@@ -323,6 +323,8 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   trailing: MusicFlowButton.primary(
                     label: '播放全部',
                     leadingIcon: AppIcons.play,
+                    // 播放全部按钮缩小为默认高度的 2/3。
+                    height: context.musicFlowInteraction.buttonHeight * (2 / 3),
                     onPressed: currentSongCount == 0
                         ? null
                         : () => unawaited(_playAll()),

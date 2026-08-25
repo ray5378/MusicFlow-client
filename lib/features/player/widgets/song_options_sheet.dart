@@ -39,15 +39,20 @@ Future<void> showSongOptionsSheet({
   List<SongOptionsExtraAction> extraActions = const <SongOptionsExtraAction>[],
   MusicFlowMediaVisuals? mediaVisuals,
 }) async {
+  // 桌面端:在触发点附近渲染「菜单」型小弹窗;移动端保留底部抽屉样式。
+  final compactSheet =
+      context.musicFlowWindowClass == MusicFlowWindowClass.compact;
   await showMusicFlowBottomSheet<void>(
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,
+    desktopAnchored: !compactSheet,
     builder: (_) {
       final sheet = _SongOptionsSheet(
         hostContext: context,
         song: song,
         extraActions: extraActions,
+        compactSheet: compactSheet,
       );
       if (mediaVisuals == null) return sheet;
       return MusicFlowMediaColorScope(
@@ -64,11 +69,15 @@ class _SongOptionsSheet extends ConsumerWidget {
     required this.hostContext,
     required this.song,
     required this.extraActions,
+    required this.compactSheet,
   });
 
   final BuildContext hostContext;
   final Song song;
   final List<SongOptionsExtraAction> extraActions;
+
+  /// 是否为移动端(compact)底部抽屉;false 时表现为桌面端锚点弹窗。
+  final bool compactSheet;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -248,6 +257,8 @@ class _SongOptionsSheet extends ConsumerWidget {
 
     return MusicFlowBottomSheet(
       title: song.isPreview ? '试听歌曲操作' : '歌曲操作',
+      showDragHandle: compactSheet,
+      sceneRadius: !compactSheet,
       padding: EdgeInsets.fromLTRB(
         context.musicFlowSpacing.md,
         0,

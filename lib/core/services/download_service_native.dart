@@ -119,6 +119,8 @@ class DownloadService {
       libraryId,
       song.id,
       suffix.isNotEmpty ? suffix : 'cache',
+      title: song.title,
+      artist: song.artist,
     );
 
     // 确保目录存在
@@ -320,6 +322,8 @@ class DownloadService {
         task.libraryId,
         task.songId,
         task.suffix ?? 'mp3',
+        title: task.title,
+        artist: task.artist,
       );
 
       // 确保目录存在
@@ -413,19 +417,23 @@ class DownloadService {
   }
 
   /// 获取文件保存路径
-  /// Android: External Music app directory / MusicFlow / {libraryId} / {songId}.suffix
-  /// iOS: Documents / music_flow_downloads / {libraryId} / {songId}.suffix
+  /// Android: External Music app directory / MusicFlow / {libraryId} / 歌名 - 歌手.suffix
+  /// iOS: Documents / music_flow_downloads / {libraryId} / 歌名 - 歌手.suffix
   Future<String> _getSavePath(
     String libraryId,
     String songId,
-    String suffix,
-  ) async {
+    String suffix, {
+    String? title,
+    String? artist,
+  }) async {
     final rootDir = await _getDownloadRootDir();
     return buildDownloadFilePath(
       rootDir: rootDir.path,
       libraryId: libraryId,
       songId: songId,
       suffix: suffix,
+      title: title,
+      artist: artist,
     );
   }
 

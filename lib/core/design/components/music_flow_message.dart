@@ -94,51 +94,23 @@ class MusicFlowMessage extends StatelessWidget {
   }
 }
 
-ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showMusicFlowMessage(
+/// 统一的消息反馈：不再使用底部横幅（SnackBar），一律改为右上角 Toast。
+void showMusicFlowMessage(
   BuildContext context,
   String message, {
   MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   ScaffoldMessengerState? messenger,
   Duration? duration,
 }) {
-  final messengerState = messenger ?? ScaffoldMessenger.of(context);
-  final animationsDisabled =
-      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-  final motion = context.musicFlowMotion;
-  messengerState.hideCurrentSnackBar();
-
-  final snackBar = SnackBar(
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    padding: EdgeInsets.zero,
-    margin: EdgeInsets.fromLTRB(
-      context.musicFlowSpacing.md,
-      context.musicFlowSpacing.xs,
-      context.musicFlowSpacing.md,
-      context.musicFlowSpacing.md,
-    ),
-    behavior: SnackBarBehavior.floating,
-    dismissDirection: DismissDirection.horizontal,
+  showMusicFlowToast(
+    context,
+    message,
+    kind: kind,
     duration:
         duration ??
         (kind == MusicFlowMessageKind.error
             ? const Duration(seconds: 5)
             : const Duration(seconds: 3)),
-    content: MusicFlowMessage(
-      message: message,
-      kind: kind,
-      onDismiss: messengerState.hideCurrentSnackBar,
-    ),
-  );
-
-  return messengerState.showSnackBar(
-    snackBar,
-    snackBarAnimationStyle: animationsDisabled
-        ? AnimationStyle.noAnimation
-        : AnimationStyle(
-            duration: motion.resolve(context, motion.feedback),
-            reverseDuration: motion.resolve(context, motion.feedback),
-          ),
   );
 }
 
@@ -152,6 +124,22 @@ void showMusicFlowToast(
 }) {
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
   if (overlay == null) return;
+  insertMusicFlowToast(
+    overlay,
+    message,
+    kind: kind,
+    duration: duration,
+  );
+}
+
+/// 把一条 Toast 插入指定的 [OverlayState] 中。为 `showMusicFlowToast` 与
+/// `ToastNotifier`（在 Widget 树外）共用，保证统一使用右上角 Toast。
+OverlayEntry insertMusicFlowToast(
+  OverlayState overlay,
+  String message, {
+  MusicFlowMessageKind kind = MusicFlowMessageKind.info,
+  Duration duration = const Duration(seconds: 3),
+}) {
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (entryContext) => _MusicFlowTopToast(
@@ -164,6 +152,7 @@ void showMusicFlowToast(
     ),
   );
   overlay.insert(entry);
+  return entry;
 }
 
 /// 右上角 Toast 实现：滑入/淡出动画 + 自动消失计时。

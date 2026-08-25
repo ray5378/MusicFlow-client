@@ -10,6 +10,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: rootNavigatorKey,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
         theme: AppTheme.light(),
         home: const Scaffold(body: SizedBox.expand()),
@@ -18,8 +19,10 @@ void main() {
 
     ToastNotifier.show('网络异常', kind: MusicFlowMessageKind.error);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.text('网络异常'), findsOneWidget);
-    expect(find.byType(SnackBar), findsOneWidget);
+    // 底部横幅已取消，改用右上角 Toast。
+    expect(find.byType(SnackBar), findsNothing);
   });
 }

@@ -928,16 +928,12 @@ Future<void> _openRecommendPlaylist(
   RecommendPlaylist pl,
 ) async {
   if (providerId == null || providerId.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('推荐服务暂不可用，请检查平台推荐插件是否已启用')),
-    );
+    showMusicFlowToast(context, '推荐服务暂不可用，请检查平台推荐插件是否已启用');
     return;
   }
   final repo = ref.read(recommendRepositoryProvider);
   if (repo == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('未连接到音乐库')),
-    );
+    showMusicFlowToast(context, '未连接到音乐库');
     return;
   }
 
@@ -981,9 +977,7 @@ Future<void> _openRecommendPlaylist(
   } catch (e) {
     if (context.mounted) {
       final msg = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('导入歌单失败：$msg')),
-      );
+      showMusicFlowToast(context, '导入歌单失败：$msg');
     }
   } finally {
     ref.read(recommendImportingProvider.notifier).state = null;

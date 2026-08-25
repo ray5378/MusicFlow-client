@@ -25,8 +25,15 @@ Future<void> showAlbumOptionsSheet({
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,
-    builder: (_) =>
-        _AlbumOptionsSheet(hostContext: context, hostRef: ref, album: album),
+    desktopAnchored:
+        context.musicFlowWindowClass != MusicFlowWindowClass.compact,
+    builder: (_) => _AlbumOptionsSheet(
+      hostContext: context,
+      hostRef: ref,
+      album: album,
+      compactSheet:
+          context.musicFlowWindowClass == MusicFlowWindowClass.compact,
+    ),
   );
 }
 
@@ -35,11 +42,13 @@ class _AlbumOptionsSheet extends ConsumerWidget {
     required this.hostContext,
     required this.hostRef,
     required this.album,
+    required this.compactSheet,
   });
 
   final BuildContext hostContext;
   final WidgetRef hostRef;
   final Album album;
+  final bool compactSheet;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,6 +63,8 @@ class _AlbumOptionsSheet extends ConsumerWidget {
     return MusicFlowBottomSheet(
       title: album.name,
       subtitle: artistName,
+      showDragHandle: compactSheet,
+      sceneRadius: !compactSheet,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

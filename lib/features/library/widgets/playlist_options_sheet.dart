@@ -16,10 +16,14 @@ Future<PlaylistOptionsAction?> showPlaylistOptionsSheet({
     context: context,
     useRootNavigator: useRootNavigator,
     isScrollControlled: true,
+    desktopAnchored:
+        context.musicFlowWindowClass != MusicFlowWindowClass.compact,
     builder: (_) => _PlaylistOptionsSheet(
       playlist: playlist,
       canDownload: canDownload,
       hasSongs: hasSongs,
+      compactSheet:
+          context.musicFlowWindowClass == MusicFlowWindowClass.compact,
     ),
   );
 }
@@ -28,11 +32,13 @@ class _PlaylistOptionsSheet extends StatelessWidget {
   final Playlist playlist;
   final bool canDownload;
   final bool hasSongs;
+  final bool compactSheet;
 
   const _PlaylistOptionsSheet({
     required this.playlist,
     required this.canDownload,
     required this.hasSongs,
+    required this.compactSheet,
   });
 
   @override
@@ -40,6 +46,8 @@ class _PlaylistOptionsSheet extends StatelessWidget {
     return MusicFlowBottomSheet(
       title: playlist.name,
       subtitle: '${playlist.songCount} 首 · ${playlist.durationString}',
+      showDragHandle: compactSheet,
+      sceneRadius: !compactSheet,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
