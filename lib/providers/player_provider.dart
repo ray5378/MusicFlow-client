@@ -2832,9 +2832,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> _persistPlaybackSession() async {
-    if (!mounted ||
-        _isRestoringPlaybackSession ||
-        _isPersistingPlaybackSession) {
+    // 关闭(dispose)时 mounted 已为 false,但不能因此跳过落盘 —— 否则退出瞬间
+    // 刚更新的进度/歌曲就会丢,重开无法续播。只在「恢复会话进行中」与「正在写」
+    // 时跳过,其余情况(含关闭)都照常保存。
+    if (_isRestoringPlaybackSession || _isPersistingPlaybackSession) {
       return;
     }
 
@@ -2900,10 +2901,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (restoredPosition > Duration.zero) {
         await seek(restoredPosition);
       }
-      // 恢复策略：默认安全暂停，避免未确认自动播放出声；
-      // 仅当用户在设置开启「打开时自动播放」且上次在播时才续播。
-      final autoResume = wasPlaying && await LocalStorage.getAutoPlayOnLaunch();
-      if (!autoResume) {
+      // 恢复即续播:只要关闭前在播,重开就接着从原进度播。旧逻辑写的是
+      // playSong(autoPlay:false) —— 它只装载源并不起播,且这里也不调用 play(),
+      // 导致即使命中续播分支也永远是暂停。现在命中就用 play() 真正起播;
+      // 未在播时仅当设置了「打开时自动播放」才起播,否则安全暂停。
+      final autoResume = wasPlaying || await LocalStorage.getAutoPlayOnLaunch();
+      if (autoResume) {
+        await play();
+      } else {
         await pause();
       }
 
