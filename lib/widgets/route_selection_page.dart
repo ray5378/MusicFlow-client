@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -115,6 +113,10 @@ class _RouteSelectionList extends StatelessWidget {
     final isAuto = !addresses.any(
       (address) => address.isLocked && address.id == activeAddress?.id,
     );
+    String autoModeLabel = '当前已开启';
+    if (activeAddress != null) {
+      autoModeLabel = '当前已开启 · ${activeAddress.label}';
+    }
 
     return ListView(
       shrinkWrap: true,
@@ -124,7 +126,7 @@ class _RouteSelectionList extends StatelessWidget {
           icon: AppIcons.route,
           title: '自动选择',
           subtitle: isAuto
-              ? '当前已开启${activeAddress == null ? '' : ' · ${activeAddress.label}'}'
+              ? autoModeLabel
               : '根据可用性和延迟选择线路',
           selected: isAuto,
           trailing: isAuto
