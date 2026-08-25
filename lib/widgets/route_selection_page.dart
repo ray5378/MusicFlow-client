@@ -113,10 +113,10 @@ class _RouteSelectionList extends StatelessWidget {
     final isAuto = !addresses.any(
       (address) => address.isLocked && address.id == activeAddress?.id,
     );
-    String autoModeLabel = '当前已开启';
-    if (activeAddress != null) {
-      autoModeLabel = '当前已开启 · ${activeAddress.label}';
-    }
+    final currentAddress = activeAddress;
+    String autoModeLabel = currentAddress == null
+        ? '当前已开启'
+        : '当前已开启 · ${currentAddress.label}';
 
     return ListView(
       shrinkWrap: true,
