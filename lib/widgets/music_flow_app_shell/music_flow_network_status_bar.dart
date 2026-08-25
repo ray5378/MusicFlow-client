@@ -55,12 +55,13 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
       return;
     }
 
-    // 连接不上(弱网/离线)时，右上角弹红色脉冲圆点轻提示。
+    // 连接中断时，右上角弹文字 Toast 提醒。
     if (widget.status != MusicFlowNetworkStatus.online &&
         oldWidget.status == MusicFlowNetworkStatus.online) {
-      showNetworkStatusPulse(
+      showMusicFlowToast(
         context,
-        connected: false,
+        '连接不到服务器',
+        kind: MusicFlowMessageKind.error,
         duration: widget.recoveryDisplayDuration,
       );
     }
@@ -77,16 +78,10 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   }
 
   void _showRecovery() {
-    // 网络恢复时不再弹文字 Toast，改为右上角绿色脉冲圆点轻提示，
-    // 弱网/离线状态仍保留内联横幅以便持续提示。
+    // 网络恢复时不弹任何轻提示，仅隐藏内联横幅即可。
     setState(() {
       _bannerState = _MusicFlowNetworkBannerState.hidden;
     });
-    showNetworkStatusPulse(
-      context,
-      connected: true,
-      duration: widget.recoveryDisplayDuration,
-    );
   }
 
   static _MusicFlowNetworkBannerState _stateForStatus(MusicFlowNetworkStatus status) {
@@ -263,162 +258,4 @@ class _MusicFlowNetworkPresentation {
   final String title;
   final String description;
   final IconData icon;
-}
-
-/// 网络状态轻提示的颜色：连接成功绿、连接失败红。
-const Color _networkConnectedGreen = Color(0xFF34C759);
-const Color _networkOfflineRed = Color(0xFFFF3B30);
-
-/// 在右上角弹出一个带光晕、会膨胀缩小的网络状态圆点轻通知。
-///
-/// [connected] 为 true 时显示绿色圆点（网络恢复），为 false 时显示红色圆点
-/// （连接不上）。自动消失，替代原先的「网络已恢复」文字 Toast。
-void showNetworkStatusPulse(
-  BuildContext context, {
-  required bool connected,
-  Duration duration = const Duration(seconds: 3),
-}) {
-  final overlay = Overlay.maybeOf(context, rootOverlay: true);
-  if (overlay == null) return;
-  insertNetworkStatusPulse(overlay, connected: connected, duration: duration);
-}
-
-/// 把网络状态脉冲圆点插入指定的 [OverlayState]（右上角）。
-OverlayEntry insertNetworkStatusPulse(
-  OverlayState overlay, {
-  required bool connected,
-  Duration duration = const Duration(seconds: 3),
-}) {
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (entryContext) => _NetworkStatusPulse(
-      connected: connected,
-      duration: duration,
-      onDismissed: () {
-        if (entry.mounted) entry.remove();
-      },
-    ),
-  );
-  overlay.insert(entry);
-  return entry;
-}
-
-/// 右上角脉冲圆点实现：绿/红圆点 + 光晕 + 膨胀缩小的外扩光环，自动消失。
-class _NetworkStatusPulse extends StatefulWidget {
-  const _NetworkStatusPulse({
-    required this.connected,
-    required this.duration,
-    required this.onDismissed,
-  });
-
-  final bool connected;
-  final Duration duration;
-  final VoidCallback onDismissed;
-
-  @override
-  State<_NetworkStatusPulse> createState() => _NetworkStatusPulseState();
-}
-
-class _NetworkStatusPulseState extends State<_NetworkStatusPulse>
-    with TickerProviderStateMixin {
-  late final AnimationController _fadeController;
-  late final AnimationController _pulseController;
-  Timer? _dismissTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-      reverseDuration: const Duration(milliseconds: 200),
-    );
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _fadeController.forward();
-    _pulseController.repeat(reverse: true);
-    _dismissTimer = Timer(widget.duration, _dismiss);
-  }
-
-  void _dismiss() {
-    if (!mounted) return;
-    _pulseController.stop();
-    _fadeController.reverse().whenComplete(() {
-      if (mounted) widget.onDismissed();
-    });
-  }
-
-  @override
-  void dispose() {
-    _dismissTimer?.cancel();
-    _fadeController.dispose();
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = widget.connected ? _networkConnectedGreen : _networkOfflineRed;
-    final top = MediaQuery.paddingOf(context).top + context.musicFlowSpacing.sm;
-    return Positioned(
-      top: top,
-      right: context.musicFlowSpacing.md,
-      child: FadeTransition(
-        opacity: _fadeController,
-        child: AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, child) {
-            final t = Curves.easeInOut.transform(_pulseController.value);
-            final haloRingOpacity = 0.5 * (1 - t);
-            final glowBlur = 5.0 + 7.0 * t;
-            final glowSpread = 1.0 + 2.5 * t;
-            return SizedBox.square(
-              dimension: 18,
-              child: Stack(
-                alignment: Alignment.center,
-                children: <Widget>[
-                  // 膨胀缩小的外扩光环。
-                  Transform.scale(
-                    scale: 1 + 0.9 * t,
-                    child: Opacity(
-                      opacity: haloRingOpacity,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.6),
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // 光晕 + 实心圆点。
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color,
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.55),
-                          blurRadius: glowBlur,
-                          spreadRadius: glowSpread,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
 }
