@@ -21,6 +21,7 @@ import '../providers/music_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
 import 'music_flow_app_shell/music_flow_drawer.dart';
+import 'route_selection_page.dart';
 
 /// MusicFlow's application drawer. [Scaffold] still supplies platform drawer
 /// routing, focus, and back behavior; every visible surface is owned here.

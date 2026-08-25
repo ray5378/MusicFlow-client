@@ -62,7 +62,7 @@ void main() {
     expect(find.textContaining('已加载内容和离线歌曲仍可使用'), findsOneWidget);
   });
 
-  testWidgets('restored state is announced briefly and then releases space', (
+  testWidgets('recovery releases inline space and shows a top-right toast instead', (
     tester,
   ) async {
     final status = ValueNotifier<MusicFlowNetworkStatus>(MusicFlowNetworkStatus.offline);
@@ -79,15 +79,17 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 220));
 
+    // 内联横幅立即释放空间，不再显示恢复横幅。
+    expect(tester.getSize(_statusSlot).height, 0);
+    expect(find.text('已重新连接可用线路'), findsNothing);
+    // 网络恢复改为右上角 Toast 通知。
     expect(find.text('网络已恢复'), findsOneWidget);
-    expect(find.text('已重新连接可用线路'), findsOneWidget);
-    expect(tester.getSize(_statusSlot).height, greaterThan(0));
 
+    // Toast 自动消失。
     await tester.pump(const Duration(milliseconds: 380));
     await tester.pump(const Duration(milliseconds: 220));
 
     expect(find.text('网络已恢复'), findsNothing);
-    expect(tester.getSize(_statusSlot).height, 0);
   });
 }
 
