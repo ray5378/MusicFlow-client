@@ -42,22 +42,37 @@ class MusicFlowMediaVisuals {
     );
     final foreground = _foregroundFor(seed);
 
-    final stageBase = _readableSurface(seed, foreground);
-    final stageGlow = _readableSurface(
-      _stageGlowColor(
-        base: stageBase,
-        candidate: candidates.glowSeed ?? candidates.accentSeed ?? seed,
-        foreground: foreground,
-      ),
-      foreground,
+    final stageBase = _decisiveSurface(
+      _readableSurface(seed, foreground),
+      foreground: foreground,
+      darkLightness: (0.06, 0.34),
+      lightLightness: (0.58, 0.92),
     );
-    final stageBottom = _readableSurface(
-      _stageBottomColor(
-        base: stageBase,
-        candidate: candidates.bottomSeed ?? seed,
-        foreground: foreground,
+    final stageGlow = _decisiveSurface(
+      _readableSurface(
+        _stageGlowColor(
+          base: stageBase,
+          candidate: candidates.glowSeed ?? candidates.accentSeed ?? seed,
+          foreground: foreground,
+        ),
+        foreground,
       ),
-      foreground,
+      foreground: foreground,
+      darkLightness: (0.06, 0.34),
+      lightLightness: (0.58, 0.92),
+    );
+    final stageBottom = _decisiveSurface(
+      _readableSurface(
+        _stageBottomColor(
+          base: stageBase,
+          candidate: candidates.bottomSeed ?? seed,
+          foreground: foreground,
+        ),
+        foreground,
+      ),
+      foreground: foreground,
+      darkLightness: (0.06, 0.34),
+      lightLightness: (0.58, 0.92),
     );
     final miniSurface = _readableSurface(
       _quietSurface(
@@ -248,6 +263,33 @@ Color _quietSurface(
   final clamped = raw.clamp(minLightness, maxLightness);
   return hsl
       .withSaturation(hsl.saturation * saturationFactor)
+      .withLightness(clamped)
+      .toColor()
+      .withValues(alpha: 1);
+}
+
+/// Clamps a surface's lightness into a *decisive* band for strong foreground
+/// contrast, bounding out the ambiguous middle (~50% lightness).
+///
+/// On a medium surface neither white nor black text can reach comfortable
+/// contrast, and any accent is washed toward white — which is why titles and
+/// artist/metadata on the immersive stage looked faint ("大屏歌名歌手白底白字").
+/// Pushing dark stages to a clearly dark band and light stages to a clearly
+/// light band makes `readableOn` ink and the ≥4.5:1 muted text decisive on
+/// every cover while preserving hue and saturation.
+Color _decisiveSurface(
+  Color color, {
+  required Color foreground,
+  required (double, double) darkLightness,
+  required (double, double) lightLightness,
+}) {
+  final hsl = HSLColor.fromColor(color);
+  final isDarkStage = foreground.computeLuminance() > 0.5;
+  final (minLightness, maxLightness) = isDarkStage
+      ? darkLightness
+      : lightLightness;
+  final clamped = hsl.lightness.clamp(minLightness, maxLightness);
+  return hsl
       .withLightness(clamped)
       .toColor()
       .withValues(alpha: 1);
