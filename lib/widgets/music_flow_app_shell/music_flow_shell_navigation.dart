@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/design/music_flow_design.dart';
 import '../../features/settings/pages/app_settings_page.dart';
-import '../route_selection_page.dart';
 
 @immutable
 class MusicFlowShellDestination {
@@ -73,8 +72,8 @@ class MusicFlowCompactNavigation extends StatelessWidget {
   }
 }
 
-/// 侧栏底部「应用菜单」动作(切换线路 / 设置)。
-enum _SidebarAppAction { switchLine, settings }
+/// 侧栏底部「应用菜单」动作(设置)。
+enum _SidebarAppAction { settings }
 
 /// 侧栏底部常驻的应用动作组:
 /// - 展开态:图标 + 文字;
@@ -87,8 +86,6 @@ class _SidebarAppActions extends StatelessWidget {
 
   void _dispatch(BuildContext context, _SidebarAppAction action) {
     switch (action) {
-      case _SidebarAppAction.switchLine:
-        unawaited(_push(context, const RouteSelectionPage()));
       case _SidebarAppAction.settings:
         unawaited(_push(context, const AppSettingsPage()));
     }
@@ -107,7 +104,6 @@ class _SidebarAppActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const actions = <(IconData, String, _SidebarAppAction)>[
-      (AppIcons.route, '切换线路', _SidebarAppAction.switchLine),
       (AppIcons.settings, '设置', _SidebarAppAction.settings),
     ];
 

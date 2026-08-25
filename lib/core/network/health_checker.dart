@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 
 class HealthChecker {
@@ -59,6 +60,9 @@ class HealthChecker {
         }
       } else {
         // Current is OK.
+        // 连接恢复正常：取消启动期或未确认的连接失败提示。
+        NetworkErrorNotifier.cancelPending();
+
         // 手动模式下不自动回退到更高优先级
         if (_addressPool.isManualMode) {
           return;

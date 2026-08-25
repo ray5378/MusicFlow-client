@@ -22,7 +22,6 @@ import '../providers/music_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
 import 'music_flow_app_shell/music_flow_drawer.dart';
-import 'route_selection_page.dart';
 
 /// MusicFlow's application drawer. [Scaffold] still supplies platform drawer
 /// routing, focus, and back behavior; every visible surface is owned here.
@@ -63,7 +62,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
       ),
       child: _showLibraries
           ? _buildLibraryList(activeLibrary)
-          : _buildNavigationList(activeAddress),
+          : _buildNavigationList(),
     );
   }
 
@@ -147,8 +146,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     );
   }
 
-  Widget _buildNavigationList(ServerAddress? activeAddress) {
-    final routeLabel = activeAddress?.label.trim();
+  Widget _buildNavigationList() {
     final entries = <_DrawerNavigationEntry?>[
       _DrawerNavigationEntry(
         title: '艺术家',
@@ -180,17 +178,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const StarredPage()),
       ),
-      null,
-      _DrawerNavigationEntry(
-        title: '切换线路',
-        icon: AppIcons.router,
-        subtitle: routeLabel == null || routeLabel.isEmpty
-            ? '自动选择'
-            : routeLabel,
-        onPressed: () =>
-            _closeDrawerAndPushPage((context) => const RouteSelectionPage()),
-      ),
-      null,
       _DrawerNavigationEntry(
         icon: AppIcons.settings,
         title: '设置',
@@ -227,7 +214,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
           child: MusicFlowActionRow(
             icon: entry.icon,
             title: entry.title,
-            subtitle: entry.subtitle,
             // 安卓端侧边栏不显示向右箭头,其余平台保留。
             trailing: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
                 ? null
@@ -306,60 +292,16 @@ MusicFlowDrawerConnectionState _connectionState(ServerAddress? address) {
   };
 }
 
-_AddressStatusPresentation _addressStatusPresentation(ServerAddress address) {
-  return switch (address.status) {
-    ServerAddressStatus.ok => const _AddressStatusPresentation(
-      label: '连接正常',
-      icon: AppIcons.checkCircle,
-      kind: _AddressStatusKind.connected,
-    ),
-    ServerAddressStatus.failed => const _AddressStatusPresentation(
-      label: '连接失败',
-      icon: AppIcons.error,
-      kind: _AddressStatusKind.failed,
-    ),
-    ServerAddressStatus.unknown => const _AddressStatusPresentation(
-      label: '等待检测',
-      icon: AppIcons.help,
-      kind: _AddressStatusKind.unknown,
-    ),
-  };
-}
-
 class _DrawerNavigationEntry {
   const _DrawerNavigationEntry({
     required this.icon,
     required this.title,
     required this.onPressed,
-    this.subtitle,
   });
 
   final IconData icon;
   final String title;
-  final String? subtitle;
   final VoidCallback onPressed;
-}
-
-enum _AddressStatusKind { connected, failed, unknown }
-
-class _AddressStatusPresentation {
-  const _AddressStatusPresentation({
-    required this.label,
-    required this.icon,
-    required this.kind,
-  });
-
-  final String label;
-  final IconData icon;
-  final _AddressStatusKind kind;
-
-  Color color(BuildContext context) {
-    return switch (kind) {
-      _AddressStatusKind.connected => context.musicFlowColors.accent,
-      _AddressStatusKind.failed => context.musicFlowColors.error,
-      _AddressStatusKind.unknown => context.musicFlowColors.muted,
-    };
-  }
 }
 
 class _DrawerSkeletonList extends StatelessWidget {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
@@ -13,6 +14,11 @@ void main() {
   runZonedGuarded(
     () {
       WidgetsFlutterBinding.ensureInitialized();
+
+      // 开启「连接失败」提示的启动宽限期：打开软件后 10 秒内先待确认，
+      // 避免首屏未就绪时立刻误报连接失败。
+      NetworkErrorNotifier.markAppStarted();
+
       final isDesktopMediaKitPlatform =
           !kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.linux ||

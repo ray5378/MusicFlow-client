@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:flutter/foundation.dart';
 
 /// 网络类型枚举
@@ -52,6 +53,8 @@ class ConnectivityMonitor {
             _tag,
             'connection available, probing address pool',
           );
+          // 网络恢复：取消启动期或未确认的连接失败提示。
+          NetworkErrorNotifier.cancelPending();
           _addressPool.probeAll();
         }
       }
