@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/design/music_flow_design.dart';
 import '../../features/download/pages/download_manager_page.dart';
 import '../../features/settings/pages/app_settings_page.dart';
-import '../app_drawer.dart' show showRouteSelectionSheet;
+import '../route_selection_page.dart';
 
 @immutable
 class MusicFlowShellDestination {
@@ -89,7 +89,7 @@ class _SidebarAppActions extends StatelessWidget {
   void _dispatch(BuildContext context, _SidebarAppAction action) {
     switch (action) {
       case _SidebarAppAction.switchLine:
-        unawaited(showRouteSelectionSheet(context));
+        unawaited(_push(context, const RouteSelectionPage()));
       case _SidebarAppAction.downloads:
         unawaited(_push(context, const DownloadManagerPage()));
       case _SidebarAppAction.settings:

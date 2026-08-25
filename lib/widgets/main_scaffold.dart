@@ -256,6 +256,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
 
   void _goToBranch(int branchIndex, {bool initialLocation = false}) {
     _syncVisibleBranch(branchIndex);
+    // 点击侧栏「音乐流」等返回首页时,先把目标分支内指令式 push 的页面
+    // (库列表、线路选择等)清空回根,确保是真正回到该分支首页,而非停留在子页。
+    if (branchIndex >= 0 && branchIndex < widget.branchNavigatorKeys.length) {
+      final branchNavigator = widget.branchNavigatorKeys[branchIndex].currentState;
+      branchNavigator?.popUntil((route) => route.isFirst);
+    }
     widget.navigationShell.goBranch(
       branchIndex,
       initialLocation: initialLocation,

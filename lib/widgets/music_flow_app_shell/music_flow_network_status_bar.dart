@@ -10,7 +10,7 @@ import '../../core/design/music_flow_design.dart';
 /// connection affects remote work, then briefly confirms recovery.
 enum MusicFlowNetworkStatus { online, weak, offline }
 
-enum _MusicFlowNetworkBannerState { hidden, weak, offline, restored }
+enum _MusicFlowNetworkBannerState { hidden, weak, offline }
 
 /// A layout-bound network status strip that preserves already loaded content.
 ///
@@ -67,15 +67,17 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   }
 
   void _showRecovery() {
+    // 网络恢复时不再使用内容区内的内联横幅，改为右上角 Toast 轻量通知，
+    // 弱网/离线状态仍保留内联横幅以便持续提示。
     setState(() {
-      _bannerState = _MusicFlowNetworkBannerState.restored;
+      _bannerState = _MusicFlowNetworkBannerState.hidden;
     });
-    _recoveryTimer = Timer(widget.recoveryDisplayDuration, () {
-      if (!mounted || widget.status != MusicFlowNetworkStatus.online) return;
-      setState(() {
-        _bannerState = _MusicFlowNetworkBannerState.hidden;
-      });
-    });
+    showMusicFlowToast(
+      context,
+      '网络已恢复',
+      kind: MusicFlowMessageKind.success,
+      duration: widget.recoveryDisplayDuration,
+    );
   }
 
   static _MusicFlowNetworkBannerState _stateForStatus(MusicFlowNetworkStatus status) {
@@ -130,8 +132,7 @@ class _MusicFlowNetworkStatusContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
-    final isRestored = state == _MusicFlowNetworkBannerState.restored;
-    final statusColor = isRestored ? colors.accent : colors.warning;
+    final statusColor = colors.warning;
     final background = Color.alphaBlend(
       statusColor.withValues(
         alpha: Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.12,
@@ -235,11 +236,6 @@ class _MusicFlowNetworkStatusContent extends StatelessWidget {
         title: '当前离线',
         description: '已加载内容和离线歌曲仍可使用，在线操作将在联网后恢复',
         icon: AppIcons.wifiOff,
-      ),
-      _MusicFlowNetworkBannerState.restored => const _MusicFlowNetworkPresentation(
-        title: '网络已恢复',
-        description: '已重新连接可用线路',
-        icon: AppIcons.checkCircle,
       ),
       _MusicFlowNetworkBannerState.hidden => throw StateError(
         'Hidden network state has no visible presentation.',
