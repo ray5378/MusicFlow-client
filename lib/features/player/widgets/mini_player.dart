@@ -1568,7 +1568,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                                       }
                                       return;
                                     }
-                                    _close(toast: '正在投屏到「${peer.name}」');
+                                    _close(toast: '正在远控「${peer.name}」');
                                   },
                                 )
                             else
