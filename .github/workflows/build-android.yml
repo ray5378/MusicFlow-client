@@ -203,6 +203,8 @@ jobs:
               WM_NCHITTEST 返回 HT* 缩放码,缩放循环作用在子窗口上,一拖就被顶层
               WM_SIZE 拉回(只剩右下斜角勉强动);改为边缘返回 HTTRANSPARENT 穿透给
               顶层框架窗口开启缩放,四边四角都能稳定拉伸
+            - 修复 Windows 客户端音量重启后回到 100%：默认音量改回 0.8、启动时优先恢复已保存音量、播放源就绪时强制重写为用户设置值
+            - 全量清理内部标识符/函数/类/注释中残留的 Echo 品牌引用，统一为 MusicFlow
             - 切换线路弹窗文案与历史品牌名统一改为 MusicFlow
             - 修复定时重渲染(health check级联刷新)
             - CoverArtImage/palette_provider 多余watch
