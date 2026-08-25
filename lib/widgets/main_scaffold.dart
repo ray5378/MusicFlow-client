@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,16 +92,19 @@ MusicFlowBackAction resolveMusicFlowBackAction({
   return MusicFlowBackAction.moveAppToBackground;
 }
 
-const MusicFlowShellDestination _discoverDestination = MusicFlowShellDestination(
-  branchIndex: discoverBranchIndex,
-  label: '音乐流',
-  icon: AppIcons.home,
-  selectedIcon: AppIcons.homeFilled,
-);
-
+/// Windows 桌面端侧栏入口文案为「主页」,其余平台沿用「音乐流」。
 @visibleForTesting
 List<MusicFlowShellDestination> musicFlowMainDestinations() {
-  return <MusicFlowShellDestination>[_discoverDestination];
+  final isWindowsDesktop =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  return <MusicFlowShellDestination>[
+    MusicFlowShellDestination(
+      branchIndex: discoverBranchIndex,
+      label: isWindowsDesktop ? '主页' : '音乐流',
+      icon: AppIcons.home,
+      selectedIcon: AppIcons.homeFilled,
+    ),
+  ];
 }
 
 class MainScaffold extends ConsumerStatefulWidget {

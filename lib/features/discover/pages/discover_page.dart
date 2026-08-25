@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
@@ -39,6 +41,17 @@ const double _playlistCardWidth = 152;
 double playlistRailHeight(BuildContext context) {
   final scale = MediaQuery.textScalerOf(context).scale(1);
   return _playlistCardWidth + 70 + ((scale - 1) * 48).clamp(0.0, 72.0);
+}
+
+/// 首页标题:Windows 桌面端不显示标题;安卓端显示 MusicFlow;其余平台沿用「音乐流」。
+String resolveMusicFlowHomeTitle() {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return '';
+  }
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'MusicFlow';
+  }
+  return '音乐流';
 }
 
 /// 音乐流首页 - Tab 1
@@ -100,7 +113,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           child: Column(
             children: <Widget>[
               MusicFlowPageHeader(
-                title: '音乐流',
+                title: resolveMusicFlowHomeTitle(),
                 leading: shouldShowPageDrawerTrigger(context)
                     ? MusicFlowIconButton(
                         icon: AppIcons.menu,

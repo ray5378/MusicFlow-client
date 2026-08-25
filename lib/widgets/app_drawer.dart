@@ -12,6 +12,8 @@ import 'package:musicflow_client/features/library/pages/starred_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -234,11 +236,14 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
             icon: entry.icon,
             title: entry.title,
             subtitle: entry.subtitle,
-            trailing: Icon(
-              AppIcons.chevronRight,
-              size: context.musicFlowInteraction.smallIconSize,
-              color: context.musicFlowColors.muted,
-            ),
+            // 安卓端侧边栏不显示向右箭头,其余平台保留。
+            trailing: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+                ? null
+                : Icon(
+                    AppIcons.chevronRight,
+                    size: context.musicFlowInteraction.smallIconSize,
+                    color: context.musicFlowColors.muted,
+                  ),
             onPressed: entry.onPressed,
           ),
         );
