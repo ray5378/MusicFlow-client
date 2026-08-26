@@ -127,7 +127,8 @@ void main() {
     await tester.tap(find.byTooltip('音量 40%'));
     await tester.pump(const Duration(milliseconds: 300));
 
-    final slider = find.byType(Slider);
+    // 竖向滑杆以 Key 定位（取代旧 RotatedBox 内 Slider）。
+    final slider = find.byKey(const Key('volume-vertical-slider'));
     expect(slider, findsOneWidget);
 
     // 垂直音量条向上拖动增大。
@@ -139,6 +140,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     // 松手必发最终值 → 直投 notifier.setVolume 被调用，且已增大。
+    // ignore: avoid_print
+    print('DEBUG calls=$calls');
     expect(calls, isNotEmpty);
     expect(calls.last, greaterThan(deviceVolume));
     expect(tester.takeException(), isNull);

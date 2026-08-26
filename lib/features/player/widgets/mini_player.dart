@@ -1019,6 +1019,13 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
   double? _pendingLocalVolume;
   Timer? _localVolumeThrottleTimer;
 
+  /// 音量浮层内实时音量（0.0~1.0）：驱动滑杆滑块与百分比文本即时刷新，
+  /// 不依赖 provider 重建（浮层位于根 Overlay，父 setState 不会重建它）。
+  final ValueNotifier<double> _overlayVolume = ValueNotifier<double>(0.0);
+
+  /// 拖动手感触感节流：音量跨越 ≥4% 才给一次 selectionClick，避免每帧震。
+  double _lastVolumeHaptic = -1;
+
   /// 当前控制目标音量（0.0~1.0）：投屏取 peer status.volume(0-100)，
   /// 本机取 playerState.volume。peer 未回报音量时回退本机音量。
   double _effectiveVolume() {
@@ -1126,11 +1133,41 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
     }
   }
 
+  /// 竖向滑杆拖动/点击：即时刷新浮层，再按当前目标路由（节流下发）。
+  void _onVerticalChanged(double v) {
+    final clamped = v.clamp(0.0, 1.0).toDouble();
+    _overlayVolume.value = clamped;
+    if ((clamped - _lastVolumeHaptic).abs() >= 0.04) {
+      _lastVolumeHaptic = clamped;
+      HapticFeedback.selectionClick();
+    }
+    _onSliderChanged(clamped);
+  }
+
+  /// 竖向滑杆松手/点击抬起：刷新浮层并提交最终音量。
+  void _onVerticalCommit(double v) {
+    final clamped = v.clamp(0.0, 1.0).toDouble();
+    _overlayVolume.value = clamped;
+    HapticFeedback.selectionClick();
+    _onSliderCommit(clamped);
+  }
+
+  /// 步进键：以当前有效音量为基准，每次 ±3%，立即命中当前播放目标。
+  void _stepVolume(int dir) {
+    if (dir == 0) return;
+    final base = _dragValue ?? _effectiveVolume();
+    final next = (base + 0.03 * dir).clamp(0.0, 1.0).toDouble();
+    _onVerticalChanged(next);
+    _onVerticalCommit(next);
+  }
+
   void _toggleOverlay() {
     if (_overlayEntry != null) {
       _removeOverlay();
       return;
     }
+    _overlayVolume.value = _effectiveVolume();
+    _lastVolumeHaptic = -1;
     // 弹出面板挂在根 Overlay 上,位于播放器 MusicFlowMediaColorScope 之外,
     // 直接使用根主题色会造成音量条与播放控件底色脱节。这里在打开时
     // 捕获本控件所在子树的**媒体自适应配色**(mini / stage 各自已按底色适配),
@@ -1149,7 +1186,7 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
               ),
             ),
             Positioned(
-              bottom: widget.anchorTop ? null : 80,
+              bottom: widget.anchorTop ? null : 96,
               top: widget.anchorTop ? 16 : null,
               right: 16,
               child: GestureDetector(
@@ -1162,8 +1199,8 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                     level: MusicFlowSurfaceLevel.floating,
                     padding: EdgeInsets.all(context.musicFlowSpacing.sm),
                     child: SizedBox(
-                      width: 64,
-                      height: 184,
+                      width: 76,
+                      height: 296,
                       // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
                       child: Consumer(
                         builder: (context, ref, _) {
@@ -1187,40 +1224,67 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                           }
                           // 拖动中显示拖动值，否则显示真实值。
                           final volume = _dragValue ?? sourceVolume;
-                          final percent = (volume * 100).round();
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // 实时显示当前音量数值（拖动时随状态刷新）。
-                              Text(
-                                '$percent%',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: context.musicFlowColors.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: 40,
-                                height: 140,
-                                child: RotatedBox(
-                                  quarterTurns: -1,
-                                  child: Slider(
-                                    value: volume,
-                                    // 音量条配色跟随播放控件底色:
-                                    // 已激活段用控件强调色,未激活段用弱化前景,
-                                    // 与播放控件的按钮/文字色一致。
-                                    activeColor: mediaColors.accent,
-                                    inactiveColor: mediaColors.muted
-                                        .withValues(alpha: 0.38),
-                                    onChanged: _onSliderChanged,
-                                    onChangeEnd: _onSliderCommit,
+                          // 音量浮层内即时值：驱动滑块与百分比实时刷新。
+                          _overlayVolume.value = volume;
+                          return ValueListenableBuilder<double>(
+                            valueListenable: _overlayVolume,
+                            builder: (context, live, _) {
+                              final percent = (live * 100).round();
+                              return Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // 实时显示当前音量数值（拖动时即时刷新，字号更大便于触屏查看）。
+                                  Text(
+                                    '$percent%',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                      color: context.musicFlowColors.ink,
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ],
+                                  const SizedBox(height: 8),
+                                  _VolumeStepButton(
+                                    icon: AppIcons.add,
+                                    label: '增大音量',
+                                    onTap: () => _stepVolume(1),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  // 滑杆吃掉剩余高度(而非固定 150)：面板更紧凑/宽松时
+                                  // 都由滑杆伸缩吸收,避免 RenderFlex 溢出。
+                                  Expanded(
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 56,
+                                        child: _VerticalVolumeSlider(
+                                          key: const Key(
+                                            'volume-vertical-slider',
+                                          ),
+                                          value: live,
+                                          // 音量条配色跟随播放控件底色:
+                                          // 已激活段用控件强调色,未激活段用弱化前景,
+                                          // 与播放控件的按钮/文字色一致。
+                                          activeColor: mediaColors.accent,
+                                          inactiveColor: mediaColors.muted
+                                              .withValues(alpha: 0.38),
+                                          onChanged: _onVerticalChanged,
+                                          onChangeEnd: _onVerticalCommit,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _VolumeStepButton(
+                                    icon: AppIcons.removeCircle,
+                                    label: '减小音量',
+                                    onTap: () => _stepVolume(-1),
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         },
                       ),
@@ -1244,6 +1308,7 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
   @override
   void dispose() {
     _removeOverlay();
+    _overlayVolume.dispose();
     _localVolumeThrottleTimer?.cancel();
     super.dispose();
   }
@@ -1264,6 +1329,157 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
         foregroundColor: context.musicFlowColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: _toggleOverlay,
+      ),
+    );
+  }
+}
+
+/// 竖向音量滑杆：轨道加粗、拇指加大，命中区覆盖整条高度——
+/// 按住任意高度纵向拖动即改音量，点按任意位置直接跳转。上=大声，下=小声。
+/// 值由外部 [value] 驱动（浮层通过 ValueListenable 实时刷新），本组件纯受控。
+class _VerticalVolumeSlider extends StatelessWidget {
+  const _VerticalVolumeSlider({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    required this.onChangeEnd,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double> onChangeEnd;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  static const double _thumbSize = 28;
+  static const double _trackWidth = 8;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight;
+        final travel = (height - _thumbSize)
+            .clamp(0.0, double.infinity)
+            .toDouble();
+        final progress = value.clamp(0.0, 1.0).toDouble();
+        // 上=大声：拇指中心距顶部 = travel * progress。
+        final thumbTop = height - _thumbSize / 2 - travel * progress;
+        final fillHeight = height - (thumbTop + _thumbSize / 2);
+
+        // 拖动中最后应用的值：松手/抬起时提交它，而不是读取可能落后一帧的
+        // [value] 属性——指针释放时的即时位置必须被准确落盘。
+        var lastApplied = progress;
+
+        void apply(double dy) {
+          // 顶部(Y=0)=100%，底部(Y=height)=0%。
+          final next =
+              (1 - ((dy - _thumbSize / 2) / travel)).clamp(0.0, 1.0).toDouble();
+          lastApplied = next;
+          onChanged(next);
+        }
+
+        final colors = context.musicFlowColors;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => apply(d.localPosition.dy),
+          onTapUp: (_) => onChangeEnd(lastApplied),
+          onVerticalDragUpdate: (d) => apply(d.localPosition.dy),
+          onVerticalDragEnd: (_) => onChangeEnd(lastApplied),
+          child: Center(
+            child: SizedBox(
+              width: _trackWidth,
+              height: height,
+              child: Stack(
+                children: <Widget>[
+                  // 未激活整轨。
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: inactiveColor,
+                        borderRadius: BorderRadius.circular(_trackWidth / 2),
+                      ),
+                    ),
+                  ),
+                  // 已激活段（自底部起，达拇指中心）。
+                  if (fillHeight > 0)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: fillHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: activeColor,
+                          borderRadius: BorderRadius.circular(_trackWidth / 2),
+                        ),
+                      ),
+                    ),
+                  // 拇指：加大尺寸 + 白色描边，触屏可辨识、易抓握。
+                  Positioned(
+                    top: thumbTop,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: activeColor, width: 2),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: colors.scrim.withValues(alpha: 0.22),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const SizedBox.square(dimension: _thumbSize),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 音量步进键（＋/－）：圆形轻触目标，每次调用 [onTap] 步进音量。
+class _VolumeStepButton extends StatelessWidget {
+  const _VolumeStepButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.musicFlowColors;
+    return Tooltip(
+      message: label,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 28,
+        containedInkWell: true,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: colors.controlBoundary.withValues(alpha: 0.28),
+          ),
+          child: Icon(icon, size: 18, color: colors.ink),
+        ),
       ),
     );
   }
