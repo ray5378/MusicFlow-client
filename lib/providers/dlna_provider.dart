@@ -146,6 +146,9 @@ class DlnaCastState {
   final List<DlnaCastTrack> queue;
   final int currentIndex;
 
+  /// 投屏播放模式(order|one|all|shuffle),对齐链路 A cast.playMode。
+  final String playMode;
+
   /// 平滑进度(秒):插值 tick 递增,设备轮询回写修正 —— 对齐链路 A [CastPeerState]。
   final double smoothPositionSeconds;
 
@@ -155,6 +158,7 @@ class DlnaCastState {
     this.isCasting = false,
     this.queue = const [],
     this.currentIndex = -1,
+    this.playMode = 'all',
     this.smoothPositionSeconds = 0,
   });
 
@@ -170,6 +174,7 @@ class DlnaCastState {
     bool? isCasting,
     List<DlnaCastTrack>? queue,
     int? currentIndex,
+    String? playMode,
     double? smoothPositionSeconds,
     bool clearDevice = false,
   }) {
@@ -179,6 +184,7 @@ class DlnaCastState {
       isCasting: isCasting ?? this.isCasting,
       queue: queue ?? this.queue,
       currentIndex: currentIndex ?? this.currentIndex,
+      playMode: playMode ?? this.playMode,
       smoothPositionSeconds:
           smoothPositionSeconds ?? this.smoothPositionSeconds,
     );
@@ -305,17 +311,175 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 切到队列某首
   Future<void> playAt(int index) async {
+    if (index < 0 || index >= state.queue.length) return;
     await _ref.read(dlnaManagerProvider).playAt(index);
+    state = state.copyWith(currentIndex: index);
+    _mirrorCastToLocal();
   }
 
   /// 下一首
   Future<void> next() async {
-    await _ref.read(dlnaManagerProvider).next();
+    final manager = _ref.read(dlnaManagerProvider);
+    await manager.next();
+    if (state.currentIndex != manager.castQueueIndex) {
+      state = state.copyWith(currentIndex: manager.castQueueIndex);
+      _mirrorCastToLocal();
+    }
   }
 
   /// 上一首
   Future<void> previous() async {
-    await _ref.read(dlnaManagerProvider).previous();
+    final manager = _ref.read(dlnaManagerProvider);
+    await manager.previous();
+    if (state.currentIndex != manager.castQueueIndex) {
+      state = state.copyWith(currentIndex: manager.castQueueIndex);
+      _mirrorCastToLocal();
+    }
+  }
+
+  /// 设置投屏播放模式(对齐链路 A cast.setPlayMode)。
+  Future<void> setPlayMode(String mode) async {
+    final manager = _ref.read(dlnaManagerProvider);
+    manager.setPlayMode(mode);
+    state = state.copyWith(playMode: mode);
+  }
+
+  /// 循环切换投屏播放模式:order → one → all → shuffle(对齐链路 A cast.cyclePlayMode)。
+  Future<void> cyclePlayMode() async {
+    const modes = <String>['order', 'one', 'all', 'shuffle'];
+    final idx = modes.indexOf(state.playMode);
+    final next = modes[(idx < 0 ? 2 : idx + 1) % modes.length];
+    await setPlayMode(next);
+  }
+
+  /// 直投中播放专辑/歌单/列表(对齐链路 A cast.playQueueOnPeer):
+  /// 复用本地中转会话,直接切队列播放,本机保持遥控器态不打断。
+  Future<bool> playQueueOnDevice(
+    List<Song> songs, {
+    int startIndex = 0,
+  }) async {
+    final device = state.currentDevice;
+    if (device == null || songs.isEmpty) return false;
+    final tracks = songs.map(dlnaCastTrackFromSong).toList();
+    final start = startIndex.clamp(0, tracks.length - 1);
+    _sourceQueue = List<Song>.of(songs);
+    state = state.copyWith(
+      isCasting: true,
+      queue: List.unmodifiable(tracks),
+      currentIndex: start,
+      smoothPositionSeconds: 0,
+    );
+    final manager = _ref.read(dlnaManagerProvider);
+    final success = await manager.startCast(device, tracks, startIndex: start);
+    if (success) {
+      state = state.copyWith(currentDevice: device, isCasting: true);
+      _mirrorCastToLocal();
+      _startTick();
+      await _ref.read(playerProvider.notifier).pause();
+    } else {
+      _sourceQueue = null;
+      state = state.copyWith(
+        isCasting: false,
+        queue: const [],
+        currentIndex: -1,
+        smoothPositionSeconds: 0,
+      );
+      _stopTick();
+    }
+    return success;
+  }
+
+  /// 直投中点歌(对齐链路 A cast.playSongOnPeer):
+  /// 携带队列上下文按整队播放;否则优先在已投屏队列中跳播,未命中则单曲重投。
+  Future<bool> playSongOnDevice(
+    Song song, {
+    List<Song>? queue,
+    int? index,
+  }) async {
+    if (state.currentDevice == null) return false;
+    if (queue != null && queue.isNotEmpty) {
+      return playQueueOnDevice(
+        queue,
+        startIndex: (index ?? 0).clamp(0, queue.length - 1),
+      );
+    }
+    final found = state.queue.indexWhere((t) => t.songId == song.id);
+    if (found >= 0) {
+      await playAt(found);
+      return true;
+    }
+    return playQueueOnDevice(<Song>[song]);
+  }
+
+  /// 投屏中加歌：追加到投屏队列末尾（不中断当前播放，对齐链路 A cast.enqueueSongs）。
+  Future<void> enqueueSongs(List<Song> songs) async {
+    if (songs.isEmpty || !state.isCasting) return;
+    final tracks = songs.map(dlnaCastTrackFromSong).toList(growable: false);
+    final manager = _ref.read(dlnaManagerProvider);
+    await manager.enqueueSongs(tracks);
+    final src = _sourceQueue;
+    _sourceQueue = (src == null ? List<Song>.of(songs) : [...src, ...songs]);
+    state = state.copyWith(queue: [...state.queue, ...tracks]);
+    _mirrorCastToLocal();
+  }
+
+  /// 投屏中从队列移除指定下标（播放保持连贯，对齐链路 A cast.removeQueueItem）。
+  Future<void> removeQueueItem(int index) async {
+    if (!state.isCasting) return;
+    final manager = _ref.read(dlnaManagerProvider);
+    await manager.removeQueueItem(index);
+    final queue = List<DlnaCastTrack>.of(state.queue);
+    if (index >= 0 && index < queue.length) queue.removeAt(index);
+    final src = _sourceQueue;
+    if (src != null && index >= 0 && index < src.length) {
+      _sourceQueue = List<Song>.of(src)..removeAt(index);
+    }
+    state = state.copyWith(
+      queue: List.unmodifiable(queue),
+      currentIndex: manager.castQueueIndex,
+    );
+    _mirrorCastToLocal();
+  }
+
+  /// 投屏队列拖拽排序 from → to（对齐链路 A cast.reorderQueue）。
+  Future<void> reorderQueue(int from, int to) async {
+    if (!state.isCasting) return;
+    final manager = _ref.read(dlnaManagerProvider);
+    await manager.reorderQueue(from, to);
+    final queue = List<DlnaCastTrack>.of(state.queue);
+    if (from >= 0 &&
+        from < queue.length &&
+        to >= 0 &&
+        to <= queue.length &&
+        from != to) {
+      final item = queue.removeAt(from);
+      queue.insert(to > from ? to - 1 : to, item);
+    }
+    final src = _sourceQueue;
+    if (src != null &&
+        from >= 0 &&
+        from < src.length &&
+        to >= 0 &&
+        to <= src.length &&
+        from != to) {
+      final newSrc = List<Song>.of(src);
+      final item = newSrc.removeAt(from);
+      newSrc.insert(to > from ? to - 1 : to, item);
+      _sourceQueue = newSrc;
+    }
+    state = state.copyWith(
+      queue: List.unmodifiable(queue),
+      currentIndex: manager.castQueueIndex,
+    );
+    _mirrorCastToLocal();
+  }
+
+  /// 投屏静音开关。
+  Future<void> setMuted(bool muted) async {
+    final manager = _ref.read(dlnaManagerProvider);
+    if (muted != manager.isMuted) {
+      await manager.toggleMute();
+    }
   }
 
   /// 停止投屏

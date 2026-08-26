@@ -1381,12 +1381,15 @@ class _PlayerUtilityBar extends ConsumerWidget {
     // 链路 B（局域网 DLNA 直投）投屏态，独立于链路 A 的 cast。
     final dlnaCast = ref.watch(dlnaCastProvider);
     // 投屏态:播放模式以后端 playMode 为准(order|one|all|shuffle);
+    // 链路 B 投屏态:以 dlnaCast.playMode 为准(本机为遥控器);
     // 本机:以本地三态为准。
     final mode = isCastMode
         ? cast.playMode
-        : (state.shuffleEnabled
-              ? 'shuffle'
-              : (state.loopMode == LoopMode.one ? 'one' : 'all'));
+        : (dlnaCast.isCasting
+              ? dlnaCast.playMode
+              : (state.shuffleEnabled
+                    ? 'shuffle'
+                    : (state.loopMode == LoopMode.one ? 'one' : 'all')));
     final modeIcon = switch (mode) {
       'shuffle' => AppIcons.shuffle,
       'one' => AppIcons.repeatOne,
@@ -1411,8 +1414,13 @@ class _PlayerUtilityBar extends ConsumerWidget {
               label: modeLabel,
               selected: mode != 'all' && mode != 'order',
               onPressed: () {
-                // 投屏态下发后端 play-mode;本机走本地三态。
-                if (isCastMode) {
+                // 链路 B 投屏态:指挥 DLNA 设备;链路 A 投屏态下发后端 play-mode;
+                // 本机走本地三态。
+                if (dlnaCast.isCasting) {
+                  ref
+                      .read(dlnaCastProvider.notifier)
+                      .cyclePlayMode();
+                } else if (isCastMode) {
                   ref.read(castPeerControllerProvider.notifier).cyclePlayMode();
                 } else {
                   ref.read(playerProvider.notifier).cyclePlaybackMode();

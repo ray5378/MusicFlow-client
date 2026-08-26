@@ -8,6 +8,7 @@ import '../../../core/design/media/music_flow_media_color_scope.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
+import '../../../providers/dlna_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
@@ -172,6 +173,37 @@ class PlayQueueSheet extends ConsumerWidget {
         },
         onClear: () async {
           await ref.read(castPeerControllerProvider.notifier).clearCastQueue();
+          if (context.mounted) _close(context);
+        },
+      );
+    }
+
+    // 链路 B（局域网 DLNA 直投）投屏态：展示直投队列快照(经本机镜像),
+    // 与链路 A 对齐：支持点歌跳播、从队列移除、拖拽排序与「清空并停止投屏」。
+    final dlnaCast = ref.watch(dlnaCastProvider);
+    if (dlnaCast.isCasting) {
+      // 镜像队列为完整 Song（含封面等视觉信息），与 dlnaCast.queue 下标一一对应。
+      final dQueue = ref.read(playerProvider).queue;
+      return CastQueueSheetView(
+        queue: dQueue,
+        currentIndex: dlnaCast.currentIndex,
+        deviceName: dlnaCast.currentDevice?.name ?? '局域网设备',
+        offline: false,
+        panel: panel,
+        onClose: () => _close(context),
+        onSelect: (index) async {
+          _close(context);
+          await Future<void>.delayed(Duration.zero);
+          unawaited(ref.read(dlnaCastProvider.notifier).playAt(index));
+        },
+        onRemove: (index) {
+          ref.read(dlnaCastProvider.notifier).removeQueueItem(index);
+        },
+        onReorder: (from, to) {
+          ref.read(dlnaCastProvider.notifier).reorderQueue(from, to);
+        },
+        onClear: () async {
+          await ref.read(dlnaCastProvider.notifier).stopCast();
           if (context.mounted) _close(context);
         },
       );

@@ -104,6 +104,12 @@ Future<bool> playEffectiveQueue(
   List<Song> songs, {
   int startIndex = 0,
 }) async {
+  // 链路 B(局域网 DLNA 直投):复用本机中转会话直接切队列播放,本人保持遥控器态。
+  if (ref.read(_dlnaCastingProvider)) {
+    return ref
+        .read(dlnaCastProvider.notifier)
+        .playQueueOnDevice(songs, startIndex: startIndex);
+  }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
     return ref
@@ -117,6 +123,7 @@ Future<bool> playEffectiveQueue(
 }
 
 /// **统一点歌入口**(对齐主项目前端 UI-routed playSong):
+/// - 链路 B(局域网 DLNA 直投):指挥 DLNA 设备(复用本地中转,本机不出声);
 /// - 投屏:命令后端在该设备播放(带队列上下文按整队播放,否则对齐 castPlaySong);
 /// - 本机:走 just_audio。
 Future<bool> playEffectiveSong(
@@ -125,6 +132,11 @@ Future<bool> playEffectiveSong(
   List<Song>? queue,
   int? index,
 }) async {
+  if (ref.read(_dlnaCastingProvider)) {
+    return ref
+        .read(dlnaCastProvider.notifier)
+        .playSongOnDevice(song, queue: queue, index: index);
+  }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
     return ref

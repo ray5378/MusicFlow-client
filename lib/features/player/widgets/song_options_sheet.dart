@@ -10,6 +10,7 @@ import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/api_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
+import '../../../providers/dlna_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../widgets/music_flow_artwork.dart';
@@ -86,6 +87,12 @@ class _SongOptionsSheet extends ConsumerWidget {
     final isCasting = ref.watch(
       castPeerControllerProvider.select((s) => s.activePeer != null),
     );
+    // 链路 B（局域网 DLNA 直投）投屏态：同样把「加入投屏队列」路由到直投队列。
+    final isDlnaCasting = ref.watch(
+      dlnaCastProvider.select((s) => s.isCasting),
+    );
+    // 「加入投屏队列」的目标：链路 A > 链路 B > 本机下一曲。
+    final enqueued = isCasting || isDlnaCasting;
     final artistName = song.artist?.trim().isNotEmpty == true
         ? song.artist!.trim()
         : '未知歌手';
@@ -101,17 +108,20 @@ class _SongOptionsSheet extends ConsumerWidget {
         if (!isCurrentSong)
           _SongOptionRow(
             icon: AppIcons.queueAdd,
-            title: isCasting ? '加入投屏队列' : '下一曲播放',
+            title: enqueued ? '加入投屏队列' : '下一曲播放',
             onPressed: () => unawaited(
               _closeAndRun(context, () async {
                 if (isCasting) {
                   await ref
                       .read(castPeerControllerProvider.notifier)
                       .enqueueSongs(<Song>[song]);
+                } else if (isDlnaCasting) {
+                  await ref
+                      .read(dlnaCastProvider.notifier)
+                      .enqueueSongs(<Song>[song]);
                   _showMessage('已加入投屏队列');
                 } else {
                   await ref.read(playerProvider.notifier).playNext(song);
-                  _showMessage('已添加试听歌曲到下一曲');
                 }
               }),
             ),
@@ -155,12 +165,17 @@ class _SongOptionsSheet extends ConsumerWidget {
         if (!isCurrentSong)
           _SongOptionRow(
             icon: AppIcons.queueAdd,
-            title: isCasting ? '加入投屏队列' : '下一曲播放',
+            title: enqueued ? '加入投屏队列' : '下一曲播放',
             onPressed: () => unawaited(
               _closeAndRun(context, () async {
                 if (isCasting) {
                   await ref
                       .read(castPeerControllerProvider.notifier)
+                      .enqueueSongs(<Song>[song]);
+                  _showMessage('已加入投屏队列');
+                } else if (isDlnaCasting) {
+                  await ref
+                      .read(dlnaCastProvider.notifier)
                       .enqueueSongs(<Song>[song]);
                   _showMessage('已加入投屏队列');
                 } else {

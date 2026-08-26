@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'dlna_models.dart';
 import 'ssdp_discovery.dart';
@@ -28,6 +29,12 @@ class DlnaManager {
   String? _localIp;
   int? _relayPort;
 
+  /// 投屏播放模式(order|one|all|shuffle),默认列表循环(对齐链路 A cast.playMode)。
+  String _playMode = 'all';
+
+  /// 当前已通过 SetNext 预置到设备的「下一首」下标(按播放模式计算),用于自动续播时对齐游标。
+  int? _provisionedIndex;
+
   // ==================== 回调 ====================
 
   /// 设备列表变化回调
@@ -48,8 +55,22 @@ class DlnaManager {
   /// 当前投屏曲目下标
   int get castQueueIndex => _queueIndex;
 
-  /// 当前是否存在投屏
+  /// 当前投屏是否存在
   bool get isCasting => _currentDevice != null;
+
+  /// 当前投屏播放模式(order|one|all|shuffle)。
+  String get playMode => _playMode;
+
+  /// 当前投屏设备是否静音。
+  bool get isMuted => _currentStatus.muted;
+
+  /// 设置投屏播放模式(对齐链路 A cast.playMode):列表循环 all/顺序 order/单曲 one/随机 shuffle。
+  void setPlayMode(String mode) {
+    if (!const <String>['order', 'one', 'all', 'shuffle'].contains(mode)) {
+      return;
+    }
+    _playMode = mode;
+  }
 
   // ==================== 初始化 ====================
 
@@ -190,6 +211,7 @@ class DlnaManager {
     _nextSupported = true;
     _localIp = localIp;
     _relayPort = port;
+    _provisionedIndex = null;
 
     try {
       await _playCurrentTrack();
@@ -212,11 +234,23 @@ class DlnaManager {
     await _playCurrentTrack();
   }
 
-  /// 下一首
+  /// 下一首（按播放模式:all 循环 / shuffle 随机 / order&one 线性不循环末首）
   Future<void> next() async {
-    if (_queueIndex + 1 < _queue.length) {
-      _queueIndex++;
-      await _playCurrentTrack();
+    if (_queue.isEmpty) return;
+    switch (_playMode) {
+      case 'shuffle':
+        if (_queue.length <= 1) return;
+        _queueIndex = _randomOtherIndex();
+        await _playCurrentTrack();
+      case 'all':
+        if (_queue.length <= 1) return;
+        _queueIndex = (_queueIndex + 1) % _queue.length;
+        await _playCurrentTrack();
+      default: // order / one
+        if (_queueIndex + 1 < _queue.length) {
+          _queueIndex++;
+          await _playCurrentTrack();
+        }
     }
   }
 
@@ -226,6 +260,16 @@ class DlnaManager {
       _queueIndex--;
       await _playCurrentTrack();
     }
+  }
+
+  /// 返回不同于当前下标的随机下标（shuffle 使用）。
+  int _randomOtherIndex() {
+    if (_queue.length <= 1) return _queueIndex;
+    var i = math.Random().nextInt(_queue.length);
+    while (i == _queueIndex) {
+      i = math.Random().nextInt(_queue.length);
+    }
+    return i;
   }
 
   /// 播放队列中的当前曲目（建会话/设 URI/播）+ 预置下一首
@@ -264,11 +308,19 @@ class DlnaManager {
     return 'http://$_localIp:$_relayPort/stream?token=$token';
   }
 
-  /// 预置下一首到 SetNextAVTransportURI（设备不支持则回退为手动切歌）
+  /// 预置下一首到 SetNextAVTransportURI（按播放模式选择要无缝续播的曲目；
+  /// 设备不支持 SetNext 则回退为手动切歌）。同时记录 _provisionedIndex 供自动续播对齐游标。
   Future<void> _provisionNextTrack() async {
     if (!_nextSupported) return;
-    final nextIndex = _queueIndex + 1;
-    if (nextIndex >= _queue.length) return;
+    // 计算按播放模式应预置的下一首下标（one/shuffle 预置本曲以支持自循环/随机缓冲）。
+    final int? nextIndex = switch (_playMode) {
+      'shuffle' => _queue.length <= 1 ? null : _randomOtherIndex(),
+      'one' => _queueIndex,
+      'all' => _queue.length <= 1 ? null : (_queueIndex + 1) % _queue.length,
+      _ => _queueIndex + 1 < _queue.length ? _queueIndex + 1 : null,
+    };
+    _provisionedIndex = nextIndex;
+    if (nextIndex == null) return;
 
     final device = _currentDevice!;
     final next = _queue[nextIndex];
@@ -316,6 +368,7 @@ class DlnaManager {
     _currentDevice = null;
     _localIp = null;
     _relayPort = null;
+    _provisionedIndex = null;
     unawaited(_relay.stop());
   }
 
@@ -379,6 +432,67 @@ class DlnaManager {
       _currentStatus = _currentStatus.copyWith(muted: newMuted);
       onStatusChanged?.call(_currentStatus);
     } catch (_) {}
+  }
+
+  // ==================== 投屏队列编辑（对齐链路 A） ====================
+
+  /// 追加曲目到投屏队列末尾（不中断当前播放，对齐链路 A enqueueSongs）。
+  /// 新曲目将在后续轮播/手动切歌时进入播放序列；若已预置下一首则同步重算。
+  Future<void> enqueueSongs(List<DlnaCastTrack> tracks) async {
+    if (tracks.isEmpty || _currentDevice == null) return;
+    _queue = [..._queue, ...tracks];
+    // 追加当前位置后的新曲:若当前已预置的是某首后续曲,顺延重算下一首,
+    // 保证「自动续播」能覆盖到末尾追加的曲目。
+    await _provisionNextTrack();
+    onTrackChanged?.call(_queueIndex);
+  }
+
+  /// 从投屏队列移除指定下标（播放保持连贯，对齐链路 A removeQueueItem）。
+  Future<void> removeQueueItem(int index) async {
+    if (_currentDevice == null || index < 0 || index >= _queue.length) return;
+    _queue = List.of(_queue)..removeAt(index);
+    if (_queue.isEmpty) {
+      // 队列被清空:停止设备并退出投屏态。
+      await stopCast();
+      return;
+    }
+    // 游标修正:若移除的是当前曲目之前,整体前移;若是当前曲目本身,设备仍在本曲
+    // 播放(HTTP 中继未断),游标保持指向同位置(即下一首),避免越界。
+    if (index < _queueIndex) {
+      _queueIndex--;
+    } else if (_queueIndex >= _queue.length) {
+      _queueIndex = _queue.length - 1;
+    }
+    await _provisionNextTrack();
+    onTrackChanged?.call(_queueIndex);
+  }
+
+  /// 队列拖拽排序 from → to。
+  /// [to] 为原列表中「净插入位」：当把曲目拖到队尾(列表末尾之后)时 to 可为
+  /// _queue.length；移除后实际插入位为 `to > from ? to - 1 : to`，避免 insert 越界。
+  Future<void> reorderQueue(int from, int to) async {
+    if (_currentDevice == null) return;
+    if (from < 0 || from >= _queue.length || to < 0 || to > _queue.length) {
+      return;
+    }
+    if (from == to) return;
+    // 记录游标当前指向的曲目引用，拖拽后用 indexOf 重定位（对等比对，overwrites 重复曲目边界可用）。
+    final current =
+        from == _queueIndex ? _queue[from] : _queue[_queueIndex];
+    _queue = List.of(_queue);
+    final item = _queue.removeAt(from);
+    final insertAt = to > from ? to - 1 : to;
+    _queue.insert(insertAt, item);
+    // 游标跟随被拖动的曲目本身；被挤开的曲目按新位置重定位。
+    _queueIndex = from == _queueIndex ? insertAt : _queue.indexOf(current);
+    // 中继会话按 songId 缓存,排序不丢 token;重算下一首以匹配新顺序。
+    await _provisionNextTrack();
+    onTrackChanged?.call(_queueIndex);
+  }
+
+  /// 清空投屏队列并停止设备投屏（对齐链路 A clearCastQueue）。
+  Future<void> clearCastQueue() async {
+    await stopCast();
   }
 
   /// 检查设备是否支持无缝切歌
@@ -446,18 +560,24 @@ class DlnaManager {
         muted: muted,
       );
 
-      // 自动续播检测：上一帧接近曲末、新帧从头开播 → 设备已自动切到下一首
+      // 自动续播检测：上一帧接近曲末、新帧从头开播 → 设备已自动切到预置的下一首。
+      // 游标按 _provisionedIndex（已随播放模式预置）对齐；设备无 SetNext 支持时回退线性 +1。
       final nearEnd = prevState == 'PLAYING' &&
           prevDuration > 0 &&
           prevDuration - prevPosition <= 3;
       final startedOver = state == 'PLAYING' &&
           posInfo.position >= 0 &&
           posInfo.position < 5;
-      if (nearEnd && startedOver && _queueIndex + 1 < _queue.length) {
-        _queueIndex++;
-        onTrackChanged?.call(_queueIndex);
-        await _provisionNextTrack();
-        _pruneRelaySessions();
+      if (nearEnd && startedOver) {
+        final nextIndex = _provisionedIndex ?? (_queueIndex + 1);
+        if (nextIndex >= 0 &&
+            nextIndex < _queue.length &&
+            nextIndex != _queueIndex) {
+          _queueIndex = nextIndex;
+          onTrackChanged?.call(_queueIndex);
+          await _provisionNextTrack();
+          _pruneRelaySessions();
+        }
       }
 
       onStatusChanged?.call(_currentStatus);

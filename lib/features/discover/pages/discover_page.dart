@@ -12,6 +12,7 @@ import '../../../data/models/recommend.dart';
 import '../../../data/models/music_library.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
+import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/metadata_cache_provider.dart';
@@ -436,6 +437,17 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       await ref
           .read(castPeerControllerProvider.notifier)
           .enqueueSongs(fresh);
+    } else if (ref.read(dlnaCastProvider).isCasting) {
+      // 链路 B（局域网 DLNA 直投）：追加到直投队列末尾。
+      final queuedIds = <String>{
+        for (final t in ref.read(dlnaCastProvider).queue) t.songId,
+      };
+      if (queuedIds.isEmpty || !queuedIds.any(_roundSongIds.contains)) return;
+      for (final s in songs) {
+        if (!queuedIds.contains(s.id)) fresh.add(s);
+      }
+      if (fresh.isEmpty) return;
+      await ref.read(dlnaCastProvider.notifier).enqueueSongs(fresh);
     } else {
       final queue = ref.read(playerProvider).queue;
       if (queue.isEmpty || !queue.any((s) => _roundSongIds.contains(s.id))) {

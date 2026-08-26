@@ -9,6 +9,7 @@ import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/peer.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
+import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
@@ -29,6 +30,8 @@ class MiniPlayer extends ConsumerWidget {
     final player = ref.watch(playerProvider);
     final cast = ref.watch(castPeerControllerProvider);
     final isCasting = cast.activePeer != null;
+    final dlnaCast = ref.watch(dlnaCastProvider);
+    final dlnaCasting = dlnaCast.isCasting;
 
     final currentSong = player.currentSong;
 
@@ -47,12 +50,15 @@ class MiniPlayer extends ConsumerWidget {
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
     final lyricLine = ref.watch(currentLyricLineProvider);
     // 播放模式(对齐主项目前端 playMode:order|one|all|shuffle)。
-    // 投屏态以后端 playMode 为准;本机以本地 shuffleEnabled + loopMode 推导。
-    final mode = isCasting
-        ? cast.playMode
-        : (player.shuffleEnabled
-              ? 'shuffle'
-              : (player.loopMode == LoopMode.one ? 'one' : 'all'));
+    // 链路 B(DLNA 直投)投屏态:以 dlnaCast.playMode 为准;链路 A 投屏态以后端
+    // playMode 为准;本机以本地 shuffleEnabled + loopMode 推导。
+    final mode = dlnaCasting
+        ? dlnaCast.playMode
+        : (isCasting
+              ? cast.playMode
+              : (player.shuffleEnabled
+                    ? 'shuffle'
+                    : (player.loopMode == LoopMode.one ? 'one' : 'all')));
 
     return MiniPlayerView(
       playerState: playerState,
@@ -63,16 +69,22 @@ class MiniPlayer extends ConsumerWidget {
       onSeek: (position) => seekEffectivePlayback(ref, position),
       progressLayer: const _ProviderMiniPlayerProgress(),
       onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
-      onPrevious: () => isCasting
-          ? ref.read(castPeerControllerProvider.notifier).previous()
-          : ref.read(playerProvider.notifier).previous(),
-      onNext: () => isCasting
-          ? ref.read(castPeerControllerProvider.notifier).next()
-          : ref.read(playerProvider.notifier).next(),
+      onPrevious: () => dlnaCasting
+        ? ref.read(dlnaCastProvider.notifier).previous()
+        : (isCasting
+              ? ref.read(castPeerControllerProvider.notifier).previous()
+              : ref.read(playerProvider.notifier).previous()),
+      onNext: () => dlnaCasting
+          ? ref.read(dlnaCastProvider.notifier).next()
+          : (isCasting
+                ? ref.read(castPeerControllerProvider.notifier).next()
+                : ref.read(playerProvider.notifier).next()),
       playMode: mode,
-      onTogglePlayMode: () => isCasting
-          ? ref.read(castPeerControllerProvider.notifier).cyclePlayMode()
-          : ref.read(playerProvider.notifier).cyclePlaybackMode(),
+      onTogglePlayMode: () => dlnaCasting
+          ? ref.read(dlnaCastProvider.notifier).cyclePlayMode()
+          : (isCasting
+                ? ref.read(castPeerControllerProvider.notifier).cyclePlayMode()
+                : ref.read(playerProvider.notifier).cyclePlaybackMode()),
       onToggleFavorite: () =>
           ref.read(playerProvider.notifier).toggleFavorite(),
       onOpenQueue: () {
@@ -997,6 +1009,9 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
 
   /// 投屏端节流发送时间戳：拖动时 ≤10 次/秒，避免刷爆网络。
   DateTime? _lastCastVolumeSend;
+
+  /// 链路 B（DLNA 直投）端节流发送时间戳。
+  DateTime? _lastDlnaVolumeSend;
 
   /// 本机端节流：拖动时避免每次 onChanged 都走 media_kit FFI（全局锁串行，
   /// 高频调用会堆积造成 UI 假死）。仅保留最新值，≤13 次/秒。
