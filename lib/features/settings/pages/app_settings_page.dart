@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -177,13 +178,22 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     label: '稍后再说',
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
-                  if (result.releaseUrl != null)
+                  if (result.releaseUrl != null ||
+                      _pickPlatformAsset(result) != null)
                     MusicFlowButton.primary(
                       label: '前往下载',
                       leadingIcon: AppIcons.download,
                       onPressed: () {
+                        final asset = _pickPlatformAsset(result);
                         Navigator.of(sheetContext).pop();
-                        _openUrl(result.releaseUrl!);
+                        if (asset != null) {
+                          _confirmOpenDownload(asset.name, asset.downloadUrl);
+                        } else if (result.releaseUrl != null) {
+                          _confirmOpenDownload(
+                            '更新包 ${result.latestVersion}',
+                            result.releaseUrl!,
+                          );
+                        }
                       },
                     ),
                 ],
@@ -193,6 +203,18 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         ),
       ),
     );
+  }
+
+  /// 挑选适合当前平台的下载文件：Android 优先 apk，其余平台优先 zip（windows）。
+  ReleaseAsset? _pickPlatformAsset(UpdateCheckResult result) {
+    if (result.assets.isEmpty) return null;
+    final isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    final preferred = isAndroid ? '.apk' : '.zip';
+    for (final asset in result.assets) {
+      if (asset.name.toLowerCase().contains(preferred)) return asset;
+    }
+    return result.assets.first;
   }
 
   /// 弹出确认后跳转浏览器下载，由用户自行解压/安装完成更新。
