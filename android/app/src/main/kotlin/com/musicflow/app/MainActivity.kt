@@ -47,10 +47,13 @@ class MainActivity : AudioServiceFragmentActivity() {
         }
 
         // 链路 B：DLNA 本地投屏原生能力（MulticastLock + Android 13+ 附近设备权限）
+        // 用 lambda 显式委托给 _dlnaHandler，避免裸方法名被当作调用表达式（Kotlin 编译报错）
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             DLNA_CHANNEL
-        ).setMethodCallHandler(_dlnaHandler)
+        ).setMethodCallHandler { call, result ->
+            _dlnaHandler(call, result)
+        }
     }
 
     private fun _dlnaHandler(call: MethodCall, result: MethodChannel.Result) {
