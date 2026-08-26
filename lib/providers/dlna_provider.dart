@@ -223,6 +223,10 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     );
     if (success) {
       state = state.copyWith(currentDevice: device, isCasting: true);
+      // 直投进行中，本机退化为「遥控器」：暂停本地播放（不出声），
+      // 队列/索引保留，停止投屏时从投屏进度续播。
+      // 仅投屏成功后暂停，失败则不打断本机播放。
+      await _ref.read(playerProvider.notifier).pause();
     } else {
       state = state.copyWith(
         isCasting: false,
@@ -250,9 +254,40 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 停止投屏
   Future<void> stopCast() async {
+    // 停止前记录投屏当前曲目与进度，用于停止后在本机续播。
+    final castIndex = state.currentIndex;
+    final castPosition = state.status.position;
+
     await _ref.read(dlnaManagerProvider).stopCast();
     state = state.copyWith(clearDevice: true, isCasting: false);
     await releaseMulticastLock();
+
+    await _resumeLocalPlayback(castIndex: castIndex, position: castPosition);
+  }
+
+  /// 停止直投后，把本机恢复到投屏结束时所在曲目/进度并继续播放。
+  Future<void> _resumeLocalPlayback({
+    int castIndex = -1,
+    int position = 0,
+  }) async {
+    final playerNotifier = _ref.read(playerProvider.notifier);
+    final localQueue = _ref.read(playerProvider).queue;
+    if (localQueue.isEmpty) return;
+
+    if (castIndex >= 0 && castIndex < localQueue.length) {
+      // 先装载投屏结束时所在的本地曲目（不自动播放），再 seek 到投屏进度，
+      // 最后开始播放，实现「从当前投屏进度继续放」。
+      await playerNotifier.playSong(
+        localQueue[castIndex],
+        queue: localQueue,
+        index: castIndex,
+        autoPlay: false,
+      );
+      if (position > 0) {
+        await playerNotifier.seek(Duration(seconds: position));
+      }
+    }
+    await playerNotifier.play();
   }
 
   /// 暂停
