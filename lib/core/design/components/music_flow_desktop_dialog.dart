@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../music_flow_context.dart';
-import '../theme/app_icons.dart';
+import '../../theme/app_icons.dart';
 import 'music_flow_icon_button.dart';
 import 'music_flow_surface.dart';
 
