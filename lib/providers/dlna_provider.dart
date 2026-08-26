@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
@@ -5,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/dlna/dlna_manager.dart';
 import '../core/dlna/dlna_models.dart';
 import '../data/models/audio_quality.dart';
+import '../data/models/peer.dart';
 import '../data/models/song.dart';
 import 'api_provider.dart';
 import 'audio_quality_provider.dart';
+import 'player_provider.dart';
 
 /// DLNA 原生平台通道（Android：MulticastLock / Android 13+ 附近设备权限）
 const MethodChannel _dlnaPlatformChannel = MethodChannel(
@@ -143,12 +146,16 @@ class DlnaCastState {
   final List<DlnaCastTrack> queue;
   final int currentIndex;
 
+  /// 平滑进度(秒):插值 tick 递增,设备轮询回写修正 —— 对齐链路 A [CastPeerState]。
+  final double smoothPositionSeconds;
+
   const DlnaCastState({
     this.currentDevice,
     this.status = const DlnaDeviceStatus(),
     this.isCasting = false,
     this.queue = const [],
     this.currentIndex = -1,
+    this.smoothPositionSeconds = 0,
   });
 
   /// 当前投屏曲目
@@ -163,6 +170,7 @@ class DlnaCastState {
     bool? isCasting,
     List<DlnaCastTrack>? queue,
     int? currentIndex,
+    double? smoothPositionSeconds,
     bool clearDevice = false,
   }) {
     return DlnaCastState(
@@ -171,6 +179,8 @@ class DlnaCastState {
       isCasting: isCasting ?? this.isCasting,
       queue: queue ?? this.queue,
       currentIndex: currentIndex ?? this.currentIndex,
+      smoothPositionSeconds:
+          smoothPositionSeconds ?? this.smoothPositionSeconds,
     );
   }
 }
@@ -184,22 +194,71 @@ final dlnaCastProvider =
 class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   final Ref _ref;
 
+  /// 平滑进度插值 tick:播放中按现实时间递增,设备轮询回写修正(对齐链路 A)。
+  Timer? _tickTimer;
+
+  /// 投屏开始时本机的完整歌单(含封面/时长等),供镜像到 playerProvider,
+  /// 让全屏页封面跟随 DLNA 设备(等价于链路 A 的后端队列镜像)。
+  List<Song>? _sourceQueue;
+
   DlnaCastNotifier(this._ref) : super(const DlnaCastState()) {
     final manager = _ref.read(dlnaManagerProvider);
     manager.onStatusChanged = (status) {
-      state = state.copyWith(status: status);
+      state = state.copyWith(
+        status: status,
+        smoothPositionSeconds: status.position.toDouble(),
+      );
     };
     manager.onTrackChanged = (index) {
       state = state.copyWith(currentIndex: index);
+      _mirrorCastToLocal();
     };
     manager.onCastDisconnected = () {
+      _sourceQueue = null;
       state = state.copyWith(
         clearDevice: true,
         isCasting: false,
         queue: const [],
         currentIndex: -1,
+        smoothPositionSeconds: 0,
       );
+      _stopTick();
     };
+  }
+
+  /// 把当前投屏队列/游标镜像进 playerProvider,让全屏页的曲目/封面/歌词
+  /// 跟随 DLNA 设备(对齐链路 A 经 syncQueueForCast 镜像后端队列),本机不自动播放。
+  void _mirrorCastToLocal() {
+    if (!state.isCasting) return;
+    final queue = _sourceQueue;
+    if (queue == null || queue.isEmpty) return;
+    final index = state.currentIndex.clamp(0, queue.length - 1);
+    final items = queue.map(songToQueueItem).toList();
+    _ref.read(playerProvider.notifier).syncQueueForCast(items, index);
+  }
+
+  void _startTick() {
+    _tickTimer?.cancel();
+    _tickTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      _advanceSmooth();
+    });
+  }
+
+  void _stopTick() {
+    _tickTimer?.cancel();
+    _tickTimer = null;
+  }
+
+  /// 播放中按现实时间平滑推进进度(0.5s 步进),设备轮询(2s)回写修正。
+  void _advanceSmooth() {
+    final st = state;
+    if (!st.isCasting) return;
+    final status = st.status;
+    if (status.state != 'PLAYING' || status.duration <= 0) return;
+    final next = (st.smoothPositionSeconds + 0.5)
+        .clamp(0.0, status.duration.toDouble());
+    if (next == st.smoothPositionSeconds) return;
+    state = st.copyWith(smoothPositionSeconds: next);
   }
 
   /// 开始投屏整个队列（链路 B，独立投屏队列）
@@ -210,6 +269,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   }) async {
     await ensureDlnaManagerReady(_ref);
     await acquireMulticastLock();
+    final sourceQueue = List<Song>.of(_ref.read(playerProvider).queue);
+    _sourceQueue = sourceQueue;
     state = state.copyWith(
       isCasting: true,
       queue: List.unmodifiable(tracks),
@@ -223,16 +284,21 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     );
     if (success) {
       state = state.copyWith(currentDevice: device, isCasting: true);
+      _mirrorCastToLocal();
+      _startTick();
       // 直投进行中，本机退化为「遥控器」：暂停本地播放（不出声），
       // 队列/索引保留，停止投屏时从投屏进度续播。
       // 仅投屏成功后暂停，失败则不打断本机播放。
       await _ref.read(playerProvider.notifier).pause();
     } else {
+      _sourceQueue = null;
       state = state.copyWith(
         isCasting: false,
         queue: const [],
         currentIndex: -1,
+        smoothPositionSeconds: 0,
       );
+      _stopTick();
     }
     return success;
   }
@@ -254,12 +320,18 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 停止投屏
   Future<void> stopCast() async {
+    _stopTick();
+    _sourceQueue = null;
     // 停止前记录投屏当前曲目与进度，用于停止后在本机续播。
     final castIndex = state.currentIndex;
     final castPosition = state.status.position;
 
     await _ref.read(dlnaManagerProvider).stopCast();
-    state = state.copyWith(clearDevice: true, isCasting: false);
+    state = state.copyWith(
+      clearDevice: true,
+      isCasting: false,
+      smoothPositionSeconds: 0,
+    );
     await releaseMulticastLock();
 
     await _resumeLocalPlayback(castIndex: castIndex, position: castPosition);
@@ -298,6 +370,15 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 恢复
   Future<void> resume() async {
     await _ref.read(dlnaManagerProvider).resume();
+  }
+
+  /// 播放/暂停(对齐链路 A 的 toggle,供全屏播放控件统一路由)。
+  Future<void> toggle() async {
+    if (state.status.state == 'PLAYING') {
+      await pause();
+    } else {
+      await resume();
+    }
   }
 
   /// 跳转
