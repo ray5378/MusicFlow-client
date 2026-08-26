@@ -3,6 +3,7 @@
 export '../theme/app_icons.dart';
 export 'components/music_flow_bottom_sheet.dart';
 export 'components/music_flow_button.dart';
+export 'components/music_flow_desktop_dialog.dart';
 export 'components/music_flow_divider.dart';
 export 'components/music_flow_empty_state.dart';
 export 'components/music_flow_icon_button.dart';

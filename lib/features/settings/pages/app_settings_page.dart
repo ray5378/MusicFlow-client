@@ -96,7 +96,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       if (!mounted) return;
 
       if (result.hasUpdate) {
-        _showUpdateSheet(result);
+        _showUpdateDialog(result);
       } else {
         _showMessage(
           '当前已是最新版本 (${result.currentVersion})',
@@ -110,98 +110,118 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     }
   }
 
-  void _showUpdateSheet(UpdateCheckResult result) {
-    showMusicFlowBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '发现新版本',
-        subtitle: '${result.currentVersion} → ${result.latestVersion}',
-        constrainToAvailableHeight: true,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _SettingsInfoLine(label: '当前版本', value: result.currentVersion),
-              _SettingsInfoLine(label: '最新版本', value: result.latestVersion),
-              if (result.releaseNotes != null &&
-                  result.releaseNotes!.isNotEmpty) ...<Widget>[
-                SizedBox(height: sheetContext.musicFlowSpacing.sm),
-                const MusicFlowDivider(),
-                SizedBox(height: sheetContext.musicFlowSpacing.md),
-                const MusicFlowSectionHeader(title: '更新说明'),
-                SizedBox(height: sheetContext.musicFlowSpacing.xs),
-                Text(
-                  result.releaseNotes!,
-                  style: sheetContext.musicFlowTypography.body.copyWith(
-                    color: sheetContext.musicFlowColors.muted,
-                  ),
-                ),
-              ],
-              if (result.assets.isNotEmpty) ...<Widget>[
-                SizedBox(height: sheetContext.musicFlowSpacing.sm),
-                const MusicFlowDivider(),
-                SizedBox(height: sheetContext.musicFlowSpacing.md),
-                const MusicFlowSectionHeader(
-                  title: '下载文件',
-                  description: '选择适合当前设备的安装文件。',
-                ),
-                SizedBox(height: sheetContext.musicFlowSpacing.xs),
-                for (final asset in result.assets)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: sheetContext.musicFlowSpacing.xs,
-                    ),
-                    child: MusicFlowActionRow(
-                      icon: AppIcons.download,
-                      title: asset.name,
-                      subtitle:
-                          '${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB',
-                      trailing: Icon(
-                        AppIcons.chevronRight,
-                        size: 20,
-                        color: sheetContext.musicFlowColors.muted,
-                      ),
-                      onPressed: () =>
-                          _confirmOpenDownload(asset.name, asset.downloadUrl),
-                    ),
-                  ),
-              ],
-              SizedBox(height: sheetContext.musicFlowSpacing.lg),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: sheetContext.musicFlowSpacing.xs,
-                runSpacing: sheetContext.musicFlowSpacing.xs,
-                children: <Widget>[
-                  MusicFlowButton.ghost(
-                    label: '稍后再说',
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                  if (result.releaseUrl != null ||
-                      _pickPlatformAsset(result) != null)
-                    MusicFlowButton.primary(
-                      label: '前往下载',
-                      leadingIcon: AppIcons.download,
-                      onPressed: () {
-                        final asset = _pickPlatformAsset(result);
-                        Navigator.of(sheetContext).pop();
-                        if (asset != null) {
-                          _confirmOpenDownload(asset.name, asset.downloadUrl);
-                        } else if (result.releaseUrl != null) {
-                          _confirmOpenDownload(
-                            '更新包 ${result.latestVersion}',
-                            result.releaseUrl!,
-                          );
-                        }
-                      },
-                    ),
-                ],
-              ),
-            ],
+  void _showUpdateDialog(UpdateCheckResult result) {
+    final ctx = context;
+    const subtitle = '发现新版本';
+    final title = '${result.currentVersion} → ${result.latestVersion}';
+
+    if (isWindowsDesktop) {
+      // Windows 用「窗户」样式对话框,与安卓底部抽屉区分。
+      showMusicFlowDesktopDialog<void>(
+        context: ctx,
+        useRootNavigator: true,
+        builder: (dialogContext) => MusicFlowDesktopDialog(
+          icon: AppIcons.download,
+          title: subtitle,
+          subtitle: title,
+          child: _buildUpdateContent(dialogContext, result),
+        ),
+      );
+    } else {
+      showMusicFlowBottomSheet<void>(
+        context: ctx,
+        useRootNavigator: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => MusicFlowBottomSheet(
+          title: subtitle,
+          subtitle: title,
+          constrainToAvailableHeight: true,
+          child: SingleChildScrollView(
+            child: _buildUpdateContent(sheetContext, result),
           ),
         ),
-      ),
+      );
+    }
+  }
+
+  Widget _buildUpdateContent(BuildContext ctx, UpdateCheckResult result) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+          _SettingsInfoLine(label: '当前版本', value: result.currentVersion),
+          _SettingsInfoLine(label: '最新版本', value: result.latestVersion),
+          if (result.releaseNotes != null &&
+              result.releaseNotes!.isNotEmpty) ...<Widget>[
+            SizedBox(height: ctx.musicFlowSpacing.sm),
+            const MusicFlowDivider(),
+            SizedBox(height: ctx.musicFlowSpacing.md),
+            const MusicFlowSectionHeader(title: '更新说明'),
+            SizedBox(height: ctx.musicFlowSpacing.xs),
+            Text(
+              result.releaseNotes!,
+              style: ctx.musicFlowTypography.body.copyWith(
+                color: ctx.musicFlowColors.muted,
+              ),
+            ),
+          ],
+          if (result.assets.isNotEmpty) ...<Widget>[
+            SizedBox(height: ctx.musicFlowSpacing.sm),
+            const MusicFlowDivider(),
+            SizedBox(height: ctx.musicFlowSpacing.md),
+            const MusicFlowSectionHeader(
+              title: '下载文件',
+              description: '选择适合当前设备的安装文件。',
+            ),
+            SizedBox(height: ctx.musicFlowSpacing.xs),
+            for (final asset in result.assets)
+              Padding(
+                padding: EdgeInsets.only(bottom: ctx.musicFlowSpacing.xs),
+                child: MusicFlowActionRow(
+                  icon: AppIcons.download,
+                  title: asset.name,
+                  subtitle:
+                      '${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB',
+                  trailing: Icon(
+                    AppIcons.chevronRight,
+                    size: 20,
+                    color: ctx.musicFlowColors.muted,
+                  ),
+                  onPressed: () =>
+                      _confirmOpenDownload(asset.name, asset.downloadUrl),
+                ),
+              ),
+          ],
+          SizedBox(height: ctx.musicFlowSpacing.lg),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: ctx.musicFlowSpacing.xs,
+            runSpacing: ctx.musicFlowSpacing.xs,
+            children: <Widget>[
+              MusicFlowButton.ghost(
+                label: '稍后再说',
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+              if (result.releaseUrl != null ||
+                  _pickPlatformAsset(result) != null)
+                MusicFlowButton.primary(
+                  label: '前往下载',
+                  leadingIcon: AppIcons.download,
+                  onPressed: () {
+                    final asset = _pickPlatformAsset(result);
+                    Navigator.of(ctx).pop();
+                    if (asset != null) {
+                      _confirmOpenDownload(asset.name, asset.downloadUrl);
+                    } else if (result.releaseUrl != null) {
+                      _confirmOpenDownload(
+                        '更新包 ${result.latestVersion}',
+                        result.releaseUrl!,
+                      );
+                    }
+                  },
+                ),
+            ],
+          ),
+        ],
     );
   }
 
@@ -218,48 +238,70 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   /// 弹出确认后跳转浏览器下载，由用户自行解压/安装完成更新。
+  /// Windows 用「窗户」样式对话框,安卓保持底部抽屉。
   Future<void> _confirmOpenDownload(String label, String url) async {
-    final confirmed = await showMusicFlowBottomSheet<bool>(
-      context: context,
-      useRootNavigator: true,
-      builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '前往下载',
-        subtitle: label,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+    final ctx = context;
+    final bool confirmed;
+    if (isWindowsDesktop) {
+      confirmed = (await showMusicFlowDesktopDialog<bool>(
+        context: ctx,
+        useRootNavigator: true,
+        builder: (dialogContext) => MusicFlowDesktopDialog(
+          icon: AppIcons.download,
+          title: '前往下载',
+          subtitle: label,
+          child: _buildConfirmContent(dialogContext),
+        ),
+      )) ??
+          false;
+    } else {
+      confirmed = (await showMusicFlowBottomSheet<bool>(
+        context: ctx,
+        useRootNavigator: true,
+        builder: (sheetContext) => MusicFlowBottomSheet(
+          title: '前往下载',
+          subtitle: label,
+          child: _buildConfirmContent(sheetContext),
+        ),
+      )) ??
+          false;
+    }
+    if (confirmed) {
+      await _openUrl(url);
+    }
+  }
+
+  Widget _buildConfirmContent(BuildContext ctx) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          '将跳转到浏览器开始下载。下载完成后请自行完成更新安装：'
+          'Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。',
+          style: ctx.musicFlowTypography.body.copyWith(
+            color: ctx.musicFlowColors.muted,
+          ),
+        ),
+        SizedBox(height: ctx.musicFlowSpacing.lg),
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: ctx.musicFlowSpacing.xs,
+          runSpacing: ctx.musicFlowSpacing.xs,
           children: <Widget>[
-            Text(
-              '将跳转到浏览器开始下载。下载完成后请自行完成更新安装：'
-              'Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。',
-              style: sheetContext.musicFlowTypography.body.copyWith(
-                color: sheetContext.musicFlowColors.muted,
-              ),
+            MusicFlowButton.ghost(
+              label: '取消',
+              onPressed: () => Navigator.of(ctx).pop(false),
             ),
-            SizedBox(height: sheetContext.musicFlowSpacing.lg),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: sheetContext.musicFlowSpacing.xs,
-              runSpacing: sheetContext.musicFlowSpacing.xs,
-              children: <Widget>[
-                MusicFlowButton.ghost(
-                  label: '取消',
-                  onPressed: () => Navigator.of(sheetContext).pop(false),
-                ),
-                MusicFlowButton.primary(
-                  label: '前往下载',
-                  leadingIcon: AppIcons.download,
-                  onPressed: () => Navigator.of(sheetContext).pop(true),
-                ),
-              ],
+            MusicFlowButton.primary(
+              label: '前往下载',
+              leadingIcon: AppIcons.download,
+              onPressed: () => Navigator.of(ctx).pop(true),
             ),
           ],
         ),
-      ),
+      ],
     );
-    if (confirmed == true) {
-      await _openUrl(url);
-    }
   }
 
   Future<void> _openUrl(String url) async {
