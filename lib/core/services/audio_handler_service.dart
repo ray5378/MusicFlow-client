@@ -18,19 +18,41 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   Future<void> Function(Duration position)? onSeek;
   Duration _positionOffset = Duration.zero;
 
+  /// 投屏/直投期间的合成进度：本机已暂停，位置不再自增，改为由投屏侧进度驱动，
+  /// 避免系统播控中心（下拉通知/锁屏）的进度条定住在投屏那一瞬间。
+  bool _castActive = false;
+  bool _castPlaying = true;
+  Duration _castPosition = Duration.zero;
+
   MusicFlowAudioHandler(this._audioPlayer) {
     _init();
+  }
+
+  /// 设置并广播投屏/直投的合成进度。
+  /// [active] 处于投屏态时 true（用投屏进度驱动，忽略暂停的本机播放器）；
+  /// [playing] 设备是否正在播放；[position] 投屏当前进度。
+  void setCastProgress({
+    required bool active,
+    required bool playing,
+    required Duration position,
+  }) {
+    _castActive = active;
+    _castPlaying = playing;
+    _castPosition = position;
+    _broadcastState();
   }
 
   /// 初始化监听器
   void _init() {
     // 监听播放状态变化，同步到通知栏
     _audioPlayer.playingStream.listen((playing) {
+      if (_castActive) return; // 投屏中，由投屏进度驱动，忽略本机暂停状态。
       _broadcastState();
     });
 
     // 监听播放位置
     _audioPlayer.positionStream.listen((position) {
+      if (_castActive) return; // 投屏中，位置由 setCastProgress 驱动。
       playbackState.add(
         playbackState.value.copyWith(
           updatePosition: _logicalPosition(position),
@@ -40,33 +62,41 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 
     // 监听播放完成
     _audioPlayer.processingStateStream.listen((processingState) {
+      if (_castActive) return;
       _broadcastState();
     });
   }
 
   /// 广播当前状态到通知栏
   void _broadcastState() {
+    final castActive = _castActive;
+    final playing = castActive ? _castPlaying : _audioPlayer.playing;
+    final position =
+        castActive ? _castPosition : _logicalPosition(_audioPlayer.position);
     playbackState.add(
       playbackState.value.copyWith(
-        controls: _getControls(),
+        controls: _getControls(playing),
         androidCompactActionIndices: const [0, 1, 2],
         // Explicitly advertise seeking so OEM MediaStyle implementations do
         // not render the notification progress control as disabled.
         systemActions: musicFlowPlaybackSystemActions,
         processingState: _getProcessingState(),
-        playing: _audioPlayer.playing,
-        updatePosition: _logicalPosition(_audioPlayer.position),
-        bufferedPosition: _logicalPosition(_audioPlayer.bufferedPosition),
-        speed: _audioPlayer.speed,
+        playing: playing,
+        updatePosition: position,
+        bufferedPosition: castActive
+            ? _castPosition
+            : _logicalPosition(_audioPlayer.bufferedPosition),
+        // 投屏直接用播放速率让通知栏在两帧推送间平滑外推进度。
+        speed: castActive ? (_castPlaying ? 1.0 : 0.0) : _audioPlayer.speed,
       ),
     );
   }
 
   /// 获取控制按钮
-  List<MediaControl> _getControls() {
+  List<MediaControl> _getControls(bool playing) {
     return [
       MediaControl.skipToPrevious,
-      if (_audioPlayer.playing) MediaControl.pause else MediaControl.play,
+      if (playing) MediaControl.pause else MediaControl.play,
       MediaControl.skipToNext,
     ];
   }
@@ -95,7 +125,7 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     // 立即设置为播放状态，激活 MediaSession
     playbackState.add(
       playbackState.value.copyWith(
-        controls: _getControls(),
+        controls: _getControls(true),
         androidCompactActionIndices: const [0, 1, 2],
         systemActions: musicFlowPlaybackSystemActions,
         processingState: AudioProcessingState.ready,

@@ -1298,6 +1298,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _audioHandler?.updateMediaItem(mediaItem);
   }
 
+  /// 投屏/直投期间，用投屏进度驱动系统播控中心（通知/锁屏进度条）。
+  /// 本机此时已暂停、位置不再自增，若不喂给播控中心其进度会定住在投屏那一刻。
+  void updateNotificationCastProgress({
+    required bool active,
+    required bool playing,
+    required Duration position,
+  }) {
+    _audioHandler?.setCastProgress(
+      active: active,
+      playing: playing,
+      position: position,
+    );
+  }
+
   /// 异步补充歌曲元数据（格式/码率/位深/采样率/声道数），不阻塞播放流程。
   Future<void> _enrichSongMetadata(String songId, int session) async {
     try {

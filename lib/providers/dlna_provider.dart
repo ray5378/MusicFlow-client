@@ -68,6 +68,7 @@ DlnaCastTrack dlnaCastTrackFromSong(Song song) {
     title: song.title,
     artist: song.artist,
     album: song.album,
+    duration: song.duration,
   );
 }
 
@@ -214,10 +215,12 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         status: status,
         smoothPositionSeconds: status.position.toDouble(),
       );
+      _syncNotificationCast();
     };
     manager.onTrackChanged = (index) {
       state = state.copyWith(currentIndex: index);
       _mirrorCastToLocal();
+      _syncNotificationCast();
     };
     manager.onCastDisconnected = () {
       _sourceQueue = null;
@@ -229,7 +232,29 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         smoothPositionSeconds: 0,
       );
       _stopTick();
+      _disableNotificationCast();
     };
+  }
+
+  /// 将投屏进度同步给系统播控中心（通知/锁屏进度条）：本机已暂停，
+  /// 用插值后的 smoothPositionSeconds 驱动，否则播控进度定住在投屏那一刻。
+  void _syncNotificationCast() {
+    final st = state;
+    if (!st.isCasting || st.currentDevice == null) return;
+    _ref.read(playerProvider.notifier).updateNotificationCastProgress(
+          active: true,
+          playing: st.status.state == 'PLAYING',
+          position: Duration(seconds: st.smoothPositionSeconds.round()),
+        );
+  }
+
+  /// 退出投屏态时让播控中心回到本机播放器驱动。
+  void _disableNotificationCast() {
+    _ref.read(playerProvider.notifier).updateNotificationCastProgress(
+          active: false,
+          playing: false,
+          position: Duration.zero,
+        );
   }
 
   /// 把当前投屏队列/游标镜像进 playerProvider,让全屏页的曲目/封面/歌词
@@ -256,15 +281,20 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   }
 
   /// 播放中按现实时间平滑推进进度(0.5s 步进),设备轮询(2s)回写修正。
+  /// 设备不报时长(RawHTTP)时 duration=0,仍须按墙钟推进,否则播控中心进度条
+  /// 会定住在投屏那一刻;仅在时长已知时封顶,避免越过曲末等自动续播。
   void _advanceSmooth() {
     final st = state;
     if (!st.isCasting) return;
     final status = st.status;
-    if (status.state != 'PLAYING' || status.duration <= 0) return;
-    final next = (st.smoothPositionSeconds + 0.5)
-        .clamp(0.0, status.duration.toDouble());
+    if (status.state != 'PLAYING') return;
+    final since = st.smoothPositionSeconds + 0.5;
+    final next = status.duration > 0
+        ? since.clamp(0.0, status.duration.toDouble())
+        : since;
     if (next == st.smoothPositionSeconds) return;
     state = st.copyWith(smoothPositionSeconds: next);
+    _syncNotificationCast();
   }
 
   /// 开始投屏整个队列（链路 B，独立投屏队列）
@@ -292,6 +322,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       state = state.copyWith(currentDevice: device, isCasting: true);
       _mirrorCastToLocal();
       _startTick();
+      _syncNotificationCast();
       // 直投进行中，本机退化为「遥控器」：暂停本地播放（不出声），
       // 队列/索引保留，停止投屏时从投屏进度续播。
       // 仅投屏成功后暂停，失败则不打断本机播放。
@@ -375,6 +406,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       state = state.copyWith(currentDevice: device, isCasting: true);
       _mirrorCastToLocal();
       _startTick();
+      _syncNotificationCast();
       await _ref.read(playerProvider.notifier).pause();
     } else {
       _sourceQueue = null;

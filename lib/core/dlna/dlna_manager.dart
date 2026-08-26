@@ -44,6 +44,22 @@ class DlnaManager {
   /// 当前已通过 SetNext 预置到设备的「下一首」下标(按播放模式计算),用于自动续播时对齐游标。
   int? _provisionedIndex;
 
+  /// 最近一次自动续播/切歌的时间戳,用于轮询检测与中继 EOF 检测之间互斥——
+  /// 避免两者都判定「播放结束」而重复推进到同一首的下下首。
+  DateTime? _lastCompletionAdvance;
+
+  /// 当前曲目的真实时长(秒)。来自 DlnaCastTrack.duration(Song.duration),未知为 0。
+  /// 用于设备不报时长(RawHTTP)时基于墙钟兜底的自动续播与播控进度。
+  int _currentRealDuration = 0;
+
+  /// 自当前曲目开始播放以来累计的实际播放秒数(墙钟推进,不受设备上报影响)。
+  /// 部分 DLNA 设备对 RawHTTP 流回报 duration=0/position=0,轮询与中继 EOF 均
+  /// 不可靠;此墙钟成为「放完→自动下一首」最稳妥的依据。
+  double _playbackElapsed = 0;
+
+  /// 最近一次“连续播放”段的开始时间锚点;暂停/异常停止时置 null,播放时更新。
+  DateTime? _playSegmentStart;
+
   // ==================== 回调 ====================
 
   /// 设备列表变化回调
@@ -93,6 +109,10 @@ class DlnaManager {
     await _relay.init(
       streamUrlBuilder: streamUrlBuilder,
     );
+
+    // 中继把流完整转发到 EOF 时回调——这是「该曲放完」最可靠的信号
+    // （比依赖设备上报 duration/position 更稳：RawHTTP 流常回报 0）。
+    _relay.onStreamEnded = _handleStreamEnded;
 
     // 启动被动监听
     _discovery.startListening(
@@ -297,6 +317,10 @@ class DlnaManager {
       album: track.album,
     );
 
+    // 新一轮主动播放：记录真实时长并重置墙钟播放进度（自动续播/播控进度依据）。
+    _currentRealDuration = track.duration ?? 0;
+    _restartPlaybackClock();
+
     // 新一轮主动播放：清除用户暂停态与失败连击（对齐链路 A「成功开播即清零」）。
     _userPaused = false;
     _failStreak = 0;
@@ -402,6 +426,7 @@ class DlnaManager {
     try {
       await SoapControl.pause(_currentDevice!.avTransportUrl!);
       _userPaused = true;
+      _playSegmentStart = null; // 暂停期间墙钟不计入播放时长
       _currentStatus = _currentStatus.copyWith(state: 'PAUSED');
       onStatusChanged?.call(_currentStatus);
     } catch (_) {}
@@ -413,6 +438,7 @@ class DlnaManager {
     try {
       await SoapControl.play(_currentDevice!.avTransportUrl!);
       _userPaused = false;
+      _playSegmentStart = DateTime.now(); // 从恢复时刻继续累计播放时长
       _currentStatus = _currentStatus.copyWith(state: 'PLAYING');
       onStatusChanged?.call(_currentStatus);
     } catch (_) {}
@@ -571,10 +597,32 @@ class DlnaManager {
         } catch (_) {}
       }
 
+      // 按墙钟累计实际播放时长：仅 PLAYING 期间计时，暂停/停止不计。
+      final now = DateTime.now();
+      if (state == 'PLAYING') {
+        final anchor = _playSegmentStart;
+        if (anchor != null) {
+          _playbackElapsed += now.difference(anchor).inMilliseconds / 1000.0;
+        }
+        _playSegmentStart = now;
+        // 设备正常播放中：清除曲中段停止连击，避免把跳转/短暂切换误判为失败。
+        _stallCount = 0;
+      } else {
+        _playSegmentStart = null;
+      }
+
+      // 设备和播控中心都需要的有效进度：设备不报时长/位置(RawHTTP)时退回墙钟，
+      // 保证即便设备回报 0，播控进度条与全屏进度也能持续前进。
+      final effectivePosition = posInfo.position > 0
+          ? posInfo.position
+          : _playbackElapsed.round();
+      final effectiveDuration = posInfo.duration > 0
+          ? posInfo.duration
+          : _currentRealDuration;
       _currentStatus = DlnaDeviceStatus(
         state: state,
-        position: posInfo.position,
-        duration: posInfo.duration,
+        position: effectivePosition,
+        duration: effectiveDuration,
         volume: volume,
         muted: muted,
       );
@@ -588,25 +636,27 @@ class DlnaManager {
           posInfo.position >= 0 &&
           posInfo.position < 5;
 
-      if (state == 'PLAYING') {
-        // 设备正常播放中：清除曲中段停止连击，避免把跳转/短暂切换误判为失败。
-        _stallCount = 0;
-      }
+      // 墙钟兜底判定：本曲已按真实时长播完（即便设备不报时长/位置）。
+      // 这是「直连 RawHTTP 流放完 → 自动下一首」最稳妥的依据，与中继 EOF 互斥。
+      final wallDone = !_userPaused &&
+          _currentRealDuration > 0 &&
+          _playbackElapsed >= _currentRealDuration - 1.0;
 
-      if (nearEnd && startedOver) {
+      // 最近 2s 内中继 EOF 已触发过一次续播 → 本轮轮询仅回写状态、不再重复推进/对齐
+      // （否则会基于上一帧「近曲末」再推进一次，跳到下一首的下下首）。
+      final freshlyAdvanced = _isCompletionAdvanceFresh();
+
+      if (freshlyAdvanced) {
+        // 已续播，交给下一轮轮询跟随新曲进度。
+      } else if (nearEnd && startedOver) {
         // 情况 1：设备已自行切到预置的下一首——仅对齐游标与重算预置，避免重复下发。
-        final nextIndex = _provisionedIndex ?? (_queueIndex + 1);
-        if (nextIndex >= 0 &&
-            nextIndex < _queue.length &&
-            nextIndex != _queueIndex) {
-          _queueIndex = nextIndex;
-          onTrackChanged?.call(_queueIndex);
-          await _provisionNextTrack();
-          _pruneRelaySessions();
-        }
+        await _alignToNext();
       } else if (nearEnd) {
         // 情况 2：当前曲已到尾但设备**未**自行切歌（常为不支持 SetNext）。
         // 客户端主动按播放模式切到下一首/单曲循环（对齐本机 _onSongCompleted）。
+        await _advanceAfterCompletion();
+      } else if (wallDone) {
+        // 情况 4（直连兜底）：墙钟判断本曲已放完但设备未自切（RawHTTP 常不报时长）。
         await _advanceAfterCompletion();
       } else if (!_userPaused &&
           prevState == 'PLAYING' &&
@@ -631,6 +681,25 @@ class DlnaManager {
       // 设备可能离线
       debugPrint('DLNA 状态轮询失败: $e');
     }
+  }
+
+  /// 设备已自行切到下一首（SetNext 自续播）时：仅对齐游标并重算预置，不重复下发播放。
+  /// 无论是否真的切歌，都要重启墙钟并刷新互斥标记，避免 wallDone/中继 EOF 二次推进。
+  Future<void> _alignToNext() async {
+    final nextIndex = _provisionedIndex ?? (_queueIndex + 1);
+    _restartPlaybackClock();
+    _lastCompletionAdvance = DateTime.now();
+    if (nextIndex < 0 ||
+        nextIndex >= _queue.length ||
+        nextIndex == _queueIndex) {
+      return; // 单曲循环等自循环场景：仅重置墙钟与互斥标记。
+    }
+    _queueIndex = nextIndex;
+    _currentRealDuration =
+        _queue[_queueIndex].duration ?? _currentRealDuration;
+    onTrackChanged?.call(_queueIndex);
+    await _provisionNextTrack();
+    _pruneRelaySessions();
   }
 
   /// 当前曲已到尾后的主动续播：按播放模式切到下一首/单曲循环。
@@ -659,6 +728,34 @@ class DlnaManager {
     }
     await _playCurrentTrack();
     onTrackChanged?.call(_queueIndex);
+    // 记录本次自动续播时间,供轮询/中继 EOF 检测互斥(2s 内不重复推进)。
+    _lastCompletionAdvance = DateTime.now();
+  }
+
+  /// 中继将当前曲目的流完整转发到 EOF 时回调：触发自动续播。
+  ///
+  /// 这是设备「不报时长/进度」时最可靠的放完判定。与状态轮询的 nearEnd 检测互斥
+  /// （见 _lastCompletionAdvance），避免两路都触发导致跳到下下首。
+  void _handleStreamEnded(String songId) {
+    if (_currentDevice == null || _queue.isEmpty || _userPaused) return;
+    if (_isCompletionAdvanceFresh()) return; // 轮询刚续播过，不重复推进。
+    final idx = _queue.indexWhere((t) => t.songId == songId);
+    if (idx < 0 || idx != _queueIndex) return; // 非当前曲/重复曲目的陈旧请求，忽略。
+    unawaited(_advanceAfterCompletion());
+  }
+
+  /// 最近 2s 内是否已做过一次自动续播/切歌（用于轮询与中继 EOF 检测互斥）。
+  bool _isCompletionAdvanceFresh() {
+    final t = _lastCompletionAdvance;
+    return t != null &&
+        DateTime.now().difference(t).inMilliseconds < 2000;
+  }
+
+  /// 重启墙钟播放时钟：清空已累计播放时长，并从当前时刻重新起算。
+  /// 用于「新一轮播放」开始时（手动切歌/自动续播/设备自切后对齐）。
+  void _restartPlaybackClock() {
+    _playbackElapsed = 0;
+    _playSegmentStart = DateTime.now();
   }
 
   /// 播放失败/流中断兜底：记连击，达到上限则停止（防坏源死循环）；
@@ -729,6 +826,7 @@ class DlnaManager {
   /// 清理所有资源
   Future<void> dispose() async {
     // 先摘掉对外回调，避免停播通知时段（notifier）已被 dispose 而抛错
+    _relay.onStreamEnded = null;
     onStatusChanged = null;
     onTrackChanged = null;
     onCastDisconnected = null;

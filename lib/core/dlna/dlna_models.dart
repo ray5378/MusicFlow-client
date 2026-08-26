@@ -7,11 +7,16 @@ class DlnaCastTrack {
   final String? artist;
   final String? album;
 
+  /// 真实时长(秒)，来自 Song.duration，可能为 null/0(未知)。
+  /// 用于设备不报时长(RawHTTP)时基于墙钟兜底的自动续播与播控进度。
+  final int? duration;
+
   const DlnaCastTrack({
     required this.songId,
     required this.title,
     this.artist,
     this.album,
+    this.duration,
   });
 }
 

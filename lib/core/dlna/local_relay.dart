@@ -14,6 +14,13 @@ class LocalRelay {
   /// 根据 songId 构建服务端流 URL（复用 SubsonicApiClient.getStreamUrl 语义）。
   String Function(String songId)? _streamUrlBuilder;
 
+  /// 当某首曲目的流被**完整转发到 EOF** 时回调（携带 songId）。
+  ///
+  /// 本地中继是我们自己的 HTTP 服务，能确切知道设备何时把整条流消费完毕——
+  /// 这比依赖 DLNA 设备上报的 duration/position（RawHTTP 流常回报 0）更可靠。
+  /// 客户端据此触发自动续播。仅对从 0 开始的全量播放回调，跳过中途 Range 跳转请求。
+  void Function(String songId)? onStreamEnded;
+
   /// 初始化中继服务
   /// [streamUrlBuilder] 根据 songId 构建服务端流 URL（含鉴权参数）。
   Future<void> init({
@@ -187,6 +194,12 @@ class LocalRelay {
 
         // 核心：把服务端响应流逐块 pipe 给设备，不缓存在内存
         await upstream.pipe(response);
+
+        // 完整转发放到 EOF：若设备是从 0 起的全量播放，则通知管理器“该曲放完”，
+        // 用于不依赖设备时长上报的自动续播；中途 Range 跳转请求不触发。
+        if (start == null || start == 0) {
+          onStreamEnded?.call(session.session.songId);
+        }
       } catch (e) {
         developer.log('DLNA 中继转发中断', name: 'DLNA-Relay', error: e);
         try {
