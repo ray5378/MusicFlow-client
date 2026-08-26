@@ -85,6 +85,10 @@ abstract final class AppIcons {
   // 采用通用「投放(cast)到其他设备」的 airplay 图标表示(对齐主项目前端投屏语义)。
   static const dlna = Remix.airplay_line;
   static const dlnaFilled = Remix.airplay_fill;
+  // 链路 B（局域网 DLNA 直投）：客户端自扫设备并本地推流，用「电视/显示器」图标与
+  // 链路 A 的 airplay「切换播放器」明显区分。
+  static const dlnaLocal = Remix.tv_line;
+  static const dlnaLocalFilled = Remix.tv_fill;
 
   // Selection and editing.
   static const add = Remix.add_large_line;

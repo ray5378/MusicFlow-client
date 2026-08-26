@@ -6,10 +6,11 @@
 >
 > **v3 重写要点**：
 > - **全量对齐主项目后端**：客户端是 MusicFlow 主项目（`ray5378/MusicFlow`，Node/TS 后端 + Vue 前端）的全量客户端，接口面、数据契约、行为表现一律以主项目为准。
-> - **DLNA 由后端推送**：客户端**绝不自行 SSDP/SOAP/推流**。投屏/切播放器走主项目 `/rest/api/v1/peers*` 统一控制面，由后端 `QueueController` 向 DLNA/AirPlay/群组设备投流。**「控制后端 DLNA 播放」是当前未完成功能，v3 给出完整契约与完成项清单（§3）。**
+> - **DLNA 由后端推送（链路 A）**：「切换播放器」投屏走主项目 `/rest/api/v1/peers*` 统一控制面，由后端 `QueueController` 向 DLNA/AirPlay/群组设备投流，客户端不自行 SSDP/SOAP/推流、仅做控制面。**（链路 B 例外见 v3.1 记录 + §3.6。）「控制后端 DLNA 播放」是当前未完成功能，v3 给出完整契约与完成项清单（§3）。**
 > - **交互对标网易云 / QQ 音乐**：播放器主流程交互体验（迷你条 → 全屏 → 队列 → 切换播放器）参考主流音乐 App（§7.1）；首页（发现页）内容与交互保持现有实现为基准。
 > - **Windows 渲染性能成为硬性契约**：新增「§八 Windows 桌面端渲染性能约束」，把特效降级、高频重建、音频后端选型、发布前性能验收写死，治理 Windows 卡顿与渲染差。
 > - **修复旧版硬伤**：API 端点体系统一（删除三套并存）、DLNA 存档区清理、测试清单按仓库实际重列、基础库依赖表按 pubspec 实测修正、目录结构按现状更新。
+> - **v3.1 修订（用户/ray 确认，2026-08-26）**：新增**链路 B「局域网 DLNA 直投」**——Android/Windows 客户端**自行 SSDP 发现 + SOAP 控制 + 本地中继推流**到局域网 DLNA 设备（支持投屏队列自动续播），与现有「切换播放器」（**链路 A**，后端投屏、客户端仅遥控）**完全独立并存**。详见 §1.1 / §3.6 / §10。
 
 ---
 
@@ -19,7 +20,8 @@
 
 - 本仓库是 **MusicFlow 主项目后端的全量客户端**（Flutter），首发 **Windows + Android**，后续扩展 iOS/鸿蒙/Web。
 - 客户端消费主项目三套接口面：**原生 API**（`/rest/api/v1/*`）、**OpenSubsonic**（`/rest/*`）、**WebSocket**（`/ws`）。
-- 播放目标统一抽象为 **peer**（本机 `local:<uid>` / DLNA `dlna:<id>` / 群组 `group:<id>` / AirPlay `airplay:<id>`）。投屏（DLNA/AirPlay/群组）一律由**后端推流**，客户端只做控制面。
+- 播放目标统一抽象为 **peer**（本机 `local:<uid>` / DLNA `dlna:<id>` / 群组 `group:<id>` / AirPlay `airplay:<id>`）。**链路 A（切换播放器）投屏一律由后端推流**，客户端只做控制面（§3）。
+- **链路 B（局域网 DLNA 直投，§3.6）例外**：Android/Windows 客户端允许**自行 SSDP 发现 + SOAP 控制 + 本地 HTTP 中继推流**到局域网 DLNA 设备，支持投屏队列自动续播。链路 B 与链路 A **完全独立**，状态/设备/控制互不并入。
 - **首页（发现页）是基准**：现有 Android / Windows 首页展示的内容与交互逻辑已被确认为正确，**作为基准保留，不得擅自改版**（见 §7.3）。
 
 ### 1.2 技术栈（按 pubspec 实测）
@@ -52,8 +54,8 @@
 ### 1.4 硬性工程约束
 
 - **依赖管理**：严禁引入未授权的新第三方库、严禁升级现有依赖版本。缺能力 → 先说明理由，等确认。
-- **命名规范**：文件/目录全小写+下划线（`cast_peer_provider.dart`）；类/接口/枚举大驼峰（`CastPeerController`）；函数/变量小驼峰；常量全大写+下划线（`SSDP_ADDR`）。**DLNA 相关命名保留存档区原样，不再扩展。**
-- **代码位置**：核心 `lib/core/`，数据 `lib/data/`，功能 `lib/features/`，Provider `lib/providers/`，共享 `lib/widgets/`。**DLNA 客户端模块 `lib/core/dlna/*`、`lib/providers/dlna_provider.dart` 已停用，仅存档，禁止在业务路径引用。**
+- **命名规范**：文件/目录全小写+下划线（`cast_peer_provider.dart`）；类/接口/枚举大驼峰（`CastPeerController`）；函数/变量小驼峰；常量全大写+下划线（`SSDP_ADDR`）。**链路 B 的 DLNA 命名沿用 `lib/core/dlna/*` 现有命名，不再扩展。**
+- **代码位置**：核心 `lib/core/`，数据 `lib/data/`，功能 `lib/features/`，Provider `lib/providers/`，共享 `lib/widgets/`。**链路 B 业务模块：`lib/core/dlna/*`（SSDP/描述/SOAP/中继）+ `lib/providers/dlna_provider.dart`，供链路 B 引用；禁止在链路 A（`cast_peer_provider` 等）路径引用，两者命名/命名空间保持独立。**
 - **语言**：UI 文本与代码注释统一中文。
 
 ### 1.5 内存红线
@@ -61,6 +63,7 @@
 - 任何常驻 `Map`/`Set`/数组缓存**必须**带上限（FIFO/LRU）或清理机制（TTL/定期驱逐），禁止只增不删。
 - 列表窗口化缓存：浏览过的旧块超窗即置空（见 §4.2）。
 - 投屏状态轮询：每个远端 peer 的轮询定时器在切回本机/退出时必须 `dispose`，禁止泄漏（见 §3.3）。
+- 链路 B 本地中继：**必须真流式转发（逐块 pipe），禁止整段音频读入内存**；中继会话、SSDP 监听、状态轮询在停止/退出时必须全部释放（见 §3.6）。
 - 封面/歌词缓存：按 LRU 或固定槽位上限。
 
 ### 1.6 构建约束（CI-only + 性能门槛）
@@ -224,6 +227,27 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 **待办**：
 
 - [ ] （当前 §3.5 已全部对齐完成；若主项目 `stores/player.ts` 行为变化，以主项目为基准回校）
+
+---
+
+### 3.6 链路 B：客户端本地 DLNA 直投（独立副轨道，v3.1 新增）
+
+> 背景：链路 A（§3.1–§3.5）由后端推流、客户端只是遥控器。链路 B 让 **Android/Windows 客户端自行发现并直连局域网 DLNA 设备**，与服务器控制面解耦。两条链路**完全独立、互不并入**（状态/设备/控制互不写对方 Provider）。
+
+**能力边界**：
+- 首发平台 Android + Windows；实现只依赖 `dart:io`（`RawDatagramSocket` / `HttpServer` / `HttpClient`），**零新增第三方依赖**（仅允许自写原生 MethodChannel + manifest 权限）。
+- 复用模块（保持命名不变）：`lib/core/dlna/ssdp_discovery.dart`、`device_description.dart`、`soap_control.dart`、`dlna_manager.dart`、`dlna_models.dart` + `lib/providers/dlna_provider.dart`。
+
+**实现要求**：
+
+1. **设备发现**：客户端主动 SSDP `M-SEARCH` + 被动 `NOTIFY`（`ssdp_discovery.dart` 已实现）。Android 需持 **`MulticastLock`**（自写 MethodChannel 实现 acquire/release）；Android 13+ 按需申请 **`NEARBY_WIFI_DEVICES`**（`neverForLocation`，运行时）；Windows 提示放行防火墙"专用网络"。
+2. **本地中继推流**：`local_relay.dart` 由"整段 `Uint8List` 读入"改为**真流式**——设备带 `Range` 的 GET → 客户端从服务器流 URL 拉对应 Range → **逐块 pipe 转发**给设备，禁止整段驻留内存（§1.5）。流 URL 复用本机 `_buildStreamUrlOrThrow`（songId + token + 品质）同款逻辑，与 just_audio 实例解耦。
+3. **投屏队列（自动续播）**：客户端自管独立投屏队列（来源复用本机当前播放队列，拷贝脱钩）。流程：`Stop → SetAVTransportURI(relay 流 URL + DIDL-Lite) → Play`；优先 `SetNextAVTransportURI` 预置下一曲（`probeEnqueueSupport` 探测），不支持则切歌/追上时再下发新 URI；2s `Timer.periodic` 轮询 `GetTransportInfo/GetPositionInfo/GetVolume` 回写状态，进度按 §3.3 同款插值。所有定时器在停止/退出时 `dispose`（§1.5 / §10 #14）。
+4. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"选择播放器"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
+
+**权限/配置清单**：
+- Android：`ACCESS_WIFI_STATE`、`CHANGE_WIFI_MULTICAST_STATE`、`NEARBY_WIFI_DEVICES`（Android 13+）；统一走自写 MethodChannel，不依赖 `permission_handler` 新增能力。
+- Windows：动态端口本地中继；防火墙专用网络放行说明写入文档。
 
 ---
 
@@ -404,10 +428,10 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 > AI 动手前逐条默读；交付时逐条确认「未违反」。本清单优先级高于任何口头需求——冲突时先问。
 
-1. **禁止**引入未授权新依赖或升级依赖版本；移除依赖（azlistview/lpinyin/marquee/just_audio_windows 等）需 ray 确认。
+1. **禁止**引入未授权的新第三方库或升级依赖版本；移除依赖（azlistview/lpinyin/marquee/just_audio_windows 等）需 ray 确认。链路 B 仅允许自写原生 MethodChannel + manifest 权限，**零新增第三方依赖**。
 2. **禁止**修改主项目（`/workspace/_MusicFlow-main` 等参考副本）任何文件；主项目只读。
 3. **禁止**重构未指明的模块（换框架、大规模抽公共层）；重构必须由 ray 显式下达。
-4. **禁止**客户端自行实现 SSDP/SOAP/推流/HTTP 中继；投屏一律走后端 `peers*` API。`lib/core/dlna/*` 仅存档，禁止业务引用。
+4. **限制**客户端自行实现 SSDP/SOAP/推流/HTTP 中继：仅允许在**链路 B（§3.6）**内由 `lib/core/dlna/*` 实现并向局域网 DLNA 直投；**链路 A 仍一律走后端 `peers*` API**。禁止把链路 B 的设备/状态并入链路 A（`cast_peer_provider`）。
 5. **禁止**在 UI 硬编码颜色/字号——必须用 `Theme.of(context)` / `EchoDesign` 常量。
 6. **禁止**一次加载全表后前端过滤——所有列表走 §四 窗口化/分页。
 7. **禁止**在 Widget `build()` 中发起网络/DB/高开销计算（含播放器背景对比度二分）。
@@ -417,7 +441,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 11. **禁止**任何列表绕过 §4.2 窗口化加载（新增列表必须接 `WindowedPaginatedList` + `WindowedListView`）。
 12. **禁止**在 Windows 引入/保留导致卡顿的高成本特效（§8.1）与未节流的高频重建（§8.2）。
 13. **禁止**在本地机器执行 `flutter build`（apk/windows 等）；构建产物只由 CI 产出。
-14. **禁止**为旧版 DLNA 模块编写/维护轮询（`Future.delayed`/`Timer` 单发递归轮询）——新代码统一用 `Timer.periodic`/`Stream.periodic` 且 dispose。
+14. **禁止**为链路 B 的 DLNA 发现/状态模块使用单发递归轮询（`Future.delayed`/`Timer` 递归）——新代码统一用 `Timer.periodic`/`Stream.periodic` 且 `dispose`（链路 B 状态轮询已遵循，§3.6）。
 
 ---
 

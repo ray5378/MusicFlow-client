@@ -19,6 +19,15 @@ class DlnaManager {
 
   bool _initialized = false;
 
+  // ==================== 链路 B 投屏队列状态 ====================
+
+  List<DlnaCastTrack> _queue = [];
+  int _queueIndex = -1;
+  bool _nextSupported = true;
+  final Map<String, String> _relaySessionBySongId = {};
+  String? _localIp;
+  int? _relayPort;
+
   // ==================== 回调 ====================
 
   /// 设备列表变化回调
@@ -27,21 +36,32 @@ class DlnaManager {
   /// 投屏状态变化回调
   void Function(DlnaDeviceStatus status)? onStatusChanged;
 
+  /// 当前投屏曲目在队列中的下标变化（自动续播/上下一首）
+  void Function(int queueIndex)? onTrackChanged;
+
   /// 投屏断开回调
   void Function()? onCastDisconnected;
 
+  /// 当前投屏队列
+  List<DlnaCastTrack> get castQueue => List.unmodifiable(_queue);
+
+  /// 当前投屏曲目下标
+  int get castQueueIndex => _queueIndex;
+
+  /// 当前是否存在投屏
+  bool get isCasting => _currentDevice != null;
+
   // ==================== 初始化 ====================
 
-  /// 初始化 DLNA 管理器
+  /// 初始化 DLNA 管理器（链路 B）
+  /// [streamUrlBuilder] 根据 songId 构建服务端流 URL（含鉴权参数）。
   Future<void> init({
     required String Function(String songId) streamUrlBuilder,
-    required Future<Uint8List> Function(String url, {int? start, int? end}) fetchBytes,
   }) async {
     if (_initialized) return;
 
     await _relay.init(
       streamUrlBuilder: streamUrlBuilder,
-      fetchBytes: fetchBytes,
     );
 
     // 启动被动监听
@@ -147,69 +167,163 @@ class DlnaManager {
 
   // ==================== 投屏控制 ====================
 
-  /// 开始投屏
-  Future<bool> startCast(DlnaDevice device, String songId) async {
+  /// 开始投屏（链路 B）：投整个队列，支持自动续播
+  Future<bool> startCast(
+    DlnaDevice device,
+    List<DlnaCastTrack> tracks, {
+    int startIndex = 0,
+  }) async {
     if (device.avTransportUrl == null) return false;
     if (!device.available || device.disabled) return false;
+    if (tracks.isEmpty || startIndex < 0 || startIndex >= tracks.length) {
+      return false;
+    }
 
-    // 启动本地中继
+    // 启动本地中继（幂等：已启动则复用端口）
     final port = await _relay.start();
     final localIp = await LocalRelay.getLocalIp();
     if (localIp == null) return false;
 
-    // 创建会话
-    final session = _relay.createSession(device.id, songId);
-    final streamUrl = 'http://$localIp:$port/stream?token=${session.token}';
-
-    // 构建 DIDL-Lite 元数据（简化版）
-    final metadata = _buildDidlLite(
-      title: 'MusicFlow',
-      uri: streamUrl,
-      mime: 'audio/mpeg',
-    );
+    _currentDevice = device;
+    _queue = List.of(tracks);
+    _queueIndex = startIndex;
+    _nextSupported = true;
+    _localIp = localIp;
+    _relayPort = port;
 
     try {
-      // Step 1: Stop（容错）
-      await SoapControl.stop(device.avTransportUrl!);
-
-      // Step 2: SetAVTransportURI
-      await SoapControl.setAvTransportUri(
-        device.avTransportUrl!,
-        streamUrl,
-        metadata,
-      );
-
-      // Step 3: Play
-      await SoapControl.play(device.avTransportUrl!);
-
-      _currentDevice = device;
-
-      // 启动状态轮询
+      await _playCurrentTrack();
       _startStatusPolling();
-
       return true;
     } catch (e) {
-      debugPrint('DLNA 投屏失败: $e');
+      debugPrint('DLNA 投屏启动失败: $_queueIndex $e');
       _stopStatusPolling();
+      await _stopDevice(_currentDevice);
+      _clearCastState();
       return false;
     }
+  }
+
+  /// 播放/切换到队列中下标 [index] 的曲目（当前曲则跳过）
+  Future<void> playAt(int index) async {
+    if (_currentDevice == null || index < 0 || index >= _queue.length) return;
+    if (index == _queueIndex) return;
+    _queueIndex = index;
+    await _playCurrentTrack();
+  }
+
+  /// 下一首
+  Future<void> next() async {
+    if (_queueIndex + 1 < _queue.length) {
+      _queueIndex++;
+      await _playCurrentTrack();
+    }
+  }
+
+  /// 上一首
+  Future<void> previous() async {
+    if (_queueIndex - 1 >= 0) {
+      _queueIndex--;
+      await _playCurrentTrack();
+    }
+  }
+
+  /// 播放队列中的当前曲目（建会话/设 URI/播）+ 预置下一首
+  Future<void> _playCurrentTrack() async {
+    final device = _currentDevice!;
+    final track = _queue[_queueIndex];
+    final url = _relayUrlFor(track.songId);
+    final metadata = _buildDidlLite(
+      title: track.title,
+      uri: url,
+      mime: 'audio/mpeg',
+      artist: track.artist,
+      album: track.album,
+    );
+
+    await SoapControl.stop(device.avTransportUrl!);
+    await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
+    await SoapControl.play(device.avTransportUrl!);
+
+    // 预置下一首（设备支持 SetNext 则无缝续播）
+    await _provisionNextTrack();
+
+    onTrackChanged?.call(_queueIndex);
+    _pruneRelaySessions();
+  }
+
+  /// 为当前曲目构建（或复用）中继 URI
+  String _relayUrlFor(String songId) {
+    final device = _currentDevice!;
+    var token = _relaySessionBySongId[songId];
+    if (token == null) {
+      final session = _relay.createSession(device.id, songId);
+      token = session.token;
+      _relaySessionBySongId[songId] = token;
+    }
+    return 'http://$_localIp:$_relayPort/stream?token=$token';
+  }
+
+  /// 预置下一首到 SetNextAVTransportURI（设备不支持则回退为手动切歌）
+  Future<void> _provisionNextTrack() async {
+    if (!_nextSupported) return;
+    final nextIndex = _queueIndex + 1;
+    if (nextIndex >= _queue.length) return;
+
+    final device = _currentDevice!;
+    final next = _queue[nextIndex];
+    final url = _relayUrlFor(next.songId);
+    final metadata = _buildDidlLite(
+      title: next.title,
+      uri: url,
+      mime: 'audio/mpeg',
+      artist: next.artist,
+      album: next.album,
+    );
+
+    final ok = await SoapControl.setNextAvTransportUri(
+      device.avTransportUrl!,
+      url,
+      metadata,
+    );
+    if (!ok) _nextSupported = false;
+  }
+
+  /// 清理中继会话缓存，仅保留窗口内（当前 ±1）的 token，控制内存（§1.5）
+  void _pruneRelaySessions() {
+    _relaySessionBySongId.removeWhere((songId, _) {
+      final idx = _queue.indexWhere((t) => t.songId == songId);
+      return idx < _queueIndex - 1 || idx > _queueIndex + 1;
+    });
   }
 
   /// 停止投屏
   Future<void> stopCast() async {
     _stopStatusPolling();
-
-    if (_currentDevice?.avTransportUrl != null) {
-      try {
-        await SoapControl.stop(_currentDevice!.avTransportUrl!);
-      } catch (_) {}
-    }
-
-    _currentDevice = null;
+    await _stopDevice(_currentDevice);
+    _clearCastState();
     _currentStatus = const DlnaDeviceStatus();
-
     onStatusChanged?.call(_currentStatus);
+    onTrackChanged?.call(-1);
     onCastDisconnected?.call();
+  }
+
+  void _clearCastState() {
+    _queue = [];
+    _queueIndex = -1;
+    _nextSupported = true;
+    _relaySessionBySongId.clear();
+    _currentDevice = null;
+    _localIp = null;
+    _relayPort = null;
+    unawaited(_relay.stop());
+  }
+
+  Future<void> _stopDevice(DlnaDevice? device) async {
+    if (device?.avTransportUrl == null) return;
+    try {
+      await SoapControl.stop(device!.avTransportUrl!);
+    } catch (_) {}
   }
 
   /// 暂停播放
@@ -270,9 +384,8 @@ class DlnaManager {
   /// 检查设备是否支持无缝切歌
   Future<bool> probeEnqueueSupport(DlnaDevice device) async {
     if (device.avTransportUrl == null) return false;
-    // 简单实现：尝试 SetNextAvTransportURI
-    // 实际应检查 SCPD 文档
-    return false;
+    // 简洁实现：由 SetNextAVTransportURI 实际结果回写 _nextSupported
+    return _nextSupported;
   }
 
   // ==================== 状态轮询 ====================
@@ -296,6 +409,11 @@ class DlnaManager {
     if (_currentDevice?.avTransportUrl == null) return;
 
     try {
+      // 上一帧位置/状态（用于自动续播检测）
+      final prevState = _currentStatus.state;
+      final prevPosition = _currentStatus.position;
+      final prevDuration = _currentStatus.duration;
+
       // 获取播放状态
       final state = await SoapControl.getTransportInfo(
         _currentDevice!.avTransportUrl!,
@@ -327,6 +445,20 @@ class DlnaManager {
         volume: volume,
         muted: muted,
       );
+
+      // 自动续播检测：上一帧接近曲末、新帧从头开播 → 设备已自动切到下一首
+      final nearEnd = prevState == 'PLAYING' &&
+          prevDuration > 0 &&
+          prevDuration - prevPosition <= 3;
+      final startedOver = state == 'PLAYING' &&
+          posInfo.position >= 0 &&
+          posInfo.position < 5;
+      if (nearEnd && startedOver && _queueIndex + 1 < _queue.length) {
+        _queueIndex++;
+        onTrackChanged?.call(_queueIndex);
+        await _provisionNextTrack();
+        _pruneRelaySessions();
+      }
 
       onStatusChanged?.call(_currentStatus);
     } catch (e) {

@@ -1,25 +1,25 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
-import 'dart:typed_data';
 import 'dlna_models.dart';
 
-/// 本地 HTTP 中继模块
-/// 在局域网内启动 HTTP 服务，将从服务端拉取的音频流转发给 DLNA 设备
+/// 本地 HTTP 中继模块（链路 B）
+/// 在局域网内启动 HTTP 服务，将从服务端拿到的音频流**逐块转发**给 DLNA 设备。
+/// 采用真流式：设备带 Range 的 GET → 客户端从服务器拉对应 Range → 逐块 pipe 转发，
+/// 禁止整段音频读入内存（SPEC §1.5）。
 class LocalRelay {
   HttpServer? _server;
   final Map<String, _RelaySession> _sessions = {};
+
+  /// 根据 songId 构建服务端流 URL（复用 SubsonicApiClient.getStreamUrl 语义）。
   String Function(String songId)? _streamUrlBuilder;
-  Future<Uint8List> Function(String url, {int? start, int? end})? _fetchBytes;
 
   /// 初始化中继服务
-  /// [streamUrlBuilder] 根据 songId 构建服务端流 URL
-  /// [fetchBytes] 从服务端拉取音频数据
+  /// [streamUrlBuilder] 根据 songId 构建服务端流 URL（含鉴权参数）。
   Future<void> init({
     required String Function(String songId) streamUrlBuilder,
-    required Future<Uint8List> Function(String url, {int? start, int? end}) fetchBytes,
   }) async {
     _streamUrlBuilder = streamUrlBuilder;
-    _fetchBytes = fetchBytes;
   }
 
   /// 启动 HTTP 服务器
@@ -36,12 +36,11 @@ class LocalRelay {
     return _server!.port;
   }
 
-  /// 停止 HTTP 服务器
+  /// 停止 HTTP 服务器，并关闭所有会话
   Future<void> stop() async {
-    await _server?.close();
+    await _server?.close(force: true);
     _server = null;
 
-    // 关闭所有会话
     for (final session in _sessions.values) {
       session.close();
     }
@@ -65,7 +64,7 @@ class LocalRelay {
     return session;
   }
 
-  /// 获取本地局域网 IP
+  /// 获取本地局域网 IPv4
   static Future<String?> getLocalIp() async {
     try {
       final interfaces = await NetworkInterface.list(
@@ -88,12 +87,14 @@ class LocalRelay {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      developer.log('获取本地局域网 IP 失败', name: 'DLNA-Relay', error: e);
+    }
 
     return null;
   }
 
-  /// 处理 HTTP 请求
+  /// 处理设备发起的 HTTP 请求
   void _handleRequest(HttpRequest request) {
     final path = request.uri.path;
     final token = request.uri.queryParameters['token'];
@@ -115,7 +116,7 @@ class LocalRelay {
       return;
     }
 
-    // 处理 Range 请求
+    // 解析 Range 请求（DLNA 设备通常带 range 做进度跳转）
     final rangeHeader = request.headers.value('range');
     int? start;
     int? end;
@@ -125,68 +126,94 @@ class LocalRelay {
       end = parts.length > 1 ? int.tryParse(parts[1]) : null;
     }
 
-    // 转发请求到服务端
-    _proxyRequest(request, session, start: start, end: end);
+    // 异步转发，不阻塞事件循环
+    unawaited(_proxyRequest(request, session, start: start, end: end));
   }
 
-  /// 代理请求到服务端
+  /// 从服务端拉流并**逐块**转发给设备（真流式，不整段入内存）
   Future<void> _proxyRequest(
     HttpRequest request,
     _RelaySession session, {
     int? start,
     int? end,
   }) async {
-    if (_streamUrlBuilder == null || _fetchBytes == null) {
+    final builder = _streamUrlBuilder;
+    if (builder == null) {
       request.response
         ..statusCode = HttpStatus.internalServerError
         ..close();
       return;
     }
 
-    final serverUrl = _streamUrlBuilder!(session.session.songId);
+    final serverUrl = builder(session.session.songId);
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 8);
 
     try {
-      final bytes = await _fetchBytes!(
-        serverUrl,
-        start: start,
-        end: end,
-      );
+      final upstreamRequest = await client.getUrl(Uri.parse(serverUrl));
 
-      request.response
-        ..headers.contentType = ContentType('audio', 'mpeg')
-        ..headers.contentLength = bytes.length;
-
-      if (start != null) {
-        request.response.headers.set(
-          'Content-Range',
-          'bytes $start-${start + bytes.length - 1}/*',
-        );
-        request.response.statusCode = HttpStatus.partialContent;
+      // 透传 Range（若上层给了）
+      if (start != null || end != null) {
+        final range = start != null
+            ? (end != null ? 'bytes=$start-$end' : 'bytes=$start-')
+            : 'bytes=0-${end ?? ''}';
+        upstreamRequest.headers.set(HttpHeaders.rangeHeader, range);
       }
+      upstreamRequest.headers.set(HttpHeaders.acceptHeader, 'audio/*,*/*;q=0.8');
 
-      request.response.add(bytes);
-      await request.response.close();
+      final upstream = await upstreamRequest.close();
+
+      final response = request.response;
+      try {
+        response.statusCode = upstream.statusCode;
+
+        final contentType = upstream.headers.contentType;
+        if (contentType != null) {
+          response.headers.contentType = contentType;
+        }
+
+        final contentRange = upstream.headers.value(HttpHeaders.contentRangeHeader);
+        if (contentRange != null) {
+          response.headers.set(HttpHeaders.contentRangeHeader, contentRange);
+        }
+
+        if (upstream.contentLength >= 0) {
+          response.headers.set(
+            HttpHeaders.contentLengthHeader,
+            upstream.contentLength,
+          );
+        }
+        response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+
+        // 核心：把服务端响应流逐块 pipe 给设备，不缓存在内存
+        await upstream.pipe(response);
+      } catch (e) {
+        developer.log('DLNA 中继转发中断', name: 'DLNA-Relay', error: e);
+        try {
+          await response.close();
+        } catch (_) {}
+      }
     } catch (e) {
-      request.response
-        ..statusCode = HttpStatus.badGateway
-        ..close();
+      developer.log('DLNA 中继拉流失败 song=${session.session.songId}',
+          name: 'DLNA-Relay', error: e);
+      try {
+        request.response
+          ..statusCode = HttpStatus.badGateway
+          ..close();
+      } catch (_) {}
+    } finally {
+      client.close(force: true);
     }
   }
 
   /// 生成随机 token
   String _generateToken() {
-    final random = List<int>.generate(16, (_) => _secureRandomByte());
-    return random.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final random = List<int>.generate(16, (_) => DateTime.now().millisecond);
+    return random.map((b) => b.toRadixString(16).padLeft(2, '0')).join() +
+        (DateTime.now().microsecondsSinceEpoch.toRadixString(16));
   }
 
-  /// 生成安全随机字节
-  int _secureRandomByte() {
-    // 使用时间戳+随机数作为简单实现
-    // 生产环境可改用 dart:crypto
-    return (DateTime.now().microsecondsSinceEpoch ^ (1000000 * 7 ~/ 10)) & 0xFF;
-  }
-
-  /// 获取当前活跃会话数
+  /// 当前活跃会话数
   int get activeSessions =>
       _sessions.values.where((s) => !s.session.isExpired).length;
 }
@@ -198,6 +225,6 @@ class _RelaySession {
   _RelaySession({required this.session});
 
   void close() {
-    // 清理资源
+    // 会话无独立资源（真流式转发的连接随 close 释放）
   }
 }

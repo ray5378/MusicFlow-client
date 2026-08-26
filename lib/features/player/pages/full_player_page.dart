@@ -11,12 +11,14 @@ import '../../../data/models/audio_quality.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/audio_quality_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
+import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../widgets/mini_player.dart' show PlayerSwitcherSheet, VolumeButton;
+import '../widgets/local_dlna_cast_sheet.dart';
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/player_hero_helpers.dart';
 import '../widgets/player_scrubber.dart';
@@ -1376,6 +1378,8 @@ class _PlayerUtilityBar extends ConsumerWidget {
     );
     final cast = ref.watch(castPeerControllerProvider);
     final isCastMode = cast.activePeer != null;
+    // 链路 B（局域网 DLNA 直投）投屏态，独立于链路 A 的 cast。
+    final dlnaCast = ref.watch(dlnaCastProvider);
     // 投屏态:播放模式以后端 playMode 为准(order|one|all|shuffle);
     // 本机:以本地三态为准。
     final mode = isCastMode
@@ -1398,7 +1402,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
+        constraints: const BoxConstraints(maxWidth: 380),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[
@@ -1436,6 +1440,15 @@ class _PlayerUtilityBar extends ConsumerWidget {
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
             ),
+            // 链路 B（局域网 DLNA 直投）：独立按钮，用电视图标与链路 A 明显区分。
+            _PlayerIconButton(
+              icon: AppIcons.dlnaLocal,
+              label: dlnaCast.isCasting
+                  ? '局域网 DLNA 直投，正在投屏到「${dlnaCast.currentDevice?.name ?? ''}」'
+                  : '局域网 DLNA 直投',
+              selected: dlnaCast.isCasting,
+              onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
+            ),
           ],
         ),
       ),
@@ -1457,6 +1470,18 @@ class _PlayerUtilityBar extends ConsumerWidget {
           ? '正在投屏到「${currentPlayerName(cast)}」'
           : '已切换为本机播放',
       kind: MusicFlowMessageKind.success,
+    );
+  }
+
+  Future<void> _openLocalDlnaCastSheet(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await showMusicFlowBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => const LocalDlnaCastSheet(),
     );
   }
 }

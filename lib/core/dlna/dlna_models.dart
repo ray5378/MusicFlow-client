@@ -1,5 +1,20 @@
 /// DLNA 模块数据模型
 
+/// 投屏曲目（链路 B）—— 轻量模型，不依赖业务 Song 层
+class DlnaCastTrack {
+  final String songId;
+  final String title;
+  final String? artist;
+  final String? album;
+
+  const DlnaCastTrack({
+    required this.songId,
+    required this.title,
+    this.artist,
+    this.album,
+  });
+}
+
 /// DLNA 设备信息
 class DlnaDevice {
   final String id; // UDN (uuid)
