@@ -162,7 +162,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                         size: 20,
                         color: sheetContext.musicFlowColors.muted,
                       ),
-                      onPressed: () => _openUrl(asset.downloadUrl),
+                      onPressed: () =>
+                          _confirmOpenDownload(asset.name, asset.downloadUrl),
                     ),
                   ),
               ],
@@ -192,6 +193,51 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         ),
       ),
     );
+  }
+
+  /// 弹出确认后跳转浏览器下载，由用户自行解压/安装完成更新。
+  Future<void> _confirmOpenDownload(String label, String url) async {
+    final confirmed = await showMusicFlowBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (sheetContext) => MusicFlowBottomSheet(
+        title: '前往下载',
+        subtitle: label,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              '将跳转到浏览器开始下载。下载完成后请自行完成更新安装：'
+              'Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。',
+              style: sheetContext.musicFlowTypography.body.copyWith(
+                color: sheetContext.musicFlowColors.muted,
+              ),
+            ),
+            SizedBox(height: sheetContext.musicFlowSpacing.lg),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: sheetContext.musicFlowSpacing.xs,
+              runSpacing: sheetContext.musicFlowSpacing.xs,
+              children: <Widget>[
+                MusicFlowButton.ghost(
+                  label: '取消',
+                  onPressed: () => Navigator.of(sheetContext).pop(false),
+                ),
+                MusicFlowButton.primary(
+                  label: '前往下载',
+                  leadingIcon: AppIcons.download,
+                  onPressed: () => Navigator.of(sheetContext).pop(true),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true) {
+      await _openUrl(url);
+    }
   }
 
   Future<void> _openUrl(String url) async {
