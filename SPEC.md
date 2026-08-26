@@ -246,8 +246,17 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 4. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"选择播放器"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
 
 **权限/配置清单**：
-- Android：`ACCESS_WIFI_STATE`、`CHANGE_WIFI_MULTICAST_STATE`、`NEARBY_WIFI_DEVICES`（Android 13+）；统一走自写 MethodChannel，不依赖 `permission_handler` 新增能力。
-- Windows：动态端口本地中继；防火墙专用网络放行说明写入文档。
+- Android：`ACCESS_WIFI_STATE`、`CHANGE_WIFI_MULTICAST_STATE`、`NEARBY_WIFI_DEVICES`（Android 13+）；统一走自写 MethodChannel（`com.musicflow.app/dlna`：`acquireMulticastLock` / `releaseMulticastLock` / `hasNearbyWifiDevicesPermission` / `requestNearbyWifiDevicesPermission`），不依赖 `permission_handler` 新增能力。
+- Windows：动态端口本地中继；防火墙"专用网络"放行说明写入文档。
+
+**已落地实现清单（v3.1 交付，均已在代码库落地）**：
+
+| 需求 | 落地实现 |
+| --- | --- |
+| 1 设备发现 | `ssdp_discovery.dart`：M-SEARCH + 被动 NOTIFY；`dlna_manager.scanDevices()` 逐个拉 description.xml（`device_description.dart`）。Dart 侧 `dlna_provider.acquire/releaseMulticastLock()` 已按引用计数接入原生通道（Android-only，非 Android 走 No-op）。 |
+| 2 本地中继推流 | `local_relay.dart`：真流式——`await upstream.pipe(request.response)` 逐块转发，不整段入内存；透传 `Range`/Content-Type/Content-Length，回标 `Accept-Ranges: bytes`。流 URL 由 `DlnaManager.init(streamUrlBuilder:)` 注入（`dlna_provider.ensureDlnaManagerReady` 复用 `SubsonicApiClient.getStreamUrl` + 当前 `effectiveQualityProvider.maxBitRate`），与 just_audio 解耦。 |
+| 3 投屏队列（自动续播） | `dlna_manager.dart`：`startCast(device, tracks, startIndex)` 自管独立队列；`_playCurrentTrack` = `Stop → SetAVTransportURI → Play`；`_provisionNextTrack` 优先 `SetNextAVTransportURI`，失败回退手动切曲；2s `Timer.periodic` `_pollStatus` 检测"上一帧近曲末 + 新帧从头"自动 `_queueIndex++` 并续投。轮询/中继在 `stopCast()`/`dispose()` 中全部停止释放。 |
+| 4 UI（双链路完全独立） | `full_player_page.dart` `_PlayerUtilityBar`：新增独立按钮（`AppIcons.dlnaLocal` 电视图标，与链路 A airplay `AppIcons.dlna` 区分），`selected: dlnaCast.isCasting` 投屏态高亮，触达 `_openLocalDlnaCastSheet`。面板 `local_dlna_cast_sheet.dart`：设备自扫列表 / 投屏中当前曲+播放控制 / 停止投屏 / 空态。状态仅读写 `dlnaCastProvider`/`dlnaDevicesProvider`，与 `cast_peer_provider`（链路 A）互不写入。 |
 
 ---
 
@@ -402,6 +411,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 模块 | 测试文件 | 重点 |
 |------|----------|------|
 | 投屏控制 | `test/providers/cast_peer_provider_test.dart` | peers 列表/切换/轮询/回本机/待办项（§3.5） |
+| 链路 B DLNA 直投（§3.6） | `test/core/dlna/dlna_models_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart` | DLNA 模型纯逻辑；直投面板空态/设备过滤/投屏态/下一首游标；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板 |
 | 播放队列/进度 | `test/providers/player_seek_policy_test.dart`、`test/providers/preview_playback_queue_test.dart` | 队列、切歌、播放模式、seek 策略 |
 | 数据源 | `test/data/sources/subsonic_api_client_test.dart` | 鉴权注入、响应解析、错误处理 |
 | 仓库 | `test/data/repositories/music_repository_test.dart` | 分页解析、窗口化切片 |
