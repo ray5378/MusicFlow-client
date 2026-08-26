@@ -29,6 +29,15 @@ class DlnaManager {
   String? _localIp;
   int? _relayPort;
 
+  /// 用户是否主动暂停（用于区分「暂停」与「设备异常停止」，避免误触发自动跳过）。
+  bool _userPaused = false;
+  /// 曲中段连续异常停止的连击计数（≥2 判定为播放失败，触发自动跳过兜底）。
+  int _stallCount = 0;
+  /// 「音源失败 → 自动跳过」的连击计数，达到上限后停止（防死循环，对齐本机连续失败上限）。
+  int _failStreak = 0;
+  /// 自动跳过上限：连续失败达到该值即不再自动跳，避免坏源无限循环。
+  static const int _maxCastFailStreak = 8;
+
   /// 投屏播放模式(order|one|all|shuffle),默认列表循环(对齐链路 A cast.playMode)。
   String _playMode = 'all';
 
@@ -212,6 +221,9 @@ class DlnaManager {
     _localIp = localIp;
     _relayPort = port;
     _provisionedIndex = null;
+    _userPaused = false;
+    _stallCount = 0;
+    _failStreak = 0;
 
     try {
       await _playCurrentTrack();
@@ -284,6 +296,11 @@ class DlnaManager {
       artist: track.artist,
       album: track.album,
     );
+
+    // 新一轮主动播放：清除用户暂停态与失败连击（对齐链路 A「成功开播即清零」）。
+    _userPaused = false;
+    _failStreak = 0;
+    _stallCount = 0;
 
     await SoapControl.stop(device.avTransportUrl!);
     await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
@@ -384,6 +401,7 @@ class DlnaManager {
     if (_currentDevice?.avTransportUrl == null) return;
     try {
       await SoapControl.pause(_currentDevice!.avTransportUrl!);
+      _userPaused = true;
       _currentStatus = _currentStatus.copyWith(state: 'PAUSED');
       onStatusChanged?.call(_currentStatus);
     } catch (_) {}
@@ -394,6 +412,7 @@ class DlnaManager {
     if (_currentDevice?.avTransportUrl == null) return;
     try {
       await SoapControl.play(_currentDevice!.avTransportUrl!);
+      _userPaused = false;
       _currentStatus = _currentStatus.copyWith(state: 'PLAYING');
       onStatusChanged?.call(_currentStatus);
     } catch (_) {}
@@ -568,7 +587,14 @@ class DlnaManager {
       final startedOver = state == 'PLAYING' &&
           posInfo.position >= 0 &&
           posInfo.position < 5;
+
+      if (state == 'PLAYING') {
+        // 设备正常播放中：清除曲中段停止连击，避免把跳转/短暂切换误判为失败。
+        _stallCount = 0;
+      }
+
       if (nearEnd && startedOver) {
+        // 情况 1：设备已自行切到预置的下一首——仅对齐游标与重算预置，避免重复下发。
         final nextIndex = _provisionedIndex ?? (_queueIndex + 1);
         if (nextIndex >= 0 &&
             nextIndex < _queue.length &&
@@ -578,6 +604,26 @@ class DlnaManager {
           await _provisionNextTrack();
           _pruneRelaySessions();
         }
+      } else if (nearEnd) {
+        // 情况 2：当前曲已到尾但设备**未**自行切歌（常为不支持 SetNext）。
+        // 客户端主动按播放模式切到下一首/单曲循环（对齐本机 _onSongCompleted）。
+        await _advanceAfterCompletion();
+      } else if (!_userPaused &&
+          prevState == 'PLAYING' &&
+          prevPosition > 0 &&
+          prevDuration > 0 &&
+          prevDuration - prevPosition > 5 &&
+          state != 'PLAYING' &&
+          state != 'PAUSED') {
+        // 情况 3：非用户暂停下、曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
+        _stallCount++;
+        if (_stallCount >= 2) {
+          _stallCount = 0;
+          await _handleCastPlaybackError();
+        }
+      } else {
+        // 其余：暂停/跳转/同曲未到尾等，不触发任何续播/跳过。
+        _stallCount = 0;
       }
 
       onStatusChanged?.call(_currentStatus);
@@ -585,6 +631,45 @@ class DlnaManager {
       // 设备可能离线
       debugPrint('DLNA 状态轮询失败: $e');
     }
+  }
+
+  /// 当前曲已到尾后的主动续播：按播放模式切到下一首/单曲循环。
+  /// （对齐本机 `completed → shuffle/one/next` 分支；不依赖设备 SetNext 支持。）
+  Future<void> _advanceAfterCompletion() async {
+    if (_currentDevice == null || _queue.isEmpty) return;
+
+    if (_playMode == 'one') {
+      // 单曲循环：重放当前曲。
+      await _playCurrentTrack();
+      return;
+    }
+
+    if (_playMode == 'shuffle') {
+      if (_queue.length <= 1) return;
+      _queueIndex = _randomOtherIndex();
+    } else if (_playMode == 'all') {
+      if (_queue.length <= 1) return;
+      _queueIndex = (_queueIndex + 1) % _queue.length;
+    } else {
+      // order
+      if (_queueIndex + 1 >= _queue.length) {
+        return; // 队列末尾：保持停止（对齐本机 `state.hasNext` 为否时不再切歌）
+      }
+      _queueIndex++;
+    }
+    await _playCurrentTrack();
+    onTrackChanged?.call(_queueIndex);
+  }
+
+  /// 播放失败/流中断兜底：记连击，达到上限则停止（防坏源死循环）；
+  /// 否则自动跳到按播放模式计算的下一首（对齐链路 A 的失败自动跳过）。
+  Future<void> _handleCastPlaybackError() async {
+    _failStreak++;
+    if (_failStreak >= _maxCastFailStreak) {
+      // 连续失败过多：停止自动跳过，保持在当前（待机/停止）状态。
+      return;
+    }
+    await _advanceAfterCompletion();
   }
 
   // ==================== 辅助方法 ====================

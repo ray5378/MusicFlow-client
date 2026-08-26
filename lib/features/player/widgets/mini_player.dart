@@ -1026,6 +1026,10 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
     if (cast.activePeer != null && cast.status.volume != null) {
       return (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
     }
+    final dlnaCast = ref.watch(dlnaCastProvider);
+    if (dlnaCast.isCasting && dlnaCast.status.volume > 0) {
+      return (dlnaCast.status.volume / 100).clamp(0.0, 1.0).toDouble();
+    }
     return ref.watch(playerProvider.select((s) => s.volume));
   }
 
@@ -1050,12 +1054,30 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
     ref.read(playerProvider.notifier).setVolumeLive(v);
   }
 
+  /// 链路 B（DLNA 直投）音量实时下发：SOAP SetVolume 节流发送（≤10 次/秒），
+  /// 避免拖动时高频 SOAP 请求刷爆设备/网络。
+  void _sendDlnaVolumeLive(double v) {
+    final now = DateTime.now();
+    if (_lastDlnaVolumeSend == null ||
+        now.difference(_lastDlnaVolumeSend!).inMilliseconds >= 100) {
+      _lastDlnaVolumeSend = now;
+      unawaited(
+        ref.read(dlnaCastProvider.notifier).setVolume((v * 100).round()),
+      );
+    }
+  }
+
   /// 拖动中：按「切换播放器」所选目标**只写一路**——
   /// 本机 → setVolumeLive（节流，just_audio 实时跟手）；
   /// 投屏 → 节流 POST 到所选播放器（≤10 次/秒，不刷爆网络）。
   void _onSliderChanged(double v) {
     final clamped = v.clamp(0.0, 1.0).toDouble();
     setState(() => _dragValue = clamped);
+    // 链路 B（DLNA 直投）优先：音量直下发给设备。
+    if (ref.read(dlnaCastProvider).isCasting) {
+      _sendDlnaVolumeLive(clamped);
+      return;
+    }
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer == null) {
       _sendLocalVolumeLive(clamped);
@@ -1079,9 +1101,19 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
     final clamped = v.clamp(0.0, 1.0).toDouble();
     setState(() => _dragValue = null);
     _lastCastVolumeSend = null;
+    _lastDlnaVolumeSend = null;
     _localVolumeThrottleTimer?.cancel();
     _localVolumeThrottleTimer = null;
     _pendingLocalVolume = null;
+    // 链路 B（DLNA 直投）优先：松手下发最终音量。
+    if (ref.read(dlnaCastProvider).isCasting) {
+      unawaited(
+        ref
+            .read(dlnaCastProvider.notifier)
+            .setVolume((clamped * 100).round()),
+      );
+      return;
+    }
     final cast = ref.read(castPeerControllerProvider);
     if (cast.activePeer != null) {
       unawaited(
@@ -1136,10 +1168,16 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                       child: Consumer(
                         builder: (context, ref, _) {
                           final cast = ref.watch(castPeerControllerProvider);
+                          final dlnaCast = ref.watch(dlnaCastProvider);
                           final double sourceVolume;
                           if (cast.activePeer != null &&
                               cast.status.volume != null) {
                             sourceVolume = (cast.status.volume! / 100)
+                                .clamp(0.0, 1.0)
+                                .toDouble();
+                          } else if (dlnaCast.isCasting &&
+                              dlnaCast.status.volume > 0) {
+                            sourceVolume = (dlnaCast.status.volume / 100)
                                 .clamp(0.0, 1.0)
                                 .toDouble();
                           } else {
