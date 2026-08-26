@@ -56,10 +56,12 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
       return;
     }
 
-    // 连接中断时，经启动宽限期/节流确认连接不上才弹出提醒，
-    // 避免刚打开软件、探测与首屏请求尚未完成时立刻误报连接不到服务器。
-    if (widget.status != MusicFlowNetworkStatus.online &&
-        oldWidget.status == MusicFlowNetworkStatus.online) {
+    // 「连接不到服务器」只在真正离线(本机断网)时才弹轻提示；
+    // weak 仅代表可用线路健康瞬时波动/重试中，已通过内联横幅「网络不稳定」表达，
+    // 不弹较重提示，避免「已连接并正在播放」时仍误报连接不到服务器。
+    // 提示统一经 NetworkErrorNotifier，享受启动宽限期与节流去重。
+    if (widget.status == MusicFlowNetworkStatus.offline &&
+        oldWidget.status != MusicFlowNetworkStatus.offline) {
       NetworkErrorNotifier.show('连接不到服务器');
     }
 

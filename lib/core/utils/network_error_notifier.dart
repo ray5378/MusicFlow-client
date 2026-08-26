@@ -11,10 +11,12 @@ import 'toast_notifier.dart';
 /// （调用 [cancelPending]），则取消该提示。
 class NetworkErrorNotifier {
   /// 启动后延迟确认的时长：只有持续连接不上才弹出提示。
-  static const Duration startupGrace = Duration(seconds: 10);
+  /// 调大以覆盖探测/首屏尚未就绪的更长启动期，避免刚打开就误报。
+  static const Duration startupGrace = Duration(seconds: 30);
 
   /// 同一时刻重复提示的节流窗口。
-  static const Duration _throttle = Duration(seconds: 2);
+  /// 调大以降低「线路瞬时抖动」导致的重复弹窗频率。
+  static const Duration _throttle = Duration(seconds: 20);
 
   static DateTime? _startedAt;
   static DateTime? _lastShownAt;
