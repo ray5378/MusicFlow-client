@@ -12,6 +12,15 @@ class AddressPool {
   ServerAddress? _activeAddress;
   Future<ServerAddress?>? _probeAllFuture;
 
+  /// 把某个地址判定为「不可用」所需的连续健康检查失败次数。
+  ///
+  /// 加大宽容：偶发的一次超时/抖动不会立刻把明明可用的服务器标记为
+  /// [ServerAddressStatus.failed]，从而避免外壳误报「连接不到服务器」。
+  static const int requiredConsecutiveFails = 2;
+
+  /// 每个地址当前累计的连续健康检查失败次数（key 为地址 id）。
+  final Map<String, int> _consecutiveHealthFails = {};
+
   /// 自动回退开关：手动选择线路后，线路挂掉是否自动切换到可用线路
   bool autoFallback = true;
 
@@ -166,11 +175,11 @@ class AddressPool {
             uri.toString(),
             options: Options(
               validateStatus: (status) => status != null && status < 500,
-              sendTimeout: const Duration(seconds: 5),
-              receiveTimeout: const Duration(seconds: 5),
+              sendTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 10),
             ),
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 10));
 
       final latency = DateTime.now().difference(start).inMilliseconds;
       final contentLength =
@@ -252,7 +261,31 @@ class AddressPool {
     if (index == -1) return;
 
     final current = _addresses[index];
-    final updated = probed.copyWith(isLocked: current.isLocked);
+    final probeOk = probed.status == ServerAddressStatus.ok;
+
+    // 「加大宽容」：单次健康检查失败不立刻判为不可用，需连续失败
+    // [requiredConsecutiveFails] 次才降级；期间保留上次状态，避免偶发
+    // 超时/抖动就把明明可用的服务器误报为连接失败。
+    var status = probeOk ? ServerAddressStatus.ok : current.status;
+    if (probeOk) {
+      _consecutiveHealthFails.remove(probed.id);
+    } else {
+      final fails = (_consecutiveHealthFails[probed.id] ?? 0) + 1;
+      _consecutiveHealthFails[probed.id] = fails;
+      if (fails >= requiredConsecutiveFails) {
+        status = ServerAddressStatus.failed;
+        _consecutiveHealthFails.remove(probed.id);
+      } else {
+        Logger.debugWithTag(
+          _tag,
+          'tolerate transient probe failure: ${probed.label} '
+          'fail=$fails/$requiredConsecutiveFails '
+          'keeping=${current.status.name}',
+        );
+      }
+    }
+
+    final updated = probed.copyWith(isLocked: current.isLocked, status: status);
     _addresses[index] = updated;
     onAddressUpdated?.call(updated);
 
