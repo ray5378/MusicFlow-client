@@ -34,8 +34,9 @@ jobs:
       # 链路 B（局域网 DLNA 直投）的专属测试 + 其依赖的共用 Toast（此前有布局 bug，
       # 已在 music_flow_message.dart 修复）用完整 `flutter test` 校验。仓库仍有其他
       # 与本次无关的历史失败用例（CI 过往从未跑测试），故这里先聚焦本特性。
+      # device_description_test.dart 回归「能发现设备但投屏失败」的控制 URL 解析错误。
       - name: Run DLNA feature tests
-        run: flutter test test/core/dlna/dlna_models_test.dart test/features/player/local_dlna_cast_sheet_test.dart test/core/utils/toast_notifier_test.dart
+        run: flutter test test/core/dlna/dlna_models_test.dart test/core/dlna/device_description_test.dart test/features/player/local_dlna_cast_sheet_test.dart test/core/utils/toast_notifier_test.dart
 
   build-android:
     name: Android APK

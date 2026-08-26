@@ -89,10 +89,14 @@ class DeviceDescriptionParser {
     return match?.group(1)?.trim();
   }
 
-  /// 将相对 URL 转为绝对 URL
+  /// 将 description.xml 中（可能为相对路径的）服务 URL 解析为绝对 URL。
+  /// Dart 的 `Uri.resolve(reference)` 以**接收者**为 base、参数为 reference 解析，
+  /// 因此必须 `location.resolve(controlUrl)`——若写反（`controlUrl.resolve(location)`），
+  /// 因 location 是绝对地址，结果永远是 location 本身（description.xml），
+  /// 导致 SOAP 控制全发错路径（能发现设备但投屏失败）。
   static String _toAbsolute(String url, String base) {
     try {
-      return Uri.parse(url).resolve(base).toString();
+      return Uri.parse(base).resolve(url).toString();
     } catch (_) {
       return url;
     }

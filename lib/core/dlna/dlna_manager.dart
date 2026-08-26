@@ -469,7 +469,11 @@ class DlnaManager {
 
   // ==================== 辅助方法 ====================
 
-  /// 构建 DIDL-Lite 元数据
+  /// 构建 DIDL-Lite 元数据（返回**原始 XML**，标签用真实 `<>`，仅转义文本内容）。
+  /// 该字符串会作为 CurrentURIMetaData 参数交给 SoapControl 统一做一次 XML 转义后
+  /// 嵌入 SOAP 信封；设备 SOAP 栈反解后得到的就是这份原始 XML。
+  /// 避免此前「这里先手写 &lt; 预转义、SOAP 再转义一次」导致的双重转义
+  /// （设备拿到 `&amp;lt;` → 反解为字面 `&lt;` 而非真实标签，严格设备会拒绝该曲目）。
   String _buildDidlLite({
     required String title,
     required String uri,
@@ -483,27 +487,26 @@ class DlnaManager {
         'DLNA.ORG_FLAGS=01700000000000000000000000000000';
 
     final buffer = StringBuffer()
-      ..write('&lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"')
+      ..write('<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"')
       ..write(' xmlns:dc="http://purl.org/dc/elements/1.1/"')
-      ..write(' xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"&gt;')
-      ..write('&lt;item id="1" parentID="0" restricted="1"&gt;')
-      ..write('&lt;dc:title&gt;${_escapeXml(title)}&lt;/dc:title&gt;');
+      ..write(' xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">')
+      ..write('<item id="1" parentID="0" restricted="1">')
+      ..write('<dc:title>${_escapeXml(title)}</dc:title>');
 
     if (artist != null) {
-      buffer.write('&lt;dc:creator&gt;${_escapeXml(artist)}&lt;/dc:creator&gt;');
+      buffer.write('<dc:creator>${_escapeXml(artist)}</dc:creator>');
     }
     if (album != null) {
-      buffer.write('&lt;upnp:album&gt;${_escapeXml(album)}&lt;/upnp:album&gt;');
+      buffer.write('<upnp:album>${_escapeXml(album)}</upnp:album>');
     }
     if (albumArtUri != null) {
-      buffer.write(
-          '&lt;upnp:albumArtURI&gt;${_escapeXml(albumArtUri)}&lt;/upnp:albumArtURI&gt;');
+      buffer.write('<upnp:albumArtURI>${_escapeXml(albumArtUri)}</upnp:albumArtURI>');
     }
 
     buffer
-      ..write('&lt;upnp:class&gt;object.item.audioItem.musicTrack&lt;/upnp:class&gt;')
-      ..write('&lt;res protocolInfo="$protocolInfo"&gt;${_escapeXml(uri)}&lt;/res&gt;')
-      ..write('&lt;/item&gt;&lt;/DIDL-Lite&gt;');
+      ..write('<upnp:class>object.item.audioItem.musicTrack</upnp:class>')
+      ..write('<res protocolInfo="$protocolInfo">${_escapeXml(uri)}</res>')
+      ..write('</item></DIDL-Lite>');
 
     return buffer.toString();
   }
