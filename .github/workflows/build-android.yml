@@ -10,6 +10,33 @@ permissions:
   contents: write
 
 jobs:
+  test-dlna:
+    name: DLNA Feature Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run dart analyze (lib)
+        run: dart analyze lib/
+        continue-on-error: true
+
+      # 链路 B（局域网 DLNA 直投）的专属测试 + 其依赖的共用 Toast（此前有布局 bug，
+      # 已在 music_flow_message.dart 修复）用完整 `flutter test` 校验。仓库仍有其他
+      # 与本次无关的历史失败用例（CI 过往从未跑测试），故这里先聚焦本特性。
+      - name: Run DLNA feature tests
+        run: flutter test test/core/dlna/dlna_models_test.dart test/features/player/local_dlna_cast_sheet_test.dart test/core/utils/toast_notifier_test.dart
+
   build-android:
     name: Android APK
     runs-on: ubuntu-latest

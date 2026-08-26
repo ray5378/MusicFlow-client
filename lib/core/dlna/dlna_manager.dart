@@ -520,6 +520,11 @@ class DlnaManager {
 
   /// 清理所有资源
   Future<void> dispose() async {
+    // 先摘掉对外回调，避免停播通知时段（notifier）已被 dispose 而抛错
+    onStatusChanged = null;
+    onTrackChanged = null;
+    onCastDisconnected = null;
+    onDevicesChanged = null;
     await stopCast();
     _discovery.dispose();
     await _relay.stop();

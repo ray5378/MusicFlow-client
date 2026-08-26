@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
-import '../../../core/theme/app_icons.dart';
 import '../../../core/dlna/dlna_models.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -20,8 +19,6 @@ class LocalDlnaCastSheet extends ConsumerStatefulWidget {
 }
 
 class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
-  bool _autoScanned = false;
-
   @override
   void initState() {
     super.initState();
@@ -124,6 +121,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
               enabled: cast.currentIndex > 0,
               onPressed: () => ref.read(dlnaCastProvider.notifier).previous(),
             ),
+            const SizedBox(width: 8),
             _castControlIcon(
               icon: isPlaying ? AppIcons.pause : AppIcons.play,
               label: isPlaying ? '暂停' : '播放',
@@ -131,6 +129,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
                   ? ref.read(dlnaCastProvider.notifier).pause()
                   : ref.read(dlnaCastProvider.notifier).resume(),
             ),
+            const SizedBox(width: 8),
             _castControlIcon(
               icon: AppIcons.next,
               label: '下一首',
@@ -157,10 +156,23 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
     required VoidCallback onPressed,
     bool enabled = true,
   }) {
-    return MusicFlowActionRow(
-      icon: icon,
-      title: label,
+    final colors = context.musicFlowColors;
+    // 紧凑圆形控制键：MusicFlowActionRow 是满宽行，不能横向并排（否则无限宽）。
+    return MusicFlowPressable(
+      minimumSize: const Size.square(48),
+      borderRadius: BorderRadius.circular(24),
+      semanticLabel: label,
       onPressed: enabled ? onPressed : null,
+      child: SizedBox.square(
+        dimension: 48,
+        child: Center(
+          child: Icon(
+            icon,
+            size: 22,
+            color: enabled ? colors.ink : colors.muted,
+          ),
+        ),
+      ),
     );
   }
 

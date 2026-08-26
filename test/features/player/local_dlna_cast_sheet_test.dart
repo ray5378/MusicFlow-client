@@ -107,13 +107,11 @@ Widget _app({
     overrides: [
       if (player != null)
         playerProvider.overrideWith((ref) => TestPlayerNotifier(player)),
-      if (fullPlayer) ...<ProviderOverride>[
-        currentSongPaletteProvider.overrideWith((ref) async => null),
-        resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
-          MusicFlowMediaVisuals.fallback(),
-        ),
-        currentLyricsProvider.overrideWith((ref) async => null),
-      ],
+      currentSongPaletteProvider.overrideWith((ref) async => null),
+      resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
+        MusicFlowMediaVisuals.fallback(),
+      ),
+      currentLyricsProvider.overrideWith((ref) async => null),
       dlnaCastProvider.overrideWith((ref) => _FakeCastNotifier(ref, cast)),
       dlnaDevicesProvider.overrideWith((ref) => _FakeDevicesNotifier(ref, devices)),
     ],
@@ -276,7 +274,9 @@ void main() {
       );
 
       await tester.tap(find.byIcon(AppIcons.dlnaLocal));
-      await tester.pumpAndSettle();
+      // 全屏页自带循环动画，不能用 pumpAndSettle（永不结束），改走有界帧。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('局域网 DLNA 直投'), findsOneWidget);
       expect(tester.takeException(), isNull);

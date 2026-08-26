@@ -6,7 +6,7 @@ import '../core/dlna/dlna_manager.dart';
 import '../core/dlna/dlna_models.dart';
 import '../data/models/audio_quality.dart';
 import '../data/models/song.dart';
-import '../data/sources/subsonic_api_client.dart';
+import 'api_provider.dart';
 import 'audio_quality_provider.dart';
 
 /// DLNA 原生平台通道（Android：MulticastLock / Android 13+ 附近设备权限）

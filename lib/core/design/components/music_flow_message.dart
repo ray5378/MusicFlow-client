@@ -219,19 +219,25 @@ class _MusicFlowTopToastState extends State<_MusicFlowTopToast>
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top + context.musicFlowSpacing.sm;
+    // Positioned 仅设 right/top 时，_RenderTheater/Overlay 会给出无限宽约束，
+    // 而 MusicFlowMessage 内部 Row 含 Expanded，需先箍定有限宽以免断言崩溃。
+    final size = MediaQuery.sizeOf(context);
     return Positioned(
       top: top,
       right: context.musicFlowSpacing.md,
-      child: SlideTransition(
-        position: _slide,
-        child: FadeTransition(
-          opacity: _fade,
-          child: Material(
-            color: Colors.transparent,
-            child: MusicFlowMessage(
-              message: widget.message,
-              kind: widget.kind,
-              onDismiss: _dismiss,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: size.width),
+        child: SlideTransition(
+          position: _slide,
+          child: FadeTransition(
+            opacity: _fade,
+            child: Material(
+              color: Colors.transparent,
+              child: MusicFlowMessage(
+                message: widget.message,
+                kind: widget.kind,
+                onDismiss: _dismiss,
+              ),
             ),
           ),
         ),
