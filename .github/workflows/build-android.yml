@@ -134,13 +134,15 @@ jobs:
           gh release delete latest -y || true
           git push --delete origin latest || true
 
+      # prerelease: 滚动构建不抢占 releases/latest(prerelease 不能被设为 latest)。
+      # 这样客户端 UpdateChecker 追踪的 releases/latest 只会命中正式的版本化 Release。
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: "MusicFlow Client (最新构建 #${{ github.run_number }})"
           body: |
-            自动构建的 release 版本。
+            自动构建的滚动发布(预发布)。
             提交: ${{ github.sha }}
             工作流运行: #${{ github.run_number }}
 
@@ -149,7 +151,7 @@ jobs:
           files: |
             MusicFlow-${{ github.run_number }}-android.apk
             MusicFlow-${{ github.run_number }}-windows.zip
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -159,8 +161,11 @@ jobs:
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0: 需要完整 git 历史来生成变更日志。
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get version from tag
         id: version
@@ -181,47 +186,26 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/
 
+      - name: Generate release notes
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          bash tool/generate_release_notes.sh "$TAG" -o changelog_body.md
+          cat >> changelog_body.md <<'EOF'
+
+          ### 构建信息
+          提交: ${{ github.sha }}
+
+          - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
+          - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
+          EOF
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "MusicFlow Client ${{ steps.version.outputs.tag }}"
-          body: |
-            ## MusicFlow Client ${{ steps.version.outputs.tag }}
-
-            ### 新功能
-            - 播放失败自动跳过(连续5次上限)
-            - 预探测接下来3首歌曲可用性
-            - dead songs 播放前自动跳过
-            - Windows 系统托盘(关闭按钮最小化到托盘)
-            - Windows 默认窗口大小自适应:以「3840x2160 屏 → 2720x1730」为基准按
-              分辨率等比换算(初衷是让首页「为你推荐」8 张歌单整类完整显示);用户
-              已保存过的窗口大小仍优先,仅首次启动生效
-
-            ### 修复
-            - 修复关闭客户端后重启不能续播:退出瞬间因 mounted 已为 false 导致最终
-              进度/歌曲没落盘,且恢复续播分支从不真正调用 play();现改为关闭也强制
-              保存、恢复时命中续播就用 play() 从原进度继续播放
-            - 真正修复 Windows 播放队列「白底白字」:根因是媒体配色区把辅助文字
-              muted 往表面掺 22%,浅色封面下被掺成近白,在近白背景上对比仅 ~1.5:1;
-              改为给 muted 保底 4.5:1(WCAG AA)对比(歌手·时长、状态角标、序号)
-            - 真正修复 Windows 窗口无法用鼠标拉伸:铺满客户区的 Flutter 子窗口直接把
-              WM_NCHITTEST 返回 HT* 缩放码,缩放循环作用在子窗口上,一拖就被顶层
-              WM_SIZE 拉回(只剩右下斜角勉强动);改为边缘返回 HTTRANSPARENT 穿透给
-              顶层框架窗口开启缩放,四边四角都能稳定拉伸
-            - 修复 Windows 客户端音量重启后回到 100%：默认音量改回 0.8、启动时优先恢复已保存音量、播放源就绪时强制重写为用户设置值
-            - 全量清理内部标识符/函数/类/注释中残留的 Echo 品牌引用，统一为 MusicFlow
-            - 切换线路弹窗文案与历史品牌名统一改为 MusicFlow
-            - 修复定时重渲染(health check级联刷新)
-            - CoverArtImage/palette_provider 多余watch
-            - mini_player 桌面全控+编译错误
-            - HoverableHorizontalScroll 横向悬停箭头
-
-            ### 构建信息
-            提交: ${{ github.sha }}
-
-            - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
-            - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
+          body_path: changelog_body.md
           files: |
             artifacts/MusicFlow-${{ github.run_number }}-android.apk
             artifacts/MusicFlow-${{ github.run_number }}-windows.zip
