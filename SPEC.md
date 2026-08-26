@@ -411,7 +411,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 模块 | 测试文件 | 重点 |
 |------|----------|------|
 | 投屏控制 | `test/providers/cast_peer_provider_test.dart` | peers 列表/切换/轮询/回本机/待办项（§3.5） |
-| 链路 B DLNA 直投（§3.6） | `test/core/dlna/dlna_models_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart` | DLNA 模型纯逻辑；直投面板空态/设备过滤/投屏态/下一首游标；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板 |
+| 链路 B DLNA 直投（§3.6） | `test/core/dlna/dlna_models_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart` | DLNA 模型纯逻辑；直投面板空态/设备过滤；投屏态当前曲+上一首（首曲禁用/回退）+播放暂停切换+下一首游标+停止回列表；设备行发起点播；队列空则不投屏；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板 |
 | 播放队列/进度 | `test/providers/player_seek_policy_test.dart`、`test/providers/preview_playback_queue_test.dart` | 队列、切歌、播放模式、seek 策略 |
 | 数据源 | `test/data/sources/subsonic_api_client_test.dart` | 鉴权注入、响应解析、错误处理 |
 | 仓库 | `test/data/repositories/music_repository_test.dart` | 分页解析、窗口化切片 |

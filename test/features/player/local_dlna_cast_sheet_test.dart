@@ -282,4 +282,133 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('投屏态：播放控制细节', () {
+    final device = _device('u1', '客厅电视');
+    final tracks = [
+      _track('s1', '夜曲', '周杰伦'),
+      _track('s2', '晴天', '周杰伦'),
+    ];
+
+    Widget panel({required int currentIndex, String state = 'PLAYING'}) =>
+        _app(
+          cast: DlnaCastState(
+            currentDevice: device,
+            isCasting: true,
+            queue: tracks,
+            currentIndex: currentIndex,
+            status: DlnaDeviceStatus(state: state),
+          ),
+          devices: const DlnaDevicesState(),
+        );
+
+    testWidgets('首曲时「上一首」禁用（点击无效）', (tester) async {
+      await tester.pumpWidget(panel(currentIndex: 0));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(AppIcons.previous));
+      await tester.pump();
+
+      expect(find.text('夜曲 · 周杰伦'), findsOneWidget);
+      expect(find.text('晴天 · 周杰伦'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('次曲时「上一首」回退到首曲', (tester) async {
+      await tester.pumpWidget(panel(currentIndex: 1));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(AppIcons.previous));
+      await tester.pump();
+
+      expect(find.text('夜曲 · 周杰伦'), findsOneWidget);
+      expect(find.text('晴天 · 周杰伦'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('播放/暂停按钮随状态切换', (tester) async {
+      await tester.pumpWidget(panel(currentIndex: 0, state: 'PLAYING'));
+      await tester.pump();
+      expect(find.byIcon(AppIcons.pause), findsOneWidget);
+
+      await tester.tap(find.byIcon(AppIcons.pause));
+      await tester.pump();
+      expect(find.byIcon(AppIcons.play), findsOneWidget);
+      expect(find.byIcon(AppIcons.pause), findsNothing);
+
+      await tester.tap(find.byIcon(AppIcons.play));
+      await tester.pump();
+      expect(find.byIcon(AppIcons.pause), findsOneWidget);
+      expect(find.byIcon(AppIcons.play), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('停止投屏后回到设备列表', (tester) async {
+      await tester.pumpWidget(panel(currentIndex: 0));
+      await tester.pump();
+      expect(find.text('正在投屏到「客厅电视」'), findsOneWidget);
+
+      await tester.tap(find.text('停止局域网投屏'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('正在投屏到「客厅电视」'), findsNothing);
+      expect(find.text('扫描局域网 DLNA 设备'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('投屏面板：从设备行发起点播', () {
+    final device = _device('u1', '客厅电视');
+
+    PlayerState queueState(List<Song> queue) => PlayerState(
+          currentSong: queue.isEmpty ? null : queue.first,
+          queue: queue,
+          currentIndex: queue.isEmpty ? -1 : 0,
+          isPlaying: true,
+          position: Duration.zero,
+          duration: Duration.zero,
+          bufferedPosition: Duration.zero,
+          loopMode: LoopMode.all,
+          currentQuality: AudioQualityLevel.original,
+          playbackSource: PlaybackSource.stream,
+          currentBitRateKbps: 320,
+        );
+
+    testWidgets('点击在线设备行进入投屏态', (tester) async {
+      final song = Song(id: 's1', title: '夜曲', artist: '周杰伦');
+      await tester.pumpWidget(
+        _app(
+          cast: const DlnaCastState(),
+          devices: DlnaDevicesState(devices: [device]),
+          player: queueState([song]),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('客厅电视'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('正在投屏到「客厅电视」'), findsOneWidget);
+      expect(find.text('夜曲 · 周杰伦'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('播放队列为空时点设备不投屏', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          cast: const DlnaCastState(),
+          devices: DlnaDevicesState(devices: [device]),
+          player: queueState(const []),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('客厅电视'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('正在投屏到「客厅电视」'), findsNothing);
+      expect(find.text('扫描局域网 DLNA 设备'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
