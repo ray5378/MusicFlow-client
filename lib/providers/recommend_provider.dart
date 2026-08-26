@@ -19,6 +19,7 @@ final recommendRepositoryProvider = Provider<RecommendRepository?>((ref) {
 
 final homeCardsLoadFailedProvider = StateProvider<bool>((ref) => false);
 final recommendChannelsLoadFailedProvider = StateProvider<bool>((ref) => false);
+final localRecommendChannelsLoadFailedProvider = StateProvider<bool>((ref) => false);
 
 /// 正在导入的平台推荐歌单 id(导入即播放流程中显示 loading)
 final recommendImportingProvider = StateProvider<String?>((ref) => null);
@@ -154,3 +155,32 @@ final homeRecommendSectionProvider =
 
   return HomeRecommendSection(fixed: fixedCards, random: random);
 });
+
+/// 本地随机歌单(按平台):经 /v1/local-recommend 获取本地库按平台分组随机歌单。
+/// 返回的歌单均已入库,客户端直接以本地 id 打开/播放(无需导入刷新)。
+final localRecommendChannelsProvider =
+    FutureProvider.autoDispose<List<LocalRecommendChannel>>((ref) async {
+  final repository = ref.watch(recommendRepositoryProvider);
+  if (repository == null) return [];
+  try {
+    await ref.read(ensureActiveAddressProvider.future);
+    final channels = await repository.getLocalRecommend();
+    ref.read(localRecommendChannelsLoadFailedProvider.notifier).state = false;
+    Logger.infoWithTag(
+      'RECOMMEND',
+      'local recommend channels loaded, count=${channels.length}',
+    );
+    return channels;
+  } catch (e, stackTrace) {
+    Logger.warnWithTag('RECOMMEND', 'local recommend channels load failed', e);
+    Logger.debugWithTag(
+      'RECOMMEND',
+      'local recommend channels stackTrace',
+      null,
+      stackTrace,
+    );
+    ref.read(localRecommendChannelsLoadFailedProvider.notifier).state = true;
+    return [];
+  }
+});
+

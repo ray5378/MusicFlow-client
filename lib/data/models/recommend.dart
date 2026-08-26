@@ -75,6 +75,57 @@ class RecommendResult {
   RecommendResult({required this.providerId, required this.channels});
 }
 
+/// 本地随机歌单条目:已入库的本地歌单,直接以本地 id 打开/播放(无需导入)。
+class LocalRecommendPlaylist {
+  final String id;
+  final String name;
+  final String? coverArt;
+  final int songCount;
+
+  LocalRecommendPlaylist({
+    required this.id,
+    required this.name,
+    this.coverArt,
+    required this.songCount,
+  });
+
+  factory LocalRecommendPlaylist.fromJson(Map<String, dynamic> json) {
+    return LocalRecommendPlaylist(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? '',
+      coverArt: json['coverArt'] as String?,
+      songCount: (json['songCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// 本地随机频道(一个平台一个),按平台分组展示。
+class LocalRecommendChannel {
+  final String source;
+  final String name;
+  final int count;
+  final List<LocalRecommendPlaylist> playlists;
+
+  LocalRecommendChannel({
+    required this.source,
+    required this.name,
+    required this.count,
+    required this.playlists,
+  });
+
+  factory LocalRecommendChannel.fromJson(Map<String, dynamic> json) {
+    final list = json['playlists'] as List? ?? [];
+    return LocalRecommendChannel(
+      source: json['source'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      playlists: list
+          .map((e) => LocalRecommendPlaylist.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
 /// 平台推荐频道(一个平台/插件对应一个频道)
 class RecommendChannel {
   final String source;

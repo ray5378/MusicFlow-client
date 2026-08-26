@@ -89,4 +89,18 @@ class RecommendRepository {
       rethrow;
     }
   }
+  /// 本地随机歌单(按平台分组):经 /v1/local-recommend 获取本地库随机歌单。
+  /// 返回的歌单均为已入库本地歌单,可用其 id 直接打开/播放。
+  Future<List<LocalRecommendChannel>> getLocalRecommend() async {
+    try {
+      final data = await _apiClient.getRaw('/rest/api/v1/local-recommend');
+      final channels = data['channels'] as List? ?? [];
+      return channels
+          .map((e) => LocalRecommendChannel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      Logger.error('Failed to get local recommend channels', e);
+      rethrow;
+    }
+  }
 }

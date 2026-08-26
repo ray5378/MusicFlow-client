@@ -71,6 +71,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       ref.refresh(homeCardsProvider.future),
       ref.refresh(homeRecommendSectionProvider.future),
       ref.refresh(recommendChannelsProvider.future),
+      ref.refresh(localRecommendChannelsProvider.future),
     ]);
     notifyRandomSongsChanged();
   }
@@ -81,6 +82,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     final homeCardsFailed = ref.watch(homeCardsLoadFailedProvider);
     final recommendFailed = ref.watch(recommendChannelsLoadFailedProvider);
     final recentFailed = ref.watch(recentPlaylistsLoadFailedProvider);
+    final localRecommendFailed =
+        ref.watch(localRecommendChannelsLoadFailedProvider);
 
     return VisibleRemoteRetryScope(
       branchIndex: discoverBranchIndex,
@@ -93,6 +96,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           ref.read(homeCardsProvider).hasError ||
           recommendFailed ||
           ref.read(recommendChannelsProvider).hasError ||
+          localRecommendFailed ||
+          ref.read(localRecommendChannelsProvider).hasError ||
           recentFailed ||
           ref.read(recentPlaylistsProvider).hasError,
       onRetry: (ref) {
@@ -102,6 +107,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         ref.invalidate(homeCardsProvider);
         ref.invalidate(homeRecommendSectionProvider);
         ref.invalidate(recommendChannelsProvider);
+        ref.invalidate(localRecommendChannelsProvider);
         // 广播变更信号,让随机歌曲区块按需重拉(区块不再 watch provider)。
         notifyRandomSongsChanged();
       },
@@ -151,6 +157,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                   const FixedRecommendSection(),
                                   SizedBox(height: context.musicFlowSpacing.sm),
                                   const PlatformRecommendSection(),
+                                  SizedBox(height: context.musicFlowSpacing.sm),
+                                  const LocalPlatformRecommendSection(),
                                 ],
                               ),
                             ),
@@ -1083,6 +1091,121 @@ class PlatformRecommendSection extends ConsumerWidget {
             description: '请检查网络或切换线路后重试。',
             icon: AppIcons.cloudOff,
             onRetry: () => ref.invalidate(recommendChannelsProvider),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 本地随机(按平台):由后端 /v1/local-recommend 提供,从本地库按平台随机挑歌单。
+/// 与主项目前端一致:歌单均已入库,点击直接打开本地歌单,无需导入刷新。
+class LocalPlatformRecommendSection extends ConsumerWidget {
+  const LocalPlatformRecommendSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final channelsAsync = ref.watch(localRecommendChannelsProvider);
+    final loadFailed = ref.watch(localRecommendChannelsLoadFailedProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        MusicFlowSectionHeader(title: '本地随机'),
+        SizedBox(height: context.musicFlowSpacing.xxs),
+        channelsAsync.when(
+          skipLoadingOnRefresh: false,
+          skipLoadingOnReload: false,
+          data: (channels) {
+            final allPlaylists =
+                channels.expand((c) => c.playlists).toList();
+            if (allPlaylists.isEmpty) {
+              return DiscoverSectionMessage(
+                title: loadFailed ? '本地随机暂时不可用' : '暂无本地歌单',
+                description: loadFailed
+                    ? '请检查网络或当前线路，然后重试。'
+                    : '从平台导入歌单后，这里会按平台随机展示已入库歌单。',
+                icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
+                onRetry: loadFailed
+                    ? () => ref.invalidate(localRecommendChannelsProvider)
+                    : null,
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (final channel in channels)
+                  if (channel.playlists.isNotEmpty) ...<Widget>[
+                    if (channels.length > 1) ...<Widget>[
+                      SizedBox(height: context.musicFlowSpacing.sm),
+                      Text(
+                        channel.name,
+                        style: context.musicFlowTypography.label.copyWith(
+                          color: context.musicFlowColors.accent,
+                        ),
+                      ),
+                      SizedBox(height: context.musicFlowSpacing.xxs),
+                    ],
+                    HoverableHorizontalScroll(
+                      builder: (context, controller) => SizedBox(
+                        height: playlistRailHeight(context),
+                        child: ListView.separated(
+                          controller: controller,
+                          scrollDirection: Axis.horizontal,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: context.musicFlowPageHorizontalPadding,
+                          ),
+                          itemCount: channel.playlists.length,
+                          separatorBuilder: (context, index) =>
+                              SizedBox(width: context.musicFlowSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final pl = channel.playlists[index];
+                            return DiscoverPlaylistCard(
+                              width: _playlistCardWidth,
+                              title: pl.name,
+                              subtitle: '${pl.songCount} 首',
+                              coverArtId: pl.coverArt,
+                              onPressed: () {
+                                Navigator.of(context).push<void>(
+                                  MusicFlowPageRoute<void>(
+                                    context: context,
+                                    builder: (context) => PlaylistDetailPage(
+                                      playlistId: pl.id,
+                                      initialName: pl.name,
+                                      initialSongCount: pl.songCount,
+                                      initialCoverArt: pl.coverArt,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+              ],
+            );
+          },
+          loading: () => SizedBox(
+            height: playlistRailHeight(context),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(
+                horizontal: context.musicFlowPageHorizontalPadding,
+              ),
+              itemCount: 4,
+              separatorBuilder: (context, index) =>
+                  SizedBox(width: context.musicFlowSpacing.sm),
+              itemBuilder: (context, index) =>
+                  DiscoverPlaylistCardLoading(width: _playlistCardWidth),
+            ),
+          ),
+          error: (error, stackTrace) => DiscoverSectionMessage(
+            title: '本地随机加载失败',
+            description: '请检查网络或切换线路后重试。',
+            icon: AppIcons.cloudOff,
+            onRetry: () => ref.invalidate(localRecommendChannelsProvider),
           ),
         ),
       ],
