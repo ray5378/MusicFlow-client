@@ -253,6 +253,23 @@ class SubsonicApiClient {
     return uri.replace(queryParameters: params).toString();
   }
 
+  /// 生成 DLNA 投屏队列的连续流 URL（/rest/castStream,链路 B2)。
+  /// 把多个 songId 打包成服务端**一根连续音频流**:纯 audio renderer(如 HiVi H5MKII,
+  /// 不支持 ContentDirectory/SpecNext)Set 这一个 URL 即一路播到队列末尾,设备自主连播,
+  /// 即便客户端进程被系统挂起/杀死仍能续播。鉴权参数与 /rest/castPlaylist 一致。
+  String getCastStreamUrl(List<String> songIds) {
+    if (_library == null || songIds.isEmpty) return '';
+    final baseUrl = _dio.options.baseUrl;
+    if (baseUrl.isEmpty) return '';
+
+    final params = <String, String>{};
+    _addAuthParamsMap(params);
+    params['songs'] = songIds.join(',');
+
+    final uri = Uri.parse(joinServerUrl(baseUrl, '/rest/castStream'));
+    return uri.replace(queryParameters: params).toString();
+  }
+
   /// 远程插件歌曲流地址(/rest/stream-remote):与主项目一致,带 provider/source/id,
   /// 以及标题/艺术家/专辑/时长/封面等透传参数,确保插件侧能正确解析并回源。
   /// 鉴权参数由 _addAuthParamsMap 注入(query),播放器可直接用此 URL 拉流。
