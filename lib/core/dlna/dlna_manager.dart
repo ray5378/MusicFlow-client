@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'dlna_models.dart';
 import 'ssdp_discovery.dart';
 import 'device_description.dart';
@@ -60,6 +61,11 @@ class DlnaManager {
   /// 最近一次自动续播/切歌的时间戳,用于轮询检测与中继 EOF 检测之间互斥——
   /// 避免两者都判定「播放结束」而重复推进到同一首的下下首。
   DateTime? _lastCompletionAdvance;
+
+  /// 按已知剩余时长前置的「曲末到点」一次性定时器：到点做收尾复核并续播。
+  /// 目的：把续播从「被动等 2s 轮询恰好撞上曲末那一下」改成「按已知总长准点触发」，
+  /// 即便轮询被节流到若干秒一帧，只要进程仍活着，曲毕那一刻也能及时推进下一首。
+  Timer? _endScheduler;
 
   /// 当前曲目的真实时长(秒)。来自 DlnaCastTrack.duration(Song.duration),未知为 0。
   /// 用于设备不报时长(RawHTTP)时基于墙钟兜底的自动续播与播控进度。
@@ -291,10 +297,14 @@ class DlnaManager {
         await _playCurrentTrack();
       }
       _startStatusPolling();
+      // Android 保活：投屏会话期间持有部分唤醒锁，锁屏/后台时系统不会节流 2s 轮询
+      // 看门狗，保证「曲毕 → 自动推下一首」在后台也能触发。
+      await _setKeepAwake(true);
       return true;
     } catch (e) {
       debugPrint('DLNA 投屏启动失败: $_queueIndex $e');
       _stopStatusPolling();
+      await _setKeepAwake(false);
       await _stopDevice(_currentDevice);
       _clearCastState();
       return false;
@@ -499,6 +509,8 @@ class DlnaManager {
   }
 
   void _clearCastState() {
+    _endScheduler?.cancel();
+    _endScheduler = null;
     _queue = [];
     _queueIndex = -1;
     _nextSupported = true;
@@ -519,6 +531,7 @@ class DlnaManager {
     try {
       await SoapControl.pause(_currentDevice!.avTransportUrl!);
       _userPaused = true;
+      _endScheduler?.cancel(); // 暂停即取消曲末到点定时器，恢复时由轮询重排
       _playSegmentStart = null; // 暂停期间墙钟不计入播放时长
       _currentStatus = _currentStatus.copyWith(state: 'PAUSED');
       onStatusChanged?.call(_currentStatus);
@@ -695,18 +708,20 @@ class DlnaManager {
         } catch (_) {}
       }
 
-      // 按墙钟累计实际播放时长：仅 PLAYING 期间计时，暂停/停止不计。
+      // 按墙钟累计实际播放时长：**以客户端自己的时钟为准**，不再依赖设备上报的 state。
+      // 原因：部分渲染器（尤其 RawHTTP）会一直报 PLAYING 或一直报 STOPPED，导致原「仅
+      // PLAYING 计时」的墙钟要么不启动、要么中途停摆，曲末检测随之失效，表现为「播放
+      // 结束不推下一首」。现在只要曲段锚点未重置就无条件累加墙钟；暂停由 pause() 置
+      // _userPaused + 置空锚点停表；切歌/续播由 _restartPlaybackClock() 清零重起。
       final now = DateTime.now();
+      final anchor = _playSegmentStart;
+      if (anchor != null) {
+        _playbackElapsed += now.difference(anchor).inMilliseconds / 1000.0;
+      }
+      _playSegmentStart = now;
       if (state == 'PLAYING') {
-        final anchor = _playSegmentStart;
-        if (anchor != null) {
-          _playbackElapsed += now.difference(anchor).inMilliseconds / 1000.0;
-        }
-        _playSegmentStart = now;
         // 设备正常播放中：清除曲中段停止连击，避免把跳转/短暂切换误判为失败。
         _stallCount = 0;
-      } else {
-        _playSegmentStart = null;
       }
 
       // 设备和播控中心都需要的有效进度：设备不报时长/位置(RawHTTP)时退回墙钟，
@@ -754,15 +769,27 @@ class DlnaManager {
           posInfo.position >= 0 &&
           posInfo.position < 5;
 
-      // 有效时长：优先真实时长(Song.duration)，未知时退回设备上报时长，
-      // 确保墙钟兜底即使曲目时长未知也能判定「放完 → 主动推下一首」。
-      final advanceDuration =
-          _currentRealDuration > 0 ? _currentRealDuration : posInfo.duration;
+      // 有效时长：优先真实时长(Song.duration)，未知时退回设备 GetPositionInfo 上报的
+      // TrackDuration 并回填 _currentRealDuration，确保往后各帧的墙钟兜底(wallDone)也能
+      // 据此判定「放完 → 主动推下一首」，而不必等下个设备近尾回报。
+      final advanceDuration = _currentRealDuration > 0
+          ? _currentRealDuration
+          : (posInfo.duration > 0 ? posInfo.duration : 0);
+      if (_currentRealDuration <= 0 && advanceDuration > 0) {
+        _currentRealDuration = advanceDuration;
+      }
 
-      // 墙钟兜底：已按有效时长播完（即便设备 RawHTTP 不报时长/位置）。
+      // 墙钟兜底：已按有效时长播完（即便设备 RawHTTP 不报时长/位置）。到点即推。
       final wallDone = !_userPaused &&
           advanceDuration > 0 &&
-          _playbackElapsed >= advanceDuration - 1.0;
+          _playbackElapsed >= advanceDuration - 0.5;
+
+      // 剩余时长(秒)：优先设备上报，退回墙钟/真实时长。据此前置「曲末到点」定时器，
+      // 把续播从「被动等 2s 轮询撞上曲末」改成「按已知总长准点触发」。
+      final remaining = posInfo.duration > 0
+          ? (posInfo.duration - posInfo.position)
+          : (advanceDuration > 0 ? advanceDuration - _playbackElapsed : null);
+      _rescheduleEndTimer(remaining, _queueIndex);
 
       // 设备自然放停：上一帧在播、本帧非播放/暂停，且非用户暂停。
       // 判定依据改用墙钟「确已实质播放过若干秒(playedEnough)」：修复曲毕正好落在
@@ -925,6 +952,31 @@ class DlnaManager {
     final t = _lastCompletionAdvance;
     return t != null &&
         DateTime.now().difference(t).inMilliseconds < 1500;
+  }
+
+  /// 按当前曲剩余时长重排「曲末到点」一次性定时器。
+  /// 到点后若仍是同一曲且在播/未暂停，则触发一次轮询，由轮询走确定性续播判据真正推下一首。
+  /// 每个轮询帧都会用最新剩余时长重建，并对齐到当帧下标，防止旧曲残留定时器误触发。
+  void _rescheduleEndTimer(double? remaining, int queueIndex) {
+    _endScheduler?.cancel();
+    // 已到曲末（剩余过短）或暂停/自循环：不排额外定时，交给轮询立即续播。
+    if (remaining == null ||
+        remaining <= 0.5 ||
+        _userPaused ||
+        _castPath == DlnaCastPath.cdsList) {
+      return;
+    }
+    _endScheduler = Timer(
+      Duration(milliseconds: ((remaining - 0.2) * 1000).round()),
+      () {
+        // 到点时仅当仍是同一曲、未暂停、设备仍在投屏才触发收尾轮询；否则丢弃。
+        if (_queueIndex == queueIndex &&
+            !_userPaused &&
+            _currentDevice?.avTransportUrl != null) {
+          _pollStatus();
+        }
+      },
+    );
   }
 
   /// 重启墙钟播放时钟：清空已累计播放时长，并从当前时刻重新起算。
