@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/utils/logger.dart';
+import '../../../core/design/music_flow_design.dart';
+import '../../../core/utils/logger.dart';
 
 /// 应用内诊断日志窗口：无需控制台/导出即可直接在客户端查看并复制日志。
 ///
@@ -91,14 +92,14 @@ class _LogViewerPageState extends State<LogViewerPage> {
       appBar: AppBar(
         title: const Text('诊断日志'),
         actions: <Widget>[
-          IconButton(
-            tooltip: '自动刷新',
-            icon: Icon(_autoRefresh ? Icons.pause : Icons.play_arrow),
+          MusicFlowIconButton(
+            icon: _autoRefresh ? Icons.pause : Icons.play_arrow,
+            label: '自动刷新',
             onPressed: () => setState(() => _autoRefresh = !_autoRefresh),
           ),
-          IconButton(
-            tooltip: '清空缓存',
-            icon: const Icon(Icons.delete_sweep_outlined),
+          MusicFlowIconButton(
+            icon: Icons.delete_sweep_outlined,
+            label: '清空缓存',
             onPressed: _clearBuffer,
           ),
         ],
