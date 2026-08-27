@@ -1,186 +1,112 @@
-[2026-08-27T22:44:02.635949][INFO][BACK] back pressed, branchIndex=0, branchCount=1
-[2026-08-27T22:44:02.636093][INFO][BACK] navigator for branch 0: key=[<optimized out>#92d97], state=present, canPop=true
-[2026-08-27T22:44:02.636109][INFO][BACK] branch 0 can pop, popping
-[2026-08-27T22:44:03.512922][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=18364 isPlaying=true queueLen=95 updatedAt=1787841843512
-[2026-08-27T22:44:03.621843][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:03.622933][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:03.989538][INFO][BACK] back pressed, branchIndex=0, branchCount=1
-[2026-08-27T22:44:03.989674][INFO][BACK] navigator for branch 0: key=[<optimized out>#92d97], state=present, canPop=true
-[2026-08-27T22:44:03.989691][INFO][BACK] branch 0 can pop, popping
-[2026-08-27T22:44:05.491753][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:44:05.491929][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:44:05.491967][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:44:05.538754][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=46ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
-[2026-08-27T22:44:05.538784][DEBUG][ADDR_POOL] probe success: 外网 latency=46ms
-[2026-08-27T22:44:05.538811][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:44:05.538877][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=46ms
-[2026-08-27T22:44:05.906618][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=20764 isPlaying=true queueLen=95 updatedAt=1787841845906
-[2026-08-27T22:44:06.004300][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:06.004940][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:07.014873][DEBUG][SSDP] 扫描开始: 拨号地址=[192.168.10.210] 超时=4000ms
-[2026-08-27T22:44:08.187868][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=23044 isPlaying=true queueLen=95 updatedAt=1787841848187
-[2026-08-27T22:44:08.323329][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:08.324089][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:10.507530][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=25044 isPlaying=true queueLen=95 updatedAt=1787841850507
-[2026-08-27T22:44:10.654643][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:10.655315][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:11.029804][DEBUG][SSDP] 扫描结束: 拨号地址=[192.168.10.210] 收到 1 个 LOCATION 响应
-[2026-08-27T22:44:12.424203][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49152/description.xml -> 成功(HiVi H5MKII)
-[2026-08-27T22:44:12.522411][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=27364 isPlaying=true queueLen=95 updatedAt=1787841852522
-[2026-08-27T22:44:12.664827][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:12.665459][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:14.906931][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=29764 isPlaying=true queueLen=95 updatedAt=1787841854906
-[2026-08-27T22:44:15.024048][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:15.024448][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:15.344402][INFO][PLAYDBG] playingStream playing=false processing=ready sourcePosition=0:00:30.204162 position=0:00:30.204162 sourceBuffered=0:04:45.596000 buffered=0:04:45.596000 song=5f70e210-b9af-4dbf-8566-3e617bf454c3
-[2026-08-27T22:44:15.349413][INFO] AudioHandler: pause
-[2026-08-27T22:44:16.896684][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=2.8s prev(PLAYING 0s/285s) now(TRANSITIONING 0s/0s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=false loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:17.190438][INFO][PLAYER] persist session currentSongId=5f70e210-b9af-4dbf-8566-3e617bf454c3 index=0 posMs=30046 isPlaying=false queueLen=95 updatedAt=1787841857190
-[2026-08-27T22:44:17.333069][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:44:17.333585][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:44:18.862493][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=4.8s prev(TRANSITIONING 3s/285s) now(TRANSITIONING 0s/0s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:20.964155][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=6.9s prev(TRANSITIONING 5s/285s) now(TRANSITIONING 0s/0s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:22.958944][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=8.9s prev(TRANSITIONING 7s/285s) now(PLAYING 1s/285s) adv=285 near=false started=true wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:24.916589][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=10.9s prev(PLAYING 1s/285s) now(PLAYING 3s/285s) adv=285 near=false started=true wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:26.924047][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=12.9s prev(PLAYING 3s/285s) now(PLAYING 5s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:28.884603][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=14.8s prev(PLAYING 5s/285s) now(PLAYING 7s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:30.993531][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=16.9s prev(PLAYING 7s/285s) now(PLAYING 9s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:32.865300][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=18.8s prev(PLAYING 9s/285s) now(PLAYING 11s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:34.900364][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=20.8s prev(PLAYING 11s/285s) now(PLAYING 13s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:35.491618][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:44:35.491761][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:44:35.491786][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:44:35.607910][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=116ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
-[2026-08-27T22:44:35.607965][DEBUG][ADDR_POOL] probe success: 外网 latency=116ms
-[2026-08-27T22:44:35.608010][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:44:35.608146][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=116ms
-[2026-08-27T22:44:36.950049][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=22.9s prev(PLAYING 13s/285s) now(PLAYING 15s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:38.950327][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=24.9s prev(PLAYING 15s/285s) now(PLAYING 17s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:40.863328][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=26.8s prev(PLAYING 17s/285s) now(PLAYING 19s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:42.897832][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=28.8s prev(PLAYING 19s/285s) now(PLAYING 21s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:44.876200][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=30.8s prev(PLAYING 21s/285s) now(PLAYING 23s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:46.919616][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=32.9s prev(PLAYING 23s/285s) now(PLAYING 25s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:48.856502][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=34.8s prev(PLAYING 25s/285s) now(PLAYING 27s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:50.886672][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=36.8s prev(PLAYING 27s/285s) now(PLAYING 29s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:52.904154][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=38.8s prev(PLAYING 29s/285s) now(PLAYING 31s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:54.975481][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=40.9s prev(PLAYING 31s/285s) now(PLAYING 33s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:56.865959][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=42.8s prev(PLAYING 33s/285s) now(PLAYING 35s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:44:58.867351][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=44.8s prev(PLAYING 35s/285s) now(PLAYING 37s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:17.587580][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:45:17.588934][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:45:17.588952][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:45:17.800372][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=211ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
-[2026-08-27T22:45:17.800385][DEBUG][ADDR_POOL] probe success: 外网 latency=211ms
-[2026-08-27T22:45:17.800401][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:45:17.800440][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=211ms
-[2026-08-27T22:45:17.804879][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=63.7s prev(PLAYING 37s/285s) now(PLAYING 56s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:18.874869][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=64.8s prev(PLAYING 56s/285s) now(PLAYING 57s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:19.034345][INFO][BACK] back pressed, branchIndex=0, branchCount=1
-[2026-08-27T22:45:19.034396][INFO][BACK] navigator for branch 0: key=[<optimized out>#92d97], state=present, canPop=false
-[2026-08-27T22:45:19.034400][INFO][BACK] root navigator can pop, popping
-[2026-08-27T22:45:20.992572][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=66.9s prev(PLAYING 57s/285s) now(PLAYING 59s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:22.863249][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=68.8s prev(PLAYING 59s/285s) now(PLAYING 61s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:24.512032][INFO][BACK] back pressed, branchIndex=0, branchCount=1
-[2026-08-27T22:45:24.512120][INFO][BACK] navigator for branch 0: key=[<optimized out>#92d97], state=present, canPop=false
-[2026-08-27T22:45:24.512131][INFO][BACK] root navigator can pop, popping
-[2026-08-27T22:45:24.881309][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=70.8s prev(PLAYING 61s/285s) now(PLAYING 63s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:26.665462][INFO][BACK] back pressed, branchIndex=0, branchCount=1
-[2026-08-27T22:45:26.665541][INFO][BACK] navigator for branch 0: key=[<optimized out>#92d97], state=present, canPop=false
-[2026-08-27T22:45:26.665550][INFO][BACK] root navigator can pop, popping
-[2026-08-27T22:45:26.912846][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=72.8s prev(PLAYING 63s/285s) now(PLAYING 65s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:28.865544][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=74.8s prev(PLAYING 65s/285s) now(PLAYING 67s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:30.862421][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=76.8s prev(PLAYING 67s/285s) now(PLAYING 69s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:32.861588][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=78.8s prev(PLAYING 69s/285s) now(PLAYING 71s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:34.955858][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=80.9s prev(PLAYING 71s/285s) now(PLAYING 73s/285s) adv=285 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:45:35.491699][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:45:35.491850][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:45:35.491875][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:51:42.860721][WARN][ADDR_POOL] probe exception for 外网 latency=367368ms url=https://music.cmct.fun:35378/rest/ping
-[2026-08-27T22:51:42.860721][WARN][ADDR_POOL] error=<redacted:TimeoutException>
-[2026-08-27T22:51:42.861010][DEBUG][ADDR_POOL] tolerate transient probe failure: 外网 fail=1/2 keeping=ok
-[2026-08-27T22:51:42.861045][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:51:42.861145][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=-1ms
-[2026-08-27T22:51:42.861157][WARN][HEALTH] active address unhealthy: 外网
-[2026-08-27T22:51:42.861273][WARN][HEALTH] manual mode with autoFallback disabled, skip recovery
-[2026-08-27T22:51:42.861343][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:51:42.861402][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:51:42.861415][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:51:43.315474][DEBUG][DLNA-AUTO] cur=0 real=285s elapsed=449.2s prev(PLAYING 73s/285s) now(STOPPED 285s/285s) adv=285 near=false started=false wall=true devEnd=true stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:43.315494][INFO][DLNA-AUTO] -> 触发续播 advance(0) triggers: near=false wall=true devEnd=true stuck=false
-[2026-08-27T22:51:43.332797][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=471ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
-[2026-08-27T22:51:43.332810][DEBUG][ADDR_POOL] probe success: 外网 latency=471ms
-[2026-08-27T22:51:43.332821][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:51:43.332848][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=471ms
-[2026-08-27T22:51:43.656891][DEBUG] *** Request ***
-[2026-08-27T22:51:43.656929][DEBUG] uri: https://music.cmct.fun:35378/rest/getLyricsBySongId?id=ce6d88b3-676f-41af-b8a9-b54d40604375
-[2026-08-27T22:51:43.656932][DEBUG] method: GET
-[2026-08-27T22:51:43.656935][DEBUG] responseType: ResponseType.json
-[2026-08-27T22:51:43.656938][DEBUG] followRedirects: true
-[2026-08-27T22:51:43.656940][DEBUG] persistentConnection: true
-[2026-08-27T22:51:43.656943][DEBUG] connectTimeout: 0:00:10.000000
-[2026-08-27T22:51:43.656944][DEBUG] sendTimeout: null
-[2026-08-27T22:51:43.656947][DEBUG] receiveTimeout: 0:00:30.000000
-[2026-08-27T22:51:43.656949][DEBUG] transformTimeout: null
-[2026-08-27T22:51:43.656951][DEBUG] receiveDataWhenStatusError: true
-[2026-08-27T22:51:43.656956][DEBUG] extra: {musicflow.allowFallbackRetry: true}
-[2026-08-27T22:51:43.656958][DEBUG] headers:
-[2026-08-27T22:51:43.656959][DEBUG] data:
-[2026-08-27T22:51:43.656961][DEBUG] null
-[2026-08-27T22:51:43.656962][DEBUG] 
-[2026-08-27T22:51:43.657022][DEBUG][FALLBACK] request GET /rest/getLyricsBySongId via 外网
-[2026-08-27T22:51:44.557278][ERROR][APP] Flutter framework error
-[2026-08-27T22:51:44.557278][ERROR][APP] error=<redacted:_Exception>
-[2026-08-27T22:51:44.557278][ERROR][APP] stackTrace=<omitted in release>
-[2026-08-27T22:51:44.721779][DEBUG] *** Response ***
-[2026-08-27T22:51:44.721863][DEBUG] uri: https://music.cmct.fun:35378/rest/getLyricsBySongId?id=ce6d88b3-676f-41af-b8a9-b54d40604375&u=xyz5378&t=024515f4062121fdeeb92a8c152d82b1&s=a3twX8QAN9QFfsiX&v=1.16.1&c=musicflow&f=json
-[2026-08-27T22:51:44.721874][DEBUG] statusCode: 200
-[2026-08-27T22:51:44.721878][DEBUG] statusMessage: OK
-[2026-08-27T22:51:44.721882][DEBUG] headers:
-[2026-08-27T22:51:44.721896][DEBUG]  content-type: application/json
-[2026-08-27T22:51:44.721902][DEBUG]  transfer-encoding: chunked
-[2026-08-27T22:51:44.721906][DEBUG]  date: Thu, 27 Aug 2026 14:51:45 GMT
-[2026-08-27T22:51:44.721911][DEBUG]  vary: Origin
-[2026-08-27T22:51:44.721915][DEBUG]  content-encoding: gzip
-[2026-08-27T22:51:44.721919][DEBUG] Response Text:
-[2026-08-27T22:51:44.722027][DEBUG] {"subsonic-response":{"status":"ok","version":"1.16.1","serverVersion":"1.12.0-14-g27e3a75","type":"MusicFlow","openSubsonic":true,"lyricsList":{"structuredLyrics":[{"lang":"und","synced":true,"line":[{"start":190,"value":"情人 - 夏韶声"},{"start":970,"value":"词：刘卓辉"},{"start":1680,"value":"曲：黄家驹"},{"start":75210,"value":"盼望你没有为我"},{"start":77220,"value":"又再度暗中淌泪"},{"start":82850,"value":"我不想留底 你的心空虚"},{"start":89920,"value":"盼望你别再让我"},{"start":92050,"value":"像背负太深的罪"},{"start":97400,"value":"我的心如水 你不必痴醉"},{"start":104820,"value":"你可知谁甘心归去"},{"start":112220,"value":"你与我之间有谁"},{"start":119560,"value":"是缘是情是童真 还是意外"},{"start":126850,"value":"有泪有罪有付出 还有忍耐"},{"start":134380,"value":"是人是墙是寒冬 藏在眼内"},{"start":141720,"value":"有日有夜有幻想 没法等待"},{"start":163720,"value":"盼望我别去后"},{"start":165530,"value":"会共你在远方相聚"},{"start":171140,"value":"每一天望海 每一天相对"},{"start":178500,"value":"盼望你现已没有"},{"start":180620,"value":"让我别去的恐惧"},{"start":185900,"value":"我即使离开 你的天空里"},{"start":193430,"value":"你可知谁甘心归去"},{"start":200570,"value":"你与我之间有谁"},{"start":208210,"value":"是缘是情是童真 还是意外"},{"start":215390,"value":"有泪有罪有付出 还有忍耐"},{"start":222810,"value":"是人是墙是寒冬 藏在眼内"},{"start":230180,"value":"有日有夜有幻想 没法等待"},{"start":267580,"value":"多少春秋风雨改"},{"start":271190,"value":"多少崎岖不变爱"},{"start":274980,"value":"多少唏嘘的你在人海"},{"start":285680,"value":"是缘是情是童真 还是意外"},{"start":292820,"value":"有泪有罪有付出 还有忍耐"},{"start":300350,"value":"是人是墙是寒冬 藏在眼内"},{"start":307710,"value":"有日有夜有幻想 没法等待"}]}]}}}
-[2026-08-27T22:51:44.722033][DEBUG] 
-[2026-08-27T22:51:45.639471][INFO][PLAYER] persist session currentSongId=ce6d88b3-676f-41af-b8a9-b54d40604375 index=1 posMs=30204 isPlaying=false queueLen=95 updatedAt=1787842305639
-[2026-08-27T22:51:45.727730][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=2.4s prev(PLAYING 0s/362s) now(PLAYING 0s/362s) adv=362 near=false started=true wall=false devEnd=false stuck=false played=false loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:45.780216][DEBUG][LOCAL_STORAGE] playback session saved
-[2026-08-27T22:51:45.780570][INFO][LOCAL_STORAGE] playerVolume saved: 0.1123188405796936
-[2026-08-27T22:51:47.576752][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=4.3s prev(PLAYING 2s/362s) now(PLAYING 2s/362s) adv=362 near=false started=true wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:49.769627][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=6.5s prev(PLAYING 2s/362s) now(PLAYING 4s/362s) adv=362 near=false started=true wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:49.814276][DEBUG][LOCAL_STORAGE] autoPlayOnLaunch=false
-[2026-08-27T22:51:51.465263][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=8.1s prev(PLAYING 4s/362s) now(PLAYING 6s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:53.322447][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=10.0s prev(PLAYING 6s/362s) now(PLAYING 8s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:53.915594][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:51:53.915732][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:51:53.915754][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:51:54.036964][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=121ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
-[2026-08-27T22:51:54.036993][DEBUG][ADDR_POOL] probe success: 外网 latency=121ms
-[2026-08-27T22:51:54.037019][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:51:54.037086][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=121ms
-[2026-08-27T22:51:55.284691][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=12.0s prev(PLAYING 8s/362s) now(PLAYING 10s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:57.340381][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=14.0s prev(PLAYING 10s/362s) now(PLAYING 12s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:51:59.364247][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=16.0s prev(PLAYING 12s/362s) now(PLAYING 14s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:01.307294][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=18.0s prev(PLAYING 14s/362s) now(PLAYING 16s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:03.296883][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=20.0s prev(PLAYING 16s/362s) now(PLAYING 18s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:05.345187][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=22.0s prev(PLAYING 18s/362s) now(PLAYING 20s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:09.286320][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=26.0s prev(PLAYING 20s/362s) now(PLAYING 0s/0s) adv=362 near=false started=true wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:11.304821][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=28.0s prev(PLAYING 26s/362s) now(PLAYING 26s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:13.294861][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=30.0s prev(PLAYING 26s/362s) now(PLAYING 28s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:15.706734][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=32.4s prev(PLAYING 28s/362s) now(PLAYING 30s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:17.397827][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=34.1s prev(PLAYING 30s/362s) now(PLAYING 32s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:19.385978][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=36.1s prev(PLAYING 32s/362s) now(PLAYING 34s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:21.324142][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=38.0s prev(PLAYING 34s/362s) now(PLAYING 36s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:23.329725][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=40.0s prev(PLAYING 36s/362s) now(PLAYING 38s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:23.915542][DEBUG][HEALTH] health check tick, active=外网
-[2026-08-27T22:52:23.915695][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
-[2026-08-27T22:52:23.915714][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
-[2026-08-27T22:52:24.061119][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=145ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
-[2026-08-27T22:52:24.061139][DEBUG][ADDR_POOL] probe success: 外网 latency=145ms
-[2026-08-27T22:52:24.061161][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
-[2026-08-27T22:52:24.061231][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=145ms
-[2026-08-27T22:52:25.316035][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=42.0s prev(PLAYING 38s/362s) now(PLAYING 40s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:27.279452][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=44.0s prev(PLAYING 40s/362s) now(PLAYING 42s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
-[2026-08-27T22:52:29.503368][DEBUG][DLNA-AUTO] cur=1 real=362s elapsed=46.2s prev(PLAYING 42s/362s) now(PLAYING 44s/362s) adv=362 near=false started=false wall=false devEnd=false stuck=false played=true loop=false fresh=false paused=false next=1
+[2026-08-27T23:58:35.826523][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:35.827748][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:36.175175][INFO][BACK] back pressed, branchIndex=0, branchCount=1
+[2026-08-27T23:58:36.175246][INFO][BACK] navigator for branch 0: key=[<optimized out>#7ef46], state=present, canPop=true
+[2026-08-27T23:58:36.175255][INFO][BACK] branch 0 can pop, popping
+[2026-08-27T23:58:37.415318][INFO][BACK] back pressed, branchIndex=0, branchCount=1
+[2026-08-27T23:58:37.415392][INFO][BACK] navigator for branch 0: key=[<optimized out>#7ef46], state=present, canPop=true
+[2026-08-27T23:58:37.415399][INFO][BACK] branch 0 can pop, popping
+[2026-08-27T23:58:37.860827][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=42749 isPlaying=true queueLen=300 updatedAt=1787846317860
+[2026-08-27T23:58:38.112599][ERROR][SSDP-DESC] 拉取失败 http://0.0.0.0:49152/description.xml: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 0.0.0.0, port = 57722
+[2026-08-27T23:58:38.112879][ERROR][SSDP-DESC] 拉取失败 http://0.0.0.0:49152/description.xml: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 0.0.0.0, port = 57732
+[2026-08-27T23:58:38.113076][ERROR][SSDP-DESC] 拉取失败 http://0.0.0.0:49152/description.xml: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 0.0.0.0, port = 57748
+[2026-08-27T23:58:38.113261][ERROR][SSDP-DESC] 拉取失败 http://0.0.0.0:49152/description.xml: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 0.0.0.0, port = 57760
+[2026-08-27T23:58:38.113444][ERROR][SSDP-DESC] 拉取失败 http://0.0.0.0:49152/description.xml: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 0.0.0.0, port = 57776
+[2026-08-27T23:58:38.113625][ERROR][SSDP-DESC] 拉取失败 http://0.0.0.0:49152/description.xml: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 0.0.0.0, port = 57784
+[2026-08-27T23:58:38.171059][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:38.171616][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:40.156267][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=45042 isPlaying=true queueLen=300 updatedAt=1787846320156
+[2026-08-27T23:58:40.296815][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:40.297911][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:42.554914][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=47442 isPlaying=true queueLen=300 updatedAt=1787846322554
+[2026-08-27T23:58:42.714552][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:42.715113][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:44.867198][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=49749 isPlaying=true queueLen=300 updatedAt=1787846324867
+[2026-08-27T23:58:45.037553][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:45.038480][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:46.109617][DEBUG][SSDP] 扫描开始: 拨号地址=[192.168.10.210] 超时=4000ms
+[2026-08-27T23:58:47.054548][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=51749 isPlaying=true queueLen=300 updatedAt=1787846327054
+[2026-08-27T23:58:47.217109][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:47.218117][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:49.154419][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=53750 isPlaying=true queueLen=300 updatedAt=1787846329154
+[2026-08-27T23:58:49.502401][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:49.503290][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:50.139908][DEBUG][SSDP] 扫描结束: 拨号地址=[192.168.10.210] 收到 2 个 LOCATION 响应
+[2026-08-27T23:58:51.176704][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=56042 isPlaying=true queueLen=300 updatedAt=1787846331176
+[2026-08-27T23:58:51.351754][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:51.352253][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:53.552813][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=58043 isPlaying=true queueLen=300 updatedAt=1787846333552
+[2026-08-27T23:58:53.683393][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:53.684752][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:54.373981][DEBUG][SSDP-DESC] 拉取 http://192.168.10.106:49152/description.xml -> 成功(WR320_1C25)
+[2026-08-27T23:58:55.222699][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49152/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:58:55.572096][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=60444 isPlaying=true queueLen=300 updatedAt=1787846335572
+[2026-08-27T23:58:55.625787][DEBUG][HEALTH] health check tick, active=外网
+[2026-08-27T23:58:55.625911][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
+[2026-08-27T23:58:55.625934][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
+[2026-08-27T23:58:55.717238][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:55.718106][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:56.127877][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=501ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
+[2026-08-27T23:58:56.127923][DEBUG][ADDR_POOL] probe success: 外网 latency=501ms
+[2026-08-27T23:58:56.127958][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
+[2026-08-27T23:58:56.128077][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=501ms
+[2026-08-27T23:58:57.863844][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=62749 isPlaying=true queueLen=300 updatedAt=1787846337863
+[2026-08-27T23:58:57.881388][INFO][PLAYDBG] playingStream playing=false processing=ready sourcePosition=0:01:02.776284 position=0:01:02.776284 sourceBuffered=0:02:56.007000 buffered=0:02:56.007000 song=e7e50b07-7736-4428-bdbe-1a8e8ce0685f
+[2026-08-27T23:58:57.886130][INFO] AudioHandler: pause
+[2026-08-27T23:58:57.886231][ERROR][APP] Uncaught zone error
+[2026-08-27T23:58:57.886231][ERROR][APP] error=<redacted:_TypeError>
+[2026-08-27T23:58:57.886231][ERROR][APP] stackTrace=<omitted in release>
+[2026-08-27T23:58:58.034606][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:58:58.035371][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:58:59.893858][INFO][PLAYER] persist session currentSongId=e7e50b07-7736-4428-bdbe-1a8e8ce0685f index=15 posMs=62749 isPlaying=false queueLen=300 updatedAt=1787846339893
+[2026-08-27T23:59:00.066880][DEBUG][LOCAL_STORAGE] playback session saved
+[2026-08-27T23:59:00.067529][INFO][LOCAL_STORAGE] playerVolume saved: 0.19634703196347003
+[2026-08-27T23:59:01.801571][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=13.9s prev(STOPPED 0s/0s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:02.351856][DEBUG][LOCAL_STORAGE] autoPlayOnLaunch=false
+[2026-08-27T23:59:03.208725][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.209576][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.210370][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.211032][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.265672][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.266343][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.266799][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.267226][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.518727][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.518937][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.538431][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.539309][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.539916][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=15.7s prev(UNKNOWN 14s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:03.540687][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.558272][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.559107][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:03.559300][DEBUG][SSDP-DESC] 拉取 http://192.168.10.30:49153/description.xml -> 成功(HiVi H5MKII)
+[2026-08-27T23:59:05.521326][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=17.6s prev(UNKNOWN 16s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:07.505448][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=19.6s prev(UNKNOWN 18s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:09.415009][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=21.5s prev(UNKNOWN 20s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:11.387757][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=23.5s prev(UNKNOWN 22s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:13.370428][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=25.5s prev(UNKNOWN 24s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:15.449291][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=27.6s prev(UNKNOWN 25s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:17.376033][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=29.5s prev(UNKNOWN 28s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:19.407853][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=31.5s prev(UNKNOWN 29s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:21.376126][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=33.5s prev(UNKNOWN 32s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:23.100665][INFO][BACK] back pressed, branchIndex=0, branchCount=1
+[2026-08-27T23:59:23.100803][INFO][BACK] navigator for branch 0: key=[<optimized out>#7ef46], state=present, canPop=true
+[2026-08-27T23:59:23.100817][INFO][BACK] root navigator can pop, popping
+[2026-08-27T23:59:23.407946][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=35.5s prev(UNKNOWN 33s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:25.624115][DEBUG][HEALTH] health check tick, active=外网
+[2026-08-27T23:59:25.624193][DEBUG][ADDR_POOL] probing 外网 url=https://music.cmct.fun:35378 host=music.cmct.fun port=35378 scheme=https path=/rest/ping
+[2026-08-27T23:59:25.624205][DEBUG][ADDR_POOL] probe dns skipped: 外网 host=music.cmct.fun (platform-neutral build)
+[2026-08-27T23:59:25.692430][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=37.8s prev(UNKNOWN 36s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:25.824150][DEBUG][ADDR_POOL] probe response: 外网 status=200 latency=199ms realUri=https://music.cmct.fun:35378/rest/ping contentLength=-
+[2026-08-27T23:59:25.824199][DEBUG][ADDR_POOL] probe success: 外网 latency=199ms
+[2026-08-27T23:59:25.824256][DEBUG][LIB_REPO] updateAddress id=a670f012-95d9-4119-8198-51f5ebc67f98 label=外网 status=ok
+[2026-08-27T23:59:25.824457][DEBUG][ADDR_POOL] updated probe result: 外网 status=ok latency=199ms
+[2026-08-27T23:59:27.383722][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=39.5s prev(UNKNOWN 38s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:29.366179][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=41.5s prev(UNKNOWN 39s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:31.412288][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=43.5s prev(UNKNOWN 41s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:33.372992][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=45.5s prev(UNKNOWN 44s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:37.657770][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=49.8s prev(UNKNOWN 45s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:40.014042][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=52.1s prev(UNKNOWN 50s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:41.444271][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=53.6s prev(UNKNOWN 52s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:43.407982][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=55.5s prev(UNKNOWN 54s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
+[2026-08-27T23:59:45.613380][DEBUG][DLNA-AUTO] cur=15 real=225s elapsed=57.7s prev(UNKNOWN 56s/225s) now(UNKNOWN 0s/0s) adv=225 near=false started=false wall=false devEnd=false stuck=false played=true loop=true fresh=false paused=false next=null
