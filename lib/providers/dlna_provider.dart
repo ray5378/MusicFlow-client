@@ -64,6 +64,26 @@ Future<void> releaseCastWakeLock() async {
   }
 }
 
+/// 启动「投屏保活」前台服务：进程置前台态 + PARTIAL 唤醒锁，避免熄屏/退后台
+/// 时进程被冻结或杀死，保证 2s 状态轮询定时器持续触发 → 曲毕自动推下一首。
+/// 明显区别于纯唤醒锁：前台态可抵御系统按内存压力后台杀进程。仅 Android、幂等。
+Future<void> startCastKeepAliveService() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _dlnaPlatformChannel.invokeMethod('startCastService');
+  } catch (_) {
+    // 通道不可用/权限缺失时静默降级，不阻断投屏本身
+  }
+}
+
+/// 停止「投屏保活」前台服务。仅 Android、幂等。
+Future<void> stopCastKeepAliveService() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _dlnaPlatformChannel.invokeMethod('stopCastService');
+  } catch (_) {}
+}
+
 /// DLNA 管理器 Provider（单例）
 final dlnaManagerProvider = Provider<DlnaManager>((ref) {
   final manager = DlnaManager();
@@ -270,6 +290,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       _stopTick();
       _disableNotificationCast();
       releaseCastWakeLock();
+      stopCastKeepAliveService();
     };
   }
 
@@ -361,8 +382,10 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         isCasting: true,
         castPath: manager.castPath,
       );
-      // 后台保活：仅 Android 生效，URL 直传期间 CPU 常醒，曲末可持续轮询推下一首。
+      // 后台保活（仅 Android）：唤醒锁 + 前台服务双重保障，熄屏/退后台时
+      // 进程不被冻结或杀死，2s 轮询持续触发 → 曲毕自动推下一首。
       acquireCastWakeLock();
+      startCastKeepAliveService();
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
@@ -452,6 +475,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         castPath: manager.castPath,
       );
       acquireCastWakeLock();
+      startCastKeepAliveService();
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
@@ -577,6 +601,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       smoothPositionSeconds: 0,
     );
     await releaseMulticastLock();
+    stopCastKeepAliveService();
 
     await _resumeLocalPlayback(castIndex: castIndex, position: castPosition);
   }

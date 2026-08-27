@@ -65,6 +65,13 @@
             </intent-filter>
         </service>
 
+        <!-- DLNA 投屏后台保活前台服务：直投期间置前台态 + PARTIAL 唤醒锁，
+             保证熄屏/退后台时进程不被冻结或杀死，2s 轮询持续触发 → 曲毕自动推下一首。 -->
+        <service
+            android:name=".CastKeepAliveService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+
         <!-- 媒体按钮接收器 -->
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"
