@@ -1409,6 +1409,16 @@ class _PlayerUtilityBar extends ConsumerWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[
+            // 链路 B（局域网 DLNA 直投）独立按钮：置于最左，与「切换播放器」拉开距离，
+            // 避免与链路 A（后端投屏）靠得太近而混淆。
+            _PlayerIconButton(
+              icon: AppIcons.dlnaLocal,
+              label: dlnaCast.isCasting
+                  ? '局域网 DLNA 直投，正在投屏到「${dlnaCast.currentDevice?.name ?? ''}」'
+                  : '局域网 DLNA 直投',
+              selected: dlnaCast.isCasting,
+              onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
+            ),
             _PlayerIconButton(
               icon: modeIcon,
               label: modeLabel,
@@ -1442,20 +1452,13 @@ class _PlayerUtilityBar extends ConsumerWidget {
             ),
             // 音量：弹出式音量调节弹窗，与「喜欢」「切换播放器」并排。
             const VolumeButton(),
+            // 「切换播放器」：使用 base_station(信号) 图标，与选择播放器弹窗中
+            // DLNA 设备行(信号/三角) 保持一致；置于最右，与最左的 DLNA 直投拉开距离。
             _PlayerIconButton(
-              icon: AppIcons.dlna,
+              icon: AppIcons.signalTower,
               label: '切换播放器，当前：${currentPlayerName(cast)}',
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
-            ),
-            // 链路 B（局域网 DLNA 直投）：独立按钮，用电视图标与链路 A 明显区分。
-            _PlayerIconButton(
-              icon: AppIcons.dlnaLocal,
-              label: dlnaCast.isCasting
-                  ? '局域网 DLNA 直投，正在投屏到「${dlnaCast.currentDevice?.name ?? ''}」'
-                  : '局域网 DLNA 直投',
-              selected: dlnaCast.isCasting,
-              onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
             ),
           ],
         ),

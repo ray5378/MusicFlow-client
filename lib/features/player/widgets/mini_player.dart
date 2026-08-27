@@ -336,7 +336,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       Tooltip(
         message: '切换播放器，当前：${widget.currentPlayerName}',
         child: MusicFlowIconButton(
-          icon: AppIcons.dlna,
+          icon: AppIcons.signalTower,
           label: '切换播放器，当前：${widget.currentPlayerName}',
           foregroundColor: widget.isCasting
               ? context.musicFlowColors.accent
@@ -407,7 +407,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         onPressed: _togglePlayPause,
       ),
       MusicFlowIconButton(
-        icon: AppIcons.dlna,
+        icon: AppIcons.signalTower,
         label: '切换播放器，当前：${widget.currentPlayerName}',
         foregroundColor: widget.isCasting
             ? context.musicFlowColors.accent
