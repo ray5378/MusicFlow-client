@@ -1110,6 +1110,18 @@ class PlatformRecommendSection extends ConsumerWidget {
   }
 }
 
+/// 本地随机分区标题:优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
+/// 名称去掉末尾「音乐」与主项目前端保持一致。
+String localChannelTitle(LocalRecommendChannel channel) {
+  final base = channel.name.endsWith('音乐')
+      ? channel.name.substring(0, channel.name.length - '音乐'.length)
+      : channel.name;
+  final tag = (channel.subtag != null && channel.subtag!.isNotEmpty)
+      ? channel.subtag!
+      : '本地随机';
+  return '$base·$tag';
+}
+
 /// 本地随机(按平台):由后端 /v1/local-recommend 提供,从本地库按平台随机挑歌单。
 /// 与主项目前端一致:歌单均已入库,点击直接打开本地歌单,无需导入刷新。
 class LocalPlatformRecommendSection extends ConsumerWidget {
@@ -1150,12 +1162,24 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                   if (channel.playlists.isNotEmpty) ...<Widget>[
                     if (channels.length > 1) ...<Widget>[
                       SizedBox(height: context.musicFlowSpacing.sm),
+                      // 分区标题优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
                       Text(
-                        channel.name,
+                        localChannelTitle(channel),
                         style: context.musicFlowTypography.label.copyWith(
                           color: context.musicFlowColors.accent,
                         ),
                       ),
+                      // 有说明性 tagline 时作为副标题展示(缺省不显示)。
+                      if (channel.tagline case final tagline?
+                          when tagline.isNotEmpty) ...[
+                        SizedBox(height: context.musicFlowSpacing.xxs),
+                        Text(
+                          tagline,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.musicFlowTypography.metadata,
+                        ),
+                      ],
                       SizedBox(height: context.musicFlowSpacing.xxs),
                     ],
                     HoverableHorizontalScroll(

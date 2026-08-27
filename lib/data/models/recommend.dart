@@ -100,16 +100,22 @@ class LocalRecommendPlaylist {
 }
 
 /// 本地随机频道(一个平台一个),按平台分组展示。
+/// 后端透传展示文案:subtag 为分区标题后缀(如「每日更新」,缺省回落「本地随机」),
+/// tagline 为副标题说明文案(缺省回落歌单数量)。
 class LocalRecommendChannel {
   final String source;
   final String name;
   final int count;
+  final String? subtag;
+  final String? tagline;
   final List<LocalRecommendPlaylist> playlists;
 
   LocalRecommendChannel({
     required this.source,
     required this.name,
     required this.count,
+    this.subtag,
+    this.tagline,
     required this.playlists,
   });
 
@@ -119,6 +125,8 @@ class LocalRecommendChannel {
       source: json['source'] as String? ?? '',
       name: json['name'] as String? ?? '',
       count: (json['count'] as num?)?.toInt() ?? 0,
+      subtag: json['subtag'] as String?,
+      tagline: json['tagline'] as String?,
       playlists: list
           .map((e) => LocalRecommendPlaylist.fromJson(e as Map<String, dynamic>))
           .toList(),
