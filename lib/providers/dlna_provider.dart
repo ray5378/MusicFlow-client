@@ -50,6 +50,7 @@ final dlnaManagerProvider = Provider<DlnaManager>((ref) {
 
 /// 确保链路 B 管理器已初始化（幂等）：接入服务器流 URL 构建
 /// 流 URL 复用 `SubsonicApiClient.getStreamUrl`（当前生效音质 maxBitRate），与 just_audio 解耦。
+/// B 档清单 URL 复用 `getCastPlaylistUrl`（/rest/castPlaylist，服务端 CDS 容器）。
 Future<void> ensureDlnaManagerReady(Ref ref) async {
   final manager = ref.read(dlnaManagerProvider);
   await manager.init(
@@ -57,6 +58,10 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
       final client = ref.read(subsonicApiClientProvider);
       final quality = ref.read(effectiveQualityProvider);
       return client.getStreamUrl(songId, maxBitRate: quality.maxBitRate);
+    },
+    castListUrlBuilder: (songIds) {
+      final client = ref.read(subsonicApiClientProvider);
+      return client.getCastPlaylistUrl(songIds);
     },
   );
 }
@@ -69,6 +74,7 @@ DlnaCastTrack dlnaCastTrackFromSong(Song song) {
     artist: song.artist,
     album: song.album,
     duration: song.duration,
+    mimeHint: song.contentType,
   );
 }
 
@@ -153,6 +159,9 @@ class DlnaCastState {
   /// 平滑进度(秒):插值 tick 递增,设备轮询回写修正 —— 对齐链路 A [CastPeerState]。
   final double smoothPositionSeconds;
 
+  /// 当前投屏路径档位(A direct 直传 / B cdsList CDS 清单)。空则为未投屏。
+  final DlnaCastPath? castPath;
+
   const DlnaCastState({
     this.currentDevice,
     this.status = const DlnaDeviceStatus(),
@@ -161,6 +170,7 @@ class DlnaCastState {
     this.currentIndex = -1,
     this.playMode = 'all',
     this.smoothPositionSeconds = 0,
+    this.castPath,
   });
 
   /// 当前投屏曲目
@@ -177,6 +187,7 @@ class DlnaCastState {
     int? currentIndex,
     String? playMode,
     double? smoothPositionSeconds,
+    DlnaCastPath? castPath,
     bool clearDevice = false,
   }) {
     return DlnaCastState(
@@ -188,6 +199,7 @@ class DlnaCastState {
       playMode: playMode ?? this.playMode,
       smoothPositionSeconds:
           smoothPositionSeconds ?? this.smoothPositionSeconds,
+      castPath: castPath ?? this.castPath,
     );
   }
 }
@@ -230,6 +242,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         queue: const [],
         currentIndex: -1,
         smoothPositionSeconds: 0,
+        castPath: null,
       );
       _stopTick();
       _disableNotificationCast();
@@ -319,7 +332,11 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       startIndex: startIndex,
     );
     if (success) {
-      state = state.copyWith(currentDevice: device, isCasting: true);
+      state = state.copyWith(
+        currentDevice: device,
+        isCasting: true,
+        castPath: manager.castPath,
+      );
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
@@ -403,7 +420,11 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     final manager = _ref.read(dlnaManagerProvider);
     final success = await manager.startCast(device, tracks, startIndex: start);
     if (success) {
-      state = state.copyWith(currentDevice: device, isCasting: true);
+      state = state.copyWith(
+        currentDevice: device,
+        isCasting: true,
+        castPath: manager.castPath,
+      );
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();

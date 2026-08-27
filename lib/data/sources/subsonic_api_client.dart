@@ -237,6 +237,22 @@ class SubsonicApiClient {
     return urlWithParams.toString();
   }
 
+  /// 生成 DLNA 投屏队列的 CDS 清单 URL（/rest/castPlaylist,链路 B）。
+  /// 直接把多个 songId 一次性打包成服务端 DIDL 容器,DLNA 设备按序自拉流、自循环。
+  /// 同样注入鉴权参数(query),设备可直接用此 URL 拉清单;客户端退化为纯遥控。
+  String getCastPlaylistUrl(List<String> songIds) {
+    if (_library == null || songIds.isEmpty) return '';
+    final baseUrl = _dio.options.baseUrl;
+    if (baseUrl.isEmpty) return '';
+
+    final params = <String, String>{};
+    _addAuthParamsMap(params);
+    params['songs'] = songIds.join(',');
+
+    final uri = Uri.parse(joinServerUrl(baseUrl, '/rest/castPlaylist'));
+    return uri.replace(queryParameters: params).toString();
+  }
+
   /// 远程插件歌曲流地址(/rest/stream-remote):与主项目一致,带 provider/source/id,
   /// 以及标题/艺术家/专辑/时长/封面等透传参数,确保插件侧能正确解析并回源。
   /// 鉴权参数由 _addAuthParamsMap 注入(query),播放器可直接用此 URL 拉流。

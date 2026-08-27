@@ -39,9 +39,10 @@ class DeviceDescriptionParser {
     final manufacturer = _extractTag(xml, 'manufacturer');
     final model = _extractTag(xml, 'modelName');
 
-    // 解析服务列表，找到 AVTransport 和 RenderingControl
+    // 解析服务列表，找到 AVTransport / RenderingControl / ContentDirectory
     String? avTransportUrl;
     String? renderingControlUrl;
+    String? contentDirectoryUrl;
 
     final serviceRegex = RegExp(
       r'<service\b[^>]*>([\s\S]*?)<\/service>',
@@ -60,6 +61,9 @@ class DeviceDescriptionParser {
       } else if (RegExp(r'RenderingControl', caseSensitive: false)
           .hasMatch(serviceType)) {
         renderingControlUrl = _toAbsolute(controlUrl, location);
+      } else if (RegExp(r'ContentDirectory', caseSensitive: false)
+          .hasMatch(serviceType)) {
+        contentDirectoryUrl = _toAbsolute(controlUrl, location);
       }
     }
 
@@ -74,6 +78,7 @@ class DeviceDescriptionParser {
       model: model,
       avTransportUrl: avTransportUrl,
       renderingControlUrl: renderingControlUrl,
+      contentDirectoryUrl: contentDirectoryUrl,
       lastSeen: DateTime.now(),
       available: true,
     );
