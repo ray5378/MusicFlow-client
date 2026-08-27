@@ -247,8 +247,15 @@ class SsdpDiscovery {
       'loopback',
       'zerotier',
       'hamachi',
+      'easytier', // EasyTier：Linux 侧 `dev_name=easytier` 的 TUN
     ];
     if (keywords.any(name.contains)) return true;
+    // EasyTier(Windows) 自动生成网卡名 `et_{序号}_{随机4位}`（如 et_6_vg7l / et_net_a）。
+    // 注意：不能按裸 `et` 前缀过滤，否则会把真实网卡 "Ethernet" 一并挡掉。
+    // 只匹配 `et_` 或 `et-` 前缀（及完全等于 `et`），避开 "Ethernet" 这类以 et 开头的
+    // 物理网卡，见 EasyTier/src/arch/windows.rs 的接口命名。
+    final et = name;
+    if (et == 'et' || et.startsWith('et_') || et.startsWith('et-')) return true;
     return iface.addresses.any(_isBlockedIpv4);
   }
 
