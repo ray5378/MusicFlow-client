@@ -382,12 +382,25 @@ class DlnaManager {
     } catch (e) {
       debugPrint('DLNA Play 失败: ${track.title} $e');
     }
-    // 记录本次(主动/自动)切歌时刻，供轮询续播检测 2s 内互斥，避免切歌后
+    // 记录本次(主动/自动)切歌时刻，供轮询续播检测 1.5s 内互斥，避免切歌后
     // 设备短暂处于非播态时被 deviceEnded/中继 EOF 重复推进到下一首。
     _lastCompletionAdvance = DateTime.now();
 
     // 预置下一首（设备支持 SetNext 则无缝续播）
     await _provisionNextTrack();
+
+    // 新一轮主动播放：把本地合成状态刷成「新曲刚开播(进度 0)」。此行必须在切换
+    // 之后立即执行——否则下一帧轮询会在 prev(nearEnd/prevPosition) 里读到旧曲的
+    // 「近尾」状态(near=true 且新曲进度小→started=true)，误走 _alignToNext 再推一档，
+    // 造成游标/设备实际播放错位(跳过头或重复推进)。
+    _currentStatus = DlnaDeviceStatus(
+      state: 'PLAYING',
+      position: 0,
+      duration:
+          _currentRealDuration > 0 ? _currentRealDuration : _currentStatus.duration,
+      volume: _currentStatus.volume,
+      muted: _currentStatus.muted,
+    );
 
     onTrackChanged?.call(_queueIndex);
   }
@@ -800,8 +813,13 @@ class DlnaManager {
       try {
         if (freshlyAdvanced) {
           // 已续播，交给下一轮轮询跟随新曲进度。
-        } else if (!selfLooping && nearEnd && startedOver) {
+        } else if (!selfLooping &&
+            nearEnd &&
+            startedOver &&
+            posInfo.position > 0) {
           // 设备已自行切到预置的下一首(SetNext 生效)——仅对齐游标与重算预置，避免重复下发。
+          // 仅当设备上报有效位置(>0)时才信任其已真正切歌(RawHTTP 恒报 position=0，无法感知
+          // 是否自切，须走下方 advance 由客户端主动推新 URI，否则游标前移而设备仍卡在旧曲)。
           await _alignToNext();
         } else if (!selfLooping &&
             (nearEnd || wallDone || deviceEnded || positionStuck)) {
@@ -856,6 +874,16 @@ class DlnaManager {
     _queueIndex = nextIndex;
     _currentRealDuration =
         _queue[_queueIndex].duration ?? _currentRealDuration;
+    // 设备自切到新曲后同样立即刷新合成状态为「新曲刚开播(进度 0)」，
+    // 避免下一帧轮询仍在 prev 读到旧曲近尾状态而再次触发对齐/推进(跳过头)。
+    _currentStatus = DlnaDeviceStatus(
+      state: 'PLAYING',
+      position: 0,
+      duration:
+          _currentRealDuration > 0 ? _currentRealDuration : _currentStatus.duration,
+      volume: _currentStatus.volume,
+      muted: _currentStatus.muted,
+    );
     onTrackChanged?.call(_queueIndex);
     await _provisionNextTrack();
   }
