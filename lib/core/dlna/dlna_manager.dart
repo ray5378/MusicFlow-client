@@ -675,8 +675,8 @@ class DlnaManager {
         muted: muted,
       );
 
-      // 自动续播检测：上一帧接近曲末、新帧从头开播 → 设备已自动切到预置的下一首。
-      // 游标按 _provisionedIndex（已随播放模式预置）对齐；设备无 SetNext 支持时回退线性 +1。
+      // 自动续播检测：优先处理「设备已自切(SetNext)」与「已续播互斥」，否则曲末
+      // 一律由客户端主动 `SetAVTransportURI(下一首直链) → Play` 推下一首。
       final nearEnd = prevState == 'PLAYING' &&
           prevDuration > 0 &&
           prevDuration - prevPosition <= 3;
@@ -684,27 +684,37 @@ class DlnaManager {
           posInfo.position >= 0 &&
           posInfo.position < 5;
 
-      // 墙钟兜底判定：本曲已按真实时长播完（即便设备不报时长/位置）。
-      // 这是「直连 RawHTTP 流放完 → 自动下一首」最稳妥的依据，与中继 EOF 互斥。
-      final wallDone = !_userPaused &&
-          _currentRealDuration > 0 &&
-          _playbackElapsed >= _currentRealDuration - 1.0;
+      // 有效时长：优先真实时长(Song.duration)，未知时退回设备上报时长，
+      // 确保墙钟兜底即使曲目时长未知也能判定「放完 → 主动推下一首」。
+      final advanceDuration =
+          _currentRealDuration > 0 ? _currentRealDuration : posInfo.duration;
 
-      // 最近 2s 内中继 EOF 已触发过一次续播 → 本轮轮询仅回写状态、不再重复推进/对齐
-      // （否则会基于上一帧「近曲末」再推进一次，跳到下一首的下下首）。
+      // 墙钟兜底：已按有效时长播完（即便设备 RawHTTP 不报时长/位置）。
+      final wallDone = !_userPaused &&
+          advanceDuration > 0 &&
+          _playbackElapsed >= advanceDuration - 1.0;
+
+      // 设备自然放停：上一帧在播、本帧非播放/暂停，且并非明确曲中段。
+      // 对 RawHTTP/未知时长(位置始终为 0)的设备，「正在播 → 停止」是最可靠的曲末
+      // 信号——据此客户端立即主动推下一首直链，否则这类设备曲毕就会卡住不动。
+      final clearlyMidTrack = prevDuration > 0 && (prevDuration - prevPosition) > 5;
+      final deviceEnded = !_userPaused &&
+          prevState == 'PLAYING' &&
+          state != 'PLAYING' &&
+          state != 'PAUSED' &&
+          !clearlyMidTrack;
+
+      // 最近 2s 内已续播过一次 → 本轮轮询仅回写状态、不再重复推进/对齐
+      // （避免「近尾主动推」与「墙钟/设备停播」两路检测对同一曲重复推进到下一首）。
       final freshlyAdvanced = _isCompletionAdvanceFresh();
 
       if (freshlyAdvanced) {
         // 已续播，交给下一轮轮询跟随新曲进度。
       } else if (nearEnd && startedOver) {
-        // 情况 1：设备已自行切到预置的下一首——仅对齐游标与重算预置，避免重复下发。
+        // 设备已自行切到预置的下一首(SetNext 生效)——仅对齐游标与重算预置，避免重复下发。
         await _alignToNext();
-      } else if (nearEnd) {
-        // 情况 2：当前曲已到尾但设备**未**自行切歌（常为不支持 SetNext）。
-        // 客户端主动按播放模式切到下一首/单曲循环（对齐本机 _onSongCompleted）。
-        await _advanceAfterCompletion();
-      } else if (wallDone) {
-        // 情况 4（直连兜底）：墙钟判断本曲已放完但设备未自切（RawHTTP 常不报时长）。
+      } else if (nearEnd || wallDone || deviceEnded) {
+        // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
         await _advanceAfterCompletion();
       } else if (!_userPaused &&
           prevState == 'PLAYING' &&
@@ -713,7 +723,7 @@ class DlnaManager {
           prevDuration - prevPosition > 5 &&
           state != 'PLAYING' &&
           state != 'PAUSED') {
-        // 情况 3：非用户暂停下、曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
+        // 曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
         _stallCount++;
         if (_stallCount >= 2) {
           _stallCount = 0;
