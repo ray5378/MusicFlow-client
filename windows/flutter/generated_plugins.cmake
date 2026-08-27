@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
+  file_saver
   media_kit_libs_windows_audio
   permission_handler_windows
   share_plus

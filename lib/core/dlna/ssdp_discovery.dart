@@ -17,6 +17,10 @@ import 'package:flutter/foundation.dart';
 ///   3. 对绑定了具体 IP 的接口，额外发一份**子网定向广播**(x.y.z.255)；多播出接
 ///      口选错时，定向广播仍能按绑定接口被路由到本网段，兜底命中设备。
 ///   4. 兜底任意地址(0.0.0.0) socket 改发全局广播 255.255.255.255。
+///   5. **过滤虚拟/VPN/隧道/链路本地接口**(Hyper-V vEthernet、tailscale、wireguard、
+///      tunnel/tap/vpn、169.254/198.18/100.64 等)。Windows 上这些接口会带私网地址，
+///      既污染系统「默认多播出接口」的选择，又让单播主机扫描去扫不存在的网段；
+///      参考 auto-cast 的做法主动剔除，避免多网卡下白扫与误选。
 ///
 /// 被动监听(NOTIFY)同样改为**逐接口 join**，覆盖所有网段的设备自播(ssdp:alive)。
 class SsdpDiscovery {
@@ -206,19 +210,57 @@ class SsdpDiscovery {
   }
 
   /// 返回全部非环回接口（含 IPv4 线索），供逐接口 join / 被动监听多网卡覆盖。
+  /// 会剔除虚拟/VPN/隧道/链路本地接口：它们带私网地址却无法承载真实 DLNA 设备，
+  /// 且在 Windows 上会干扰多播出接口选择与单播扫描网段。
   Future<List<NetworkInterface>> _probeInterfaces() async {
     final result = <NetworkInterface>[];
     try {
       final interfaces =
           await NetworkInterface.list(includeLinkLocal: false);
       for (final iface in interfaces) {
-        if (iface.name.startsWith('lo')) continue;
+        if (_skipInterface(iface)) continue;
         final hasIpv4 =
             iface.addresses.any((a) => a.type == InternetAddressType.IPv4);
         if (hasIpv4) result.add(iface);
       }
     } catch (_) {}
     return result;
+  }
+
+  /// 判断某接口是否应被剔除（虚拟扩卡 / VPN / 隧道 / 链路本地等）。
+  bool _skipInterface(NetworkInterface iface) {
+    final name = iface.name.toLowerCase();
+    const keywords = <String>[
+      'vethernet', // Hyper-V 虚拟以太网适配器
+      'hyper',
+      'tailscale',
+      'wireguard',
+      'wg0',
+      'radmin',
+      'mihomo',
+      'vpn',
+      'tunnel',
+      'tap',
+      'tun',
+      'virtualbox',
+      'vmware',
+      'loopback',
+      'zerotier',
+      'hamachi',
+    ];
+    if (keywords.any(name.contains)) return true;
+    return iface.addresses.any(_isBlockedIpv4);
+  }
+
+  /// 链路本地 / 保留网段：不承载真实局域网 DLNA 设备，且会让单播扫描扫空网段。
+  bool _isBlockedIpv4(InternetAddress a) {
+    if (a.type != InternetAddressType.IPv4) return false;
+    final ip = a.address;
+    return ip.startsWith('127.') ||
+        ip.startsWith('169.254.') ||
+        ip.startsWith('198.18.') ||
+        ip.startsWith('198.19.') ||
+        ip.startsWith('100.64.');
   }
 
   /// 根据 IPv4 地址反查其所属接口（用于将该 address 的 socket 多播成员锁定到接口）。
