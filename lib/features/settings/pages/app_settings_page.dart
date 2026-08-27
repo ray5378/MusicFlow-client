@@ -30,6 +30,7 @@ import 'audio_quality_page.dart';
 import 'cover_providers_page.dart';
 import 'lyrics_providers_page.dart';
 import 'theme_settings_page.dart';
+import 'log_viewer_page.dart';
 
 /// 全屏设置页
 class AppSettingsPage extends ConsumerStatefulWidget {
@@ -496,6 +497,17 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 title: '诊断与更新',
                 description: '导出本机诊断日志，或检查 GitHub Releases。',
                 children: <Widget>[
+                  MusicFlowSettingRow(
+                    icon: AppIcons.fileText,
+                    title: '查看日志',
+                    description: '应用内直接查看并复制诊断日志（可筛选 DLNA）',
+                    trailing: Icon(
+                      AppIcons.chevronRight,
+                      size: 20,
+                      color: context.musicFlowColors.muted,
+                    ),
+                    onPressed: () => _pushPage(const LogViewerPage()),
+                  ),
                   MusicFlowSettingRow(
                     icon: AppIcons.fileText,
                     title: '导出日志',
