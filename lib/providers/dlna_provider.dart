@@ -3,7 +3,9 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../core/dlna/dlna_manager.dart';
+import '../core/utils/logger.dart';
 import '../core/dlna/dlna_models.dart';
 import '../data/models/audio_quality.dart';
 import '../data/models/peer.dart';
@@ -67,13 +69,42 @@ Future<void> releaseCastWakeLock() async {
 /// 启动「投屏保活」前台服务：进程置前台态 + PARTIAL 唤醒锁，避免熄屏/退后台
 /// 时进程被冻结或杀死，保证 2s 状态轮询定时器持续触发 → 曲毕自动推下一首。
 /// 明显区别于纯唤醒锁：前台态可抵御系统按内存压力后台杀进程。仅 Android、幂等。
+/// 启动前先补齐后台续播的前置条件：Android 13+ 通知权限(前台服务常驻可见) +
+/// 电池优化白名单(国产 ROM 后台冻结的根治手段)。
 Future<void> startCastKeepAliveService() async {
   if (!Platform.isAndroid) return;
+  await _requestBackgroundCastPerms();
   try {
     await _dlnaPlatformChannel.invokeMethod('startCastService');
   } catch (_) {
     // 通道不可用/权限缺失时静默降级，不阻断投屏本身
   }
+}
+
+/// 后台投屏续播的前置权限/豁免（幂等、全静默失败降级，不阻断投屏）：
+///  1. Android 13+ 请求通知权限 —— mediaPlayback 前台服务的通知若不显示，
+///     某些 ROM 会连带停掉该服务，进程退回后台即冻结，轮询随之中断。
+///  2. 请求电池优化豁免 —— 相对国产 ROM 后台冻结最有效的糖衣手段，
+///     用户确认后应用列入白名单，退后台/锁屏仍持续轮询 → 到点准点推下一首。
+Future<void> _requestBackgroundCastPerms() async {
+  // 1) POST_NOTIFICATIONS（Android 13+；旧版本 API 由插件自动放行）
+  try {
+    final status = await Permission.notification.request();
+    if (!status.isGranted) {
+      Logger.infoWithTag(
+        'DLNA-KEEPALIVE',
+        '通知权限未授予，前台服务常驻可能受限 → 后台续播不可靠',
+      );
+    }
+  } catch (_) {}
+
+  // 2) 电池优化豁免（Android 6+；未豁免时弹出系统授权框，用户确认一次即可）
+  try {
+    final ignoring = await _dlnaPlatformChannel
+        .invokeMethod<bool>('isIgnoringBatteryOptimization');
+    if (ignoring == true) return;
+    await _dlnaPlatformChannel.invokeMethod('requestIgnoreBatteryOptimization');
+  } catch (_) {}
 }
 
 /// 停止「投屏保活」前台服务。仅 Android、幂等。

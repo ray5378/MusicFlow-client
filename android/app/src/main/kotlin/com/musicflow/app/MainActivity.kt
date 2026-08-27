@@ -3,8 +3,10 @@ package com.musicflow.app
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
@@ -131,6 +133,30 @@ class MainActivity : AudioServiceFragmentActivity() {
                     result.success(started)
                 } catch (e: Exception) {
                     result.error("STOP_CAST_SERVICE_FAILED", e.message, null)
+            }
+            }
+            // 电池优化豁免：国产 ROM 后台冻结常导致投屏轮询 timer 停摆，即使前台服务
+            // + 唤醒锁也难幸免。主动请求让应用列入「不优化」白名单，保证切后台/锁屏仍轮询。
+            "isIgnoringBatteryOptimization" -> {
+                result.success(_isIgnoringBatteryOptimization())
+            }
+            "requestIgnoreBatteryOptimization" -> {
+                if (_isIgnoringBatteryOptimization()) {
+                    result.success(true)
+                } else {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:$packageName")
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("REQUEST_IGNORE_BATTERY_FAILED", e.message, null)
+                    }
                 }
             }
             "hasNearbyWifiDevicesPermission" -> {
@@ -158,6 +184,12 @@ class MainActivity : AudioServiceFragmentActivity() {
             this,
             Manifest.permission.NEARBY_WIFI_DEVICES
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun _isIgnoringBatteryOptimization(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        return pm.isIgnoringBatteryOptimizations(packageName)
     }
 
     override fun onRequestPermissionsResult(
