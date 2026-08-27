@@ -11,6 +11,7 @@
 > - **Windows 渲染性能成为硬性契约**：新增「§八 Windows 桌面端渲染性能约束」，把特效降级、高频重建、音频后端选型、发布前性能验收写死，治理 Windows 卡顿与渲染差。
 > - **修复旧版硬伤**：API 端点体系统一（删除三套并存）、DLNA 存档区清理、测试清单按仓库实际重列、基础库依赖表按 pubspec 实测修正、目录结构按现状更新。
 > - **v3.1 修订（用户/ray 确认，2026-08-26）**：新增**链路 B「局域网 DLNA 直投」**——Android/Windows 客户端**自行 SSDP 发现 + SOAP 控制 + 本地中继推流**到局域网 DLNA 设备（支持投屏队列自动续播），与现有「切换播放器」（**链路 A**，后端投屏、客户端仅遥控）**完全独立并存**。详见 §1.1 / §3.6 / §10。
+> - **v3.2 修订（用户/ray 确认，2026-08-27）**：**砍掉链路 B 的本地中继（原链路 C 兜底）与本地 HttpServer 推流**，回归标准 DLNA 分工——客户端仅作 **Control Point（遥控器）：进度显示 / 遥控操作 / 播控中心**；把**服务端直连流 URL** 交给 DLNA 设备，设备作为 **DMR 自拉流**。投屏传输收敛为**双档位**：**A 档·直传**（直连 URL，设备自拉流 + 客户端看门狗自动续播）、**B 档·CDS 清单**（设备支持 ContentDirectory 时，服务端 `GET /castPlaylist` 提供 DIDL-Lite 容器，设备整队列自播，杀客户端也能续播完）。详见 §1.1 / §3.6 / §十。
 
 ---
 
@@ -21,7 +22,7 @@
 - 本仓库是 **MusicFlow 主项目后端的全量客户端**（Flutter），首发 **Windows + Android**，后续扩展 iOS/鸿蒙/Web。
 - 客户端消费主项目三套接口面：**原生 API**（`/rest/api/v1/*`）、**OpenSubsonic**（`/rest/*`）、**WebSocket**（`/ws`）。
 - 播放目标统一抽象为 **peer**（本机 `local:<uid>` / DLNA `dlna:<id>` / 群组 `group:<id>` / AirPlay `airplay:<id>`）。**链路 A（切换播放器）投屏一律由后端推流**，客户端只做控制面（§3）。
-- **链路 B（局域网 DLNA 直投，§3.6）例外**：Android/Windows 客户端允许**自行 SSDP 发现 + SOAP 控制 + 本地 HTTP 中继推流**到局域网 DLNA 设备，支持投屏队列自动续播。链路 B 与链路 A **完全独立**，状态/设备/控制互不并入。
+- **链路 B（局域网 DLNA 直投，§3.6）例外**：Android/Windows 客户端允许**自行 SSDP 发现 + SOAP 控制**到局域网 DLNA 设备，支持投屏队列自动续播；**客户端不做本地中继/推流**（v3.2 起），只把**服务端直连流 URL**（A 档直传）或 **CDS 清单**（B 档）交给设备，让设备**自拉流**，客户端仅遥控。链路 B 与链路 A **完全独立**，状态/设备/控制互不并入。
 - **首页（发现页）是基准**：现有 Android / Windows 首页展示的内容与交互逻辑已被确认为正确，**作为基准保留，不得擅自改版**（见 §7.3）。
 
 ### 1.2 技术栈（按 pubspec 实测）
@@ -50,12 +51,13 @@
 - **客户端必须对齐主项目**：接口参数、数据结构、行为表现均以主项目为准；主项目前端 `stores/player.ts`（peer/队列/投屏状态机）、`composables/useInfiniteList.ts`（列表窗口化）是行为基准。
 - **主项目只读，禁止修改**。主项目参考源码可克隆为本地只读工作副本（如 `/workspace/_MusicFlow-main`），**该目录严禁提交/入库**（交付前 `git status` 核对，见 §10 #10）。
 - **唯一例外**：某功能不修改主项目无法实现时，必须先向 ray 说明原因并获明确确认，未确认前只能在客户端变通。
+- **已批准的只读例外（v3.2）**：服务端 `backend/src/routes/rest/index.ts` 新增 `GET /castPlaylist`（链路 B 的 CDS 清单接口，用户/ray 明确授权，已推送 `ray5378/MusicFlow` main）。此后对主项目任何其他改动仍需照常先报备获确认。
 
 ### 1.4 硬性工程约束
 
 - **依赖管理**：严禁引入未授权的新第三方库、严禁升级现有依赖版本。缺能力 → 先说明理由，等确认。
 - **命名规范**：文件/目录全小写+下划线（`cast_peer_provider.dart`）；类/接口/枚举大驼峰（`CastPeerController`）；函数/变量小驼峰；常量全大写+下划线（`SSDP_ADDR`）。**链路 B 的 DLNA 命名沿用 `lib/core/dlna/*` 现有命名，不再扩展。**
-- **代码位置**：核心 `lib/core/`，数据 `lib/data/`，功能 `lib/features/`，Provider `lib/providers/`，共享 `lib/widgets/`。**链路 B 业务模块：`lib/core/dlna/*`（SSDP/描述/SOAP/中继）+ `lib/providers/dlna_provider.dart`，供链路 B 引用；禁止在链路 A（`cast_peer_provider` 等）路径引用，两者命名/命名空间保持独立。**
+- **代码位置**：核心 `lib/core/`，数据 `lib/data/`，功能 `lib/features/`，Provider `lib/providers/`，共享 `lib/widgets/`。**链路 B 业务模块：`lib/core/dlna/*`（SSDP/描述/SOAP/直传 A + CDS 清单 B）+ `lib/providers/dlna_provider.dart`，供链路 B 引用；禁止在链路 A（`cast_peer_provider` 等）路径引用，两者命名/命名空间保持独立。**
 - **语言**：UI 文本与代码注释统一中文。
 
 ### 1.5 内存红线
@@ -63,7 +65,7 @@
 - 任何常驻 `Map`/`Set`/数组缓存**必须**带上限（FIFO/LRU）或清理机制（TTL/定期驱逐），禁止只增不删。
 - 列表窗口化缓存：浏览过的旧块超窗即置空（见 §4.2）。
 - 投屏状态轮询：每个远端 peer 的轮询定时器在切回本机/退出时必须 `dispose`，禁止泄漏（见 §3.3）。
-- 链路 B 本地中继：**必须真流式转发（逐块 pipe），禁止整段音频读入内存**；中继会话、SSDP 监听、状态轮询在停止/退出时必须全部释放（见 §3.6）。
+- 链路 B 投屏：**v3.2 起无本地中继/推流**，设备直连服务端自拉流（A 档）或 CDS 清单自播（B 档）；客户端仅保留轮询/看门狗定时器，停止/退出时全部 `dispose`，不得泄漏（见 §3.6）。
 - 封面/歌词缓存：按 LRU 或固定槽位上限。
 
 ### 1.6 构建约束（CI-only + 性能门槛）
@@ -230,33 +232,36 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 ---
 
-### 3.6 链路 B：客户端本地 DLNA 直投（独立副轨道，v3.1 新增）
+### 3.6 链路 B：客户端本地 DLNA 直投（独立副轨道，v3.1 新增 / v3.2 修订为「直传 A + CDS 清单 B」）
 
 > 背景：链路 A（§3.1–§3.5）由后端推流、客户端只是遥控器。链路 B 让 **Android/Windows 客户端自行发现并直连局域网 DLNA 设备**，与服务器控制面解耦。两条链路**完全独立、互不并入**（状态/设备/控制互不写对方 Provider）。
 
 **能力边界**：
-- 首发平台 Android + Windows；实现只依赖 `dart:io`（`RawDatagramSocket` / `HttpServer` / `HttpClient`），**零新增第三方依赖**（仅允许自写原生 MethodChannel + manifest 权限）。
+- 首发平台 Android + Windows；实现只依赖 `dart:io`（`RawDatagramSocket` / `HttpClient` / `Socket`），**零新增第三方依赖**（仅允许自写原生 MethodChannel + manifest 权限）。**v3.2 起不再启用本地 HTTP 服务器/流式中继（已删除 `local_relay.dart`）。**
 - 复用模块（保持命名不变）：`lib/core/dlna/ssdp_discovery.dart`、`device_description.dart`、`soap_control.dart`、`dlna_manager.dart`、`dlna_models.dart` + `lib/providers/dlna_provider.dart`。
 
-**实现要求**：
+**双档位传输（`startCast` 能力探测后选定，标准 DLNA 角色分工：客户端/Control Point、设备/DMR 自拉流）**：
 
-1. **设备发现**：客户端主动 SSDP `M-SEARCH` + 被动 `NOTIFY`（`ssdp_discovery.dart` 已实现）。Android 需持 **`MulticastLock`**（自写 MethodChannel 实现 acquire/release）；Android 13+ 按需申请 **`NEARBY_WIFI_DEVICES`**（`neverForLocation`，运行时）；Windows 提示放行防火墙"专用网络"。
-2. **本地中继推流**：`local_relay.dart` 由"整段 `Uint8List` 读入"改为**真流式**——设备带 `Range` 的 GET → 客户端从服务器流 URL 拉对应 Range → **逐块 pipe 转发**给设备，禁止整段驻留内存（§1.5）。流 URL 复用本机 `_buildStreamUrlOrThrow`（songId + token + 品质）同款逻辑，与 just_audio 实例解耦。
-3. **投屏队列（自动续播）**：客户端自管独立投屏队列（来源复用本机当前播放队列，拷贝脱钩）。流程：`Stop → SetAVTransportURI(relay 流 URL + DIDL-Lite) → Play`；优先 `SetNextAVTransportURI` 预置下一曲（`probeEnqueueSupport` 探测），不支持则切歌/追上时再下发新 URI；2s `Timer.periodic` 轮询 `GetTransportInfo/GetPositionInfo/GetVolume` 回写状态，进度按 §3.3 同款插值。所有定时器在停止/退出时 `dispose`（§1.5 / §10 #14）。
-4. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"选择播放器"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
+1. **A 档 · 直传（默认）**：`Stop → SetAVTransportURI(服务端直连流 URL + DIDL-Lite) → Play`，设备用自己的网卡直连 `getStreamUrl(songId, token, 品质)` **自拉流**，客户端只遥控。**自动续播**：优先 `SetNextAVTransportURI` 预置下一曲（`probeEnqueueSupport`），不支持则用**墙钟看门狗**兜底——设备对 RawHTTP 常报 `duration=0/position=0`，故以 `DlnaCastTrack.duration`（真实时长）+ 累计 `_playbackElapsed` 判定曲末自动推进 `_queueIndex` 并续投下一曲；曲中段连续异常停止（≥2）判失败自动跳过，连续失败达上限（8）停止；`_lastCompletionAdvance` 互斥防轮询/看门狗双触发重复跳曲。
+2. **B 档 · CDS 清单（设备支持 ContentDirectory 时）**：客户端把**整队列**的 DIDL-Lite `musicPlaylist` 容器一次交给设备（`SetAVTransportURI` 容器 URL），设备**自播整列表**（**杀掉客户端也能续播完**）；客户端仅遥控/进度显示。容器由**服务端 `GET /castPlaylist?songs=id1,id2`** 构造——每个 `item.res` 指向直连 `/rest/stream` 的 URL（含 token query）。该接口为 ray 批准的主项目只读例外（§1.3）。
+3. **设备发现**：客户端主动 SSDP `M-SEARCH` + 被动 `NOTIFY`（`ssdp_discovery.dart` 已实现）；Android 需持 **`MulticastLock`**（自写 MethodChannel acquire/release）；Android 13+ 按需申请 **`NEARBY_WIFI_DEVICES`**（`neverForLocation`，运行时）；Windows 提示放行防火墙"专用网络"。
+4. **进度/状态回写**：2s `Timer.periodic` 轮询 `GetTransportInfo/GetPositionInfo/GetVolume` 回写与会话；进度按 §3.3 同款插值，设备号 0 时长时用墙钟兜底保证播控中心进度跟随。所有定时器在停止/退出时 `dispose`，无递归 `Future.delayed`（§1.5 / §10 #14）。
+5. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"选择播放器"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
 
 **权限/配置清单**：
 - Android：`ACCESS_WIFI_STATE`、`CHANGE_WIFI_MULTICAST_STATE`、`NEARBY_WIFI_DEVICES`（Android 13+）；统一走自写 MethodChannel（`com.musicflow.app/dlna`：`acquireMulticastLock` / `releaseMulticastLock` / `hasNearbyWifiDevicesPermission` / `requestNearbyWifiDevicesPermission`），不依赖 `permission_handler` 新增能力。
-- Windows：动态端口本地中继；防火墙"专用网络"放行说明写入文档。
+- Windows：无本地监听端口（v3.2 无中继）；设备经局域网直连服务端 `stream` / `castPlaylist` 拉流，防火墙"专用网络"放行说明写入文档。
 
-**已落地实现清单（v3.1 交付，均已在代码库落地）**：
+**已落地实现清单（v3.2 交付，均已在代码库落地）**：
 
 | 需求 | 落地实现 |
 | --- | --- |
-| 1 设备发现 | `ssdp_discovery.dart`：M-SEARCH + 被动 NOTIFY；`dlna_manager.scanDevices()` 逐个拉 description.xml（`device_description.dart`）。Dart 侧 `dlna_provider.acquire/releaseMulticastLock()` 已按引用计数接入原生通道（Android-only，非 Android 走 No-op）。 |
-| 2 本地中继推流 | `local_relay.dart`：真流式——`await upstream.pipe(request.response)` 逐块转发，不整段入内存；透传 `Range`/Content-Type/Content-Length，回标 `Accept-Ranges: bytes`。流 URL 由 `DlnaManager.init(streamUrlBuilder:)` 注入（`dlna_provider.ensureDlnaManagerReady` 复用 `SubsonicApiClient.getStreamUrl` + 当前 `effectiveQualityProvider.maxBitRate`），与 just_audio 解耦。 |
-| 3 投屏队列（自动续播） | `dlna_manager.dart`：`startCast(device, tracks, startIndex)` 自管独立队列；`_playCurrentTrack` = `Stop → SetAVTransportURI → Play`；`_provisionNextTrack` 优先 `SetNextAVTransportURI`，失败回退手动切曲；2s `Timer.periodic` `_pollStatus` 检测"上一帧近曲末 + 新帧从头"自动 `_queueIndex++` 并续投。轮询/中继在 `stopCast()`/`dispose()` 中全部停止释放。 |
-| 4 UI（双链路完全独立） | `full_player_page.dart` `_PlayerUtilityBar`：新增独立按钮（`AppIcons.dlnaLocal` 电视图标，与链路 A airplay `AppIcons.dlna` 区分），`selected: dlnaCast.isCasting` 投屏态高亮，触达 `_openLocalDlnaCastSheet`。面板 `local_dlna_cast_sheet.dart`：设备自扫列表 / 投屏中当前曲+播放控制 / 停止投屏 / 空态。状态仅读写 `dlnaCastProvider`/`dlnaDevicesProvider`，与 `cast_peer_provider`（链路 A）互不写入。 |
+| 1 设备发现 | `ssdp_discovery.dart`：M-SEARCH + 被动 NOTIFY；`dlna_manager.scanDevices()` 逐个拉 description.xml（`device_description.dart`，含 ContentDirectory 控制 URL 解析 → `DlnaDevice.contentDirectoryUrl`）。Dart 侧 `dlna_provider.acquire/releaseMulticastLock()` 已按引用计数接入原生通道（Android-only，非 Android 走 No-op）。 |
+| 2 A 档直传 | `dlna_manager.startCast`：`Stop → SetAVTransportURI(直连 URL + DIDL-Lite) → Play`；`_playCurrentTrack` 直连 `_directStreamUrl(songId)`（`DlnaManager.init(streamUrlBuilder:)` 注入，复用 `SubsonicApiClient.getStreamUrl` + 当前 `effectiveQualityProvider.maxBitRate`，带 token），设备自拉流；`_provisionNextTrack` 优先 `SetNextAVTransportURI`，失败墙钟看门狗（`_playbackElapsed`/`_currentRealDuration`）曲末自动下一首；`_stallCount`/`_failStreak`(上限 8)/`_lastCompletionAdvance` 兜底。 |
+| 3 B 档 CDS 清单 | `_probeDevice` 探测 `supportsContentDirectory` + 队列>1 时选 CDS；`_sendCastListContainer` 走 `DlnaManager.init(castListUrlBuilder:)` → `SubsonicApiClient.getCastPlaylistUrl(songIds)`，把服务端 `GET /castPlaylist` 构造的 `musicPlaylist` 容器经 `SetAVTransportURI` 交给设备自播；`DlnaCastPath`(direct/cdsList)/`DeviceCapability` 建模，`dlna_provider` 暴露 `castPath`(A/B)。杀客户端后 B 档设备整列表续播。 |
+| 4 中继 C 已删除 | `local_relay.dart` 移除；`dlna_manager` 不再依赖 `HttpServer`/`_localIp`/`_relayPort`/`_relaySessionBySongId`，`dispose` 不再关中继。 |
+| 5 UI（双链路完全独立） | `full_player_page.dart` `_PlayerUtilityBar`：独立按钮（`AppIcons.dlnaLocal` 电视图标，与链路 A airplay `AppIcons.dlna` 区分），`selected: dlnaCast.isCasting` 投屏态高亮，触达 `_openLocalDlnaCastSheet`。面板 `local_dlna_cast_sheet.dart`：设备自扫列表 / 投屏中当前曲+播放控制 / 停止投屏 / 空态。状态仅读写 `dlnaCastProvider`/`dlnaDevicesProvider`，与 `cast_peer_provider`（链路 A）互不写入。 |
+| 6 服务端 castPlaylist | 主项目 `GET /castPlaylist`（已推送 `ray5378/MusicFlow` main，ray 授权的只读例外 §1.3）：`?songs` 顺序构造 DIDL-Lite `musicPlaylist` 容器，`item.res` 指向 `/rest/stream` 直连 URL + token(query) 鉴权，`protocolInfo=duration/mime` 齐全，`Cache-Control: no-cache`。 |
 
 ---
 
@@ -411,7 +416,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 模块 | 测试文件 | 重点 |
 |------|----------|------|
 | 投屏控制 | `test/providers/cast_peer_provider_test.dart` | peers 列表/切换/轮询/回本机/待办项（§3.5） |
-| 链路 B DLNA 直投（§3.6） | `test/core/dlna/dlna_models_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart` | DLNA 模型纯逻辑；直投面板空态/设备过滤；投屏态当前曲+上一首（首曲禁用/回退）+播放暂停切换+下一首游标+停止回列表；设备行发起点播；队列空则不投屏；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板 |
+| 链路 B DLNA 直投（§3.6，A/B 双档位） | `test/core/dlna/dlna_models_test.dart`、`test/providers/dlna_provider_test.dart`、`test/core/dlna/device_description_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart`、`test/features/player/dlna_volume_test.dart` | DLNA 模型/设备描述(含 CDS URL)纯逻辑；`castPath`(A/B) 档位选择；直投面板空态/设备过滤；投屏态当前曲+播放控制+进度跟随；设备行发起点播；队列空则不投屏；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板；音量 |
 | 播放队列/进度 | `test/providers/player_seek_policy_test.dart`、`test/providers/preview_playback_queue_test.dart` | 队列、切歌、播放模式、seek 策略 |
 | 数据源 | `test/data/sources/subsonic_api_client_test.dart` | 鉴权注入、响应解析、错误处理 |
 | 仓库 | `test/data/repositories/music_repository_test.dart` | 分页解析、窗口化切片 |
@@ -441,7 +446,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 1. **禁止**引入未授权的新第三方库或升级依赖版本；移除依赖（azlistview/lpinyin/marquee/just_audio_windows 等）需 ray 确认。链路 B 仅允许自写原生 MethodChannel + manifest 权限，**零新增第三方依赖**。
 2. **禁止**修改主项目（`/workspace/_MusicFlow-main` 等参考副本）任何文件；主项目只读。
 3. **禁止**重构未指明的模块（换框架、大规模抽公共层）；重构必须由 ray 显式下达。
-4. **限制**客户端自行实现 SSDP/SOAP/推流/HTTP 中继：仅允许在**链路 B（§3.6）**内由 `lib/core/dlna/*` 实现并向局域网 DLNA 直投；**链路 A 仍一律走后端 `peers*` API**。禁止把链路 B 的设备/状态并入链路 A（`cast_peer_provider`）。
+4. **限制**客户端自行实现 SSDP/SOAP/推流/HTTP 中继：仅允许在**链路 B（§3.6）**内由 `lib/core/dlna/*` 实现并向局域网 DLNA 直投；**v3.2 起禁止本地中继/推流（`local_relay.dart` 已删）**——只传服务端直连 URL（A 档）或 CDS 清单（B 档），设备自拉流；**链路 A 仍一律走后端 `peers*` API**。禁止把链路 B 的设备/状态并入链路 A（`cast_peer_provider`）。
 5. **禁止**在 UI 硬编码颜色/字号——必须用 `Theme.of(context)` / `EchoDesign` 常量。
 6. **禁止**一次加载全表后前端过滤——所有列表走 §四 窗口化/分页。
 7. **禁止**在 Widget `build()` 中发起网络/DB/高开销计算（含播放器背景对比度二分）。
