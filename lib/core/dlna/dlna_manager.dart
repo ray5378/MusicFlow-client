@@ -945,12 +945,18 @@ class DlnaManager {
               posInfo.position >= posInfo.duration - 3.0) ||
           (advanceDuration > 0 &&
               _playbackElapsed >= advanceDuration - 3.0);
+      // 时长是否可知：优先歌曲真实时长，退回设备上报。rawHTTP/纯 renderer(HiVi)常
+      // 恒报 duration/position=0 且歌曲时长未知，此时无法用 nearTrackEnd 校验曲末——
+      // 只能凭「确已实质播放过≥3s 后设备自然转停」判断放完，主动推下一首(deviceEnded)。
+      // 已知时长则必须抵近末尾再推，避免把曲中段的 UNKNOWN/STOPPED 误判为放完(7s/185s
+      // 等实测在播即切曲的回归)。二者只在「时长未知」这一种情况下放宽该闸。
+      final durationKnown = posInfo.duration > 0 || _currentRealDuration > 0;
       final deviceEnded = !_userPaused &&
           prevState == 'PLAYING' &&
           state != 'PLAYING' &&
           state != 'PAUSED' &&
           playedEnough &&
-          nearTrackEnd;
+          (durationKnown ? nearTrackEnd : true);
 
       // 曲末硬触发：设备一直报 PLAYING、但上报位置已连续多帧停滞(卡住不动/重复回绕)，
       // 且墙钟已推进到曲末附近——判定实际已放完，强制推下一首（覆盖「报 PLAYING 永不
