@@ -10,6 +10,11 @@ class SoapControl {
       'urn:schemas-upnp-org:service:RenderingControl:1';
   static const Duration _timeout = Duration(seconds: 8);
 
+  /// 检测类方法(GetTransportInfo/GetPositionInfo)的短超时：这两路是本帧自动续播
+  /// 判定的关键帧，慢设备若迟迟不返回会导致错过曲末窗口；给 2s 短超时让检测帧
+  /// 每次都尽快返回(失败按 UNKNOWN/0 处理)。控制类方法保持默认 8s 超时。
+  static const Duration _detectTimeout = Duration(seconds: 2);
+
   /// 构造 SOAP 信封
   static String _envelope(String service, String action,
       Map<String, String> args) {
@@ -34,17 +39,20 @@ class SoapControl {
   }
 
   /// 发送 SOAP 请求
+  /// [timeout] 覆盖默认超时：检测类方法传短超时(_detectTimeout)以快速返回，
+  /// 控制类方法(设置类)省略该参数则用默认 8s。
   static Future<String> call(
     String controlUrl,
     String service,
     String action,
-    Map<String, String> args,
-  ) async {
+    Map<String, String> args, {
+    Duration timeout = _timeout,
+  }) async {
     final body = _envelope(service, action, args);
     final uri = Uri.parse(controlUrl);
 
     final client = HttpClient();
-    client.connectionTimeout = _timeout;
+    client.connectionTimeout = timeout;
 
     try {
       final request = await client.postUrl(uri);
@@ -53,7 +61,8 @@ class SoapControl {
       request.headers.set('SOAPAction', '"$service#$action"');
       request.write(body);
 
-      final response = await request.close();
+      // 连接超时之外，继续对响应接收施加同样的短超时，确保每帧都能尽快收敛。
+      final response = await request.close().timeout(timeout);
       final text = await response.transform(const SystemEncoding().decoder).join();
 
       // 检查 UPnP 错误
@@ -154,6 +163,7 @@ class SoapControl {
         _avTransport,
         'GetTransportInfo',
         {'InstanceID': '0'},
+        timeout: _detectTimeout,
       );
       final match = RegExp(r'<CurrentTransportState>([^<]*)</CurrentTransportState>', caseSensitive: false)
           .firstMatch(xml);
@@ -173,6 +183,7 @@ class SoapControl {
         _avTransport,
         'GetPositionInfo',
         {'InstanceID': '0'},
+        timeout: _detectTimeout,
       );
 
       final relTime = RegExp(r'<RelTime>([^<]*)</RelTime>', caseSensitive: false)

@@ -73,6 +73,21 @@ class DlnaManager {
   /// 最近一次“连续播放”段的开始时间锚点;暂停/异常停止时置 null,播放时更新。
   DateTime? _playSegmentStart;
 
+  /// 状态轮询帧计数：用于「音量/静音」降频(不必每帧都读)，减轻慢设备单帧耗时，
+  /// 保证首尾「状态+进度」这两路关键检测每帧都足够快地完成。
+  int _pollCount = 0;
+
+  /// 每 N 帧读一次音量/静音(RenderingControl)；其余帧跳过，只读检测所需状态/进度。
+  static const int _volumeEveryNPolls = 4;
+
+  /// 设备上报位置是否连续多帧停滞(用于「卡在 PLAYING 不推进」的曲末硬触发)。
+  int _positionStaleFrames = 0;
+  double _lastDevicePosition = -1;
+
+  /// 位置回绕判定阈值(秒)：上报位置相对上一帧「回退」超过该值(如 300s→290s)，
+  /// 视为设备自环/重播而非停滞，仅清空停滞计数、不计入曲末硬触发。
+  static const double _positionWrapDrift = 5.0;
+
   // ==================== 回调 ====================
 
   /// 设备列表变化回调
@@ -650,10 +665,13 @@ class DlnaManager {
         _currentDevice!.avTransportUrl!,
       );
 
-      // 获取音量
+      // 获取音量（降频：每 4 帧(约 8s)读一次，避免慢设备每帧被 RenderingControl
+      // 拖慢，保证状态/进度两路关键检测帧足够快，不错过曲末窗口）。
       int volume = _currentStatus.volume;
       bool muted = _currentStatus.muted;
-      if (_currentDevice?.renderingControlUrl != null) {
+      _pollCount++;
+      if (_currentDevice?.renderingControlUrl != null &&
+          _pollCount % _volumeEveryNPolls == 0) {
         try {
           volume = await SoapControl.getVolume(
             _currentDevice!.renderingControlUrl!,
@@ -694,6 +712,26 @@ class DlnaManager {
         muted: muted,
       );
 
+      // 设备上报位置停滞跟踪：PLAYING 且位置>0 时，若连续多帧位置不推进则记录停滞；
+      // 用于「设备一直报 PLAYING 但实际已放完(位置卡死/重复回绕)」的场景。切歌/暂停时复位。
+      // 位置出现明显回退(如 300s→290s)视为设备自环/重播而非停滞，仅清空计数不触发曲末。
+      if (state == 'PLAYING' && posInfo.position > 0) {
+        final pos = posInfo.position.toDouble();
+        final wrapped = _lastDevicePosition >= 0 &&
+            pos < _lastDevicePosition - _positionWrapDrift;
+        if (wrapped) {
+          _positionStaleFrames = 0;
+        } else if (pos == _lastDevicePosition) {
+          _positionStaleFrames += 1;
+        } else {
+          _positionStaleFrames = 0;
+        }
+        _lastDevicePosition = pos;
+      } else {
+        _positionStaleFrames = 0;
+        _lastDevicePosition = -1;
+      }
+
       // 自动续播检测：优先处理「设备已自切(SetNext)」与「已续播互斥」，否则曲末
       // 一律由客户端主动 `SetAVTransportURI(下一首直链) → Play` 推下一首。
       final nearEnd = prevState == 'PLAYING' &&
@@ -726,6 +764,15 @@ class DlnaManager {
           state != 'PAUSED' &&
           playedEnough;
 
+      // 曲末硬触发：设备一直报 PLAYING、但上报位置已连续多帧停滞(卡住不动/重复回绕)，
+      // 且墙钟已推进到曲末附近——判定实际已放完，强制推下一首（覆盖「报 PLAYING 永不
+      // 停播」的异常设备）。B 档自循环设备不在此列（advance 分支另行把关）。
+      final positionStuck = !_userPaused &&
+          state == 'PLAYING' &&
+          advanceDuration > 0 &&
+          _playbackElapsed >= advanceDuration - 4.0 &&
+          _positionStaleFrames >= 2;
+
       // 最近 2s 内已续播过一次 → 本轮轮询仅回写状态、不再重复推进/对齐
       // （避免「近尾主动推」与「墙钟/设备停播」两路检测对同一曲重复推进到下一首）。
       final freshlyAdvanced = _isCompletionAdvanceFresh();
@@ -742,39 +789,48 @@ class DlnaManager {
             'prev($prevState ${prevPosition}s/${prevDuration}s) '
             'now($state ${posInfo.position}s/${posInfo.duration}s) '
             'adv=$advanceDuration near=$nearEnd started=$startedOver '
-            'wall=$wallDone devEnd=$deviceEnded played=$playedEnough '
+            'wall=$wallDone devEnd=$deviceEnded stuck=$positionStuck '
+            'played=$playedEnough '
             'loop=$selfLooping fresh=$freshlyAdvanced '
             'paused=$_userPaused next=$_provisionedIndex');
       }
 
-      if (freshlyAdvanced) {
-        // 已续播，交给下一轮轮询跟随新曲进度。
-      } else if (!selfLooping && nearEnd && startedOver) {
-        // 设备已自行切到预置的下一首(SetNext 生效)——仅对齐游标与重算预置，避免重复下发。
-        await _alignToNext();
-      } else if (!selfLooping && (nearEnd || wallDone || deviceEnded)) {
-        // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
-        if (kDebugMode) {
-          debugPrint('[DLNA-AUTO] -> 触发续播 advance($_queueIndex) '
-              'triggers: near=$nearEnd wall=$wallDone devEnd=$deviceEnded');
-        }
-        await _advanceAfterCompletion();
-      } else if (!_userPaused &&
-          prevState == 'PLAYING' &&
-          prevPosition > 0 &&
-          prevDuration > 0 &&
-          prevDuration - prevPosition > 5 &&
-          state != 'PLAYING' &&
-          state != 'PAUSED') {
-        // 曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
-        _stallCount++;
-        if (_stallCount >= 2) {
+      // 续播动作相互隔离：任一续播/对齐步骤抛错不得中断本帧的状态回写与后续轮询，
+      // 否则会静默丢帧、错过下一轮续播判定。
+      try {
+        if (freshlyAdvanced) {
+          // 已续播，交给下一轮轮询跟随新曲进度。
+        } else if (!selfLooping && nearEnd && startedOver) {
+          // 设备已自行切到预置的下一首(SetNext 生效)——仅对齐游标与重算预置，避免重复下发。
+          await _alignToNext();
+        } else if (!selfLooping &&
+            (nearEnd || wallDone || deviceEnded || positionStuck)) {
+          // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
+          if (kDebugMode) {
+            debugPrint('[DLNA-AUTO] -> 触发续播 advance($_queueIndex) '
+                'triggers: near=$nearEnd wall=$wallDone devEnd=$deviceEnded '
+                'stuck=$positionStuck');
+          }
+          await _advanceAfterCompletion();
+        } else if (!_userPaused &&
+            prevState == 'PLAYING' &&
+            prevPosition > 0 &&
+            prevDuration > 0 &&
+            prevDuration - prevPosition > 5 &&
+            state != 'PLAYING' &&
+            state != 'PAUSED') {
+          // 曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
+          _stallCount++;
+          if (_stallCount >= 2) {
+            _stallCount = 0;
+            await _handleCastPlaybackError();
+          }
+        } else {
+          // 其余：暂停/跳转/同曲未到尾等，不触发任何续播/跳过。
           _stallCount = 0;
-          await _handleCastPlaybackError();
         }
-      } else {
-        // 其余：暂停/跳转/同曲未到尾等，不触发任何续播/跳过。
-        _stallCount = 0;
+      } catch (e) {
+        debugPrint('[DLNA-AUTO] 续播动作异常: $e');
       }
 
       onStatusChanged?.call(_currentStatus);
@@ -830,15 +886,17 @@ class DlnaManager {
     }
     await _playCurrentTrack();
     onTrackChanged?.call(_queueIndex);
-    // 记录本次自动续播时间,供轮询/中继 EOF 检测互斥(2s 内不重复推进)。
+    // 记录本次自动续播时间,供轮询/中继 EOF 检测互斥(1.5s 内不重复推进)。
     _lastCompletionAdvance = DateTime.now();
   }
 
-  /// 最近 2s 内是否已做过一次自动续播/切歌（用于多路续播检测间互斥）。
+  /// 最近 1.5s 内是否已做过一次自动续播/切歌（用于多路续播检测间互斥）。
+  /// 取 1.5s 而非 2s：轮询周期恰为 2s，若也用 2s 会与下一帧边界几近重叠，
+  /// 慢帧时易在「已推进」判定边缘重新放行导致双推/跳曲。
   bool _isCompletionAdvanceFresh() {
     final t = _lastCompletionAdvance;
     return t != null &&
-        DateTime.now().difference(t).inMilliseconds < 2000;
+        DateTime.now().difference(t).inMilliseconds < 1500;
   }
 
   /// 重启墙钟播放时钟：清空已累计播放时长，并从当前时刻重新起算。
