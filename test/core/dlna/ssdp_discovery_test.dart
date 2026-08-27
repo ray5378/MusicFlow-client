@@ -143,4 +143,57 @@ void main() {
     expect(locations, contains(location),
         reason: '即使无明确接口，兜底任意地址拨号仍应扫描到设备');
   });
+
+  test('同一扫描窗口内 M-SEARCH 重发多轮(容忍丢包/慢设备)', () async {
+    final discovery = SsdpDiscovery();
+    await discovery.search(timeout: const Duration(seconds: 2));
+    discovery.dispose();
+
+    // 0/700/1400ms 共 3 轮多播探测；2s 窗口内应全部到达响应者。
+    expect(responder.msearchCount, greaterThanOrEqualTo(3),
+        reason: '扫描窗口内应对同一接口重发多轮 M-SEARCH，而非仅发一次');
+  });
+
+  test('被动监听逐接口 join：收到 ssdp:alive NOTIFY 即回调上报设备', () async {
+    final discovery = SsdpDiscovery();
+    final received = <String>[];
+    discovery.startListening(
+      onDeviceUpdate: (loc, alive) => received.add(loc),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    // 扮演 DLNA 设备从本机非环回接口向 SSDP 多播组发 NOTIFY ssdp:alive。
+    final ifaces = await NetworkInterface.list(includeLinkLocal: false);
+    NetworkInterface? iface;
+    for (final i in ifaces) {
+      if (!i.name.startsWith('lo')) {
+        iface = i;
+        break;
+      }
+    }
+    final notifySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    final notifyMsg = [
+      'NOTIFY * HTTP/1.1',
+      'HOST: 239.255.255.250:1900',
+      'NT: urn:schemas-upnp-org:device:MediaRenderer:1',
+      'NTS: ssdp:alive',
+      'LOCATION: $location',
+      'USN: uuid:sim-nfy-0001::urn:schemas-upnp-org:device:MediaRenderer:1',
+      '',
+      '',
+    ].join('\r\n');
+    if (iface != null) {
+      notifySocket.joinMulticast(InternetAddress('239.255.255.250'), iface);
+    } else {
+      notifySocket.joinMulticast(InternetAddress('239.255.255.250'));
+    }
+    notifySocket.send(notifyMsg.codeUnits, InternetAddress('239.255.255.250'), 1900);
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    notifySocket.close();
+    discovery.stopListening();
+
+    expect(received, contains(location),
+        reason: '被动监听逐接口 join 后应收到 ssdp:alive NOTIFY 并回调设备 LOCATION');
+  });
 }
