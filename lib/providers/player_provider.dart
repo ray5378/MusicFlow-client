@@ -2122,6 +2122,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       duration: Duration.zero,
       bufferedPosition: Duration.zero,
     );
+    // 投屏切歌后刷新系统播控中心的曲目信息（标题/艺人/封面），
+    // 否则通知栏/锁屏会一直停留在直投开始的那一首。
+    _updateMediaItem(current);
   }
 
   /// 回本机时恢复离开前保存的本地播放状态(见 CastPeerController.backToLocal)。

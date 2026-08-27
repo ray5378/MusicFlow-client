@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
+import android.os.PowerManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
@@ -18,6 +19,10 @@ class MainActivity : AudioServiceFragmentActivity() {
         private const val NEARBY_PERMISSION_REQ = 31001
 
         private var multicastLock: WifiManager.MulticastLock? = null
+        private var wakeLock: PowerManager.WakeLock? = null
+        // 直投后台续播保活：CLOSE_WAKE_TIMEOUT 为 0 表示常驻，
+        // 视觉维持 FULL 走 mediaPlayback 前台服务，CPU 用 PARTIAL 保持 timer 触发。
+        private const val CAST_WAKE_LOCK_TAG = "musicflow:dlna_cast"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -77,6 +82,32 @@ class MainActivity : AudioServiceFragmentActivity() {
                     result.success(true)
                 } catch (e: Exception) {
                     result.error("RELEASE_MULTICAST_FAILED", e.message, null)
+                }
+            }
+            // 直投期间持有 PARTIAL WakeLock：CPU 常醒，保证后台 2s 轮询 timer
+            // 持续触发 → 曲末看门狗能主动推下一首（屏幕熄灭/Doze 下 timer 弹挂）。
+            "acquireWakeLock" -> {
+                try {
+                    val pm = getApplicationContext()
+                        .getSystemService(POWER_SERVICE) as PowerManager
+                    val lock = wakeLock ?: pm.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK,
+                        CAST_WAKE_LOCK_TAG
+                    ).also { wakeLock = it }
+                    // 不开启引用计数：由 Dart 侧 _wakeLockRefs 统一计数，
+                    // 原生侧仅以 isHeld 幂等防重叠，避免双计数导致过早释放。
+                    if (!lock.isHeld) lock.acquire()
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("ACQUIRE_WAKE_LOCK_FAILED", e.message, null)
+                }
+            }
+            "releaseWakeLock" -> {
+                try {
+                    if (wakeLock?.isHeld == true) wakeLock?.release()
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("RELEASE_WAKE_LOCK_FAILED", e.message, null)
                 }
             }
             "hasNearbyWifiDevicesPermission" -> {

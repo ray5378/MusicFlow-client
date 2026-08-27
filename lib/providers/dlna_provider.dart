@@ -18,6 +18,7 @@ const MethodChannel _dlnaPlatformChannel = MethodChannel(
 );
 
 int _multicastLockRefs = 0;
+int _wakeLockRefs = 0;
 
 /// 持有 Wi-Fi 多播锁（SSDP 需要；引用计数防重叠释放）。仅 Android、幂等。
 Future<void> acquireMulticastLock() async {
@@ -37,6 +38,28 @@ Future<void> releaseMulticastLock() async {
   if (_multicastLockRefs == 0) {
     try {
       await _dlnaPlatformChannel.invokeMethod('releaseMulticastLock');
+    } catch (_) {}
+  }
+}
+
+/// 持有 PARTIAL WakeLock（直投后台保活）：屏幕熄灭 / Doze 下 CPU 仍保持活跃，
+/// 保证 DLNA 2s 状态轮询 timer 持续触发，曲末看门狗能在后台主动推下一首。
+/// 引用计数防重叠释放。仅 Android、幂等。
+Future<void> acquireCastWakeLock() async {
+  if (!Platform.isAndroid) return;
+  _wakeLockRefs++;
+  try {
+    await _dlnaPlatformChannel.invokeMethod('acquireWakeLock');
+  } catch (_) {}
+}
+
+/// 释放 PARTIAL WakeLock（引用计数归零才真正释放）。仅 Android、幂等。
+Future<void> releaseCastWakeLock() async {
+  if (!Platform.isAndroid) return;
+  if (_wakeLockRefs > 0) _wakeLockRefs--;
+  if (_wakeLockRefs == 0) {
+    try {
+      await _dlnaPlatformChannel.invokeMethod('releaseWakeLock');
     } catch (_) {}
   }
 }
@@ -246,6 +269,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       );
       _stopTick();
       _disableNotificationCast();
+      releaseCastWakeLock();
     };
   }
 
@@ -337,6 +361,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         isCasting: true,
         castPath: manager.castPath,
       );
+      // 后台保活：仅 Android 生效，URL 直传期间 CPU 常醒，曲末可持续轮询推下一首。
+      acquireCastWakeLock();
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
@@ -425,6 +451,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         isCasting: true,
         castPath: manager.castPath,
       );
+      acquireCastWakeLock();
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
