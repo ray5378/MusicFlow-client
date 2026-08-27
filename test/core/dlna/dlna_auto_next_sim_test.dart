@@ -24,7 +24,6 @@ class _FakeDlnaDevice {
   /// 设备当前传输状态
   String state = 'STOPPED';
   String _currentUri = '';
-  String _nextUri = '';
 
   /// GetPositionInfo 回报的时长（秒）；0 表示设备不报时长（rawHTTP 场景）。
   int duration = 0;
@@ -41,7 +40,8 @@ class _FakeDlnaDevice {
   /// stopAfterEnd 且 duration==0 时，播放 start 后延迟多久转 STOPPED。
   Duration stopDelay = const Duration(milliseconds: 3500);
 
-  /// 每次 Play 后「实际开始播放」的曲目直链（用于断言自动续播真正下发到设备）。
+  /// 每次 Play 后「实际开始播放」的曲目直链（按 Play 顺序如实记录，含单曲/回环重复，
+  /// 用于断言自动续播真实下发与多首连播/循环）。
   final List<String> playedUris = [];
 
   DateTime? _playStartAt;
@@ -108,8 +108,7 @@ class _FakeDlnaDevice {
         break;
 
       case 'SetNextAVTransportURI':
-        _nextUri =
-            RegExp(r'<NextURI>([^<]*)</NextURI>').firstMatch(body)?.group(1) ?? '';
+        // 仅预置下一首直链，实际播放由 SetAVTransportURI + Play 决定，设备端无需记录。
         break;
 
       case 'Play':
@@ -120,8 +119,7 @@ class _FakeDlnaDevice {
           _stopTimer?.cancel();
           _stopTimer = Timer(stopDelay, () => _willStopByDelay = true);
         }
-        if (_currentUri.isNotEmpty &&
-            !playedUris.contains(_currentUri)) {
+        if (_currentUri.isNotEmpty) {
           playedUris.add(_currentUri);
         }
         break;
@@ -198,7 +196,6 @@ DlnaCastTrack _track(String id, String title, int? duration) =>
 void main() {
   late _FakeDlnaDevice fake;
   late DlnaManager manager;
-  late bool casting;
 
   setUp(() async {
     fake = _FakeDlnaDevice();
@@ -207,7 +204,6 @@ void main() {
     await manager.init(
       streamUrlBuilder: (songId) => 'http://server/stream/$songId.m3u8',
     );
-    casting = false;
   });
 
   tearDown(() async {
@@ -217,7 +213,7 @@ void main() {
 
   /// 订阅 onTrackChanged，记录「跳曲瞬间」带时间戳(index)轨迹，用于观测自动下一首
   /// 是否真下发、是否重复跳/跳过了曲目。
-  Future<List<(double, int)>> _traceIndex(Duration window) async {
+  Future<List<(double, int)>> traceIndex(Duration window) async {
     final sw = Stopwatch()..start();
     final changes = <(double, int)>[];
     manager.onTrackChanged = (i) =>
@@ -246,11 +242,10 @@ void main() {
       _tracks(duration: 6),
     );
     expect(ok, isTrue, reason: '应成功对模拟设备建立投屏(A档)');
-    casting = true;
-    // 初始从队列第 0 首开始（onTrackChanged 订阅在 _traceIndex 后才挂上，故在投屏建立后立即断言）。
+    // 初始从队列第 0 首开始（onTrackChanged 订阅在 traceIndex 后才挂上，故在投屏建立后立即断言）。
     expect(manager.castQueueIndex, 0, reason: '投屏应自队列第 0 首开始');
 
-    final trace = await _traceIndex(const Duration(seconds: 7));
+    final trace = await traceIndex(const Duration(seconds: 7));
 
     expect(trace.length, greaterThan(0));
     expect(trace.last.$2, greaterThan(0), reason: '播放结束后应自动推到下一首');
@@ -275,7 +270,7 @@ void main() {
     );
     expect(ok, isTrue);
 
-    final trace = await _traceIndex(const Duration(seconds: 6));
+    final trace = await traceIndex(const Duration(seconds: 6));
 
     expect(trace.last.$2, greaterThan(0),
         reason: '设备不报时长/进度时，墙钟 wallDone 应兜底推进');
@@ -302,12 +297,114 @@ void main() {
     );
     expect(ok, isTrue);
 
-    final trace = await _traceIndex(const Duration(seconds: 9));
+    final trace = await traceIndex(const Duration(seconds: 9));
 
     expect(trace.last.$2, greaterThan(0),
         reason: '设备放完转 STOPPED 后 deviceEnded 应自动续播');
     expect(fake.playedUris.length, greaterThanOrEqualTo(2));
     expect(fake.playedUris[1], contains('song1'),
         reason: '设备应实际收到第 1 首的直链');
+  });
+
+  /// 从设备实际收到的直链列表中解析每首 song 序号（用于多首连播/循环断言）。
+  List<String> orderedSongs(_FakeDlnaDevice d) =>
+      d.playedUris.map((u) {
+        final m = RegExp(r'song(\d)').firstMatch(u);
+        return m == null ? '?' : m.group(1)!;
+      }).toList();
+
+  test('【播放模式 order】顺序连播4首 0→1→2→3，末首放完停播不回头', () async {
+    fake.duration = 6;
+    fake.reportPosition = true;
+    fake.endMode = 'keepPlaying';
+    fake.speed = 12.0; // 进度 12 倍速，快速到尾触发 nearEnd
+    manager.setPlayMode('order');
+
+    final ok = await manager.startCast(
+      _device(fake),
+      _tracks(duration: 6),
+    );
+    expect(ok, isTrue);
+
+    final trace = await traceIndex(const Duration(seconds: 20));
+
+    // 顺序模式应把 4 首都实际下发到设备，且按 0→1→2→3 的顺序播放。
+    expect(orderedSongs(fake), ['0', '1', '2', '3'],
+        reason: 'order 模式应顺序下发全部 4 首（song0..song3）');
+    // 末首(song3)放完即停止：不回头循环、不跳曲。
+    expect(trace.last.$2, 3,
+        reason: 'order 模式下末首播放结束后应停下，索引停在 3');
+    expect(fake.playedUris.length, 4,
+        reason: 'order 模式不应在末首之后再推新曲');
+  });
+
+  test('【播放模式 one】单曲循环：放完重播当前首，不切歌、不跳曲', () async {
+    fake.duration = 6;
+    fake.reportPosition = true;
+    fake.endMode = 'keepPlaying';
+    fake.speed = 12.0;
+    manager.setPlayMode('one');
+
+    final ok = await manager.startCast(
+      _device(fake),
+      _tracks(duration: 6),
+    );
+    expect(ok, isTrue);
+
+    await traceIndex(const Duration(seconds: 6));
+
+    // 单曲循环：游标始终停在 0，设备只反复播 song0，绝不切到 song1。
+    expect(manager.castQueueIndex, 0, reason: '单曲循环不应切歌');
+    expect(fake.playedUris.every((u) => u.contains('song0')), isTrue,
+        reason: '单曲循环设备应始终只播同一首');
+    expect(orderedSongs(fake).toSet(), {'0'},
+        reason: '单曲循环只下发 song0');
+  });
+
+  test('【播放模式 shuffle】随机切到别首并真下发，游标不越界', () async {
+    fake.duration = 6;
+    fake.reportPosition = true;
+    fake.endMode = 'keepPlaying';
+    fake.speed = 12.0;
+    manager.setPlayMode('shuffle');
+
+    final ok = await manager.startCast(
+      _device(fake),
+      _tracks(duration: 6),
+    );
+    expect(ok, isTrue);
+
+    final trace = await traceIndex(const Duration(seconds: 6));
+
+    // 随机模式：应切离当前首(index != 0)，且游标仍在队内，设备确实收到新曲直链。
+    expect(trace.last.$2, isNot(0), reason: 'shuffle 应切到随机别的首');
+    expect(trace.last.$2, inInclusiveRange(0, 3), reason: '随机游标不应越界');
+    expect(fake.playedUris.length, greaterThan(1),
+        reason: 'shuffle 应把随机到的下一首下发给设备');
+  });
+
+  test('【多首连播 all】完整播完队列并回环 song0，全程逐一首推进不跳曲', () async {
+    fake.duration = 6;
+    fake.reportPosition = true;
+    fake.endMode = 'keepPlaying';
+    fake.speed = 12.0;
+    manager.setPlayMode('all');
+
+    final ok = await manager.startCast(
+      _device(fake),
+      _tracks(duration: 6),
+    );
+    expect(ok, isTrue);
+
+    final trace = await traceIndex(const Duration(seconds: 26));
+
+    // 列表循环：前 5 次播放应为 0→1→2→3→0（顺序播完一整轮并回环到 song0）。
+    expect(orderedSongs(fake).take(5), ['0', '1', '2', '3', '0'],
+        reason: 'all 模式应 0→1→2→3 顺序播完并回环到 song0');
+    // 整个过程中游标逐首推进且出现过回环(回到 0)，说明多次续播互斥正常、无双推/跳过。
+    expect(trace.any((t) => t.$2 == 0), isTrue,
+        reason: '列表循环应回环到队列第 0 首');
+    expect(trace.length, greaterThanOrEqualTo(5),
+        reason: '应发生 ≥5 次游标变化(0..4 轮)，验证多次连续自动续播');
   });
 }
