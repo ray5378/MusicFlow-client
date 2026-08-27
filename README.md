@@ -6,7 +6,9 @@
 
 基于 Flutter 的 **MusicFlow 主项目全量客户端**（首发 **Windows + Android**），消费主项目后端（`ray5378/MusicFlow`，Node/TS 后端 + Vue 前端）三套接口面：**原生 API**（`/rest/api/v1/*`）、**OpenSubsonic**（`/rest/*`）、**WebSocket**（`/ws`）。
 
-播放目标统一抽象为 **peer**（本机 / DLNA / 群组 / AirPlay），投屏（DLNA/AirPlay/群组）一律由**主项目后端推流**，客户端只做控制面，充当后端的“远程遥控器”。
+播放目标分为两类：
+- **后端投屏（链路 A，切换播放器）**：DLNA / AirPlay / 群组 经主项目 `/rest/api/v1/peers*` 统一控制面，由后端推流，客户端只做控制面。
+- **局域网 DLNA 直投（链路 B）**：客户端**自行 SSDP 发现 + SOAP 控制**局域网 DLNA 设备，采用双档位——**A 档·直传**（把服务端直连流 URL 交给设备，设备作为 DMR 自拉流，客户端看门狗自动续播）+ **B 档·CDS 清单**（设备支持 ContentDirectory 时接收服务端 DIDL-Lite 整队列容器自播）。不再走本地中继/推流。
 
 ## 项目定位
 
@@ -23,13 +25,17 @@
 - 运行中连接异常时自动 fallback，高优先级线路恢复后可自动回切
 - 支持手动锁定线路、延迟测速与拖拽调整地址优先级
 
-### 播放与「切换播放器」
+### 播放与「切换播放器」 + 局域网直投
 
 - 本机（`local:<uid>`）：just_audio 本地播放 + 后台播放 + 系统通知栏控制
-- 远端（DLNA / 群组 / AirPlay）：经主项目 `/rest/api/v1/peers*` 统一控制面，由后端推流
+- 后端投屏（链路 A，切换播放器）：DLNA / 群组 / AirPlay 经主项目 `/rest/api/v1/peers*` 统一控制面，由后端推流
+- **局域网 DLNA 直投（链路 B，双档位）**：
+  - **A 档·直传**：客户端把**服务端直连流 URL** 交给 DLNA 设备，设备自拉流；客户端作为 Control Point 每 2s 轮询 `GetPositionInfo` 展示进度 + 遥控，以「近曲末 / 墙钟兜底 / 设备自然停播」三种判定在看门狗里**主动把下一首直链推给设备**，实现自动续播
+  - **B 档·CDS 清单**：设备支持 ContentDirectory 时，服务端 `GET /castPlaylist` 提供 DIDL-Lite 整队列容器，设备整队列自播，杀掉客户端也能续播完
+  - 已砍掉本地中继 / HttpServer 推流，回归标准 DLNA「Control Point + DMR 自拉流」分工
 - 迷你播放条 + 全屏播放器（黑胶唱片 + 歌词 + 队列 + 播放模式）
 - 播放模式：`order / one / all / shuffle`；投屏中加歌 / 点歌 / 队列编辑 / 拖拽排序
-- 平滑进度：远端状态 2s 轮询 + 250ms tick 本地插值，进度条无跳变
+- 平滑进度：远端状态 2s 轮询 + 250ms tick 本地插值，进度条无跳变（直投时以 `GetPositionInfo` + 墙钟兜底合成）
 
 ### 曲库、搜索与在线音乐
 
