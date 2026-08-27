@@ -18,6 +18,10 @@ class DlnaManager {
   Timer? _statusTimer;
   DlnaDeviceStatus _currentStatus = const DlnaDeviceStatus();
 
+  /// 串行化状态轮询：设备慢/超时导致上一帧仍在跑时跳过本帧，避免状态回写与
+  /// 自动续播推进互相覆盖。
+  bool _polling = false;
+
   bool _initialized = false;
 
   // ==================== 链路 B 投屏队列状态 ====================
@@ -351,8 +355,21 @@ class DlnaManager {
     _stallCount = 0;
 
     await SoapControl.stop(device.avTransportUrl!);
-    await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
-    await SoapControl.play(device.avTransportUrl!);
+    // 尽力而为：单步失败不阻断后续关键动作。尤其曲毕主动续播时，若 Set 一次失败，
+    // 仍继续尝试 Play，且交给下一轮轮询由 deviceEnded 兜底重推，避免「播放结束停止」。
+    try {
+      await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
+    } catch (e) {
+      debugPrint('DLNA 设置 URI 失败: ${track.title} $e');
+    }
+    try {
+      await SoapControl.play(device.avTransportUrl!);
+    } catch (e) {
+      debugPrint('DLNA Play 失败: ${track.title} $e');
+    }
+    // 记录本次(主动/自动)切歌时刻，供轮询续播检测 2s 内互斥，避免切歌后
+    // 设备短暂处于非播态时被 deviceEnded/中继 EOF 重复推进到下一首。
+    _lastCompletionAdvance = DateTime.now();
 
     // 预置下一首（设备支持 SetNext 则无缝续播）
     await _provisionNextTrack();
@@ -614,6 +631,8 @@ class DlnaManager {
   /// 轮询设备状态
   Future<void> _pollStatus() async {
     if (_currentDevice?.avTransportUrl == null) return;
+    if (_polling) return;
+    _polling = true;
 
     try {
       // 上一帧位置/状态（用于自动续播检测）
@@ -694,27 +713,51 @@ class DlnaManager {
           advanceDuration > 0 &&
           _playbackElapsed >= advanceDuration - 1.0;
 
-      // 设备自然放停：上一帧在播、本帧非播放/暂停，且并非明确曲中段。
-      // 对 RawHTTP/未知时长(位置始终为 0)的设备，「正在播 → 停止」是最可靠的曲末
-      // 信号——据此客户端立即主动推下一首直链，否则这类设备曲毕就会卡住不动。
-      final clearlyMidTrack = prevDuration > 0 && (prevDuration - prevPosition) > 5;
+      // 设备自然放停：上一帧在播、本帧非播放/暂停，且非用户暂停。
+      // 判定依据改用墙钟「确已实质播放过若干秒(playedEnough)」：修复曲毕正好落在
+      // 轮询间隔之间时——上一帧距结束>3s 使 nearEnd 不触发、`clearlyMidTrack` 又拦截
+      // deviceEnded、且设备停播后 `_playbackElapsed` 冻结在时长阈值之下让 wallDone 悬空——
+      // 三路检测全部落空，导致「播放结束停止」。只要设备放完后停播且确已播放过，
+      // 一律视为曲末，主动推下一首（刚开播即失败的短曲仍由下方 stall 分支兜底）。
+      final playedEnough = _playbackElapsed >= 3.0;
       final deviceEnded = !_userPaused &&
           prevState == 'PLAYING' &&
           state != 'PLAYING' &&
           state != 'PAUSED' &&
-          !clearlyMidTrack;
+          playedEnough;
 
       // 最近 2s 内已续播过一次 → 本轮轮询仅回写状态、不再重复推进/对齐
       // （避免「近尾主动推」与「墙钟/设备停播」两路检测对同一曲重复推进到下一首）。
       final freshlyAdvanced = _isCompletionAdvanceFresh();
 
+      // 设备已自循环整队列(B 档)时，客户端退化为纯遥控，不做逐首续播/看门狗。
+      final selfLooping = _castPath == DlnaCastPath.cdsList;
+
+      // —— 自动续播决策追踪（排障用）——
+      // 直投若出现「播放结束不推下一首」，靠此日志可定位三路触发(曲末/墙钟/自然停播)
+      // 具体卡在哪一路、以及 device 上报的 position/duration/状态是否可用。
+      if (kDebugMode) {
+        debugPrint('[DLNA-AUTO] cur=$_queueIndex real=${_currentRealDuration}s '
+            'elapsed=${_playbackElapsed.toStringAsFixed(1)}s '
+            'prev($prevState ${prevPosition}s/${prevDuration}s) '
+            'now($state ${posInfo.position}s/${posInfo.duration}s) '
+            'adv=$advanceDuration near=$nearEnd started=$startedOver '
+            'wall=$wallDone devEnd=$deviceEnded played=$playedEnough '
+            'loop=$selfLooping fresh=$freshlyAdvanced '
+            'paused=$_userPaused next=$_provisionedIndex');
+      }
+
       if (freshlyAdvanced) {
         // 已续播，交给下一轮轮询跟随新曲进度。
-      } else if (nearEnd && startedOver) {
+      } else if (!selfLooping && nearEnd && startedOver) {
         // 设备已自行切到预置的下一首(SetNext 生效)——仅对齐游标与重算预置，避免重复下发。
         await _alignToNext();
-      } else if (nearEnd || wallDone || deviceEnded) {
+      } else if (!selfLooping && (nearEnd || wallDone || deviceEnded)) {
         // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
+        if (kDebugMode) {
+          debugPrint('[DLNA-AUTO] -> 触发续播 advance($_queueIndex) '
+              'triggers: near=$nearEnd wall=$wallDone devEnd=$deviceEnded');
+        }
         await _advanceAfterCompletion();
       } else if (!_userPaused &&
           prevState == 'PLAYING' &&
@@ -738,6 +781,8 @@ class DlnaManager {
     } catch (e) {
       // 设备可能离线
       debugPrint('DLNA 状态轮询失败: $e');
+    } finally {
+      _polling = false;
     }
   }
 
