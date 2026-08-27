@@ -855,7 +855,7 @@ class DlnaManager {
     required String title,
     required String uri,
   }) {
-    return StringBuffer()
+    final buffer = StringBuffer()
       ..write('<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"')
       ..write(' xmlns:dc="http://purl.org/dc/elements/1.1/"')
       ..write(' xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">')
@@ -866,8 +866,8 @@ class DlnaManager {
           'object.container.playlistContainer.musicPlaylist'
           '</upnp:class>')
       ..write('<res protocolInfo="">${_escapeXml(uri)}</res>')
-      ..write('</container></DIDL-Lite>')
-      .toString();
+      ..write('</container></DIDL-Lite>');
+    return buffer.toString();
   }
 
   /// XML 转义

@@ -27,7 +27,10 @@ class _FakeManager extends DlnaManager {
   int get castQueueIndex => _index;
 
   @override
-  Future<void> init({required String Function(String songId) streamUrlBuilder}) async {
+  Future<void> init({
+    required String Function(String songId) streamUrlBuilder,
+    String Function(List<String> songIds)? castListUrlBuilder,
+  }) async {
     // 静默：测试环境不建 SSDP 套接字 / HTTP 中继。
   }
 

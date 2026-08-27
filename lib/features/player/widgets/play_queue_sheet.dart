@@ -631,8 +631,9 @@ class CastQueueSheetView extends StatelessWidget {
                       ),
                       buildDefaultDragHandles: false,
                       itemCount: queue.length,
-                      onReorderItem: (from, to) {
-                        // onReorderItem 的 to 已是移除后插入位置,直接下发后端 reorder。
+                      onReorder: (from, to) {
+                        // onReorder 的 to 为移除后的净插入位(>from 时为原始坐标+1),
+                        // 与 reorderQueue 的约定一致,直接下发后端 reorder。
                         if (from != to) onReorder(from, to);
                       },
                       proxyDecorator: (child, index, animation) => Material(
