@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 import 'dlna_models.dart';
 import 'ssdp_discovery.dart';
 import 'device_description.dart';
@@ -297,14 +296,12 @@ class DlnaManager {
         await _playCurrentTrack();
       }
       _startStatusPolling();
-      // Android 保活：投屏会话期间持有部分唤醒锁，锁屏/后台时系统不会节流 2s 轮询
-      // 看门狗，保证「曲毕 → 自动推下一首」在后台也能触发。
-      await _setKeepAwake(true);
+      // 后台保活由投屏 Provider 层统一负责（原生 PARTIAL 唤醒锁 + 直投保活前台服务），
+      // 此处不重复持有，避免多路唤醒锁/资源互相干扰。
       return true;
     } catch (e) {
       debugPrint('DLNA 投屏启动失败: $_queueIndex $e');
       _stopStatusPolling();
-      await _setKeepAwake(false);
       await _stopDevice(_currentDevice);
       _clearCastState();
       return false;
@@ -787,8 +784,10 @@ class DlnaManager {
       // 剩余时长(秒)：优先设备上报，退回墙钟/真实时长。据此前置「曲末到点」定时器，
       // 把续播从「被动等 2s 轮询撞上曲末」改成「按已知总长准点触发」。
       final remaining = posInfo.duration > 0
-          ? (posInfo.duration - posInfo.position)
-          : (advanceDuration > 0 ? advanceDuration - _playbackElapsed : null);
+          ? (posInfo.duration - posInfo.position).toDouble()
+          : (advanceDuration > 0
+              ? (advanceDuration - _playbackElapsed).toDouble()
+              : null);
       _rescheduleEndTimer(remaining, _queueIndex);
 
       // 设备自然放停：上一帧在播、本帧非播放/暂停，且非用户暂停。
