@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 /// SSDP 设备发现模块
 /// 使用 UDP 多播发送 M-SEARCH 并监听 NOTIFY 响应。
@@ -32,6 +33,9 @@ class SsdpDiscovery {
   static const int _probeRounds = 3;
   static const Duration _probeInterval = Duration(milliseconds: 700);
 
+  /// 单播主机扫描上限网段(子网掩码取 /24，扫 .1~.254)。
+  static const int _maxHostProbeEnd = 254;
+
   final Map<String, _SsdpAnnounced> _announced = {};
   final List<RawDatagramSocket> _listenerSockets = [];
   final List<Timer> _listenerTimers = [];
@@ -49,10 +53,13 @@ class SsdpDiscovery {
     final locations = <String>{};
     final sockets = <RawDatagramSocket>[];
     final timers = <Timer>[];
+    // 已做过单播主机扫描的私有 /24 子网（避免重复投递多张网卡落在同一子网）。
+    final scannedSubnets = <String>{};
 
     final probe = bindAddresses ?? await _probeExplicitIpv4Addresses();
     // 无任何明确地址时回退到「任意地址」兜底拨号一次，保证始终至少一次探测机会。
     final addrs = probe.isEmpty ? [_anyAddressSentinel] : probe;
+    debugPrint('[SSDP] 扫描开始: 拨号地址=$addrs 超时=${timeout.inMilliseconds}ms');
 
     final msearch = [
       'M-SEARCH * HTTP/1.1',
@@ -133,6 +140,21 @@ class SsdpDiscovery {
       for (int i = 1; i < _probeRounds; i++) {
         timers.add(Timer(_probeInterval * i, sendProbe));
       }
+
+      // 单播主机扫描兜底：对/24 私有子网逐 host 发单播 M-SEARCH。多播/广播在个别
+      // Windows 网卡上可能受系统多播行为影响收不到回包，但单播请求+单播回源不依赖
+      // OS 多播，命中 DLNA 设备最稳。仅在子网唯一时执行一次（避免 g_Gk 多网卡重复）。
+      if (!isAny) {
+        final subnet = _subnetBase24(addr);
+        if (subnet != null && scannedSubnets.add(subnet)) {
+          for (int host = 1; host <= 254 && host <= _maxHostProbeEnd; host++) {
+            final target = '$subnet.$host';
+            try {
+              socket.send(data, InternetAddress(target), _ssdpPort);
+            } catch (_) {}
+          }
+        }
+      }
     }
 
     try {
@@ -149,6 +171,7 @@ class SsdpDiscovery {
       }
     }
 
+    debugPrint('[SSDP] 扫描结束: 拨号地址=$addrs 收到 ${locations.length} 个 LOCATION 响应');
     return locations.toList();
   }
 
@@ -223,6 +246,25 @@ class SsdpDiscovery {
     }
     if (parts[0] == '127' || addr == _anyAddressSentinel) return null;
     return '${parts[0]}.${parts[1]}.${parts[2]}.255';
+  }
+
+  /// 私有 /24 子网的「前 3 段」；仅对私网地址(10/172.16-31/192.168)返回，其它如
+  /// 环回/169.254/公网返回 null(不做全网段主机扫描)。
+  String? _subnetBase24(String addr) {
+    final parts = addr.split('.');
+    if (parts.length != 4) return null;
+    int a;
+    int b;
+    try {
+      a = int.parse(parts[0]);
+      b = int.parse(parts[1]);
+    } catch (_) {
+      return null;
+    }
+    if (a < 0 || a > 255 || b < 0 || b > 255) return null;
+    final private = a == 10 || (a == 172 && b >= 16 && b <= 31) || a == 192 && b == 168;
+    if (!private) return null;
+    return '${parts[0]}.${parts[1]}.${parts[2]}';
   }
 
   /// 启动被动监听（NOTIFY 消息）。逐接口 join，覆盖所有网段设备自播。
