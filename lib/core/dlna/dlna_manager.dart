@@ -798,11 +798,20 @@ class DlnaManager {
       // 三路检测全部落空，导致「播放结束停止」。只要设备放完后停播且确已播放过，
       // 一律视为曲末，主动推下一首（刚开播即失败的短曲仍由下方 stall 分支兜底）。
       final playedEnough = _playbackElapsed >= 3.0;
+      // 曲是否确已到尾：设备位置已抵近结束(如 259/259)，或墙钟已推进到有效时长末尾。
+      // 不校验「到尾」就触发 deviceEnded 会把曲中段的 UNKNOWN(设备状态解析失败/慢响应)
+      // 或 STOPPED 误判为「放完 → 推下一首」——实测 7s/185s、28s/279s、54s/320s
+      // 就被急着切歌。此时应归入下方 _stallCount 曲中异常停播兜底(连停两次才跳)。
+      final nearTrackEnd = (posInfo.duration > 0 &&
+              posInfo.position >= posInfo.duration - 3.0) ||
+          (advanceDuration > 0 &&
+              _playbackElapsed >= advanceDuration - 3.0);
       final deviceEnded = !_userPaused &&
           prevState == 'PLAYING' &&
           state != 'PLAYING' &&
           state != 'PAUSED' &&
-          playedEnough;
+          playedEnough &&
+          nearTrackEnd;
 
       // 曲末硬触发：设备一直报 PLAYING、但上报位置已连续多帧停滞(卡住不动/重复回绕)，
       // 且墙钟已推进到曲末附近——判定实际已放完，强制推下一首（覆盖「报 PLAYING 永不
