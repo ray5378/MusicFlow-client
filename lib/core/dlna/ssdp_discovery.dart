@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import '../utils/logger.dart';
 
 /// SSDP 设备发现模块
 /// 使用 UDP 多播发送 M-SEARCH 并监听 NOTIFY 响应。
@@ -63,7 +64,7 @@ class SsdpDiscovery {
     final probe = bindAddresses ?? await _probeExplicitIpv4Addresses();
     // 无任何明确地址时回退到「任意地址」兜底拨号一次，保证始终至少一次探测机会。
     final addrs = probe.isEmpty ? [_anyAddressSentinel] : probe;
-    debugPrint('[SSDP] 扫描开始: 拨号地址=$addrs 超时=${timeout.inMilliseconds}ms');
+    Logger.debugWithTag('SSDP', '扫描开始: 拨号地址=$addrs 超时=${timeout.inMilliseconds}ms');
 
     final msearch = [
       'M-SEARCH * HTTP/1.1',
@@ -175,7 +176,7 @@ class SsdpDiscovery {
       }
     }
 
-    debugPrint('[SSDP] 扫描结束: 拨号地址=$addrs 收到 ${locations.length} 个 LOCATION 响应');
+    Logger.debugWithTag('SSDP', '扫描结束: 拨号地址=$addrs 收到 ${locations.length} 个 LOCATION 响应');
     return locations.toList();
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import '../utils/logger.dart';
 import 'dlna_models.dart';
 import 'ssdp_discovery.dart';
 import 'device_description.dart';
@@ -822,17 +823,17 @@ class DlnaManager {
       // —— 自动续播决策追踪（排障用）——
       // 直投若出现「播放结束不推下一首」，靠此日志可定位三路触发(曲末/墙钟/自然停播)
       // 具体卡在哪一路、以及 device 上报的 position/duration/状态是否可用。
-      if (kDebugMode) {
-        debugPrint('[DLNA-AUTO] cur=$_queueIndex real=${_currentRealDuration}s '
-            'elapsed=${_playbackElapsed.toStringAsFixed(1)}s '
-            'prev($prevState ${prevPosition}s/${prevDuration}s) '
-            'now($state ${posInfo.position}s/${posInfo.duration}s) '
-            'adv=$advanceDuration near=$nearEnd started=$startedOver '
-            'wall=$wallDone devEnd=$deviceEnded stuck=$positionStuck '
-            'played=$playedEnough '
-            'loop=$selfLooping fresh=$freshlyAdvanced '
-            'paused=$_userPaused next=$_provisionedIndex');
-      }
+      // 走 Logger 内建缓冲：即便 release 也能在「诊断日志」窗口直接查看(控制台按级别过滤)。
+      Logger.debugWithTag('DLNA-AUTO',
+          'cur=$_queueIndex real=${_currentRealDuration}s '
+          'elapsed=${_playbackElapsed.toStringAsFixed(1)}s '
+          'prev($prevState ${prevPosition}s/${prevDuration}s) '
+          'now($state ${posInfo.position}s/${posInfo.duration}s) '
+          'adv=$advanceDuration near=$nearEnd started=$startedOver '
+          'wall=$wallDone devEnd=$deviceEnded stuck=$positionStuck '
+          'played=$playedEnough '
+          'loop=$selfLooping fresh=$freshlyAdvanced '
+          'paused=$_userPaused next=$_provisionedIndex');
 
       // 续播动作相互隔离：任一续播/对齐步骤抛错不得中断本帧的状态回写与后续轮询，
       // 否则会静默丢帧、错过下一轮续播判定。
@@ -850,11 +851,10 @@ class DlnaManager {
         } else if (!selfLooping &&
             (nearEnd || wallDone || deviceEnded || positionStuck)) {
           // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
-          if (kDebugMode) {
-            debugPrint('[DLNA-AUTO] -> 触发续播 advance($_queueIndex) '
-                'triggers: near=$nearEnd wall=$wallDone devEnd=$deviceEnded '
-                'stuck=$positionStuck');
-          }
+          Logger.infoWithTag('DLNA-AUTO',
+              '-> 触发续播 advance($_queueIndex) '
+              'triggers: near=$nearEnd wall=$wallDone devEnd=$deviceEnded '
+              'stuck=$positionStuck');
           await _advanceAfterCompletion();
         } else if (!_userPaused &&
             prevState == 'PLAYING' &&
@@ -874,7 +874,7 @@ class DlnaManager {
           _stallCount = 0;
         }
       } catch (e) {
-        debugPrint('[DLNA-AUTO] 续播动作异常: $e');
+        Logger.errorWithTag('DLNA-AUTO', '续播动作异常', e);
       }
 
       onStatusChanged?.call(_currentStatus);

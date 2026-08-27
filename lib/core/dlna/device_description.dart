@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../utils/logger.dart';
 import 'dlna_models.dart';
 
 /// 设备描述 XML 解析器
@@ -21,10 +22,10 @@ class DeviceDescriptionParser {
       client.close(force: true);
 
       final device = _parseXml(xml, location);
-      debugPrint('[SSDP-DESC] 拉取 $location -> ${device != null ? '成功(${device.name})' : '解析失败(无AVTransport/无UDN)'}');
+      Logger.debugWithTag('SSDP-DESC', '拉取 $location -> ${device != null ? '成功(${device.name})' : '解析失败(无AVTransport/无UDN)'}');
       return device;
     } catch (e) {
-      debugPrint('[SSDP-DESC] 拉取失败 $location: $e');
+      Logger.errorWithTag('SSDP-DESC', '拉取失败 $location: $e');
       return null;
     }
   }
