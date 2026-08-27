@@ -259,9 +259,9 @@ void main() {
       );
       await tester.pump();
 
-      // 独立图标（电视）存在，且与链路 A 的 airplay 图标共存不冲突。
+      // 独立图标（电视）存在，且与「切换播放器」的信号塔图标共存不冲突。
       expect(find.byIcon(AppIcons.dlnaLocal), findsOneWidget);
-      expect(find.byIcon(AppIcons.dlna), findsOneWidget);
+      expect(find.byIcon(AppIcons.signalTower), findsOneWidget);
 
       // 投屏态入口高亮（selected）。
       final pressable = find.ancestor(
