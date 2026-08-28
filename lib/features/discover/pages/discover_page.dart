@@ -308,20 +308,32 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       unawaited(_handleRandomSongsChanged());
     });
     // 活跃库就绪后若还没有内容(无缓存 + 首次冷启动),补一次缓存读取/后台拉取。
-    ref.listen<MusicLibrary?>(activeLibraryProvider, (prev, next) {
-      if (next == null) return;
-      if (prev != null && prev.id == next.id) return;
-      if (_lastKnownSongs != null) return;
-      unawaited(_loadCachedSongs());
-    });
+    // 说明:initState 里不能用 ref.listen(riverpod 2.6.1 只允许在 build 内调用,
+    // 且随机歌曲区块本身由 SliverList 惰性构建,debugDoingBuild 为 false)。
+    // 改用 ref.listenManual(专为 initState 设计),widget 卸载时自动释放订阅。
+    ref.listenManual<MusicLibrary?>(
+      activeLibraryProvider,
+      (prev, next) {
+        if (next == null) return;
+        if (prev != null && prev.id == next.id) return;
+        if (_lastKnownSongs != null) return;
+        unawaited(_loadCachedSongs());
+      },
+    );
     // 监听投屏队列自然播完:DLNA 设备整轮播放完毕后自动加载下一轮随机歌曲续播。
-    ref.listen<CastPeerState>(castPeerControllerProvider, (prev, next) {
-      if (!_autoContinue) return;
-      if (next.endOfQueueCount > (prev?.endOfQueueCount ?? -1)) {
-        Logger.infoWithTag('DISCOVER', 'cast queue ended, loading next round');
-        unawaited(_loadNextRound());
-      }
-    });
+    ref.listenManual<CastPeerState>(
+      castPeerControllerProvider,
+      (prev, next) {
+        if (!_autoContinue) return;
+        if (next.endOfQueueCount > (prev?.endOfQueueCount ?? -1)) {
+          Logger.infoWithTag(
+            'DISCOVER',
+            'cast queue ended, loading next round',
+          );
+          unawaited(_loadNextRound());
+        }
+      },
+    );
   }
 
   /// 先读本地缓存的随机歌曲,让区块立即有内容可展示,不等远程。
@@ -564,16 +576,16 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
 
     // 打开页面不触发远程请求:先秒出本地缓存,只有播放/手动刷新/收到歌单变更
     // 推送时才按需拉取,避免「打开客户端 → 后端惰性重建 → 长时间等待」。
+    // 数据驱动解耦:服务端暂无随机歌曲数据且本机也无缓存时,整块隐藏,不展示
+    // 「网络异常/不可用」的错误提示(该失败通常是慢探测/地址未就绪的瞬时态,
+    // ensureActiveAddressProvider 会自愈)。有缓存/有数据 → 正常展示;加载中 →
+    // 骨架屏;仅当「无数据且加载态」之外的内容都没有缓存时才回落骨架。
+    if (!hasContent && loadFailed) {
+      return const SizedBox.shrink();
+    }
     final Widget content;
     if (hasContent) {
-      content = _buildSongsContent(knownSongs!);
-    } else if (loadFailed) {
-      content = DiscoverSectionMessage(
-        title: '随心听暂时不可用',
-        description: '请检查网络或当前线路，然后重试。',
-        icon: AppIcons.cloudOff,
-        onRetry: () => unawaited(_fetchLatestForDisplay()),
-      );
+      content = _buildSongsContent(knownSongs);
     } else {
       content = const _RandomSongsLoading();
     }
@@ -730,15 +742,14 @@ class RecentPlaylistsSection extends ConsumerWidget {
           skipLoadingOnReload: false,
           data: (playlists) {
             if (playlists.isEmpty) {
+              // 数据驱动解耦:服务端暂无歌单数据时整块隐藏;仅加载失败才保留
+              // 错误提示(可重试),避免空数据/失败占位堆满首屏。
+              if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: loadFailed ? '歌单暂时不可用' : '暂无歌单',
-                description: loadFailed
-                    ? '请检查网络或当前线路，然后重试。'
-                    : '创建或导入歌单后，这里会显示最近更新的内容。',
-                icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
-                onRetry: loadFailed
-                    ? () => ref.invalidate(recentPlaylistsProvider)
-                    : null,
+                title: '歌单暂时不可用',
+                description: '请检查网络或当前线路，然后重试。',
+                icon: AppIcons.cloudOff,
+                onRetry: () => ref.invalidate(recentPlaylistsProvider),
               );
             }
             return HoverableHorizontalScroll(
@@ -828,15 +839,14 @@ class FixedRecommendSection extends ConsumerWidget {
           skipLoadingOnReload: false,
           data: (section) {
             if (section.isEmpty) {
+              // 数据驱动解耦:服务端暂无推荐歌单时整块隐藏;仅加载失败才保留
+              // 错误提示(可重试),不让空数据/占位堆满首屏。
+              if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: loadFailed ? '为你推荐暂时不可用' : '暂无推荐歌单',
-                description: loadFailed
-                    ? '请检查网络或当前线路，然后重试。'
-                    : '启用推荐插件后，这里会显示每日推荐等歌单。',
-                icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
-                onRetry: loadFailed
-                    ? () => ref.invalidate(homeRecommendSectionProvider)
-                    : null,
+                title: '为你推荐暂时不可用',
+                description: '请检查网络或当前线路，然后重试。',
+                icon: AppIcons.cloudOff,
+                onRetry: () => ref.invalidate(homeRecommendSectionProvider),
               );
             }
             // 固定卡 + 随机歌单合并为横向卡片行，样式与「平台推荐」完全一致：
@@ -1018,15 +1028,14 @@ class PlatformRecommendSection extends ConsumerWidget {
             final allPlaylists =
                 channels.expand((c) => c.playlists).toList();
             if (allPlaylists.isEmpty) {
+              // 数据驱动解耦:服务端暂无平台推荐数据时整块隐藏;仅加载失败才保留
+              // 错误提示(可重试),避免空数据/失败占位堆满首屏。
+              if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: loadFailed ? '平台推荐暂时不可用' : '暂无平台推荐歌单',
-                description: loadFailed
-                    ? '请检查网络或当前线路，然后重试。'
-                    : '启用平台推荐插件后，这里会显示各平台的精选歌单。',
-                icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
-                onRetry: loadFailed
-                    ? () => ref.invalidate(recommendChannelsProvider)
-                    : null,
+                title: '平台推荐暂时不可用',
+                description: '请检查网络或当前线路，然后重试。',
+                icon: AppIcons.cloudOff,
+                onRetry: () => ref.invalidate(recommendChannelsProvider),
               );
             }
             return Column(
@@ -1144,15 +1153,14 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
             final allPlaylists =
                 channels.expand((c) => c.playlists).toList();
             if (allPlaylists.isEmpty) {
+              // 数据驱动解耦:服务端暂无本地随机数据时整块隐藏;仅加载失败才保留
+              // 错误提示(可重试),避免空数据/失败占位堆满首屏。
+              if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: loadFailed ? '本地随机暂时不可用' : '暂无本地歌单',
-                description: loadFailed
-                    ? '请检查网络或当前线路，然后重试。'
-                    : '从平台导入歌单后，这里会按平台随机展示已入库歌单。',
-                icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
-                onRetry: loadFailed
-                    ? () => ref.invalidate(localRecommendChannelsProvider)
-                    : null,
+                title: '本地随机暂时不可用',
+                description: '请检查网络或当前线路，然后重试。',
+                icon: AppIcons.cloudOff,
+                onRetry: () => ref.invalidate(localRecommendChannelsProvider),
               );
             }
             return Column(

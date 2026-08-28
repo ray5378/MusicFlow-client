@@ -133,12 +133,14 @@ void main() {
     final trackedRefresh = refresh.then((_) => refreshCompleted = true);
     await tester.pump();
 
-    // 前三者 + 频道在 build 时即被 watch(初始 1 次),刷新后再加载 1 次 → 2;
+    // recent/频道在 build 时即被 watch(初始 1 次),刷新后再加载 1 次 → 2;
     // homeCardsProvider 为 autoDispose 且未被 widget watch(仅 _refresh/shouldRetry
     // 中 read),初始不加载,刷新时才首次执行 → 1。
+    // randomSongs 走「广播变更信号 → 区块重拉」:信号在 _refresh 里 Future.wait
+    // 全部完成之后才发出,所以此刻(一次 pump 后)仍是初始的 1 次,异步后置。
     expect(
       <int>[randomLoads, recentLoads, cardsLoads, channelsLoads],
-      <int>[2, 2, 1, 2],
+      <int>[1, 2, 1, 2],
     );
     expect(refreshCompleted, isFalse);
 

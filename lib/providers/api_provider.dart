@@ -42,10 +42,20 @@ final activeAddressProvider = StateProvider<ServerAddress?>((ref) => null);
 
 /// Ensure an active address is ready before making network requests.
 /// 冷启动加速:活跃地址在 AddressPool.setAddresses 时已从持久化状态立即恢复,
-/// 这里只做极短兜底(≤2s)等待探测结果;超时直接报错让调用方回退本地缓存,
-/// 不再等待可能拖满 5s 的全量探测,避免把首屏拖到 5-6s。
+/// 这里只做极短兜底(≤2s)等待探测结果。
+///
+/// 修复「Windows 一直提示网络异常 / 随机歌曲不显示」:
+/// 1) 用 `ref.watch(activeAddressProvider)` 而不是 `ref.read` —— 若本 provider 曾在
+///    2s 预算内超时抛错,错误会被 FutureProvider 缓存;后端探测完成后活跃地址其实
+///    已经可用,但后续所有 `read(ensureActiveAddressProvider.future)` 仍命中旧错误,
+///    导致整个首页请求持续失败。改为 watch 后,活跃地址一旦出现/变化,本 provider
+///    会重新计算并立即返回真实可用地址,让下游请求自愈。
+/// 2) 超时后只要「已配置服务器」(地址池非空)就不硬抛错:回退到当前最优地址先行
+///    发起请求,由 FallbackInterceptor 在实际请求失败时自动切到可用线路,避免把
+///    慢探测(Windows 单地址 connect 超时可拖到 10s)误报成网络故障。
 final ensureActiveAddressProvider = FutureProvider<ServerAddress>((ref) async {
-  final active = ref.read(activeAddressProvider);
+  // watch:活跃地址变化时重新计算,把「超时缓存错误」自动纠正为真实可用地址。
+  final active = ref.watch(activeAddressProvider);
   if (active != null) return active;
 
   Logger.warnWithTag('API', 'no active address, probing before request');
@@ -66,10 +76,22 @@ final ensureActiveAddressProvider = FutureProvider<ServerAddress>((ref) async {
     await Future.delayed(const Duration(milliseconds: 200));
   }
 
-  // 未在预算内拿到活跃地址:直接报错,由调用方(缓存先行/回退)接管,不再等慢探测。
+  // 预算内仍未拿到活跃地址:只要配置了服务器就回退「当前最优地址」尽力请求,
+  // 实际连通性交给 FallbackInterceptor 兜底;仅当完全没有配置服务器才视为
+  // 真正的无网络并抛错(此时下游正常显示离线/未配置错误)。
+  if (pool.addresses.isNotEmpty) {
+    final best = pool.getNextAvailable() ?? pool.addresses.first;
+    Logger.warnWithTag(
+      'API',
+      'active address not ready within budget, '
+      'falling back to best-effort: ${best.label}',
+    );
+    return best;
+  }
+
   Logger.errorWithTag(
     'API',
-    'failed to acquire active server address within budget',
+    'no server address configured; failed to acquire active address',
   );
   throw StateError('No active server address available');
 });
