@@ -31,7 +31,7 @@ void main() {
       isEmpty,
       reason: 'Every AppIcons call must resolve through the semantic map.',
     );
-    expect(declarations, hasLength(95));
+    expect(declarations, hasLength(103));
   });
 
   test('product symbols use Remix and platform actions use Cupertino', () {

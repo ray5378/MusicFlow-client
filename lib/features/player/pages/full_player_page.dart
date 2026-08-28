@@ -272,6 +272,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         : context.musicFlowPageHorizontalPadding;
 
     return GestureDetector(
+      key: const ValueKey<String>('full_player_wide_layout'),
       onTap: _closeToMini,
       behavior: HitTestBehavior.translucent,
       child: Stack(
@@ -305,6 +306,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                     children: <Widget>[
                       // 左栏:封面(上) + 信息/控件(下)
                       SizedBox(
+                        key: const ValueKey<String>('full_player_artwork_pane'),
                         width: leftPaneWidth,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -329,9 +331,10 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.only(left: columnGap),
-                          child: const Align(
+                          child: Align(
+                            key: const ValueKey<String>('full_player_details_pane'),
                             alignment: Alignment.topCenter,
-                            child: _PlayerLyricsPane(),
+                            child: const _PlayerLyricsPane(),
                           ),
                         ),
                       ),
@@ -616,6 +619,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
           },
         ),
         SizedBox(height: spacing.xxs),
+        _buildQualityIndicator(),
       ],
     );
 

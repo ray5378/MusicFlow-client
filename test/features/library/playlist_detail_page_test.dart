@@ -169,6 +169,7 @@ Future<void> _pumpPage(
       ],
       child: MaterialApp(
         scaffoldMessengerKey: rootScaffoldMessengerKey,
+        navigatorKey: rootNavigatorKey,
         theme: AppTheme.light(),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(

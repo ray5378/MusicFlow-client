@@ -79,26 +79,32 @@ void main() {
               MusicFlowMediaSurfaceRole.panel => visuals.miniSurface,
             };
 
+            final expectedInk = MusicFlowColors.readableOn(expectedSurface);
+            final bool mediaIsDark = expectedInk.computeLuminance() > 0.45;
+
             expect(scopedColors, isNot(outerColors));
             expect(scopedColors.canvas, expectedSurface);
             expect(scopedColors.surface, expectedSurface);
             expect(scopedColors.raised, expectedRaised);
-            expect(scopedColors.ink, visuals.foreground);
-            expect(scopedColors.muted, visuals.mutedForeground);
-            expect(scopedColors.accent, visuals.controlAccent);
-            expect(scopedColors.controlBoundary, visuals.controlAccent);
-            expect(scopedTypography.display.color, visuals.foreground);
-            expect(scopedTypography.headline.color, visuals.foreground);
-            expect(scopedTypography.title.color, visuals.foreground);
-            expect(scopedTypography.body.color, visuals.foreground);
-            expect(scopedTypography.label.color, visuals.foreground);
-            expect(scopedTypography.metadata.color, visuals.mutedForeground);
+            // 文字前景被强制为高对比黑/白,不随封面主色漂移,保证浅深表面都可读。
+            expect(scopedColors.ink, expectedInk);
+            expect(scopedColors.muted, isNot(expectedInk));
+            expect(scopedColors.controlBoundary, scopedColors.accent);
+            expect(scopedTypography.display.color, expectedInk);
+            expect(scopedTypography.headline.color, expectedInk);
+            expect(scopedTypography.title.color, expectedInk);
+            expect(scopedTypography.body.color, expectedInk);
+            expect(scopedTypography.label.color, expectedInk);
+            expect(scopedTypography.metadata.color, scopedColors.muted);
             expect(scopedSpacing, same(outerSpacing));
             expect(scopedRadii, same(outerRadii));
             expect(scopedMotion, same(outerMotion));
             expect(scopedInteraction, same(outerInteraction));
             expect(scopedBreakpoints, same(outerBreakpoints));
-            expect(scopedBrightness, theme.brightness);
+            expect(
+              scopedBrightness,
+              mediaIsDark ? Brightness.dark : Brightness.light,
+            );
             _expectAccessibleScope(scopedColors, visuals);
           }
         }

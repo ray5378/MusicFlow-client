@@ -135,24 +135,35 @@ void showMusicFlowToast(
 
 /// 把一条 Toast 插入指定的 [OverlayState] 中。为 `showMusicFlowToast` 与
 /// `ToastNotifier`（在 Widget 树外）共用，保证统一使用右上角 Toast。
+///
+/// 默认 Toast 会在【首次渲染后】经过 [duration] 自动消失。若需让计时从【插入
+/// Overlay 的瞬间】开始（例如恢复提示的总展示时长需精确对齐），传入
+/// [startAutoDismissOnInsert]，此时由本函数负责调度消失计时，Widget 不再自计时。
 OverlayEntry insertMusicFlowToast(
   OverlayState overlay,
   String message, {
   MusicFlowMessageKind kind = MusicFlowMessageKind.info,
   Duration duration = const Duration(seconds: 3),
+  bool startAutoDismissOnInsert = false,
 }) {
+  _MusicFlowTopToastState? autoState;
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (entryContext) => _MusicFlowTopToast(
       message: message,
       kind: kind,
       duration: duration,
+      suppressAutoDismiss: startAutoDismissOnInsert,
+      onStateReady: startAutoDismissOnInsert ? (state) => autoState = state : null,
       onDismissed: () {
         if (entry.mounted) entry.remove();
       },
     ),
   );
   overlay.insert(entry);
+  if (startAutoDismissOnInsert) {
+    Timer(duration, () => autoState?.dismissFromParent());
+  }
   return entry;
 }
 
@@ -163,12 +174,16 @@ class _MusicFlowTopToast extends StatefulWidget {
     required this.kind,
     required this.duration,
     required this.onDismissed,
+    this.suppressAutoDismiss = false,
+    this.onStateReady,
   });
 
   final String message;
   final MusicFlowMessageKind kind;
   final Duration duration;
   final VoidCallback onDismissed;
+  final bool suppressAutoDismiss;
+  final ValueChanged<_MusicFlowTopToastState>? onStateReady;
 
   @override
   State<_MusicFlowTopToast> createState() => _MusicFlowTopToastState();
@@ -200,7 +215,16 @@ class _MusicFlowTopToastState extends State<_MusicFlowTopToast>
     ).animate(curve);
     _fade = Tween<double>(begin: 0, end: 1).animate(curve);
     _controller.forward();
-    _dismissTimer = Timer(widget.duration, _dismiss);
+    widget.onStateReady?.call(this);
+    if (!widget.suppressAutoDismiss) {
+      _dismissTimer = Timer(widget.duration, _dismiss);
+    }
+  }
+
+  /// 由外部（插入 Overlay 时）触发的自动消失，用于让计时从插入瞬间开始。
+  void dismissFromParent() {
+    if (!mounted) return;
+    _dismiss();
   }
 
   void _dismiss() {

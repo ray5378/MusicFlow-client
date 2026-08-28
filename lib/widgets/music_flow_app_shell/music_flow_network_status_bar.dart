@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/design/components/music_flow_message.dart';
 import '../../core/design/music_flow_design.dart';
 import '../../core/utils/network_error_notifier.dart';
 
@@ -62,7 +63,12 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
     // 提示统一经 NetworkErrorNotifier，享受启动宽限期与节流去重。
     if (widget.status == MusicFlowNetworkStatus.offline &&
         oldWidget.status != MusicFlowNetworkStatus.offline) {
-      NetworkErrorNotifier.show('连接不到服务器');
+      // didUpdateWidget 发生在 build 阶段,此时同步插入 Toast 会触发对 Overlay
+      // 的 markNeedsBuild(setState during build)。推迟到当前帧结束再通知。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        NetworkErrorNotifier.show('连接不到服务器');
+      });
     }
 
     setState(() {
@@ -77,9 +83,22 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   }
 
   void _showRecovery() {
-    // 网络恢复时不弹任何轻提示，仅隐藏内联横幅即可。
     setState(() {
       _bannerState = _MusicFlowNetworkBannerState.hidden;
+    });
+    // 网络恢复：释放内联横幅空间，改为右上角成功 Toast。didUpdateWidget 发生在
+    // build 阶段,推迟到帧结束再插入 Overlay,避免 setState during build。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final overlay = Overlay.maybeOf(context, rootOverlay: true);
+      if (overlay == null) return;
+      insertMusicFlowToast(
+        overlay,
+        '网络已恢复',
+        kind: MusicFlowMessageKind.success,
+        duration: widget.recoveryDisplayDuration,
+        startAutoDismissOnInsert: true,
+      );
     });
   }
 

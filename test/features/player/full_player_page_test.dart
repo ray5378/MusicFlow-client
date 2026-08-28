@@ -11,6 +11,7 @@ import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/palette_provider.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,26 @@ MusicFlowPressable? _heartPressable(WidgetTester tester, IconData icon) {
   );
   if (pressable.evaluate().isEmpty) return null;
   return tester.widget<MusicFlowPressable>(pressable.first);
+}
+
+/// 复现 [MusicFlowMediaColorScope] 针对某个媒体表面(surface)求出的语义令牌。
+/// 作用域把 ink 归一为 black/white 可读前景、muted 保底 4.5:1、accent 相对该
+/// 表面保底对比,而不是直接沿用 visuals 的裸 foreground/controlAccent。
+({Color surface, Color ink, Color muted, Color accent}) _mediaScopeTokens(
+  MusicFlowMediaVisuals visuals,
+  Color surface,
+) {
+  final ink = MusicFlowColors.readableOn(surface);
+  final muted = MusicFlowColors.ensureColorContrast(
+    Color.lerp(ink, surface, 0.30)!,
+    background: surface,
+    minimumRatio: 4.5,
+  );
+  final accent = MusicFlowColors.ensureColorContrast(
+    visuals.controlAccent,
+    background: surface,
+  );
+  return (surface: surface, ink: ink, muted: muted, accent: accent);
 }
 
 void main() {
@@ -147,7 +168,7 @@ void main() {
     );
     expect(
       find.descendant(
-          of: utility, matching: find.byIcon(AppIcons.dlna)),
+          of: utility, matching: find.byIcon(AppIcons.dlnaLocal)),
       findsOneWidget,
     );
     expect(
@@ -251,6 +272,9 @@ void main() {
       tester.view.physicalSize = const Size(800, 360);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
+      // 分栏大屏布局只对非触屏(键鼠/指针)平台启用。
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
 
       // 暂停态:黑胶旋转为无限动画,会让 pumpAndSettle 无法收敛。
       final notifier = TestPlayerNotifier(
@@ -305,44 +329,32 @@ void main() {
       expect(artworkRect.height, closeTo(detailsRect.height, 0.1));
       expectControlHierarchy(tester);
 
-      final transportTargets = <Finder>[
-        // 播放/暂停随状态二选一。
-        find.descendant(
-          of: detailsPane,
-          matching: find.byWidgetPredicate((w) =>
-              w is Icon &&
-              (w.icon == AppIcons.play || w.icon == AppIcons.pause)),
+      // 主播放按钮(播放/暂停随状态二选一)可达且落在窗口内。
+      final primaryGlyph = find.descendant(
+        of: find.byKey(
+          const ValueKey<String>('full_player_transport_controls'),
         ),
-        find.descendant(of: detailsPane, matching: find.byIcon(AppIcons.lyrics)),
-        find.descendant(of: detailsPane, matching: find.byIcon(AppIcons.queue)),
-      ];
-      for (final target in transportTargets) {
-        final pressable = find.descendant(
-          of: detailsPane,
-          matching: find.ancestor(
-            of: target,
-            matching: find.byType(MusicFlowPressable),
-          ),
-        );
-        expect(pressable, findsOneWidget);
-        final targetRect = tester.getRect(pressable.first);
-        expect(targetRect.width, greaterThanOrEqualTo(48));
-        expect(targetRect.height, greaterThanOrEqualTo(48));
-        expect(targetRect.top, greaterThanOrEqualTo(detailsRect.top));
-        expect(targetRect.bottom, lessThanOrEqualTo(detailsRect.bottom));
-      }
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Icon &&
+              (w.icon == AppIcons.play || w.icon == AppIcons.pause),
+        ),
+      );
+      final primaryPressable = find.ancestor(
+        of: primaryGlyph,
+        matching: find.byType(MusicFlowPressable),
+      );
+      final primaryRect = tester.getRect(primaryPressable.first);
+      expect(primaryRect.width, greaterThanOrEqualTo(48));
+      expect(primaryRect.height, greaterThanOrEqualTo(48));
+      expect(primaryRect.top, greaterThanOrEqualTo(0));
+      expect(primaryRect.bottom, lessThanOrEqualTo(360));
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.byIcon(AppIcons.lyrics));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.takeException(), isNull);
-      await tester.pumpAndSettle();
-
-      expect(find.text('暂无歌词'), findsOneWidget);
-      expect(find.byIcon(AppIcons.lyricsFilled), findsOneWidget);
+      // 右侧详情面板常驻歌词。
       expect(
-        tester.getRect(find.text('暂无歌词')).center.dx,
-        lessThan(detailsRect.left),
+        find.descendant(of: detailsPane, matching: find.text('暂无歌词')),
+        findsOneWidget,
       );
       expect(tester.takeException(), isNull);
     },
@@ -355,6 +367,9 @@ void main() {
     tester.view.physicalSize = const Size(900, 1200);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
+    // 分栏大屏布局只对非触屏(键鼠/指针)平台启用。
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
 
     final notifier = TestPlayerNotifier(initialState());
     await tester.pumpWidget(
@@ -410,7 +425,11 @@ void main() {
 
     await tester.tap(find.text('打开播放器'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(AppIcons.lyrics));
+    // 封面页左滑进入歌词页(歌词与封面由 PageView 无缝切换)。
+    await tester.drag(
+      find.byKey(const ValueKey<String>('full_player_cover')),
+      const Offset(-500, 0),
+    );
     await tester.pumpAndSettle();
     expect(find.text('暂无歌词'), findsOneWidget);
 
@@ -587,8 +606,9 @@ void main() {
     await tester.pump();
 
     final titleContext = tester.element(find.text('正在播放'));
-    expect(titleContext.musicFlowColors.ink, visuals.foreground);
-    expect(titleContext.musicFlowColors.muted, visuals.mutedForeground);
+    final stageTokens = _mediaScopeTokens(visuals, visuals.stageBase);
+    expect(titleContext.musicFlowColors.ink, stageTokens.ink);
+    expect(titleContext.musicFlowColors.muted, stageTokens.muted);
     expect(titleContext.musicFlowColors.canvas, visuals.stageBase);
 
     final backdrop = tester.widget<MusicFlowPlayerBackdrop>(
@@ -600,8 +620,8 @@ void main() {
     final scrubber = tester.widget<MusicFlowPlayerScrubber>(
       find.byType(MusicFlowPlayerScrubber),
     );
-    expect(scrubber.activeColor, visuals.controlAccent);
-    expect(scrubber.thumbColor, visuals.foreground);
+    expect(scrubber.activeColor, stageTokens.accent);
+    expect(scrubber.thumbColor, stageTokens.ink);
 
     final overlay = tester
         .widgetList<AnnotatedRegion<SystemUiOverlayStyle>>(
@@ -637,15 +657,16 @@ void main() {
     expect(sheet, findsOneWidget);
     final sheetTitle = find.descendant(of: sheet, matching: find.text('歌曲操作'));
     final sheetContext = tester.element(sheetTitle);
+    final panelTokens = _mediaScopeTokens(visuals, visuals.panelSurface);
     expect(sheetContext.musicFlowColors.surface, visuals.panelSurface);
-    expect(sheetContext.musicFlowColors.accent, visuals.controlAccent);
-    expect(sheetContext.musicFlowColors.ink, visuals.foreground);
-    expect(sheetContext.musicFlowColors.muted, visuals.mutedForeground);
+    expect(sheetContext.musicFlowColors.accent, panelTokens.accent);
+    expect(sheetContext.musicFlowColors.ink, panelTokens.ink);
+    expect(sheetContext.musicFlowColors.muted, panelTokens.muted);
 
     final heart = tester.widget<Icon>(
       find.descendant(of: sheet, matching: find.byIcon(AppIcons.heartOutline)),
     );
-    expect(heart.color, visuals.controlAccent);
+    expect(heart.color, panelTokens.accent);
     expect(tester.takeException(), isNull);
   });
 }

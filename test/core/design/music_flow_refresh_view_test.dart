@@ -2,13 +2,31 @@ import 'dart:async';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// 在桌面平台(非安卓)运行测试体:MusicFlowRefreshView 在安卓触屏端有意不渲染
+/// 文字气泡,而 flutter test 默认平台即 TargetPlatform.android,会掩盖气泡反馈。
+/// flutter_test 在 testBody 返回后立即校验 foundation debug 变量(早于任何
+/// tearDown),所以必须用 finally 在测试体结束前把平台 override 复位。
+Future<void> _runAsDesktop(
+  WidgetTester tester,
+  Future<void> Function() body,
+) async {
+  debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
 
 void main() {
   testWidgets('MusicFlowRefreshView confirms when release will refresh', (
     tester,
   ) async {
+    await _runAsDesktop(tester, () async {
     final refreshCompleter = Completer<void>();
     var refreshCount = 0;
 
@@ -53,9 +71,11 @@ void main() {
 
     refreshCompleter.complete();
     await tester.pumpAndSettle();
+    });
   });
 
   testWidgets('MusicFlowRefreshView uses custom refresh feedback', (tester) async {
+    await _runAsDesktop(tester, () async {
     final refreshCompleter = Completer<void>();
     var refreshCount = 0;
 
@@ -104,11 +124,13 @@ void main() {
       tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
       0,
     );
+    });
   });
 
   testWidgets('MusicFlowRefreshView returns to idle when the pull is canceled', (
     tester,
   ) async {
+    await _runAsDesktop(tester, () async {
     var refreshCount = 0;
 
     await tester.pumpWidget(
@@ -141,11 +163,13 @@ void main() {
 
     expect(refreshCount, 0);
     expect(_visibleRefreshLabels(), isEmpty);
+    });
   });
 
   testWidgets(
     'MusicFlowRefreshView reports refresh failures without false success',
     (tester) async {
+      await _runAsDesktop(tester, () async {
       final refreshCompleter = Completer<void>();
 
       await tester.pumpWidget(
@@ -185,12 +209,14 @@ void main() {
         tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
         0,
       );
+      });
     },
   );
 
   testWidgets('a new pull supersedes visible completion feedback', (
     tester,
   ) async {
+    await _runAsDesktop(tester, () async {
     final refreshCompleter = Completer<void>();
 
     await tester.pumpWidget(
@@ -228,6 +254,7 @@ void main() {
 
     await gesture.up();
     await tester.pumpAndSettle();
+    });
   });
 }
 

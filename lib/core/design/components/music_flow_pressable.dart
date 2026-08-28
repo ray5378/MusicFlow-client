@@ -275,6 +275,9 @@ class _MusicFlowPressableState extends State<MusicFlowPressable>
 
   /// 松开/取消：从峰值按 [_pressOut] 渐淡回弹,使快速点按产生可见的「闪亮→消退」。
   void _handlePointerRelease() {
+    // 快速滚动/结果清空时,手指抬起可能落在已被移除的按压目标上(其组件连同
+    // AnimationController 一起被 dispose),此时必须别再触碰控制器。
+    if (!mounted) return;
     if (!_pressed) return;
     _pressed = false;
     _feedback.animateBack(0.0, duration: _pressOut);
