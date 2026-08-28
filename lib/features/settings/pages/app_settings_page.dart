@@ -1,16 +1,12 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/services/update_checker.dart';
-import '../../../core/utils/logger.dart';
 import '../../../data/models/music_library.dart';
 import '../../../data/models/server_address.dart';
 import '../../../data/sources/local_storage.dart';
@@ -41,7 +37,6 @@ class AppSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
-  bool _isExportingLogs = false;
   bool _isCheckingUpdate = false;
   bool _autoPlayOnLaunch = false;
 
@@ -51,42 +46,6 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     LocalStorage.getAutoPlayOnLaunch().then((value) {
       if (mounted) setState(() => _autoPlayOnLaunch = value);
     });
-  }
-
-  Future<void> _exportLogs() async {
-    setState(() => _isExportingLogs = true);
-
-    try {
-      final logContent = Logger.exportLogs();
-      if (logContent.isEmpty) {
-        _showMessage('暂无日志可导出');
-        return;
-      }
-
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      await Share.shareXFiles([
-        XFile.fromData(
-          utf8.encode(logContent),
-          mimeType: 'text/plain',
-          name: 'musicflow_log_$timestamp.txt',
-        ),
-      ], subject: 'MusicFlow 日志导出 $timestamp');
-
-      Logger.infoWithTag(
-        'LOG_EXPORT',
-        'exported ${Logger.bufferedLineCount} lines to share payload'
-            '${kIsWeb ? " (web)" : ""}',
-      );
-    } catch (error) {
-      Logger.errorWithTag('LOG_EXPORT', 'export failed', error);
-      _showMessage('日志导出失败: $error', kind: MusicFlowMessageKind.error);
-    } finally {
-      if (mounted) setState(() => _isExportingLogs = false);
-    }
   }
 
   Future<void> _checkForUpdates() async {
@@ -495,7 +454,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               SizedBox(height: context.musicFlowSpacing.xl),
               MusicFlowSettingsSection(
                 title: '诊断与更新',
-                description: '导出本机诊断日志，或检查 GitHub Releases。',
+                description: '查看本机诊断日志，或检查 GitHub Releases。',
                 children: <Widget>[
                   MusicFlowSettingRow(
                     icon: AppIcons.fileText,
@@ -507,16 +466,6 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       color: context.musicFlowColors.muted,
                     ),
                     onPressed: () => _pushPage(const LogViewerPage()),
-                  ),
-                  MusicFlowSettingRow(
-                    icon: AppIcons.fileText,
-                    title: '导出日志',
-                    description: '共缓存 ${Logger.bufferedLineCount} 条日志',
-                    semanticLabel: _isExportingLogs ? '导出日志，正在准备分享文件' : null,
-                    trailing: _isExportingLogs
-                        ? const MusicFlowSkeleton.circle(size: 20)
-                        : null,
-                    onPressed: _isExportingLogs ? null : _exportLogs,
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.refresh,
