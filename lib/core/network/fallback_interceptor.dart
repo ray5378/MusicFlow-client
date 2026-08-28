@@ -36,6 +36,12 @@ class FallbackInterceptor extends Interceptor {
       Logger.debugWithTag(_tag, 'reset consecutive failure counter');
       _consecutiveFailures = 0;
     }
+    // 单行响应摘要，替代原来 LogInterceptor 的整版 body 打印。
+    Logger.debugWithTag(
+      _tag,
+      '${response.requestOptions.method} ${response.requestOptions.path} '
+      '-> ${response.statusCode}',
+    );
     super.onResponse(response, handler);
   }
 

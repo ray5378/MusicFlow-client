@@ -277,10 +277,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   Future<void> _handleBackPressed() async {
     final index = widget.navigationShell.currentIndex;
     final branchCount = widget.branchNavigatorKeys.length;
-    Logger.infoWithTag(
-      _logTag,
-      'back pressed, branchIndex=$index, branchCount=$branchCount',
-    );
 
     final scaffold = scaffoldKey.currentState;
     final rootNavigator = Navigator.of(context);
@@ -288,13 +284,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     if (index >= 0 && index < branchCount) {
       final navigatorKey = widget.branchNavigatorKeys[index];
       branchNavigator = navigatorKey.currentState;
-      Logger.infoWithTag(
-        _logTag,
-        'navigator for branch $index: '
-        'key=$navigatorKey, '
-        'state=${branchNavigator != null ? "present" : "null"}, '
-        'canPop=${branchNavigator?.canPop()}',
-      );
     } else {
       Logger.warnWithTag(
         _logTag,

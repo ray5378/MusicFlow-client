@@ -167,8 +167,6 @@ class AddressPool {
       'host=${uri.host} port=$port scheme=${uri.scheme} path=${uri.path}',
     );
 
-    await _debugResolveHost(address, uri);
-
     try {
       final response = await _dio
           .head(
@@ -191,10 +189,6 @@ class AddressPool {
         'contentLength=$contentLength',
       );
       if (response.statusCode == 200) {
-        Logger.debugWithTag(
-          _tag,
-          'probe success: ${address.label} latency=${latency}ms',
-        );
         return address.copyWith(
           status: ServerAddressStatus.ok,
           lastLatencyMs: latency,
@@ -222,22 +216,6 @@ class AddressPool {
         lastLatencyMs: null,
       );
     }
-  }
-
-  Future<void> _debugResolveHost(ServerAddress address, Uri uri) async {
-    final host = uri.host;
-    if (host.isEmpty) {
-      Logger.warnWithTag(
-        _tag,
-        'probe dns skipped: ${address.label} empty host',
-      );
-      return;
-    }
-
-    Logger.debugWithTag(
-      _tag,
-      'probe dns skipped: ${address.label} host=$host (platform-neutral build)',
-    );
   }
 
   String _summarizeCandidates() {

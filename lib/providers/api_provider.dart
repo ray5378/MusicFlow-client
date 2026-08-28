@@ -25,15 +25,9 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
 
-  // Logging
-  dio.interceptors.add(
-    LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (obj) => Logger.debug(obj.toString()),
-    ),
-  );
-
+  // 日志：不再挂 LogInterceptor（它会把一次请求打十几行、并把 gzip 响应正文整段
+  // 打印出来，大量刷屏还拖慢性能）。请求/响应/状态由 FallbackInterceptor 各用一行
+  // 精简记录，需要抓服务器明细时才在“诊断日志”里可见。
   return dio;
 });
 

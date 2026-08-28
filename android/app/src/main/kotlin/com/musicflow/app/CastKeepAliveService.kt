@@ -35,14 +35,19 @@ class CastKeepAliveService : Service() {
         createChannel()
         startForegroundCompat()
         acquireKeepAlive()
+        // 抗冻结心跳：即便进程被国内 ROM/鸿蒙后台管控整体冻结，
+        // AlarmManager 也会在维护窗口唤醒进程，兜住「整段冻结 → 歌放完不续播」。
+        CastHeartbeat.schedule(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // START_STICKY：系统偶尔回收后会自动重建，确保投屏期间保活尽量不中断。
+        // 每次重建都会在 onCreate 里重新预约心跳，保证心跳链不因回收而断。
         return START_STICKY
     }
 
     override fun onDestroy() {
+        CastHeartbeat.cancel(this)
         releaseKeepAlive()
         super.onDestroy()
     }

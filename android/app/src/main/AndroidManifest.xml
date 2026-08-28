@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <!-- Android 13+ 通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 投屏抗冻结心跳：精确后台闹钟（Doze/冻结仍按维护窗口唤醒进程续播）。
+         可选权限：部分 ROM 授予则走精确路径；未授予时已在代码内回退到非精确版，无感知。 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <!-- 存储权限：下载到公共 Music 目录 -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -71,6 +74,11 @@
         <service
             android:name=".CastKeepAliveService"
             android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+
+        <!-- 投屏抗冻结心跳接收器：进程被冻结时由系统唤醒，续订心跳并让 Dart 轮询补齐 -->
+        <receiver
+            android:name="com.musicflow.app.CastHeartbeat$Receiver"
             android:exported="false" />
 
         <!-- 媒体按钮接收器 -->
