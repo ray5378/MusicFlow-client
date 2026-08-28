@@ -495,14 +495,26 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
     await playEffectiveQueue(ref, songs);
   }
 
+  /// 队列播完(下一轮)时拉取新一批随机歌曲并**追加**到队尾继续播,而非整批替换。
+  ///
+  /// - 保留已播的旧轮次歌曲在队首(可往前切回),新一批从追加点无缝接上;
+  /// - 新一批与旧内容按 id 去重,避免刚播完的歌立即又出现;
+  /// - 本机链路用合并队列 + 从新批首首续播;投屏/DLNA 链路由其内部换批续播。
   Future<void> _loadNextRound() async {
     final token = ++_roundToken;
     final songs = await ref.refresh(randomSongsProvider.future);
     if (!mounted || token != _roundToken || !_autoContinue) return;
     if (songs.isEmpty) return;
+    // 先读当前已展示/已播的历史批,再更新展示,否则 _lastKnownSongs 已被新批覆盖、
+    // fresh 永远为空,无法实现「追加」。
+    final current = _lastKnownSongs ?? const <Song>[];
+    final currentIds = current.map((s) => s.id).toSet();
+    final fresh = songs.where((s) => !currentIds.contains(s.id)).toList();
+    if (fresh.isEmpty) return;
     _roundSongIds = songs.map((s) => s.id).toSet();
     setState(() => _lastKnownSongs = songs);
-    await playEffectiveQueue(ref, songs);
+    final merged = <Song>[...current, ...fresh];
+    await playEffectiveQueue(ref, merged, startIndex: current.length);
   }
 
   /// 随机歌曲歌单更新后的处理:
