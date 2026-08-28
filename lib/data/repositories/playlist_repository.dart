@@ -25,10 +25,7 @@ class PlaylistRepository {
         if (query.isNotEmpty) 'query': query,
       },
     ) as Map<String, dynamic>;
-    final items = ((data['items'] ?? data['playlists']) as List? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map(Playlist.fromJson)
-        .toList();
+    final items = _parsePlaylists((data['items'] ?? data['playlists']) as List? ?? []);
     final total = (data['total'] as num?)?.toInt() ?? items.length;
     return (items: items, total: total);
   }
@@ -49,10 +46,11 @@ class PlaylistRepository {
 
     // 兼容两种返回:直接 entries 数组 或 {items,total}。
     Object? rawItems = data['entries'] ?? data['items'];
-    final list = (rawItems as List? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map((e) => Song.fromJson((e['song'] as Map<String, dynamic>?) ?? e))
-        .toList();
+    // 容忍性解析：逐条 try/catch，跳过个别损坏/不兼容曲目。否则一条坏数据会让
+    // Song.fromJson 抛异常，整页 .map().toList() 一起失败，上游把它误判成
+    // 「网络异常」→ Windows 随机歌曲/歌单一直加载失败的根因(只解析了第 49 首，
+    // 第 50+ 首里某首字段不兼容即整批崩)。
+    final list = _parseSongs((rawItems as List? ?? []));
     final total = (data['total'] as num?)?.toInt() ??
         (data['matched'] as num?)?.toInt() ??
         list.length;
@@ -94,13 +92,46 @@ class PlaylistRepository {
       final playlistList = response['playlists']?['playlist'] as List?;
       if (playlistList == null) return [];
 
-      return playlistList
-          .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return _parsePlaylists(playlistList);
     } catch (e) {
       Logger.error('Failed to get playlists', e);
       rethrow;
     }
+  }
+
+  /// 容忍性解析歌单列表：逐条 try/catch，跳过个别损坏/不兼容歌单。
+  /// 否则一条坏歌单会让 Playlist.fromJson 抛异常，整批歌单解析失败，
+  /// 被上游误判为「网络异常」→ 首页「最新更新歌单/全部歌单」一直加载不出。
+  static List<Playlist> _parsePlaylists(List rawList) {
+    final result = <Playlist>[];
+    for (final e in rawList) {
+      if (e is! Map || e.isEmpty) continue;
+      try {
+        result.add(Playlist.fromJson(Map<String, dynamic>.from(e)));
+      } catch (err) {
+        Logger.warnWithTag('PLAYLIST', 'skip broken playlist entry', err);
+      }
+    }
+    return result;
+  }
+
+  /// 容忍性解析曲目列表：跳过损坏/字段不兼容的单首歌曲，避免整批崩。
+  /// 兼容直接歌曲对象(所有字段平铺)与 {song:{...}} 嵌套两种返回。
+  static List<Song> _parseSongs(List rawList) {
+    final result = <Song>[];
+    for (final e in rawList) {
+      if (e is! Map || e.isEmpty) continue;
+      // 嵌套形式 {song:{...}} 时取内层;平铺时直接用元素本身。
+      final embedded = e['song'];
+      final songJson = embedded is Map ? embedded : e;
+      if (songJson.isEmpty) continue;
+      try {
+        result.add(Song.fromJson(Map<String, dynamic>.from(songJson)));
+      } catch (err) {
+        Logger.warnWithTag('PLAYLIST', 'skip broken track entry', err);
+      }
+    }
+    return result;
   }
 
   /// 获取歌单详情（包含歌曲列表）
