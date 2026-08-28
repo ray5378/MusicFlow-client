@@ -10,6 +10,35 @@ permissions:
   contents: write
 
 jobs:
+  # 发版规则统一为「只打 tag」：正式版本号只以 tag(如 v3.3.0) 为准，
+  # 不再依赖每次改动 pubspec.yaml 版本号。此 job 把解析出的版本号注入后续
+  # 所有构建产物(安卓 versionName / Windows 文件版本)，从而保证应用内
+  # 「检查更新」显示的当前版本号与本次发布版本绝对一致。
+  resolve-version:
+    name: Resolve version from tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      build_number: ${{ steps.v.outputs.build_number }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # 正式发版走 tag：版本号 = tag 去掉前导 v
+            ver="${GITHUB_REF#refs/tags/v}"
+          else
+            # 非 tag(如 main 推送的滚动构建)兜底：回退到 pubspec 里的基准版本号
+            ver="$(grep -m1 '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*([0-9]+(\.[0-9]+)*).*/\1/')"
+          fi
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          # 用每次运行自增的序号作为内部 buildNumber(安卓 versionCode)，
+          # 保证新构建的版本号一定大于旧版本。
+          echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
   test-dlna:
     name: DLNA Feature Tests
     runs-on: ubuntu-latest
@@ -40,6 +69,7 @@ jobs:
 
   build-android:
     name: Android APK
+    needs: [resolve-version]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -84,7 +114,7 @@ jobs:
         # --target-platform 只过滤 Flutter 自身产物(libapp.so/libflutter.so),
         # 第三方 Maven AAR 原生库(如 libsqlite3.so)仍会带全 ABI;
         # 配合 --split-per-abi 后每个 APK 只含 arm64 一种 ABI,彻底过滤其他架构。
-        run: flutter build apk --release --target-platform android-arm64 --split-per-abi
+        run: flutter build apk --release --target-platform android-arm64 --split-per-abi --build-name="${{ needs.resolve-version.outputs.version }}" --build-number=${{ needs.resolve-version.outputs.build_number }}
 
       - name: Rename APK for release
         run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "MusicFlow-${{ github.run_number }}-android.apk"
@@ -98,6 +128,7 @@ jobs:
 
   build-windows:
     name: Windows Portable
+    needs: [resolve-version]
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -121,7 +152,7 @@ jobs:
         continue-on-error: true
 
       - name: Build Windows (Release)
-        run: flutter build windows --release
+        run: flutter build windows --release --build-name="${{ needs.resolve-version.outputs.version }}" --build-number=${{ needs.resolve-version.outputs.build_number }}
 
       - name: Package portable zip
         run: |
