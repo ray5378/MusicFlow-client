@@ -12,6 +12,20 @@ class Logger {
   /// Ring buffer storing the most recent log lines.
   static final _buffer = ListQueue<String>(_maxBufferSize);
 
+  /// 全局日志开关。
+  ///
+  /// 关闭后「不抓任何日志」：任何级别都不再写入内存缓冲，也不再打控制台，
+  /// 与 release/debug 无关；开启后抓全部日志（受 ring buffer 上限约束）。
+  static bool _loggingEnabled = true;
+
+  /// 是否开启日志抓取。
+  static bool get loggingEnabled => _loggingEnabled;
+
+  /// 开启/关闭日志抓取。
+  static void setLoggingEnabled(bool value) {
+    _loggingEnabled = value;
+  }
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
