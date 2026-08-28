@@ -30,7 +30,7 @@ class _FakeManager extends DlnaManager {
   Future<void> init({
     required String Function(String songId) streamUrlBuilder,
     String Function(List<String> songIds)? castListUrlBuilder,
-    String Function(List<String> songIds)? castStreamUrlBuilder,
+    Future<String> Function(List<String> songIds)? castStreamUrlBuilder,
   }) async {
     // 静默：测试环境不建 SSDP 套接字 / HTTP 中继。
   }

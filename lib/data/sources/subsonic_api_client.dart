@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/fallback_interceptor.dart';
@@ -17,6 +18,10 @@ class SubsonicApiClient {
   // 因此在同一次登录会话内复用同一组 salt/token,切换账号时再重新生成。
   String? _tokenSalt;
   String? _tokenDigest;
+
+  /// 队列条数超过该值时,连续流改走服务端短令牌(而非把全部 UUID 拼进 renderer URL)。
+  /// 保持 renderer 现场 URL 恒定极短,规避 HiVi 等嵌入式设备对超长 URI 的截断/拒拉。
+  static const int _castInlineSongLimit = 20;
 
   SubsonicApiClient({required Dio dio}) : _dio = dio {
     // Remove any existing auth interceptor (may reference a stale client instance)
@@ -257,17 +262,75 @@ class SubsonicApiClient {
   /// 把多个 songId 打包成服务端**一根连续音频流**:纯 audio renderer(如 HiVi H5MKII,
   /// 不支持 ContentDirectory/SpecNext)Set 这一个 URL 即一路播到队列末尾,设备自主连播,
   /// 即便客户端进程被系统挂起/杀死仍能续播。鉴权参数与 /rest/castPlaylist 一致。
-  String getCastStreamUrl(List<String> songIds) {
+  ///
+  /// 这是异步方法:短队列直接把 songId 逗号拼进 URL;长队列(> [_castInlineSongLimit])先
+  /// 调服务端 /rest/castStream?create=1 换一个**短 token**(队列存服务端),再拼一个很短的
+  /// URL(/rest/castStream?token=xxx)。否则 300 首 UUID 拼出的 ~12KB 超长 URI 会被 HiVi
+  /// 等嵌入式 renderer 截断/拒拉 → GET 失败 → 解码报错(两声嘟嘟)并停止。
+  Future<String> getCastStreamUrl(List<String> songIds) async {
     if (_library == null || songIds.isEmpty) return '';
     final baseUrl = _dio.options.baseUrl;
     if (baseUrl.isEmpty) return '';
 
+    final base = Uri.parse(joinServerUrl(baseUrl, '/rest/castStream'));
+
+    // 长队列走服务端短令牌,把队列条数与 renderer 现场 URL 长度解耦(治本)。
+    if (songIds.length > _castInlineSongLimit) {
+      final token = await _createCastStreamToken(songIds);
+      if (token.isNotEmpty) {
+        final params = <String, String>{};
+        _addAuthParamsMap(params);
+        params['token'] = token;
+        return base.replace(queryParameters: params).toString();
+      }
+      // 令牌换取失败:回退整条短链(仍可能过长,但不静默失败)。
+    }
+
     final params = <String, String>{};
     _addAuthParamsMap(params);
     params['songs'] = songIds.join(',');
+    return base.replace(queryParameters: params).toString();
+  }
 
-    final uri = Uri.parse(joinServerUrl(baseUrl, '/rest/castStream'));
-    return uri.replace(queryParameters: params).toString();
+  /// 长队列时调用服务端把队列存成短令牌并返回令牌;失败返回空串。
+  Future<String> _createCastStreamToken(List<String> songIds) async {
+    try {
+      final baseUrl = _dio.options.baseUrl;
+      final res = await _dio.get(
+        joinServerUrl(baseUrl, '/rest/castStream'),
+        queryParameters: <String, dynamic>{
+          'create': '1',
+          'songs': songIds.join(','),
+        },
+      );
+      final body = res.data;
+      if (body is String) return _extractToken(body);
+      if (body is Map) return _extractTokenFromMap(body);
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _extractToken(String json) {
+    try {
+      final map = jsonDecode(json);
+      return _extractTokenFromMap(map);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _extractTokenFromMap(Map<dynamic, dynamic> map) {
+    final sr = map['subsonic-response'];
+    if (sr is Map) {
+      final stream = sr['stream'];
+      if (stream is Map) {
+        final t = stream['token'];
+        if (t is String) return t;
+      }
+    }
+    return '';
   }
 
   /// 远程插件歌曲流地址(/rest/stream-remote):与主项目一致,带 provider/source/id,

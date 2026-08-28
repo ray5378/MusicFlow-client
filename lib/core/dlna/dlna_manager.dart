@@ -39,7 +39,7 @@ class DlnaManager {
 
   /// 根据 songId 列表构建服务端连续流 URL（B2 档，可选）。纯 renderer 设备
   /// （不支持 CDS 也不支持 SetNext，如 HiVi H5MKII）用此把整队列串成一根流自主连播。
-  String Function(List<String> songIds)? _castStreamUrlBuilder;
+  Future<String> Function(List<String> songIds)? _castStreamUrlBuilder;
 
   /// 当前投屏采用的路径档位（Capability 探测后选定）。
   DlnaCastPath _castPath = DlnaCastPath.direct;
@@ -165,7 +165,7 @@ class DlnaManager {
   Future<void> init({
     required String Function(String songId) streamUrlBuilder,
     String Function(List<String> songIds)? castListUrlBuilder,
-    String Function(List<String> songIds)? castStreamUrlBuilder,
+    Future<String> Function(List<String> songIds)? castStreamUrlBuilder,
   }) async {
     if (_initialized) return;
 
@@ -479,7 +479,7 @@ class DlnaManager {
     if (builder == null) throw StateError('castStreamUrlBuilder 未初始化');
 
     final orderedSongs = _orderedSongIdsForStream();
-    final url = builder(orderedSongs);
+    final url = await builder(orderedSongs);
     // 记下本根流的曲目顺序快照，供连续流档按墙钟还原「当前曲目/进度」。
     _streamTrackOrder
       ..clear()
