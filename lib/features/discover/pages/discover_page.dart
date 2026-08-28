@@ -520,21 +520,28 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
                   mainAxisSize: MainAxisSize.max,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    for (var row = 0; row < rowsInColumn; row++) ...<Widget>[
-                      SizedBox(
-                        width: itemWidth,
-                        child: DiscoverSongTile(
-                          song: songs[firstRow + row],
-                          onPressed: () {
-                            playEffectiveQueue(
-                              ref,
-                              songs,
-                              startIndex: firstRow + row,
-                            );
-                          },
-                          onOpenActions: () => showSongOptionsSheet(
-                            context: context,
-                            song: songs[firstRow + row],
+                    for (var row = 0; row < rowsInColumn; row++) ...[
+                      // Flexible 让每行共享整块高度,行内内容更高(如大字号)时由
+                      // ClipRect 裁剪而**不触发 RenderFlex 溢出异常**——保持「紧凑
+                      // 三行带」观感的同时,兼容 200% 字号这类极端缩放场景。
+                      Flexible(
+                        child: ClipRect(
+                          child: SizedBox(
+                            width: itemWidth,
+                            child: DiscoverSongTile(
+                              song: songs[firstRow + row],
+                              onPressed: () {
+                                playEffectiveQueue(
+                                  ref,
+                                  songs,
+                                  startIndex: firstRow + row,
+                                );
+                              },
+                              onOpenActions: () => showSongOptionsSheet(
+                                context: context,
+                                song: songs[firstRow + row],
+                              ),
+                            ),
                           ),
                         ),
                       ),

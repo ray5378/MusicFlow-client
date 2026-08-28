@@ -166,24 +166,32 @@ class MusicFlowSongRow extends StatelessWidget {
       if (_preview) const _SongStatusMarker(icon: AppIcons.cloud, label: '试听'),
     ];
 
+    // 标题与元信息用 Flexible 包裹:行本身处于有界高度(如首页随机歌曲的
+    // 「紧凑三行带」)时,二者在有界高度内分配空间并收缩换行,超高部分被裁剪/
+    // 省略,**不再触发 RenderFlex 溢出**;在常规无界高度列表里 Flexible(loose)
+    // 仍取自然高度,行为与之前一致。
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          song.title,
-          maxLines: showFullText ? null : 2,
-          overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
-          style: context.musicFlowTypography.title.copyWith(
-            color: isCurrent
-                ? context.musicFlowColors.accent
-                : context.musicFlowColors.ink,
+        Flexible(
+          child: Text(
+            song.title,
+            maxLines: showFullText ? null : 2,
+            overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: context.musicFlowTypography.title.copyWith(
+              color: isCurrent
+                  ? context.musicFlowColors.accent
+                  : context.musicFlowColors.ink,
+            ),
           ),
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
-        MusicFlowMetadataLine(
-          items: <String?>[artistText, song.durationString],
-          maxLines: showFullText ? null : 2,
+        Flexible(
+          child: MusicFlowMetadataLine(
+            items: <String?>[artistText, song.durationString],
+            maxLines: showFullText ? null : 2,
+          ),
         ),
         if (statusMarkers.isNotEmpty) ...<Widget>[
           SizedBox(height: context.musicFlowSpacing.xxs),
