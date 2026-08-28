@@ -433,6 +433,10 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       unawaited(_fetchLatestForDisplay());
     } catch (e) {
       Logger.warnWithTag('DISCOVER', 'random songs cache read failed', e);
+      // 缓存读取异常也不阻断首屏:回退到网络拉取一次。
+      // 这是「Windows 冷启动拉不到随机歌曲」的关键兜底——此前缓存坏数据
+      // 抛异常后被直接吞掉,后续从未触发 _fetchLatestForDisplay。
+      if (mounted) unawaited(_fetchLatestForDisplay());
     }
   }
 

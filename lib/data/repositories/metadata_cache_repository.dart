@@ -75,9 +75,8 @@ class MetadataCacheRepository {
   Future<List<Song>?> getRandomSongs(String libraryId) async {
     final map = await _readMap(libraryId, 'home_random_songs');
     if (map == null) return null;
-    final list = map['songs'] as List?;
-    if (list == null) return null;
-    return list.map((e) => Song.fromJson(e as Map<String, dynamic>)).toList();
+    final songs = _parseCachedSongs((map['songs'] as List?) ?? const []);
+    return songs.isEmpty ? null : songs;
   }
 
   /// 读取随机歌曲缓存及其写入时间。冷启动时用于缓存先行：
@@ -87,18 +86,30 @@ class MetadataCacheRepository {
   ) async {
     final map = await _readMap(libraryId, 'home_random_songs');
     if (map == null) return null;
-    final list = map['songs'] as List?;
-    if (list == null) return null;
     final cachedAtMs = map['cachedAt'] as num?;
     final cachedAt = DateTime.fromMillisecondsSinceEpoch(
       cachedAtMs?.toInt() ?? 0,
     );
-    return (
-      songs: list
-          .map((e) => Song.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      cachedAt: cachedAt,
-    );
+    final songs = _parseCachedSongs((map['songs'] as List?) ?? const []);
+    if (songs.isEmpty) return null;
+    return (songs: songs, cachedAt: cachedAt);
+  }
+
+  /// 容忍性地解析缓存的歌曲列表：跳过损坏/旧版本不兼容的单个条目。
+  /// 否则一条坏数据会让 `Song.fromJson` 抛 FormatException，直接导致缓存读取
+  /// 整体失败、随机歌曲无法回退到网络拉取（Windows 拉不到随机歌曲的根因）。
+  List<Song> _parseCachedSongs(List rawList) {
+    final songs = <Song>[];
+    for (final e in rawList) {
+      if (e is! Map || e.isEmpty) continue;
+      try {
+        songs.add(Song.fromJson(Map<String, dynamic>.from(e)));
+      } catch (_) {
+        // 跳过损坏条目,不阻断整体读取。
+        continue;
+      }
+    }
+    return songs;
   }
 
   Future<void> cacheRecentAlbums(String libraryId, List<Album> albums) async {
