@@ -163,6 +163,34 @@ class MainActivity : AudioServiceFragmentActivity() {
             "hasNearbyWifiDevicesPermission" -> {
                 result.success(_hasNearbyPermission())
             }
+            // 投屏抗冻结心跳走 AlarmManager.setExact*(allowWhileIdle) 需要 Android 12+ 的
+            // SCHEDULE_EXACT_ALARM 权限；未授予时心跳只能退到非精确版，在国产 ROM/鸿蒙冻结
+            // 期间会被合并到极长的维护窗口（实测超 10 分钟不响 → 歌放完迟迟不续播）。
+            // 这里开放「查询是否可精确排闹钟」供 Dart 决定何时请求授权。
+            "canScheduleExactAlarms" -> {
+                result.success(_canScheduleExactAlarms())
+            }
+            // Android 12+ 弹出「闹钟和提醒」授权页，用户授予后心跳即可精确准点唤醒进程续播。
+            // API 33+ 对大部分应用默认直接拒绝该 intent（无弹窗），此时仍靠电池优化白名单兜底。
+            "requestScheduleExactAlarm" -> {
+                if (_canScheduleExactAlarms()) {
+                    result.success(true)
+                } else {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.parse("package:$packageName")
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("REQUEST_EXACT_ALARM_FAILED", e.message, null)
+                    }
+                }
+            }
             "requestNearbyWifiDevicesPermission" -> {
                 if (_hasNearbyPermission()) {
                     result.success(true)

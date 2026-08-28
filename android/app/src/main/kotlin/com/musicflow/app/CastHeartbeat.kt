@@ -16,8 +16,13 @@ import android.os.Build
  * 唤醒进程：即便被冻结，也会在系统维护窗口被拉起，让 Dart 轮询填补错过帧，曲末看门狗
  * 随即能按墙钟检测到「设备放完」并主动推下一首。心跳只在投屏保活服务存活期间存在。
  *
- * 用 allowWhileIdle 类闹钟：Doze/冻结下仍会按维护窗口触发；优先精确版保证及时性，
- * Android 12+ 未授予 SCHEDULE_EXACT_ALARM 时静默回退到非精确版，均无需用户弹窗。
+ * 用 allowWhileIdle 类闹钟：Doze/冻结下仍会按维护窗口触发。优先精确版保证及时性：
+ * Android 12+ 的 setExactAndAllowWhileIdle 需要 SCHEDULE_EXACT_ALARM 权限，未授予时
+ * 会抛 SecurityException，此时只能退到非精确版 setAndAllowWhileIdle——它在国产 ROM /
+ * 鸿蒙的深度冻结里会被合并到很长（可超 10+ 分钟）的维护窗口，等于「心跳不响、续播遥遥无期」。
+ * 所以：这里显式按 canScheduleExactAlarms() 决定走哪条路径（精确优先），同时投屏启动时
+ * 会主动请求 SCHEDULE_EXACT_ALARM（见 MainActivity/startCastKeepAliveService），
+ * 把「精确闹钟」真正要下来，让心跳在冻结期间也能按 45s 准点唤醒进程补播。
  */
 object CastHeartbeat {
 
@@ -46,13 +51,22 @@ object CastHeartbeat {
         val triggerAt = System.currentTimeMillis() + intervalMs
         val pi = pendingIntent(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                // 精确版 allowWhileIdle：Doze / 冻结仍按触发时间准点拉起进程（API 31+ 需权限）。
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-            } catch (_: SecurityException) {
-                // 未授予 SCHEDULE_EXACT_ALARM：回退到非精确版 allowWhileIdle，同样在维护窗口触发。
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            // Android 12+ 先显式询问是否已授予精确闹钟权限（未授予时 setExact* 会抛
+            // SecurityException），以此决定路径；授予则精确版准点唤醒，未授予则退非精确版。
+            val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                am.canScheduleExactAlarms()
+            if (canExact) {
+                try {
+                    // 精确版 allowWhileIdle：Doze / 冻结下仍按触发时间拉起进程（API 31+ 需权限）。
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                    return
+                } catch (_: SecurityException) {
+                    // 权限判定与实际授予存在竞态：即便 canScheduleExactAlarms() 为真，
+                    // 仍可能抛 SecurityException，这时退到非精确版兜底。
+                }
             }
+            // 未授予 SCHEDULE_EXACT_ALARM：退到非精确版 allowWhileIdle，尽力在维护窗口触发。
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
         } else {
             // API < 23 无 Doze，直接精确触发。
             am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
