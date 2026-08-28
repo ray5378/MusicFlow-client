@@ -330,6 +330,13 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   final ScrollController _scrollCtrl = ScrollController();
   StreamSubscription<int>? _randomSongsSubscription;
 
+  /// 自动重试定时器与计数:首载失败(无缓存)时自动补拉,有界重试,
+  /// 成功加载或区块真正无数据时停止,避免瞬时网络问题把区块永久隐藏。
+  Timer? _autoRetryTimer;
+  int _autoRetryCount = 0;
+  static const int _maxAutoRetry = 3;
+  static const Duration _autoRetryDelay = Duration(seconds: 3);
+
   /// 最近一次可展示的歌曲(本地缓存或远程结果)。打开首页时先用它秒出内容,
   /// 同时后台拉取远程最新结果,避免每次都阻塞在远程请求与后端惰性刷新上。
   List<Song>? _lastKnownSongs;
@@ -378,6 +385,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
         }
       },
     );
+    // 自愈兜底:随机歌曲首载若因「地址探测/线路的瞬时失败」被置为 failed 且本机又
+    // 无缓存时,区块会整块隐藏。这里监听 failed 信号自动补拉一次(有界重试),
+    // 避免整块永久隐藏,造成「Windows 一直提示网络异常 / 随机歌曲不显示」的表象。
+    ref.listenManual<bool>(randomSongsLoadFailedProvider, (prev, next) {
+      if (!mounted) return;
+      if (!next) return;
+      _scheduleAutoRetry();
+    });
   }
 
   /// 先读本地缓存的随机歌曲,让区块立即有内容可展示,不等远程。
@@ -398,6 +413,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       if (cachedMeta != null && cachedMeta.songs.isNotEmpty) {
         // 远程数据已就绪时不再用旧缓存覆盖,避免「新内容 → 旧缓存」的闪回。
         if (_lastKnownSongs == null) {
+          _resetAutoRetry();
           setState(() => _lastKnownSongs = cachedMeta.songs);
         }
         // 库指纹失效 + TTL:缓存按库 id 分区,库切换天然用各自缓存;
@@ -426,11 +442,37 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       final songs = await ref.refresh(randomSongsProvider.future);
       if (!mounted) return;
       if (songs.isNotEmpty) {
+        _resetAutoRetry();
         setState(() => _lastKnownSongs = songs);
       }
     } catch (e) {
       Logger.warnWithTag('DISCOVER', 'fetch latest random songs failed', e);
     }
+  }
+
+  /// 自动补拉调度:仅当「区块尚无内容」且未超上限时,延迟一段时间后重拉。
+  /// 成功拿到内容后由 [_resetAutoRetry] 重置计数;无内容时最多重试
+  /// [_maxAutoRetry] 次,避免在真正离线(无服务器)时无限空转。
+  void _scheduleAutoRetry() {
+    if (_autoRetryTimer != null) return;
+    if (_lastKnownSongs != null) return;
+    if (_autoRetryCount >= _maxAutoRetry) return;
+    _autoRetryTimer = Timer(_autoRetryDelay, () {
+      _autoRetryTimer = null;
+      if (!mounted) return;
+      if (_lastKnownSongs != null) return;
+      _autoRetryCount++;
+      Logger.infoWithTag(
+        'DISCOVER',
+        'auto-retry random songs (#$_autoRetryCount/$_maxAutoRetry)',
+      );
+      unawaited(_loadCachedSongs());
+    });
+  }
+
+  /// 成功拿到可展示内容后重置自动重试计数,让后续瞬时失败仍有机会自愈。
+  void _resetAutoRetry() {
+    _autoRetryCount = 0;
   }
 
   Future<void> _playRound() async {
@@ -604,6 +646,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   @override
   void dispose() {
     _randomSongsSubscription?.cancel();
+    _autoRetryTimer?.cancel();
     _scrollCtrl.dispose();
     super.dispose();
   }
