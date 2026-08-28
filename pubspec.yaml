@@ -16,6 +16,9 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
+# 发版规则已改为「纯 tag 驱动」：正式发布版本号只由 git 版本 tag(vX.Y.Z) 决定，
+# CI 在构建时通过 --build-name/--build-number 覆盖此值。因此这里的版本号只是
+# 本地开发/工具的无语义基准占位，不再随每次发版手动维护，请勿再改动它。
 version: 1.1.9+52
 environment:
   sdk: ^3.10.8

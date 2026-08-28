@@ -1,10 +1,11 @@
 name: Build Client
 
+# 只保留一套发版体系：仅版本 tag (vX.Y.Z) 触发构建与发布。
+# 不再监听 main 推送(滚动构建/预发布 leak)也无需手动 dispatch，
+# 强制所有发布都走 tag，避免维护两套发版逻辑。
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,12 +28,12 @@ jobs:
       - name: Resolve version
         id: v
         run: |
+          # 纯 tag 体系：版本号只以 tag(如 v3.3.0) 为准，强制作业必须由版本 tag 触发。
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # 正式发版走 tag：版本号 = tag 去掉前导 v
             ver="${GITHUB_REF#refs/tags/v}"
           else
-            # 非 tag(如 main 推送的滚动构建)兜底：回退到 pubspec 里的基准版本号
-            ver="$(grep -m1 '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*([0-9]+(\.[0-9]+)*).*/\1/')"
+            echo "::error::发版必须通过版本 tag (vX.Y.Z) 触发，已拒绝非 tag 构建。"
+            exit 1
           fi
           echo "version=${ver}" >> "$GITHUB_OUTPUT"
           # 用每次运行自增的序号作为内部 buildNumber(安卓 versionCode)，
@@ -164,55 +165,6 @@ jobs:
           name: musicflow-windows
           path: MusicFlow-${{ github.run_number }}-windows.zip
           retention-days: 30
-
-  publish-release:
-    name: Publish Release
-    if: startsWith(github.ref, 'refs/heads/main')
-    needs: [build-android, build-windows]
-    runs-on: ubuntu-latest
-    steps:
-      # checkout 必须先于 download：actions/checkout 会重置工作目录，
-      # 若在 download 之后执行会把刚下载的 apk/zip 清掉，导致 Release 无资产。
-      - name: Checkout code (for git push)
-        uses: actions/checkout@v4
-
-      - name: Download Android artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: musicflow-android
-
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: musicflow-windows
-
-      - name: Remove previous rolling release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete latest -y || true
-          git push --delete origin latest || true
-
-      # prerelease: 滚动构建不抢占 releases/latest(prerelease 不能被设为 latest)。
-      # 这样客户端 UpdateChecker 追踪的 releases/latest 只会命中正式的版本化 Release。
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: "MusicFlow Client (最新构建 #${{ github.run_number }})"
-          body: |
-            自动构建的滚动发布(预发布)。
-            提交: ${{ github.sha }}
-            工作流运行: #${{ github.run_number }}
-
-            - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
-            - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
-          files: |
-            MusicFlow-${{ github.run_number }}-android.apk
-            MusicFlow-${{ github.run_number }}-windows.zip
-          prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-versioned:
     name: Publish Versioned Release
