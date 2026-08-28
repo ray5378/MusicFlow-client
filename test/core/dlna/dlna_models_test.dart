@@ -87,27 +87,4 @@ void main() {
       expect(copy.avTransportUrl, 'http://1/AVTransport/control');
     });
   });
-
-  group('DlnaCastSession', () {
-    test('isExpired reflects expiry window', () {
-      final fresh = DlnaCastSession(
-        token: 't1',
-        deviceId: 'd1',
-        songId: 's1',
-        createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(const Duration(minutes: 10)),
-      );
-
-      final expired = DlnaCastSession(
-        token: 't2',
-        deviceId: 'd1',
-        songId: 's1',
-        createdAt: DateTime.now(),
-        expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
-      );
-
-      expect(fresh.isExpired, isFalse);
-      expect(expired.isExpired, isTrue);
-    });
-  });
 }

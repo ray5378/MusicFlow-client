@@ -122,10 +122,10 @@ final dlnaManagerProvider = Provider<DlnaManager>((ref) {
   return manager;
 });
 
-/// 确保链路 B 管理器已初始化（幂等）：接入服务端流 URL 构建与字节拉取。
-/// 流 URL 复用 `SubsonicApiClient.getStreamUrl`（当前生效音质 maxBitRate），与 just_audio 解耦；
-/// 中继字节拉取复用 `fetchStreamBytes`（支持 Range 分段），供本地中继把每首单曲流
-/// 转发给 DLNA 设备（设备只拉客户端的中继 URL，不直接连服务端）。
+/// 确保链路 B 管理器已初始化（幂等）：接入服务端直连流 URL 构建。
+/// 流 URL 复用 `SubsonicApiClient.getStreamUrl`（当前生效音质 maxBitRate），与 just_audio 解耦。
+/// A 档·直传直连：把该服务端 URL 交给 DLNA 设备让其直连服务器自拉流（设备不连本机，
+/// 无本地中继/监听端口）。
 Future<void> ensureDlnaManagerReady(Ref ref) async {
   final manager = ref.read(dlnaManagerProvider);
   await manager.init(
@@ -133,10 +133,6 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
       final client = ref.read(subsonicApiClientProvider);
       final quality = ref.read(effectiveQualityProvider);
       return client.getStreamUrl(songId, maxBitRate: quality.maxBitRate);
-    },
-    fetchBytes: (url, {start, end}) {
-      final client = ref.read(subsonicApiClientProvider);
-      return client.fetchStreamBytes(url, start: start, end: end);
     },
   );
 }

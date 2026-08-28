@@ -203,7 +203,6 @@ void main() {
     manager = DlnaManager();
     await manager.init(
       streamUrlBuilder: (songId) => 'http://server/stream/$songId.m3u8',
-      fetchBytes: (url, {start, end}) async => Uint8List(0),
     );
   });
 
@@ -377,8 +376,11 @@ void main() {
 
     final trace = await traceIndex(const Duration(seconds: 6));
 
-    // 随机模式：应切离当前首(index != 0)，且游标仍在队内，设备确实收到新曲直链。
-    expect(trace.last.$2, isNot(0), reason: 'shuffle 应切到随机别的首');
+    // 随机模式：真实切到了别的首(index != 当前)，且游标仍在队内，设备确实收到新曲直链。
+    // 用「设备实际播过一首非初始曲」而非「末次跳曲 != 0」判定——shuffle 在观测窗口内
+    // 可能随机绕回 0，用末次索引断言会误报（历史偶发 flaky）。
+    expect(orderedSongs(fake).toSet(), isNot({'0'}),
+        reason: 'shuffle 应切到随机别的首');
     expect(trace.last.$2, inInclusiveRange(0, 3), reason: '随机游标不应越界');
     expect(fake.playedUris.length, greaterThan(1),
         reason: 'shuffle 应把随机到的下一首下发给设备');

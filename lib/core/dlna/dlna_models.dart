@@ -24,19 +24,17 @@ class DlnaCastTrack {
   });
 }
 
-/// 投屏路径档位（中继「直传」）。
-/// 客户端把每首歌从服务端经本地中继转成有限大小、带 Content-Length 的单曲流，
-/// 交给设备按普通单曲流播放；曲毕由客户端轮询检测自动 Set 下一首续播。
+/// 投屏路径档位（A 档·直传直连）。
+/// 客户端逐首 `SetAVTransportURI(服务端直连流 URL) → Play`，设备用自己的网卡
+/// **直连服务器自拉流**，客户端仅遥控；曲毕由客户端轮询检测自动 Set 下一首续播。
+/// 不做本地中继/推流（v3.2 起已删除 `local_relay.dart`）。
 enum DlnaCastPath { direct }
 
 /// 设备投屏能力（由描述文件 + 实探结果组合判定）。
-/// 作为「直传优先 A + CDS 清单 B」路径选择（Capability 探测）的输入。
+/// 仅 A 档·直传直连：设备持有一根 AVTransport 控制点即可逐首 Set 自拉流。
 class DeviceCapability {
   /// 能直连服务器 URL 拉流（绝大多数渲染器都具备，A 档前提）。
   final bool supportsDirectHttp;
-
-  /// 具备 ContentDirectory 服务，可接收 CDS 容器整列表自播（B 档前提）。
-  final bool supportsContentDirectory;
 
   /// 支持 SetNextAVTransportURI 无缝预置下一首。
   final bool supportsSetNext;
@@ -46,13 +44,9 @@ class DeviceCapability {
 
   const DeviceCapability({
     this.supportsDirectHttp = true,
-    this.supportsContentDirectory = false,
     this.supportsSetNext = false,
     this.reportsDuration = false,
   });
-
-  /// 设备能否自主循环整队列（无需客户端逐首续播）。
-  bool get canSelfLoopQueue => supportsContentDirectory;
 }
 
 /// DLNA 设备信息
@@ -119,25 +113,6 @@ class DlnaDevice {
       disabled: disabled ?? this.disabled,
     );
   }
-}
-
-/// DLNA 投屏会话
-class DlnaCastSession {
-  final String token; // 流会话 token
-  final String deviceId;
-  final String songId;
-  final DateTime createdAt;
-  final DateTime expiresAt;
-
-  const DlnaCastSession({
-    required this.token,
-    required this.deviceId,
-    required this.songId,
-    required this.createdAt,
-    required this.expiresAt,
-  });
-
-  bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
 
 /// DLNA 播放状态

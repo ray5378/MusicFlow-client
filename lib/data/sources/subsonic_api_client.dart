@@ -238,9 +238,8 @@ class SubsonicApiClient {
     return urlWithParams.toString();
   }
 
-  /// 从服务端拉取音频字节（本地中继供设备拉流用）。
-  /// [url] 为 `getStreamUrl` 生成的单曲流 URL；支持 Range 分段拉取（配合 HiVi 等
-  /// renderer 的边下边播/拖动）。
+  /// 从服务端拉取单曲流音频字节。
+  /// [url] 为 `getStreamUrl` 生成的单曲流 URL；支持 Range 分段拉取（边下边播/拖动）。
   Future<Uint8List> fetchStreamBytes(
     String url, {
     int? start,
