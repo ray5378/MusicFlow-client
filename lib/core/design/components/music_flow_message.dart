@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -222,11 +223,16 @@ class _MusicFlowTopToastState extends State<_MusicFlowTopToast>
     // Positioned 仅设 right/top 时，_RenderTheater/Overlay 会给出无限宽约束，
     // 而 MusicFlowMessage 内部 Row 含 Expanded，需先箍定有限宽以免断言崩溃。
     final size = MediaQuery.sizeOf(context);
+    // 右对齐锚定 + 限制最大宽度：既避免 Toast 无限宽撑满屏幕，也保证长文本在
+    // 手机窄屏下向左不超出视口（宽度上限 = 视口宽扣除左右边距；桌面宽屏再收窄
+    // 到更舒适的单列 Toast 宽度）。
+    final right = context.musicFlowSpacing.md;
+    final maxWidth = math.max(0.0, math.min(360.0, size.width - right * 2));
     return Positioned(
       top: top,
-      right: context.musicFlowSpacing.md,
+      right: right,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: size.width),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         child: SlideTransition(
           position: _slide,
           child: FadeTransition(
