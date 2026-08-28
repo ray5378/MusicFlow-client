@@ -20,7 +20,7 @@ class DlnaManager {
   /// 本地音频中继：设备拉流入口（/stream?token=xxx）。
   final LocalRelay _relay = LocalRelay();
 
-  /// 中继 URL 前缀（http://<局域网IP>:<port>），懒启动。
+  /// 中继 URL 前缀（`http://<局域网IP>:<port>`），懒启动。
   String? _relayBaseUrl;
 
   final List<DlnaDevice> _devices = [];
@@ -39,12 +39,6 @@ class DlnaManager {
   List<DlnaCastTrack> _queue = [];
   int _queueIndex = -1;
   bool _nextSupported = true;
-
-  /// 根据 songId 构建服务端流 URL（含鉴权参数），供中继 fetchBytes 从服务端拉流。
-  String Function(String songId)? _streamUrlBuilder;
-
-  /// 中继从服务端拉音频字节回传（含 Range 分段）。
-  Future<Uint8List> Function(String url, {int? start, int? end})? _fetchBytes;
 
   /// 当前投屏采用的路径档位（中继模式恒为 direct）。
   DlnaCastPath _castPath = DlnaCastPath.direct;
@@ -161,8 +155,6 @@ class DlnaManager {
   }) async {
     if (_initialized) return;
 
-    _streamUrlBuilder = streamUrlBuilder;
-    _fetchBytes = fetchBytes;
     await _relay.init(
       streamUrlBuilder: streamUrlBuilder,
       fetchBytes: fetchBytes,
@@ -429,11 +421,9 @@ class DlnaManager {
   }
 
   /// 为 songId 创建中继会话并返回其局域网拉流 URL。
-  /// 设备 Set 该 URL（http://<本机IP>:<port>/stream?token=xxx），中继再从服务端
+  /// 设备 Set 该 URL（`http://<本机IP>:<port>/stream?token=xxx`），中继再从服务端
   /// 拉取该歌曲的有限大小字节流传给设备。
   Future<String> _directStreamUrl(String songId) async {
-    final builder = _streamUrlBuilder;
-    if (builder == null) throw StateError('streamUrlBuilder 未初始化');
     await _ensureRelayStarted();
     final deviceId = _currentDevice?.id ?? 'cast';
     final session = _relay.createSession(deviceId, songId);
