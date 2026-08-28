@@ -9,11 +9,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'app.dart';
+import 'data/sources/local_storage.dart';
 
-void main() {
+Future<void> main() async {
   runZonedGuarded(
-    () {
-      WidgetsFlutterBinding.ensureInitialized();
+    () async {
+      await WidgetsFlutterBinding.ensureInitialized();
+
+      // 应用持久化的日志开关（默认关闭，需用户在设置里手动开启）。
+      Logger.setLoggingEnabled(await LocalStorage.getLoggingEnabled());
 
       // 开启「连接失败」提示的启动宽限期：打开软件后 10 秒内先待确认，
       // 避免首屏未就绪时立刻误报连接失败。

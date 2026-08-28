@@ -23,6 +23,19 @@ class LocalStorage {
   static const String _keyPlayerVolume = 'player_volume';
   static const String _keyStatusLyricsEnabled = 'status_lyrics_enabled';
   static const String _keyLyricsScrollDwellSeconds = 'lyrics_scroll_dwell_seconds';
+  static const String _keyLoggingEnabled = 'logging_enabled';
+
+  /// 是否开启日志抓取（默认关闭，需用户手动开启）。
+  static Future<bool> getLoggingEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyLoggingEnabled) ?? false;
+  }
+
+  /// 设置日志抓取开关。
+  static Future<void> setLoggingEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyLoggingEnabled, value);
+  }
 
   /// 是否开启 Windows 托盘/任务栏歌词(状态栏歌词)。
   static Future<bool> getStatusLyricsEnabled() async {

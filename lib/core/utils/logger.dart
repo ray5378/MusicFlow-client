@@ -14,9 +14,10 @@ class Logger {
 
   /// 全局日志开关。
   ///
-  /// 关闭后「不抓任何日志」：任何级别都不再写入内存缓冲，也不再打控制台，
-  /// 与 release/debug 无关；开启后抓全部日志（受 ring buffer 上限约束）。
-  static bool _loggingEnabled = true;
+  /// **默认关闭**：不抓任何日志（任何级别都不写入内存缓冲、不打控制台），
+  /// 与 release/debug 无关；需用户在设置里手动开启后，才抓取全部日志
+  /// （受 ring buffer 上限约束）。
+  static bool _loggingEnabled = false;
 
   /// 是否开启日志抓取。
   static bool get loggingEnabled => _loggingEnabled;
@@ -112,6 +113,9 @@ class Logger {
     dynamic error,
     StackTrace? stackTrace,
   }) {
+    // 全局开关关闭时，任何级别都不抓取：不进内存缓冲、不打控制台。
+    if (!_loggingEnabled) return;
+
     // Always buffer (even in release) so that log export captures warn/error.
     final now = DateTime.now().toIso8601String();
     final levelText = level.name.toUpperCase();

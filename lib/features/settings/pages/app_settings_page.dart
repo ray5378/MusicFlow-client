@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/services/update_checker.dart';
+import '../../../core/utils/logger.dart';
 import '../../../data/models/music_library.dart';
 import '../../../data/models/server_address.dart';
 import '../../../data/sources/local_storage.dart';
@@ -39,12 +40,18 @@ class AppSettingsPage extends ConsumerStatefulWidget {
 class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   bool _isCheckingUpdate = false;
   bool _autoPlayOnLaunch = false;
+  bool _loggingEnabled = false;
 
   @override
   void initState() {
     super.initState();
     LocalStorage.getAutoPlayOnLaunch().then((value) {
       if (mounted) setState(() => _autoPlayOnLaunch = value);
+    });
+    // 同步日志开关（默认关闭，需手动开启）到 Logger 全局状态。
+    LocalStorage.getLoggingEnabled().then((value) {
+      if (mounted) setState(() => _loggingEnabled = value);
+      Logger.setLoggingEnabled(value);
     });
   }
 
@@ -456,6 +463,17 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 title: '诊断与更新',
                 description: '查看本机诊断日志，或检查 GitHub Releases。',
                 children: <Widget>[
+                  MusicFlowToggleSettingRow(
+                    icon: AppIcons.fileText,
+                    title: '记录日志',
+                    description: '默认关闭不抓取任何日志；开启后记录全部日志（最多 5000 条）。',
+                    value: _loggingEnabled,
+                    onChanged: (value) async {
+                      setState(() => _loggingEnabled = value);
+                      Logger.setLoggingEnabled(value);
+                      await LocalStorage.setLoggingEnabled(value);
+                    },
+                  ),
                   MusicFlowSettingRow(
                     icon: AppIcons.fileText,
                     title: '查看日志',
