@@ -86,6 +86,8 @@ Future<void> startCastKeepAliveService() async {
 ///     某些 ROM 会连带停掉该服务，进程退回后台即冻结，轮询随之中断。
 ///  2. 请求电池优化豁免 —— 相对国产 ROM 后台冻结最有效的糖衣手段，
 ///     用户确认后应用列入白名单，退后台/锁屏仍持续轮询 → 到点准点推下一首。
+///  3. 请求精确闹钟 SCHEDULE_EXACT_ALARM —— 混合方案里「冻结兜底」的系统闹钟依赖它；
+///     未授予时曲末闹钟只能在深度冻结时长得多的大维护窗口里被合并触发，等同于不响。
 Future<void> _requestBackgroundCastPerms() async {
   // 1) POST_NOTIFICATIONS（Android 13+；旧版本 API 由插件自动放行）
   try {
@@ -102,8 +104,19 @@ Future<void> _requestBackgroundCastPerms() async {
   try {
     final ignoring = await _dlnaPlatformChannel
         .invokeMethod<bool>('isIgnoringBatteryOptimization');
-    if (ignoring == true) return;
-    await _dlnaPlatformChannel.invokeMethod('requestIgnoreBatteryOptimization');
+    if (ignoring != true) {
+      await _dlnaPlatformChannel.invokeMethod('requestIgnoreBatteryOptimization');
+    }
+  } catch (_) {}
+
+  // 3) 精确闹钟（Android 12+）：冻结兜底的系统闹钟若不能精确调度，冻结期间几乎不触发。
+  //    尽力请求一次，用户授予后曲末唤醒才能基本准点；拒授时靠电池白名单 + Dart 自身计时兜住。
+  try {
+    final canExact = await _dlnaPlatformChannel
+        .invokeMethod<bool>('canScheduleExactAlarms');
+    if (canExact != true) {
+      await _dlnaPlatformChannel.invokeMethod('requestScheduleExactAlarm');
+    }
   } catch (_) {}
 }
 
@@ -112,6 +125,26 @@ Future<void> stopCastKeepAliveService() async {
   if (!Platform.isAndroid) return;
   try {
     await _dlnaPlatformChannel.invokeMethod('stopCastService');
+  } catch (_) {}
+}
+
+/// 预约一次「曲末唤醒」：原生在 [triggerAtMs]（绝对毫秒）唤醒一次进程，兜住国产 ROM /
+/// 鸿蒙在冻结期间把 Dart 计时一并停摆的场景（此时客户端自身倒计时无效，只能靠系统闹钟
+/// 把进程拉回）。配合 Dart 侧自身的曲末 Timer 一起，是「混合型」抗冻结方案的系统层兜底。
+/// 仅 Android、幂等：反复 arm 覆盖旧预约，Dart 随播放进度(含 seek)更新安全。
+Future<void> armCastHeartbeat(int triggerAtMs) async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _dlnaPlatformChannel
+        .invokeMethod('armCastHeartbeat', {'triggerAtMs': triggerAtMs});
+  } catch (_) {}
+}
+
+/// 取消已预约的一次性曲末唤醒（停止投屏 / 压制重复唤醒时调用）。仅 Android、幂等。
+Future<void> cancelCastHeartbeat() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _dlnaPlatformChannel.invokeMethod('cancelCastHeartbeat');
   } catch (_) {}
 }
 
@@ -291,6 +324,13 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 让全屏页封面跟随 DLNA 设备(等价于链路 A 的后端队列镜像)。
   List<Song>? _sourceQueue;
 
+  /// 曲末唤醒的本地 Dart Timer(混合方案通用层)：所有平台都起，覆盖「进程存活」的正常后台。
+  /// 冻结场景下 Dart 计时停摆，由 Android 系统闹钟(armCastHeartbeat)兜底。
+  Timer? _endTimer;
+
+  /// 最近一次预约的唤醒时刻(毫秒)：用于去抖，避免 status 每 2s 更新时反复重设闹钟。
+  int _lastHeartbeatTrigger = 0;
+
   DlnaCastNotifier(this._ref) : super(const DlnaCastState()) {
     final manager = _ref.read(dlnaManagerProvider);
     manager.onStatusChanged = (status) {
@@ -299,6 +339,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         smoothPositionSeconds: status.position.toDouble(),
       );
       _syncNotificationCast();
+      _armEndHeartbeat(status);
     };
     manager.onTrackChanged = (index) {
       state = state.copyWith(currentIndex: index);
@@ -316,6 +357,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         castPath: null,
       );
       _stopTick();
+      _cancelHeartbeat();
       _disableNotificationCast();
       releaseCastWakeLock();
       stopCastKeepAliveService();
@@ -364,6 +406,63 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   void _stopTick() {
     _tickTimer?.cancel();
     _tickTimer = null;
+  }
+
+  /// 取消曲末唤醒（本地 Dart Timer + Android 系统闹钟）。
+  void _cancelHeartbeat() {
+    _endTimer?.cancel();
+    _endTimer = null;
+    _lastHeartbeatTrigger = 0;
+    cancelCastHeartbeat();
+  }
+
+  /// 按当前曲目剩余时长预约「曲末唤醒」——混合型抗冻结方案的统一入口：
+  /// 1) 通用层(Dart Timer，所有平台)：进程存活时到点触发，覆盖正常退后台/锁屏；
+  ///    到点后续播交给曲末看门狗(2s 轮询)处理，并顺手取消 Android 闹钟避免重复唤醒。
+  /// 2) 兜底层(Android 系统闹钟)：进程被 ROM/鸿蒙冻结、Dart 计时停摆时由系统拉回，
+  ///    到点看门狗填帧判断「已切歌则忽略 / 未切则推下一首」。
+  /// 去抖：status 每 2s 更新，仅当预计唤醒时刻变化 >2s 才重设，减少无谓调度。
+  void _armEndHeartbeat(DlnaDeviceStatus status) {
+    if (!state.isCasting || status.state != 'PLAYING') {
+      _cancelHeartbeat();
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final durationSec = status.duration;
+    int trigger;
+    if (durationSec > 0) {
+      final remaining = durationSec - status.position;
+      if (remaining <= 0) {
+        _cancelHeartbeat();
+        return;
+      }
+      // 结束前最多提前 3s 唤醒；至少留 2s 给平台去抖/调度余量。
+      final lead = remaining >= 3 ? 3 : remaining;
+      trigger = now + ((remaining - lead) * 1000).toInt();
+    } else {
+      // 设备不报时长(RawHTTP)：退化到固定间隔兜底，靠看门狗轮询最终收敛。
+      trigger = now + 45 * 1000;
+    }
+    final delayMs = (trigger - now).clamp(1000, 24 * 60 * 60 * 1000);
+    if ((trigger - _lastHeartbeatTrigger).abs() <= 2000 &&
+        _endTimer != null &&
+        _endTimer!.isActive) {
+      return;
+    }
+    _lastHeartbeatTrigger = trigger;
+
+    _endTimer?.cancel();
+    _endTimer = Timer(Duration(milliseconds: delayMs.toInt()), () {
+      // Dart 本地计时到点：进程仍存活。取消系统闹钟避免冻结场景重复唤醒，
+      // 续播是否触发由曲末看门狗(2s 轮询)依据当前状态判断。
+      _endTimer = null;
+      cancelCastHeartbeat();
+    });
+
+    // Android：额外预约系统闹钟兜住「进程被冻结」时 Dart 计时停摆。
+    if (Platform.isAndroid) {
+      armCastHeartbeat(trigger);
+    }
   }
 
   /// 播放中按现实时间平滑推进进度(0.5s 步进),设备轮询(2s)回写修正。
@@ -618,6 +717,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   Future<void> stopCast() async {
     _stopTick();
     _sourceQueue = null;
+    // 取消曲末唤醒（本地 Dart Timer + Android 系统闹钟），避免停止后残留闹钟。
+    _cancelHeartbeat();
     // 停止前记录投屏当前曲目与进度，用于停止后在本机续播。
     final castIndex = state.currentIndex;
     final castPosition = state.status.position;
