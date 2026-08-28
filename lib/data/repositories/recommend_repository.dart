@@ -9,6 +9,32 @@ class RecommendRepository {
 
   RecommendRepository(this._apiClient);
 
+  /// 首页分区清单:服务端决定首页展示哪些分区及其顺序。
+  /// 端点位于 OpenSubsonic rest 路由,响应可能包在 subsonic-response 内,
+  /// 此处兼容 unwrapped 与 wrapped 两种形态。加载失败由调用方兜底(回落默认顺序)。
+  Future<List<HomeSection>> getHomeSections() async {
+    try {
+      final data = await _apiClient.getRaw('/rest/api/v1/home/sections');
+      final body = data is Map<String, dynamic>
+          ? (data['subsonic-response'] is Map<String, dynamic>
+              ? data['subsonic-response'] as Map<String, dynamic>
+              : data)
+          : <String, dynamic>{};
+      final homeSections = body['homeSections'];
+      final sections = homeSections is Map<String, dynamic>
+          ? homeSections['sections'] as List?
+          : (body['sections'] as List?);
+      return sections
+              ?.whereType<Map<String, dynamic>>()
+              .map(HomeSection.fromJson)
+              .toList() ??
+          const <HomeSection>[];
+    } catch (e) {
+      Logger.error('Failed to get home sections', e);
+      rethrow;
+    }
+  }
+
   /// 首页固定推荐卡(每日推荐/今日漫游/本地推荐等)
   Future<List<HomeCard>> getHomeCards() async {
     try {

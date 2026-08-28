@@ -54,6 +54,34 @@ String resolveMusicFlowHomeTitle() {
   return '音乐流';
 }
 
+/// 首页各分区 widget 的 key 映射。服务端分区清单(key)未命中时忽略该分区,
+/// 保证客户端向前兼容(服务端新增分区而客户端未认识时直接跳过)。
+Widget? _homeSectionWidget(String key) {
+  switch (key) {
+    case 'random-songs':
+      return const RandomSongsSection();
+    case 'recent-playlists':
+      return const RecentPlaylistsSection();
+    case 'home-recommend':
+      return const FixedRecommendSection();
+    case 'platform-recommend':
+      return const PlatformRecommendSection();
+    case 'local-recommend':
+      return const LocalPlatformRecommendSection();
+    default:
+      return null;
+  }
+}
+
+/// 分区清单加载失败/未就绪时的回落顺序(与历史首页一致)。
+const List<String> kDefaultHomeSectionKeys = <String>[
+  'random-songs',
+  'recent-playlists',
+  'home-recommend',
+  'platform-recommend',
+  'local-recommend',
+];
+
 /// 音乐流首页 - Tab 1
 class DiscoverPage extends ConsumerStatefulWidget {
   const DiscoverPage({super.key});
@@ -67,6 +95,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     // 随机歌曲由区块按需拉取:这里只刷新其余区块,再广播「歌单变更」信号,
     // 让区块自行重拉最新随机歌曲,避免整页刷新也触发随机歌单远程请求。
     await Future.wait<Object?>(<Future<Object?>>[
+      ref.refresh(homeSectionsProvider.future),
       ref.refresh(playlistsProvider.future),
       ref.refresh(recentPlaylistsProvider.future),
       ref.refresh(homeCardsProvider.future),
@@ -85,6 +114,31 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     final recentFailed = ref.watch(recentPlaylistsLoadFailedProvider);
     final localRecommendFailed =
         ref.watch(localRecommendChannelsLoadFailedProvider);
+
+    // 数据驱动解耦:按服务端分区清单渲染首页。清单未就绪/为空时回落默认顺序,
+    // 保证首屏立即有内容;清单已就绪则由服务端决定分区顺序与可见性。
+    final manifestSections = ref.watch(homeSectionsProvider).valueOrNull;
+    final orderedKeys = <String>[
+      if (manifestSections != null)
+        ...manifestSections
+            .where((s) => s.visible)
+            .map((s) => s.key)
+            .toSet(),
+    ];
+    final sectionKeys =
+        orderedKeys.isEmpty ? kDefaultHomeSectionKeys : orderedKeys;
+    final sectionChildren = <Widget>[];
+    for (final key in sectionKeys) {
+      final sectionWidget = _homeSectionWidget(key);
+      if (sectionWidget == null) continue;
+      if (sectionChildren.isNotEmpty) {
+        sectionChildren.add(SizedBox(height: context.musicFlowSpacing.sm));
+      }
+      // KeyedSubtree 保证分区顺序变化时各分区(尤其状态型 RandomSongsSection)状态稳定。
+      sectionChildren.add(
+        KeyedSubtree(key: ValueKey<String>('home-section-$key'), child: sectionWidget),
+      );
+    }
 
     return VisibleRemoteRetryScope(
       branchIndex: discoverBranchIndex,
@@ -150,17 +204,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             ),
                             sliver: SliverList(
                               delegate: SliverChildListDelegate(
-                                <Widget>[
-                                  const RandomSongsSection(),
-                                  SizedBox(height: context.musicFlowSpacing.sm),
-                                  const RecentPlaylistsSection(),
-                                  SizedBox(height: context.musicFlowSpacing.sm),
-                                  const FixedRecommendSection(),
-                                  SizedBox(height: context.musicFlowSpacing.sm),
-                                  const PlatformRecommendSection(),
-                                  SizedBox(height: context.musicFlowSpacing.sm),
-                                  const LocalPlatformRecommendSection(),
-                                ],
+                                sectionChildren,
                               ),
                             ),
                           ),

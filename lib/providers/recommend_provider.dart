@@ -21,6 +21,28 @@ final homeCardsLoadFailedProvider = StateProvider<bool>((ref) => false);
 final recommendChannelsLoadFailedProvider = StateProvider<bool>((ref) => false);
 final localRecommendChannelsLoadFailedProvider = StateProvider<bool>((ref) => false);
 
+/// 首页分区清单:由服务端决定首页展示哪些分区及其顺序(sortOrder 升序)。
+/// 客户端按此清单逐区渲染,服务端增删分区/调序即生效,实现客户端与服务端解耦。
+/// 失败时返回空清单,由首页回落默认分区顺序,仅保留失败标记供重试。
+final homeSectionsProvider =
+    FutureProvider.autoDispose<List<HomeSection>>((ref) async {
+  final repository = ref.watch(recommendRepositoryProvider);
+  if (repository == null) return const <HomeSection>[];
+  try {
+    await ref.read(ensureActiveAddressProvider.future);
+    final sections = await repository.getHomeSections();
+    Logger.infoWithTag(
+      'RECOMMEND',
+      'home sections loaded, count=${sections.length}',
+    );
+    return sections;
+  } catch (e, stackTrace) {
+    Logger.warnWithTag('RECOMMEND', 'home sections load failed', e);
+    Logger.debugWithTag('RECOMMEND', 'home sections stackTrace', null, stackTrace);
+    return const <HomeSection>[];
+  }
+});
+
 /// 正在导入的平台推荐歌单 id(导入即播放流程中显示 loading)
 final recommendImportingProvider = StateProvider<String?>((ref) => null);
 

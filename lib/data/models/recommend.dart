@@ -134,6 +134,32 @@ class LocalRecommendChannel {
   }
 }
 
+/// 首页分区清单条目(来自 /rest/api/v1/home/sections)。
+/// 服务端决定某个分区是否存在(key)、标题、展示顺序(sortOrder 越小越靠前)
+/// 与可见性(visible);客户端据此按顺序渲染首页各分区,实现客户端与服务端解耦。
+class HomeSection {
+  final String key;
+  final String title;
+  final int sortOrder;
+  final bool visible;
+
+  const HomeSection({
+    required this.key,
+    required this.title,
+    required this.sortOrder,
+    required this.visible,
+  });
+
+  factory HomeSection.fromJson(Map<String, dynamic> json) {
+    return HomeSection(
+      key: json['key'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      visible: json['visible'] as bool? ?? true,
+    );
+  }
+}
+
 /// 平台推荐频道(一个平台/插件对应一个频道)
 class RecommendChannel {
   final String source;

@@ -158,6 +158,47 @@ void main() {
     expect(refreshCompleted, isTrue);
   });
 
+  testWidgets('home sections manifest drives order and visibility', (
+    tester,
+  ) async {
+    // 清单仅声明两个分区且乱序、随机歌曲不可见 → 只按序渲染其余两个分区。
+    await _pumpDiscover(
+      tester,
+      extraOverrides: <Override>[
+        homeSectionsProvider.overrideWith((ref) async => const <HomeSection>[
+              HomeSection(
+                key: 'local-recommend',
+                title: '本地随机',
+                sortOrder: 10,
+                visible: true,
+              ),
+              HomeSection(
+                key: 'random-songs',
+                title: '随机歌曲',
+                sortOrder: 1,
+                visible: false,
+              ),
+              HomeSection(
+                key: 'home-recommend',
+                title: '为你推荐',
+                sortOrder: 5,
+                visible: true,
+              ),
+            ]),
+      ],
+    );
+
+    // 顺序:按 sortOrder 升序 → local-recommend 在 home-recommend 之前。
+    expect(find.text('本地随机'), findsOneWidget);
+    expect(find.text('为你推荐'), findsOneWidget);
+    // 随机歌曲不可见(visible=false)且未在清单 → 不渲染。
+    expect(find.text('随机歌曲'), findsNothing);
+    // 未在清单中的分区(平台推荐/最近更新)不渲染。
+    expect(find.text('平台推荐'), findsNothing);
+    expect(find.text('最近更新的歌单'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('section errors and empty states remain local', (tester) async {
     await _pumpDiscover(
       tester,
@@ -225,6 +266,8 @@ Future<void> _pumpDiscover(
       ),
     ),
     playerProvider.overrideWith((ref) => player ?? _RecordingPlayerNotifier()),
+    // 分区清单默认空 → 首页回落默认顺序(五个分区照常渲染),保持其余用例确定性。
+    homeSectionsProvider.overrideWith((ref) async => const <HomeSection>[]),
     if (extraOverrides.isEmpty) ...<Override>[
       randomSongsProvider.overrideWith((ref) async => songs ?? _songs()),
       playlistsProvider.overrideWith(
