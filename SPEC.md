@@ -72,9 +72,13 @@
 
 **禁止在本地机器构建 APK 或 Windows 可执行文件**，一律走 GitHub Actions：
 
-- 触发：push `main` 或 `workflow_dispatch`。
-- Android：`ubuntu-latest` 签名 APK → `latest` 滚动 Release。
-- Windows：`windows-latest` + `flutter build windows --release` → 便携 zip → 同一 Release。
+**发版规则（纯 tag 驱动，唯一发版体系）：**
+- **触发**：仅**版本 tag**（`vX.Y.Z`）触发构建与发布；不再监听 `main` 推送、删除滚动/`latest` 预发布、也无 `workflow_dispatch`。即 **push main 不产生任何构建**，强制所有发版走 tag。
+- **版本号来源**：**只以 tag 为准**（tag `v3.3.0` → 应用版本 `3.3.0`）。由 `resolve-version` job 提取并注入 `flutter build --build-name/--build-number`，覆盖 `pubspec.yaml` 中无语义占位版本号。**发版时严禁改动 `pubspec.yaml` 版本号。**
+- **拒绝非 tag**：非 tag 触发时 `resolve-version` 直接报错退出，保证纯 tag 体系不被绕过。
+- **发布**：`build-android`（签名 APK）+ `build-windows`（便携 zip）→ `publish-versioned` 发布正式 GitHub Release（`releases/latest` 只指向最新正式版）。
+- Android：`ubuntu-latest` 签名 APK。
+- Windows：`windows-latest` + `flutter build windows --release` → 便携 zip。
 - 产物：`MusicFlow-{run_number}-android.apk` + `MusicFlow-{run_number}-windows.zip`。
 - 本地允许：`flutter pub get` / `flutter analyze` / `flutter test` / `dart run build_runner`；**禁止本地 `flutter build`**。
 - **发布前 Windows 性能验收门槛**：见 §8.5（不达标视为未完成）。
