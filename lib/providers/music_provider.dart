@@ -146,20 +146,20 @@ void notifyRandomSongsChanged() {
 }
 
 /// 随机歌曲 Provider(保持数据,不自动释放)。
-/// 读取主项目「随机歌曲」内置插件的固定歌单 pl-random-songs(默认 48 首,
-/// 由插件配置控制数量)。客户端只在「播放一批 / 手动刷新 / 收到歌单变更推送」
-/// 时按需拉取,**打开首页不再自动请求**,直接以本地缓存秒出展示,
-/// 由插件在后台维护歌单新鲜度,避免惰性重建带来的等待。
+/// 走 Subsonic 原生 `/rest/getRandomSongs`(每批 48 首,由服务端随机挑选),
+/// **不拉取固定歌单**——此前误用 pl-random-songs 固定歌单,导致首页「随机歌曲」
+/// 展示的其实是那个歌单里的内容而非真正随机歌曲。客户端只在「播放一批 /
+/// 手动刷新 / 收到歌单变更推送」时按需拉取,打开首页以本地缓存秒出展示。
 final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final plRepo = ref.watch(playlistRepositoryProvider);
+  final musicRepo = ref.watch(musicRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);
   final libraryId = ref.watch(activeLibraryProvider)?.id;
-  if (plRepo == null || libraryId == null || libraryId.isEmpty) return [];
+  if (musicRepo == null || libraryId == null || libraryId.isEmpty) return [];
 
   return _fetchWithCacheFallback(
     ref: ref,
     label: 'randomSongs',
-    fetch: () => plRepo.getAllPlaylistSongs(ApiConstants.randomSongsPlaylistId),
+    fetch: () => musicRepo.getRandomSongs(size: 48),
     cacheWrite: (songs) => cache.cacheRandomSongs(libraryId, songs),
     cacheRead: () => cache.getRandomSongs(libraryId),
     failedProvider: randomSongsLoadFailedProvider,
