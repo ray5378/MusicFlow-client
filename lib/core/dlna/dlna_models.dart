@@ -24,13 +24,10 @@ class DlnaCastTrack {
   });
 }
 
-/// 投屏路径档位（A 直传 / B1 CDS 清单 / B2 连续流）。
-/// 直传 A：客户端逐首设 URI + 轮询续播；
-/// CDS 清单 B1：设备支持 ContentDirectory，接收容器自播；
-/// 连续流 B2：纯 audio renderer（如 HiVi）不支持 CDS 也不支持 SetNext，
-/// 服务端把整队列串成一根连续音频流（/rest/castStream），设备 Set 一个 URI
-/// 即一路播到底——即使手机进程被系统挂起/杀死仍自主连播。
-enum DlnaCastPath { direct, cdsList, stream }
+/// 投屏路径档位（中继「直传」）。
+/// 客户端把每首歌从服务端经本地中继转成有限大小、带 Content-Length 的单曲流，
+/// 交给设备按普通单曲流播放；曲毕由客户端轮询检测自动 Set 下一首续播。
+enum DlnaCastPath { direct }
 
 /// 设备投屏能力（由描述文件 + 实探结果组合判定）。
 /// 作为「直传优先 A + CDS 清单 B」路径选择（Capability 探测）的输入。

@@ -203,6 +203,7 @@ void main() {
     manager = DlnaManager();
     await manager.init(
       streamUrlBuilder: (songId) => 'http://server/stream/$songId.m3u8',
+      fetchBytes: (url, {start, end}) async => Uint8List(0),
     );
   });
 

@@ -6,13 +6,22 @@ import 'dlna_models.dart';
 import 'ssdp_discovery.dart';
 import 'device_description.dart';
 import 'soap_control.dart';
+import 'local_relay.dart';
 
 /// DLNA 管理器
 /// 统一管理设备发现、投屏控制。
-/// 架构：直传优先 A（设备直连服务器 URL 自拉流，客户端仅遥控）+ CDS 清单 B
-/// （设备支持 ContentDirectory 时接收整队列容器自播）。已砍掉本地中继 C。
+/// 架构：本地中继「直传」—— 客户端把每首歌曲从服务端经本地中继转成**有限大小、带
+/// Content-Length** 的单曲流，再以中继 URL 交给设备按普通单曲流播放；曲毕由客户端
+/// 轮询检测自动 Set 下一首中继 URL 续播。不再使用服务端连续流(autoCastStream)/CDS
+/// 清单(castPlaylist)两档自循环（纯 renderer 对连续流兼容性差，恢复 d6d5b1a 中继）。
 class DlnaManager {
   final SsdpDiscovery _discovery = SsdpDiscovery();
+
+  /// 本地音频中继：设备拉流入口（/stream?token=xxx）。
+  final LocalRelay _relay = LocalRelay();
+
+  /// 中继 URL 前缀（http://<局域网IP>:<port>），懒启动。
+  String? _relayBaseUrl;
 
   final List<DlnaDevice> _devices = [];
   DlnaDevice? _currentDevice;
@@ -31,17 +40,13 @@ class DlnaManager {
   int _queueIndex = -1;
   bool _nextSupported = true;
 
-  /// 根据 songId 构建服务端直连流 URL（含鉴权参数），供设备直连拉流（A 档）。
+  /// 根据 songId 构建服务端流 URL（含鉴权参数），供中继 fetchBytes 从服务端拉流。
   String Function(String songId)? _streamUrlBuilder;
 
-  /// 根据 songId 列表构建服务端 CDS 队列清单 URL（B1 档，可选）。未提供则只走 A 档。
-  String Function(List<String> songIds)? _castListUrlBuilder;
+  /// 中继从服务端拉音频字节回传（含 Range 分段）。
+  Future<Uint8List> Function(String url, {int? start, int? end})? _fetchBytes;
 
-  /// 根据 songId 列表构建服务端连续流 URL（B2 档，可选）。纯 renderer 设备
-  /// （不支持 CDS 也不支持 SetNext，如 HiVi H5MKII）用此把整队列串成一根流自主连播。
-  Future<String> Function(List<String> songIds)? _castStreamUrlBuilder;
-
-  /// 当前投屏采用的路径档位（Capability 探测后选定）。
+  /// 当前投屏采用的路径档位（中继模式恒为 direct）。
   DlnaCastPath _castPath = DlnaCastPath.direct;
 
   /// 当前设备的能力（探测结果，供路径选择与 UI 展示）。
@@ -61,11 +66,6 @@ class DlnaManager {
 
   /// 当前已通过 SetNext 预置到设备的「下一首」下标(按播放模式计算),用于自动续播时对齐游标。
   int? _provisionedIndex;
-
-  /// 连续流(B2)档：本根流实际串起的曲目「全局队列下标」顺序（发送时快照）。
-  /// 整根流是发送那一刻固定的一串顺序；客户端按墙钟在曲目间推进 _queueIndex，
-  /// 但游标还原始终以这份快照为准，避免用被推进的 _queueIndex 重新排序导致错位。
-  final List<int> _streamTrackOrder = [];
 
   /// 最近一次自动续播/切歌的时间戳,用于轮询检测与中继 EOF 检测之间互斥——
   /// 避免两者都判定「播放结束」而重复推进到同一首的下下首。
@@ -138,13 +138,8 @@ class DlnaManager {
   /// 当前设备能力（探测结果，供 UI 展示 / 测试断言）。
   DeviceCapability get capability => _capability;
 
-  /// 设备是否自主循环整队列（自循环/连续流档触发后客户端不需逐首续播）。
-  /// B1 CDS 容器与 B2 连续流均视为设备可自主连播。
-  bool get isSelfLooping => _isSelfLooping();
-
-  /// 内部判断：当前档位是否「设备已拿到整队列自主连播」。
-  bool _isSelfLooping() =>
-      _castPath == DlnaCastPath.cdsList || _castPath == DlnaCastPath.stream;
+  /// 设备是否自主循环整队列。中继「直传」模式下客户端逐首续播，恒为 false。
+  bool get isSelfLooping => false;
 
   /// 设置投屏播放模式(对齐链路 A cast.playMode):列表循环 all/顺序 order/单曲 one/随机 shuffle。
   void setPlayMode(String mode) {
@@ -156,22 +151,22 @@ class DlnaManager {
 
   // ==================== 初始化 ====================
 
-  /// 初始化 DLNA 管理器（A 直传 + B1 CDS 清单 + B2 连续流，无中继）
-  /// [streamUrlBuilder] 根据 songId 构建服务端直连流 URL（含鉴权参数），
-  /// 供设备直连自拉流（A 档）。
-  /// [castListUrlBuilder] 根据 songId 列表构建服务端 CDS 队列清单 URL（B1 档，可选）。
-  /// [castStreamUrlBuilder] 根据 songId 列表构建服务端连续流 URL（B2 档，可选），
-  /// 供不支持 CDS/SetNext 的纯 renderer 设备自主连播。
+  /// 初始化 DLNA 管理器（中继「直传」模式）
+  /// [streamUrlBuilder] 根据 songId 构建服务端流 URL（含鉴权参数），供中继拉流。
+  /// [fetchBytes] 从中继侧从服务端拉取音频字节（支持 Range 分段）。
   Future<void> init({
     required String Function(String songId) streamUrlBuilder,
-    String Function(List<String> songIds)? castListUrlBuilder,
-    Future<String> Function(List<String> songIds)? castStreamUrlBuilder,
+    required Future<Uint8List> Function(String url, {int? start, int? end})
+        fetchBytes,
   }) async {
     if (_initialized) return;
 
     _streamUrlBuilder = streamUrlBuilder;
-    _castListUrlBuilder = castListUrlBuilder;
-    _castStreamUrlBuilder = castStreamUrlBuilder;
+    _fetchBytes = fetchBytes;
+    await _relay.init(
+      streamUrlBuilder: streamUrlBuilder,
+      fetchBytes: fetchBytes,
+    );
 
     // 启动被动监听
     _discovery.startListening(
@@ -181,6 +176,15 @@ class DlnaManager {
     );
 
     _initialized = true;
+  }
+
+  /// 懒启动中继服务并缓存其局域网 URL（幂等）。
+  Future<void> _ensureRelayStarted() async {
+    if (_relayBaseUrl != null) return;
+    final port = await _relay.start();
+    final ip = await LocalRelay.getLocalIp();
+    if (ip == null) throw StateError('无法获取局域网 IP，中继无法启动');
+    _relayBaseUrl = 'http://$ip:$port';
   }
 
   // ==================== 设备发现 ====================
@@ -292,15 +296,9 @@ class DlnaManager {
       return false;
     }
 
-    // 能力探测：决定 A/B1/B2 档。直连是基础能力；CDS 需设备暴露 + 清单 builder；
-    // 连续流需流 builder（面向不支持 CDS/SetNext 的纯 renderer）。
+    // 能力探测：中继「直传」恒走 DlnaCastPath.direct（客户端逐首 Set + 轮询续播）。
     _capability = await _probeDevice(device);
-    final canCds = _capability.supportsContentDirectory && _castListUrlBuilder != null &&
-        tracks.length > 1;
-    final canStream = _castStreamUrlBuilder != null && tracks.length > 1;
-    _castPath = canCds
-        ? DlnaCastPath.cdsList
-        : (canStream ? DlnaCastPath.stream : DlnaCastPath.direct);
+    _castPath = DlnaCastPath.direct;
 
     _currentDevice = device;
     _queue = List.of(tracks);
@@ -312,14 +310,7 @@ class DlnaManager {
     _failStreak = 0;
 
     try {
-      switch (_castPath) {
-        case DlnaCastPath.cdsList:
-          await _sendCastListContainer();
-        case DlnaCastPath.stream:
-          await _sendCastStream();
-        case DlnaCastPath.direct:
-          await _playCurrentTrack();
-      }
+      await _playCurrentTrack();
       _startStatusPolling();
       // 后台保活由投屏 Provider 层统一负责（原生 PARTIAL 唤醒锁 + 直投保活前台服务），
       // 此处不重复持有，避免多路唤醒锁/资源互相干扰。
@@ -379,11 +370,11 @@ class DlnaManager {
     return i;
   }
 
-  /// 播放队列中的当前曲目（直传 A：设服务器直连 URI/播）+ 预置下一首
+  /// 播放队列中的当前曲目（中继直传：设中继 URL/播）+ 预置下一首
   Future<void> _playCurrentTrack() async {
     final device = _currentDevice!;
     final track = _queue[_queueIndex];
-    final url = _directStreamUrl(track.songId);
+    final url = await _directStreamUrl(track.songId);
     final metadata = _buildDidlLite(
       title: track.title,
       uri: url,
@@ -437,128 +428,23 @@ class DlnaManager {
     onTrackChanged?.call(_queueIndex);
   }
 
-  /// 构建当前曲目的服务器直连流 URL（A 档，设备自拉流）。
-  String _directStreamUrl(String songId) {
+  /// 为 songId 创建中继会话并返回其局域网拉流 URL。
+  /// 设备 Set 该 URL（http://<本机IP>:<port>/stream?token=xxx），中继再从服务端
+  /// 拉取该歌曲的有限大小字节流传给设备。
+  Future<String> _directStreamUrl(String songId) async {
     final builder = _streamUrlBuilder;
     if (builder == null) throw StateError('streamUrlBuilder 未初始化');
-    return builder(songId);
+    await _ensureRelayStarted();
+    final deviceId = _currentDevice?.id ?? 'cast';
+    final session = _relay.createSession(deviceId, songId);
+    // token 为真正鉴权；songId 仅作查询参数透传（供排障/测试按曲目区分中继 URL），
+    // 中继取流仍以 token 定位会话，忽略其余参数。
+    return '$_relayBaseUrl/stream?token=${session.token}&id=$songId';
   }
 
-  /// B 档：把整队列作为 CDS 清单容器一次性交给设备。
-  /// 设备拿到容器后按序自拉流、自循环；客户端退化为纯遥控。
-  Future<void> _sendCastListContainer() async {
-    final device = _currentDevice!;
-    final builder = _castListUrlBuilder;
-    if (builder == null) throw StateError('castListUrlBuilder 未初始化');
-    final url = builder(_queue.map((t) => t.songId).toList());
-    final metadata = _buildCastListContainer(
-      title: _queue[_queueIndex].title,
-      uri: url,
-    );
-
-    // 新一轮主动播放：重置墙钟（B 档主要依靠设备自循环，墙钟仅用于进度兜底）。
-    _currentRealDuration = _queue[_queueIndex].duration ?? 0;
-    _restartPlaybackClock();
-    _userPaused = false;
-    _failStreak = 0;
-    _stallCount = 0;
-
-    await SoapControl.stop(device.avTransportUrl!);
-    await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
-    await SoapControl.play(device.avTransportUrl!);
-
-    onTrackChanged?.call(_queueIndex);
-  }
-
-  /// B2 档：把整队列串成一根连续音频流（服务端 /rest/castStream）交给纯 renderer。
-  /// 设备 Set 这一个 URL 即一路播到队列末尾——客户端进程被系统挂起/杀死也能自主连播，
-  /// 彻底摆脱「切窗口/进后台 ⇒ 无人轮询续播」的依赖。
-  Future<void> _sendCastStream() async {
-    final device = _currentDevice!;
-    final builder = _castStreamUrlBuilder;
-    if (builder == null) throw StateError('castStreamUrlBuilder 未初始化');
-
-    final orderedSongs = _orderedSongIdsForStream();
-    final url = await builder(orderedSongs);
-    // 记下本根流的曲目顺序快照，供连续流档按墙钟还原「当前曲目/进度」。
-    _streamTrackOrder
-      ..clear()
-      ..addAll(_orderedQueueIndicesForStream());
-    final start = _queue[_queueIndex];
-    final metadata = _buildDidlLite(
-      title: start.title,
-      uri: url,
-      mime: start.mimeHint ?? 'audio/mpeg',
-      artist: start.artist,
-      album: start.album,
-    );
-
-    // 新一轮主动播放：重置墙钟（连续流按整根流播，墙钟用于估算当前曲目/进度）。
-    _currentRealDuration = start.duration ?? 0;
-    _restartPlaybackClock();
-    _userPaused = false;
-    _failStreak = 0;
-    _stallCount = 0;
-
-    await SoapControl.stop(device.avTransportUrl!);
-    try {
-      await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
-    } catch (e) {
-      debugPrint('DLNA 连续流 Set URI 失败: ${start.title} $e');
-    }
-    try {
-      await SoapControl.play(device.avTransportUrl!);
-    } catch (e) {
-      debugPrint('DLNA 连续流 Play 失败: ${start.title} $e');
-    }
-
-    _lastCompletionAdvance = DateTime.now();
-    onTrackChanged?.call(_queueIndex);
-  }
-
-  /// 连续流档：按播放模式排出一份服务端逐首串流的歌曲 id 顺序。
-  List<String> _orderedSongIdsForStream() =>
-      _orderedQueueIndicesForStream()
-          .map((i) => _queue[i].songId)
-          .toList();
-
-  /// 连续流档：按播放模式排出一份本根流串起的曲目「全局队列下标」顺序。
-  /// 当前曲(_queueIndex)置首；order 从当前曲线性铺到队列末尾；one 仅单曲；
-  /// all/shuffle 尾部接头部铺满全队列（播到末尾即停，循环交由客户端在末尾重启）。
-  List<int> _orderedQueueIndicesForStream() {
-    if (_queue.isEmpty) return const [];
-    final from = _queueIndex.clamp(0, _queue.length - 1);
-    final ordered = <int>[for (var i = from; i < _queue.length; i++) i];
-    if (_playMode == 'one') return [from];
-    if (_playMode == 'order') return ordered;
-    ordered.addAll([for (var i = 0; i < from; i++) i]);
-    return ordered;
-  }
-
-  /// 连续流(B2)档：按墙钟已累计播放秒数 + 各曲时长，估算整根流当前正播的
-  /// 曲目（全局队列下标）及其曲内进度。返回 (queueIndex, positionInSong, songDuration)。
-  /// 任一曲时长未知(<=0)无法可靠定位时返回 null，交由设备上报的位置/时长兜底。
-  (int, double, double)? _streamCursorForElapsed(double elapsed) {
-    if (elapsed < 0 || _streamTrackOrder.isEmpty) return null;
-    double acc = 0;
-    for (final idx in _streamTrackOrder) {
-      final d = _queue[idx].duration ?? 0;
-      if (d <= 0) return null; // 遇未知时长即放弃整段估算
-      if (elapsed < acc + d) return (idx, elapsed - acc, d.toDouble());
-      acc += d;
-    }
-    return null; // 已超出整根流末尾：队列放完，停在最后一首之后
-  }
-
-  /// 用户主动切歌的统一入口：连续流档重推整根流，CDS 档重推容器，其余档逐首直传。
+  /// 用户主动切歌的统一入口：中继模式下逐首重放当前曲。
   Future<void> _playSwitch() async {
-    if (_castPath == DlnaCastPath.stream) {
-      await _sendCastStream();
-    } else if (_castPath == DlnaCastPath.cdsList) {
-      await _sendCastListContainer();
-    } else {
-      await _playCurrentTrack();
-    }
+    await _playCurrentTrack();
   }
 
   /// 设备能力探测：合成 A/B 档路径选择所需能力（硬砍 C 后仅两档）。
@@ -580,7 +466,7 @@ class DlnaManager {
   /// 设备不支持 SetNext 则回退为手动切歌）。同时记录 _provisionedIndex 供自动续播对齐游标。
   Future<void> _provisionNextTrack() async {
     if (!_nextSupported) return;
-    if (_castPath != DlnaCastPath.direct) return; // B 档由设备自循环，不做逐首预置。
+    if (_castPath != DlnaCastPath.direct) return; // 仅中继「直传」档做逐首预置。
     // 计算按播放模式应预置的下一首下标（one/shuffle 预置本曲以支持自循环/随机缓冲）。
     final int? nextIndex = switch (_playMode) {
       'shuffle' => _queue.length <= 1 ? null : _randomOtherIndex(),
@@ -593,7 +479,7 @@ class DlnaManager {
 
     final device = _currentDevice!;
     final next = _queue[nextIndex];
-    final url = _directStreamUrl(next.songId);
+    final url = await _directStreamUrl(next.songId);
     final metadata = _buildDidlLite(
       title: next.title,
       uri: url,
@@ -629,7 +515,6 @@ class DlnaManager {
     _nextSupported = true;
     _currentDevice = null;
     _provisionedIndex = null;
-    _streamTrackOrder.clear();
   }
 
   Future<void> _stopDevice(DlnaDevice? device) async {
@@ -840,34 +725,12 @@ class DlnaManager {
 
       // 设备和播控中心都需要的有效进度：设备不报时长/位置(RawHTTP)时退回墙钟，
       // 保证即便设备回报 0，播控进度条与全屏进度也能持续前进。
-      var effectivePosition = posInfo.position > 0
+      final effectivePosition = posInfo.position > 0
           ? posInfo.position
           : _playbackElapsed.round();
-      var effectiveDuration = posInfo.duration > 0
+      final effectiveDuration = posInfo.duration > 0
           ? posInfo.duration
           : _currentRealDuration;
-
-      // —— 连续流(B2)档：整根流由服务端串起，设备 Set 单个 URI 一路播到队列末尾。
-      // 设备上报的 position/duration 是「整根流」的累计值，无法直接对应某首歌。
-      // 改用墙钟累计秒数 + 各曲时长推算当前正播曲目与曲内进度，实时还原 UI 游标；
-      // 曲目推进时同步更新全局 _queueIndex 并发出 onTrackChanged。
-      var streamCursorAdvanced = false;
-      if (_castPath == DlnaCastPath.stream) {
-        final cursor = _streamCursorForElapsed(_playbackElapsed);
-        if (cursor != null) {
-          final (cIdx, cPos, cDur) = cursor;
-          if (cIdx != _queueIndex) {
-            _queueIndex = cIdx;
-            _currentRealDuration = cDur.round();
-            streamCursorAdvanced = true;
-          }
-          effectivePosition = cPos.round();
-          effectiveDuration = cDur.round();
-        }
-      }
-      if (streamCursorAdvanced) {
-        onTrackChanged?.call(_queueIndex);
-      }
 
       _currentStatus = DlnaDeviceStatus(
         state: state,
@@ -972,7 +835,7 @@ class DlnaManager {
       final freshlyAdvanced = _isCompletionAdvanceFresh();
 
       // 设备已自循环整队列(B1 CDS/B2 连续流)时，客户端退化为纯遥控，不做逐首续播/看门狗。
-      final selfLooping = _isSelfLooping();
+      final selfLooping = false;
 
       // —— 自动续播决策追踪（排障用）——
       // 直投若出现「播放结束不推下一首」，靠此日志可定位三路触发(曲末/墙钟/自然停播)
@@ -1116,7 +979,7 @@ class DlnaManager {
     if (remaining == null ||
         remaining <= 0.5 ||
         _userPaused ||
-        _isSelfLooping()) {
+        isSelfLooping) {
       return;
     }
     _endScheduler = Timer(
@@ -1191,28 +1054,6 @@ class DlnaManager {
       ..write('<res protocolInfo="$protocolInfo">${_escapeXml(uri)}</res>')
       ..write('</item></DIDL-Lite>');
 
-    return buffer.toString();
-  }
-
-  /// 构建投屏队列的 CDS 容器元数据（B 档）：把服务端 /rest/castPlaylist 返回的
-  /// 清单作对象容器交给设备。协议类声明为 playlist 容器，具备消费能力的渲染器会
-  /// 按容器内 `res` 顺序自拉流、自循环，客户端退化为纯遥控（杀客户端仍续播）。
-  String _buildCastListContainer({
-    required String title,
-    required String uri,
-  }) {
-    final buffer = StringBuffer()
-      ..write('<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"')
-      ..write(' xmlns:dc="http://purl.org/dc/elements/1.1/"')
-      ..write(' xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">')
-      ..write('<container id="cast-queue" parentID="0" restricted="false"')
-      ..write(' childCount="1">')
-      ..write('<dc:title>${_escapeXml(title)}</dc:title>')
-      ..write('<upnp:class>'
-          'object.container.playlistContainer.musicPlaylist'
-          '</upnp:class>')
-      ..write('<res protocolInfo="">${_escapeXml(uri)}</res>')
-      ..write('</container></DIDL-Lite>');
     return buffer.toString();
   }
 

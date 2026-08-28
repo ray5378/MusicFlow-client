@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
@@ -29,8 +30,8 @@ class _FakeManager extends DlnaManager {
   @override
   Future<void> init({
     required String Function(String songId) streamUrlBuilder,
-    String Function(List<String> songIds)? castListUrlBuilder,
-    Future<String> Function(List<String> songIds)? castStreamUrlBuilder,
+    required Future<Uint8List> Function(String url, {int? start, int? end})
+        fetchBytes,
   }) async {
     // 静默：测试环境不建 SSDP 套接字 / HTTP 中继。
   }
