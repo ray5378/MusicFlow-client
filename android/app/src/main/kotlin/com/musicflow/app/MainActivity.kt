@@ -13,6 +13,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
@@ -20,10 +21,15 @@ class MainActivity : AudioServiceFragmentActivity() {
     companion object {
         private const val APP_LIFECYCLE_CHANNEL = "com.musicflow.app/app_lifecycle"
         private const val DLNA_CHANNEL = "com.musicflow.app/dlna"
+        // 投屏心跳溯源事件通道：CastHeartbeat 的原生事件(arm.exact/arm.inexact/cancel/woken)
+        // 从这里逆向上报给 Dart,进入 app 内日志(HEARTBEAT tag)。
+        private const val DLNA_EVENTS_CHANNEL = "com.musicflow.app/dlna_events"
         private const val NEARBY_PERMISSION_REQ = 31001
 
         private var multicastLock: WifiManager.MulticastLock? = null
         private var wakeLock: PowerManager.WakeLock? = null
+        // 投屏心跳事件回传 sink：onListen 时被注入,onCancel 时清空。
+        private var dlnaEventSink: EventChannel.EventSink? = null
         // 直投后台续播保活：CLOSE_WAKE_TIMEOUT 为 0 表示常驻，
         // 视觉维持 FULL 走 mediaPlayback 前台服务，CPU 用 PARTIAL 保持 timer 触发。
         private const val CAST_WAKE_LOCK_TAG = "musicflow:dlna_cast"
@@ -63,6 +69,30 @@ class MainActivity : AudioServiceFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             _dlnaHandler(call, result)
         }
+
+        // 投屏心跳溯源事件通道：Dart 侧通过 EventChannel 订阅回调。
+        // onEvent 注入在 onListen 里,保证只有 Dart 真正监听时才把原生事件回传，
+        // onCancel 时解绑,避免持有失效的 EventSink(若 FlutterEngine 重建)。
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            DLNA_EVENTS_CHANNEL
+        ).setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                dlnaEventSink = events
+                CastHeartbeat.onEvent = { event, arg ->
+                    try {
+                        dlnaEventSink?.success(
+                            mapOf("event" to event, "arg" to (arg ?: 0L))
+                        )
+                    } catch (_: Throwable) {}
+                }
+            }
+
+            override fun onCancel(arguments: Any?) {
+                dlnaEventSink = null
+                CastHeartbeat.onEvent = null
+            }
+        })
     }
 
     private fun _dlnaHandler(call: MethodCall, result: MethodChannel.Result) {

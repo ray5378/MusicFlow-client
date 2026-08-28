@@ -19,6 +19,51 @@ const MethodChannel _dlnaPlatformChannel = MethodChannel(
   'com.musicflow.app/dlna',
 );
 
+/// 投屏心跳溯源事件通道（Android）：接收 CastHeartbeat 原生逆向上报的事件，
+/// 进入 app 内日志(HEARTBEAT tag)，便于排查「算错时长 / 没 set 上 / 精确 or 非精确 / 是否被系统拉起」。
+const EventChannel _dlnaHeartbeatEventChannel = EventChannel(
+  'com.musicflow.app/dlna_events',
+);
+
+/// 事件通道只订阅一次（幂等）。
+bool _heartbeatEventsSubscribed = false;
+
+/// 模块级「最近一次预约触发时刻」：供 woken 事件比对迟到量(诊断冻结/维护窗口外唤醒)。
+int _moduleLastArmTrigger = 0;
+
+/// 订阅原生心跳事件并落到 app 内日志（仅 Android），供复盘续播链路。
+void _initDlnaHeartbeatEventLogging() {
+  if (_heartbeatEventsSubscribed) return;
+  _heartbeatEventsSubscribed = true;
+  if (!Platform.isAndroid) return;
+  _dlnaHeartbeatEventChannel.receiveBroadcastStream().listen(
+    (event) {
+      try {
+        if (event is! Map) return;
+        final name = event['event'];
+        final arg = event['arg'];
+        if (name == null) return;
+        if (name == 'woken') {
+          // arg=实际唤醒时刻,与最近预约(_moduleLastArmTrigger)比对迟到量。
+          final now = (arg as num?)?.toInt() ?? 0;
+          final lateMs = _moduleLastArmTrigger > 0 ? now - _moduleLastArmTrigger : 0;
+          final lateS = lateMs / 1000.0;
+          Logger.infoWithTag(
+            'DLNA-HB',
+            '闹钟被系统拉起(woken): at=${DateTime.fromMillisecondsSinceEpoch(now)} '
+                'scheduled=${DateTime.fromMillisecondsSinceEpoch(_moduleLastArmTrigger)} '
+                'late=${lateS.toStringAsFixed(1)}s',
+          );
+        } else {
+          Logger.infoWithTag('DLNA-HB', '闹钟事件 $name arg=${arg ?? 0}');
+        }
+      } catch (_) {}
+    },
+    onError: (Object _) {},
+    cancelOnError: false,
+  );
+}
+
 int _multicastLockRefs = 0;
 int _wakeLockRefs = 0;
 
@@ -134,15 +179,19 @@ Future<void> stopCastKeepAliveService() async {
 /// 仅 Android、幂等：反复 arm 覆盖旧预约，Dart 随播放进度(含 seek)更新安全。
 Future<void> armCastHeartbeat(int triggerAtMs) async {
   if (!Platform.isAndroid) return;
+  _moduleLastArmTrigger = triggerAtMs;
   try {
     await _dlnaPlatformChannel
         .invokeMethod('armCastHeartbeat', {'triggerAtMs': triggerAtMs});
-  } catch (_) {}
+  } catch (_) {
+    Logger.debugWithTag('DLNA-HB', 'armCastHeartbeat 平台通道调用失败 triggerAtMs=$triggerAtMs');
+  }
 }
 
 /// 取消已预约的一次性曲末唤醒（停止投屏 / 压制重复唤醒时调用）。仅 Android、幂等。
 Future<void> cancelCastHeartbeat() async {
   if (!Platform.isAndroid) return;
+  _moduleLastArmTrigger = 0;
   try {
     await _dlnaPlatformChannel.invokeMethod('cancelCastHeartbeat');
   } catch (_) {}
@@ -413,6 +462,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     _endTimer?.cancel();
     _endTimer = null;
     _lastHeartbeatTrigger = 0;
+    Logger.debugWithTag('DLNA-HB', '取消心跳(本地 Timer + 系统闹钟)');
     cancelCastHeartbeat();
   }
 
@@ -424,6 +474,10 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 去抖：status 每 2s 更新，仅当预计唤醒时刻变化 >2s 才重设，减少无谓调度。
   void _armEndHeartbeat(DlnaDeviceStatus status) {
     if (!state.isCasting || status.state != 'PLAYING') {
+      Logger.debugWithTag(
+        'DLNA-HB',
+        'arm 跳过: isCasting=${state.isCasting} state=${status.state}',
+      );
       _cancelHeartbeat();
       return;
     }
@@ -433,20 +487,39 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     if (durationSec > 0) {
       final remaining = durationSec - status.position;
       if (remaining <= 0) {
+        Logger.infoWithTag(
+          'DLNA-HB',
+          'arm 跳过: 已到曲末 duration=${durationSec}s position=${status.position}s remaining=${remaining}s',
+        );
         _cancelHeartbeat();
         return;
       }
       // 结束前最多提前 3s 唤醒；至少留 2s 给平台去抖/调度余量。
       final lead = remaining >= 3 ? 3 : remaining;
       trigger = now + ((remaining - lead) * 1000).toInt();
+      Logger.debugWithTag(
+        'DLNA-HB',
+        'arm 计算: duration=${durationSec}s position=${status.position}s '
+            'remaining=${remaining.toStringAsFixed(1)}s lead=${lead}s '
+            'trigger=${DateTime.fromMillisecondsSinceEpoch(trigger).toIso8601String()}',
+      );
     } else {
       // 设备不报时长(RawHTTP)：退化到固定间隔兜底，靠看门狗轮询最终收敛。
       trigger = now + 45 * 1000;
+      Logger.debugWithTag(
+        'DLNA-HB',
+        'arm 兜底: 设备时长未知, 固定 45s 心跳 trigger=${DateTime.fromMillisecondsSinceEpoch(trigger)}',
+      );
     }
     final delayMs = (trigger - now).clamp(1000, 24 * 60 * 60 * 1000);
     if ((trigger - _lastHeartbeatTrigger).abs() <= 2000 &&
         _endTimer != null &&
         _endTimer!.isActive) {
+      Logger.debugWithTag(
+        'DLNA-HB',
+        'arm 去抖跳过: trigger=$trigger last=${_lastHeartbeatTrigger} '
+            'Δ=${trigger - _lastHeartbeatTrigger}ms 保持既有预约',
+      );
       return;
     }
     _lastHeartbeatTrigger = trigger;
@@ -456,11 +529,21 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       // Dart 本地计时到点：进程仍存活。取消系统闹钟避免冻结场景重复唤醒，
       // 续播是否触发由曲末看门狗(2s 轮询)依据当前状态判断。
       _endTimer = null;
+      Logger.infoWithTag(
+        'DLNA-HB',
+        '本地 Dart Timer 到点(进程存活), 取消系统闹钟避免重复唤醒 trigger=$trigger',
+      );
       cancelCastHeartbeat();
     });
 
     // Android：额外预约系统闹钟兜住「进程被冻结」时 Dart 计时停摆。
     if (Platform.isAndroid) {
+      Logger.infoWithTag(
+        'DLNA-HB',
+        '预约闹钟: now=${DateTime.fromMillisecondsSinceEpoch(now)} '
+            'trigger=${DateTime.fromMillisecondsSinceEpoch(trigger)} '
+            'delayMs=${delayMs}ms(after clamp)',
+      );
       armCastHeartbeat(trigger);
     }
   }
@@ -492,6 +575,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     await acquireMulticastLock();
     final sourceQueue = List<Song>.of(_ref.read(playerProvider).queue);
     _sourceQueue = sourceQueue;
+    // 订阅原生心跳事件(幂等),让闹钟溯源日志进入 app 内。
+    _initDlnaHeartbeatEventLogging();
     state = state.copyWith(
       isCasting: true,
       queue: List.unmodifiable(tracks),
@@ -587,6 +672,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     final tracks = songs.map(dlnaCastTrackFromSong).toList();
     final start = startIndex.clamp(0, tracks.length - 1);
     _sourceQueue = List<Song>.of(songs);
+    // 订阅原生心跳事件(幂等),让闹钟溯源日志进入 app 内。
+    _initDlnaHeartbeatEventLogging();
     state = state.copyWith(
       isCasting: true,
       queue: List.unmodifiable(tracks),
