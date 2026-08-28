@@ -404,61 +404,16 @@ class PlayQueueSheetView extends StatelessWidget {
                               description: '开始播放一首歌曲后，接下来的曲目会出现在这里。',
                               icon: AppIcons.queue,
                             )
-                          : panel
-                              ? _AutoCenterQueueList(
-                                  queue: queue,
-                                  currentIndex: currentIndex,
-                                  onSelect: onSelect,
-                                  onOpenSongActions: onOpenSongActions,
-                                )
-                              : ListView.separated(
-                                  controller: scrollController,
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: scopedSpacing.xs,
-                                  ),
-                                  itemCount: queue.length,
-                                  separatorBuilder: (context, index) =>
-                                      SizedBox(
-                                        height:
-                                            context.musicFlowSpacing.xxs,
-                                      ),
-                                  itemBuilder: (context, index) {
-                                    final song = queue[index];
-                                    return MusicFlowSongRow(
-                                      index: index,
-                                      song: song,
-                                      variant:
-                                          MusicFlowSongRowVariant.standard,
-                                      isCurrent: index == currentIndex,
-                                      contentPadding:
-                                          EdgeInsetsDirectional.fromSTEB(
-                                            context.musicFlowSpacing.md,
-                                            context.musicFlowSpacing.xs,
-                                            context.musicFlowSpacing.xs,
-                                            context.musicFlowSpacing.xs,
-                                          ),
-                                      onPressed: () =>
-                                          unawaited(onSelect(index)),
-                                      onLongPress: () => unawaited(
-                                        onOpenSongActions(
-                                          context,
-                                          index,
-                                          song,
-                                        ),
-                                      ),
-                                      onMorePressed: () => unawaited(
-                                        onOpenSongActions(
-                                          context,
-                                          index,
-                                          song,
-                                        ),
-                                      ),
-                                      moreSemanticLabel:
-                                          '${song.title}，更多操作',
-                                      showMoreButton: false,
-                                    );
-                                  },
-                                ),
+                          : _AutoCenterQueueList(
+                              queue: queue,
+                              currentIndex: currentIndex,
+                              onSelect: onSelect,
+                              onOpenSongActions: onOpenSongActions,
+                              // 手机端底部弹窗注入 DraggableScrollableSheet 控制器以支持拖拽调高；
+                              // 桌面右侧面板不传，自建控制器并由组件负责释放。
+                              scrollController:
+                                  panel ? null : scrollController,
+                            ),
                     ),
                     const MusicFlowDivider(),
                     Padding(
@@ -719,7 +674,10 @@ class _AutoCenterQueueList extends StatefulWidget {
 }
 
 class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
-  final ScrollController _controller = ScrollController();
+  // 外部注入时复用外部控制器(底部弹窗拖拽调高需要);自建时才负责 dispose。
+  late final bool _ownsController = widget.scrollController == null;
+  late final ScrollController _controller =
+      widget.scrollController ?? ScrollController();
   final GlobalKey _currentKey = GlobalKey();
 
   // 行高不定但大体均匀;仅用于懒加载下「先跳到附近」的粗估,
@@ -737,7 +695,8 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
   @override
   void didUpdateWidget(_AutoCenterQueueList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 只响应「当前曲目下标」变化而居中,避免列表引用变化引发的抖动。
+    // 只响应「当前选中曲目下标」变化而居中(点选未在播的曲目也会切换下标,
+    // 故无论是否在播都居中对齐;列表引用变化不触发,避免抖动)。
     if (widget.currentIndex != oldWidget.currentIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
     }
@@ -745,7 +704,7 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     super.dispose();
   }
 
