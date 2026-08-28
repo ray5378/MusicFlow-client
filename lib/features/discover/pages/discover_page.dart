@@ -1165,6 +1165,8 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                       // 分区标题优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
                       Text(
                         localChannelTitle(channel),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: context.musicFlowTypography.label.copyWith(
                           color: context.musicFlowColors.accent,
                         ),
