@@ -21,6 +21,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       build_number: ${{ steps.v.outputs.build_number }}
+      artifact_tag: ${{ steps.v.outputs.artifact_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,6 +37,8 @@ jobs:
             exit 1
           fi
           echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          # 产物文件名用的紧凑 tag(去点):v3.3.0 → v330, 如 MusicFlow-v330-android.apk
+          echo "artifact_tag=v${ver//./}" >> "$GITHUB_OUTPUT"
           # 用每次运行自增的序号作为内部 buildNumber(安卓 versionCode)，
           # 保证新构建的版本号一定大于旧版本。
           echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
@@ -118,13 +121,13 @@ jobs:
         run: flutter build apk --release --target-platform android-arm64 --split-per-abi --build-name="${{ needs.resolve-version.outputs.version }}" --build-number=${{ needs.resolve-version.outputs.build_number }}
 
       - name: Rename APK for release
-        run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "MusicFlow-${{ github.run_number }}-android.apk"
+        run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk"
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: musicflow-android
-          path: MusicFlow-${{ github.run_number }}-android.apk
+          path: MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk
           retention-days: 30
 
   build-windows:
@@ -157,19 +160,19 @@ jobs:
 
       - name: Package portable zip
         run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "MusicFlow-${{ github.run_number }}-windows.zip"
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: musicflow-windows
-          path: MusicFlow-${{ github.run_number }}-windows.zip
+          path: MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
           retention-days: 30
 
   publish-versioned:
     name: Publish Versioned Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-android, build-windows]
+    needs: [resolve-version, build-android, build-windows]
     runs-on: ubuntu-latest
     steps:
       # fetch-depth: 0: 需要完整 git 历史来生成变更日志。
@@ -207,8 +210,8 @@ jobs:
           ### 构建信息
           提交: ${{ github.sha }}
 
-          - **Android**: `MusicFlow-${{ github.run_number }}-android.apk`
-          - **Windows**: `MusicFlow-${{ github.run_number }}-windows.zip` (解压即用)
+          - **Android**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk`
+          - **Windows**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip` (解压即用)
           EOF
 
       - name: Publish GitHub Release
@@ -218,8 +221,8 @@ jobs:
           name: "MusicFlow Client ${{ steps.version.outputs.tag }}"
           body_path: changelog_body.md
           files: |
-            artifacts/MusicFlow-${{ github.run_number }}-android.apk
-            artifacts/MusicFlow-${{ github.run_number }}-windows.zip
+            artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk
+            artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
