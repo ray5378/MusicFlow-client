@@ -32,6 +32,12 @@ class DlnaManager {
   /// 自动续播推进互相覆盖。
   bool _polling = false;
 
+  /// 串行化「切歌/重放」：多个调用方（UI 快速连点、看门狗续播、SetNext 对齐）
+  /// 可能在极短时间内对同一/相邻曲目并发下发 SetAVTransportURI，重叠的在途
+  /// 切换会让正在建立的流被中断(实测 `Connection aborted`/`PlayerInterrupted`)。
+  /// 这里把切歌动作串成一条 Future 链：前一个切歌完成后再处理下一个，杜绝重叠。
+  Future<void> _pendingSwitchFuture = Future.value();
+
   bool _initialized = false;
 
   // ==================== 链路 B 投屏队列状态 ====================
@@ -433,8 +439,16 @@ class DlnaManager {
   }
 
   /// 用户主动切歌的统一入口：中继模式下逐首重放当前曲。
+  ///
+  /// 所有切歌（播放某曲/下一首/上一首/自动续播）都经由此入口串行化：
+  /// 快速连点或看门狗与 UI 并发时，上一轮切歌未落地前不重叠下发，
+  /// 避免在途 SetAVTransportURI 被下一次切换打断 —— 修复极短间隔重复
+  /// 触发导致的 `Connection aborted` / 播放被中断（issue #1）。
   Future<void> _playSwitch() async {
-    await _playCurrentTrack();
+    final next = _pendingSwitchFuture.then((_) => _playCurrentTrack());
+    // 链尾吞掉异常，避免一条切歌失败导致整条链后续动作全部中断。
+    _pendingSwitchFuture = next.catchError((_) {});
+    await next;
   }
 
   /// 设备能力探测：合成 A/B 档路径选择所需能力（硬砍 C 后仅两档）。
@@ -928,7 +942,7 @@ class DlnaManager {
 
     if (_playMode == 'one') {
       // 单曲循环：重放当前曲。
-      await _playCurrentTrack();
+      await _playSwitch();
       return;
     }
 
@@ -945,7 +959,7 @@ class DlnaManager {
       }
       _queueIndex++;
     }
-    await _playCurrentTrack();
+    await _playSwitch();
     onTrackChanged?.call(_queueIndex);
     // 记录本次自动续播时间,供轮询/中继 EOF 检测互斥(1.5s 内不重复推进)。
     _lastCompletionAdvance = DateTime.now();
