@@ -83,13 +83,18 @@ Future<T> _fetchWithCacheFallback<T>({
       null,
       stackTrace,
     );
-    NetworkErrorNotifier.show(errorMessage);
+    // 先读缓存;若命中即用缓存兜底并静默返回,不再对用户弹「网络异常」。
+    // 否则「Win 刷新随机歌曲」等场景里,明明是离线/接口不可用的环境,每次刷新
+    // 都会先弹一次网络异常(尽管随后能展示缓存),造成「总有弹窗又拦不住」的观感,
+    // 在安卓弱网下更是集中轰炸,拖累首屏交互。
     final cached = await cacheRead();
     if (cached != null) {
       ref.read(failedProvider.notifier).state = false;
       Logger.infoWithTag(_musicLogTag, '$label fallback to cache');
       return cached;
     }
+    // 远程失败且无缓存兜底,才向用户提示网络异常。
+    NetworkErrorNotifier.show(errorMessage);
     ref.read(failedProvider.notifier).state = true;
     Logger.warnWithTag(_musicLogTag, '$label cache miss');
     return emptyValue;

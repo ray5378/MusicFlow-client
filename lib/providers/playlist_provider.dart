@@ -30,10 +30,34 @@ final recentPlaylistsLoadFailedProvider = StateProvider<bool>((ref) => false);
 final recentPlaylistsProvider =
     FutureProvider.autoDispose<List<Playlist>>((ref) async {
   final repository = ref.watch(playlistRepositoryProvider);
-  if (repository == null) return [];
+  final cache = ref.watch(metadataCacheRepositoryProvider);
+  final libraryId = ref.watch(activeLibraryProvider)?.id;
+  if (repository == null || libraryId == null || libraryId.isEmpty) {
+    // 冷启动活跃库尚未就绪:先用缓存兜底最近歌单秒出,
+    // 避免「打开即空白、要手动下拉刷新才显示」(安卓首页痛点)。
+    if (libraryId != null && libraryId.isNotEmpty) {
+      final cached = await cache.getPlaylists(libraryId);
+      if (cached != null && cached.isNotEmpty) {
+        final sorted = [...cached]
+          ..sort((a, b) {
+            final ta = a.changed?.millisecondsSinceEpoch ?? 0;
+            final tb = b.changed?.millisecondsSinceEpoch ?? 0;
+            return tb.compareTo(ta);
+          });
+        return sorted.take(20).toList();
+      }
+    }
+    Logger.warnWithTag(
+      _playlistLogTag,
+      'recentPlaylists skipped: repository or library unavailable',
+    );
+    return [];
+  }
   try {
     await ref.read(ensureActiveAddressProvider.future);
     final all = await repository.getPlaylists();
+    // 写全量缓存,冷启动未就绪时可用同一缓存兜底排序取最近歌单。
+    await cache.cachePlaylists(libraryId, all);
     all.sort((a, b) {
       final ta = a.changed?.millisecondsSinceEpoch ?? 0;
       final tb = b.changed?.millisecondsSinceEpoch ?? 0;
@@ -46,6 +70,18 @@ final recentPlaylistsProvider =
   } catch (e, stackTrace) {
     Logger.warnWithTag('PLAYLIST', 'recent playlists load failed', e);
     Logger.debugWithTag('PLAYLIST', 'recent playlists stackTrace', null, stackTrace);
+    // 远程失败:先读缓存兜底,命中即静默展示,不打扰用户。
+    final cached = await cache.getPlaylists(libraryId);
+    if (cached != null && cached.isNotEmpty) {
+      final sorted = [...cached]
+        ..sort((a, b) {
+          final ta = a.changed?.millisecondsSinceEpoch ?? 0;
+          final tb = b.changed?.millisecondsSinceEpoch ?? 0;
+          return tb.compareTo(ta);
+        });
+      ref.read(recentPlaylistsLoadFailedProvider.notifier).state = false;
+      return sorted.take(20).toList();
+    }
     ref.read(recentPlaylistsLoadFailedProvider.notifier).state = true;
     return [];
   }
@@ -83,7 +119,7 @@ final playlistsProvider = FutureProvider.autoDispose<List<Playlist>>((
       null,
       stackTrace,
     );
-    NetworkErrorNotifier.show('网络异常，歌单加载失败');
+    // 先读缓存：命中即静默兜底，避免「有缓存展示着，却仍弹网络异常」的打扰。
     final cached = await cache.getPlaylists(libraryId);
     if (cached != null) {
       ref.read(playlistsLoadFailedProvider.notifier).state = false;
@@ -93,6 +129,8 @@ final playlistsProvider = FutureProvider.autoDispose<List<Playlist>>((
       );
       return cached;
     }
+    // 远程失败且无缓存，才提示网络异常。
+    NetworkErrorNotifier.show('网络异常，歌单加载失败');
     ref.read(playlistsLoadFailedProvider.notifier).state = true;
     Logger.warnWithTag(_playlistLogTag, 'playlists cache miss');
     return [];
@@ -144,7 +182,7 @@ final playlistDetailProvider = FutureProvider.autoDispose.family<Playlist?, Stri
       null,
       stackTrace,
     );
-    NetworkErrorNotifier.show('网络异常，歌单加载失败');
+    // 先读缓存：命中即静默兜底展示，不打扰用户。
     final cached = await cache.getPlaylistDetail(libraryId, playlistId);
     if (cached != null) {
       ref.read(playlistDetailLoadFailedProvider(playlistId).notifier).state =
@@ -155,6 +193,8 @@ final playlistDetailProvider = FutureProvider.autoDispose.family<Playlist?, Stri
       );
       return cached;
     }
+    // 远程失败且无缓存，才提示网络异常。
+    NetworkErrorNotifier.show('网络异常，歌单加载失败');
     ref.read(playlistDetailLoadFailedProvider(playlistId).notifier).state =
         true;
     Logger.warnWithTag(
