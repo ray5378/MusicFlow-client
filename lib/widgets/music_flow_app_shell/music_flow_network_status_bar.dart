@@ -38,10 +38,14 @@ class MusicFlowNetworkStatusBar extends StatefulWidget {
 class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   Timer? _recoveryTimer;
   late _MusicFlowNetworkBannerState _bannerState;
+  late final DateTime _createdAt;
+  /// 启动后前 30 秒内的「连接达到」视为冷启动连上,静默恢复,不弹「网络已恢复」。
+  static const Duration _startupSilentRecoveryWindow = Duration(seconds: 30);
 
   @override
   void initState() {
     super.initState();
+    _createdAt = DateTime.now();
     _bannerState = _stateForStatus(widget.status);
   }
 
@@ -86,6 +90,11 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
     setState(() {
       _bannerState = _MusicFlowNetworkBannerState.hidden;
     });
+    // 启动后前 30 秒内连接上的场景视为「冷启动连上」,静默恢复即可,
+    // 不弹「网络已恢复」的成功 Toast(横幅已隐藏)。30 秒后再恢复则正常提示。
+    if (DateTime.now().difference(_createdAt) < _startupSilentRecoveryWindow) {
+      return;
+    }
     // 网络恢复：释放内联横幅空间，改为右上角成功 Toast。didUpdateWidget 发生在
     // build 阶段,推迟到帧结束再插入 Overlay,避免 setState during build。
     WidgetsBinding.instance.addPostFrameCallback((_) {
