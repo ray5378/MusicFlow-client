@@ -702,12 +702,17 @@ class _AutoCenterQueueList extends StatefulWidget {
     required this.currentIndex,
     required this.onSelect,
     required this.onOpenSongActions,
+    this.scrollController,
   });
 
   final List<Song> queue;
   final int currentIndex;
   final Future<void> Function(int index) onSelect;
   final QueueSongAction onOpenSongActions;
+
+  /// 外部注入的 ScrollController（底部弹窗 DraggableScrollableSheet 的控制器，
+  /// 用于支持拖拽调高度）；桌面右侧面板不传则自建内部控制器并负责释放
+  final ScrollController? scrollController;
 
   @override
   State<_AutoCenterQueueList> createState() => _AutoCenterQueueListState();
