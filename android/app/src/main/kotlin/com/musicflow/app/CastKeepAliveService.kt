@@ -35,14 +35,14 @@ class CastKeepAliveService : Service() {
         createChannel()
         startForegroundCompat()
         acquireKeepAlive()
-        // 抗冻结心跳：即便进程被国内 ROM/鸿蒙后台管控整体冻结，
-        // AlarmManager 也会在维护窗口唤醒进程，兜住「整段冻结 → 歌放完不续播」。
-        CastHeartbeat.schedule(this)
+        // 抗冻结心跳已改为「按曲末时刻一次性预约」模型：具体曲目/时刻由 Dart 侧在
+        // 每首歌开始时算好并通过 armCastHeartbeat 预约。服务起停负责持有进程前台态 +
+        // 唤醒锁，保证 Dart 轮询与曲末唤醒都能落地；停止时 cancel 心跳。
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // START_STICKY：系统偶尔回收后会自动重建，确保投屏期间保活尽量不中断。
-        // 每次重建都会在 onCreate 里重新预约心跳，保证心跳链不因回收而断。
+        // 一次性的曲末心跳由 Dart 每次监督预约，服务重建不影响其有效性。
         return START_STICKY
     }
 

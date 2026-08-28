@@ -1,6 +1,7 @@
 package com.musicflow.app
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -191,6 +192,25 @@ class MainActivity : AudioServiceFragmentActivity() {
                     }
                 }
             }
+            // 曲末一次性心跳：Dart 算好「结束前几秒」的绝对时刻，原生按此预约唤醒进程，
+            // 由 Dart 曲末看门狗判断是否该推下一首/已切歌。幂等：反复 arm 覆盖旧预约。
+            "armCastHeartbeat" -> {
+                try {
+                    val triggerAtMs = call.argument<Long>("triggerAtMs") ?: 0L
+                    CastHeartbeat.arm(this, triggerAtMs)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("ARM_CAST_HEARTBEAT_FAILED", e.message, null)
+                }
+            }
+            "cancelCastHeartbeat" -> {
+                try {
+                    CastHeartbeat.cancel(this)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("CANCEL_CAST_HEARTBEAT_FAILED", e.message, null)
+                }
+            }
             "requestNearbyWifiDevicesPermission" -> {
                 if (_hasNearbyPermission()) {
                     result.success(true)
@@ -219,6 +239,12 @@ class MainActivity : AudioServiceFragmentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    /** Android 12+ 是否已可精确调度闹钟（SCHEDULE_EXACT_ALARM）；<12 恒为 true。 */
+    private fun _canScheduleExactAlarms(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     }
 
     override fun onRequestPermissionsResult(
