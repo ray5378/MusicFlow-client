@@ -1,5 +1,6 @@
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
@@ -91,8 +92,12 @@ void main() {
     expect(find.byIcon(AppIcons.equalizer), findsOneWidget);
     expect(find.text('2'), findsNothing);
     final covers = tester.widgetList<CoverArtImage>(find.byType(CoverArtImage));
-    expect(covers.last.coverArtId, 'https://images.example.test/preview.jpg');
-    expect(find.bySemanticsLabel(RegExp('更多操作')), findsNWidgets(2));
+    expect(isTrustedCoverUrlRef(covers.last.coverArtId), isTrue);
+    expect(
+      extractTrustedCoverUrl(covers.last.coverArtId),
+      'https://images.example.test/preview.jpg',
+    );
+    expect(find.bySemanticsLabel(RegExp('更多操作')), findsNothing);
     expect(
       find.descendant(
         of: find.byType(ListView),
@@ -102,6 +107,7 @@ void main() {
     );
     expect(tester.takeException(), isNull);
 
+    // 队列行的“更多操作”走长按(showMoreButton:false),点按仅切歌不弹菜单。
     await tester.ensureVisible(find.text(songs[1].title));
     await tester.pump();
     await tester.tap(find.text(songs[1].title));
@@ -109,13 +115,9 @@ void main() {
     expect(selected, <int>[1]);
     expect(opened, isEmpty);
 
-    final secondMore = find.bySemanticsLabel('${songs[1].title}，更多操作');
-    await tester.drag(find.byType(ListView), const Offset(0, -160));
+    await tester.ensureVisible(find.text(songs[1].title));
     await tester.pump();
-    final moreSize = tester.getSize(secondMore);
-    expect(moreSize.width, greaterThanOrEqualTo(48));
-    expect(moreSize.height, greaterThanOrEqualTo(48));
-    await tester.tap(secondMore);
+    await tester.longPress(find.text(songs[1].title));
     await tester.pump();
     expect(selected, <int>[1]);
     expect(opened, <int>[1]);
@@ -156,7 +158,13 @@ void main() {
     final surface = tester.widget<MusicFlowSurface>(find.byType(MusicFlowSurface).first);
     final currentTitle = tester.widget<Text>(find.text(songs.first.title));
     expect(surface.color, visuals.panelSurface);
-    expect(currentTitle.style?.color, visuals.controlAccent);
+    // 当前曲目标题走 media scope 内的 colors.accent(相对 panelSurface 做对比保底),
+    // 并非原始 controlAccent。按同样逻辑算期望值。
+    final accent = MusicFlowColors.ensureColorContrast(
+      visuals.controlAccent,
+      background: visuals.panelSurface,
+    );
+    expect(currentTitle.style?.color, accent);
   });
 
   testWidgets('empty queue explains the state and disables clear', (

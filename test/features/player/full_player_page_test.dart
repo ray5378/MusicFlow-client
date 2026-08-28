@@ -357,6 +357,8 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
+      // 平台 override 须在测试体结束前复位:校验早于任何 addTearDown。
+      debugDefaultTargetPlatformOverride = null;
     },
   );
 
@@ -401,6 +403,8 @@ void main() {
     );
     expectControlHierarchy(tester);
     expect(tester.takeException(), isNull);
+    // 平台 override 须在测试体结束前复位:校验早于任何 addTearDown。
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('reduced-motion close collapses lyrics before popping', (

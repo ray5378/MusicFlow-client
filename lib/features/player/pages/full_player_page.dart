@@ -312,12 +312,12 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
                             Expanded(
-                              flex: 5,
+                              flex: 3,
                               child: _buildWideArtworkPane(song),
                             ),
                             SizedBox(height: spacing.md),
                             Expanded(
-                              flex: 3,
+                              flex: 5,
                               child: _buildWideControlPane(
                                 song,
                                 subtitle: subtitle,
@@ -359,24 +359,30 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     );
   }
 
-  /// 大屏左栏下半部分:歌曲信息(吸收剩余空间) + 播放控件(始终占位显示)。
+  /// 大屏左栏下半部分:播放控件(始终优先可见) + 歌曲信息(吸收剩余空间)。
+  /// 短视口(横屏)下控件置于最上方,保证主播放按钮始终可达不被挤出窗口。
   Widget _buildWideControlPane(Song song, {required String subtitle}) {
     final spacing = context.musicFlowSpacing;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        // 信息区:Expanded 吸收多余高度,滚动兜底,绝不让控件溢出。
-        Expanded(
+        // 播放控件:独立占位,始终可见。Flexible + 滚动兜底,高文本缩放下
+        // 若超出分栏高度也只滚动而不溢出。
+        Flexible(
+          child: SingleChildScrollView(
+            child: _buildControlPanel(song, compact: true),
+          ),
+        ),
+        SizedBox(height: spacing.sm),
+        // 信息区:可收缩,滚动兜底,绝不让控件溢出。
+        Flexible(
           child: Center(
             child: SingleChildScrollView(
               child: _buildWideDetailsPane(song, subtitle: subtitle),
             ),
           ),
         ),
-        SizedBox(height: spacing.sm),
-        // 播放控件:独立占位,始终可见。
-        _buildControlPanel(song, compact: true),
       ],
     );
   }

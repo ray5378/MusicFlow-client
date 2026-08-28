@@ -1,4 +1,6 @@
 import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/navigation_provider.dart';
 import 'package:musicflow_client/widgets/main_scaffold.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
@@ -112,7 +114,21 @@ Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
   tester.view.physicalSize = const Size(1280, 800);
   addTearDown(tester.view.reset);
 
-  final container = ProviderContainer();
+  final container = ProviderContainer(
+    overrides: <Override>[
+      // 给定一个非空地址,让 RandomSongsPush._connect 在「无库→无 token」分支
+      // 直接返回,不再调度 2s 重连 Timer,避免测试结束时遗留 pending Timer。
+      activeAddressProvider.overrideWith(
+        (ref) => const ServerAddress(
+          id: 'test-addr',
+          libraryId: 'test-lib',
+          label: '测试服务器',
+          url: 'https://music.example.test',
+          priority: 1,
+        ),
+      ),
+    ],
+  );
   addTearDown(container.dispose);
   final branchNavigatorKeys = <GlobalKey<NavigatorState>>[
     GlobalKey<NavigatorState>(),

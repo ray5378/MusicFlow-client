@@ -6,6 +6,7 @@ import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dar
 import 'package:musicflow_client/providers/palette_provider.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
 import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,8 +141,8 @@ void main() {
 
     // 非投屏时 MiniPlayer 默认名称为「本机」,这里传入设备名验证透传:
     // 语义标签携带当前播放器名称,作为切换播放器的状态反馈。
-    // 切换播放器图标统一使用 DLNA(投放)图标。
-    expect(find.byIcon(AppIcons.dlna), findsOneWidget);
+    // 切换播放器图标统一使用 signalTower(信号塔,选择播放器语义)。
+    expect(find.byIcon(AppIcons.signalTower), findsOneWidget);
     final labeled = find.bySemanticsLabel(RegExp('切换播放器，当前：客厅音箱'));
     expect(labeled, findsOneWidget);
 
@@ -222,12 +223,19 @@ void main() {
         ),
       );
       // 迷你条标题以「歌名 - 歌手」富文本(Text.rich)展示:颜色在首段 TextSpan 的
-      // style 上(MusicFlowMediaColorScope 注入 visuals.foreground),而非 Text.style。
+      // style 上(MusicFlowMediaColorScope 注入),而非 Text.style。媒体作用域按
+      // 表面(miniSurface)做决定性对比:ink = readableOn(miniSurface);
+      // accent = ensureColorContrast(controlAccent, miniSurface)。
+      final ink = MusicFlowColors.readableOn(visuals.miniSurface);
+      final accent = MusicFlowColors.ensureColorContrast(
+        visuals.controlAccent,
+        background: visuals.miniSurface,
+      );
       final titleSpan = (title.textSpan as TextSpan).children!.first
           as TextSpan;
-      expect(titleSpan.style?.color, visuals.foreground);
-      expect(playIcon.color, visuals.foreground);
-      expect(progress.color, visuals.controlAccent);
+      expect(titleSpan.style?.color, ink);
+      expect(playIcon.color, ink);
+      expect(progress.color, accent);
       expect(backdrop.visuals, visuals);
       expect(backdrop.mode, MusicFlowPlayerBackdropMode.mini);
       expect(
@@ -323,7 +331,9 @@ void main() {
         .widgetList<CoverArtImage>(find.byType(CoverArtImage))
         .where(
           (candidate) =>
-              candidate.coverArtId == 'https://images.example.test/preview.jpg',
+              isTrustedCoverUrlRef(candidate.coverArtId) &&
+              extractTrustedCoverUrl(candidate.coverArtId) ==
+                  'https://images.example.test/preview.jpg',
         );
     expect(covers, isNotEmpty);
   });
