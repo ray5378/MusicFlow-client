@@ -16,9 +16,11 @@ import 'soap_control.dart';
 class DlnaManager {
   final SsdpDiscovery _discovery = SsdpDiscovery();
 
-  /// 服务端直连流 URL 构造器：给定 songId 返回 /rest/stream 直连 URL(含鉴权 token)。
-  /// 用于 A 档把直连 URL 交给设备自拉流。
-  String Function(String songId)? _streamUrlBuilder;
+  /// 服务端直连流 URL 构造器：给定 songId 返回设备可直拉的流 URL。
+  /// A 档投屏时该 URL 应为**无鉴权**的 token 流地址 `/rest/dlna/stream/:token`
+  /// （见 SubsonicApiClient.getDlnaCastStreamUrl），避免向设备下发带 `u/t/s`
+  /// 鉴权参数的 URL 导致 GMediaRender 等渲染器拉流失败无声。异步以便先去服务端换 token。
+  Future<String> Function(String songId)? _streamUrlBuilder;
 
   final List<DlnaDevice> _devices = [];
   DlnaDevice? _currentDevice;
@@ -149,10 +151,10 @@ class DlnaManager {
   // ==================== 初始化 ====================
 
   /// 初始化 DLNA 管理器（A 档·直传直连）
-  /// [streamUrlBuilder] 根据 songId 构建**服务端直连流 URL**（含鉴权参数），
-  /// 交给 DLNA 设备让其自拉流播放（设备不连本机，直连服务器）。
+  /// [streamUrlBuilder] 根据 songId 构建**服务端直接可拉的流 URL**（异步，先换无鉴权
+  /// token），交给 DLNA 设备让其自拉流播放（设备不连本机，直连服务器）。
   Future<void> init({
-    required String Function(String songId) streamUrlBuilder,
+    required Future<String> Function(String songId) streamUrlBuilder,
   }) async {
     if (_initialized) return;
 
@@ -168,9 +170,10 @@ class DlnaManager {
     _initialized = true;
   }
 
-  /// 为 songId 生成交给 DLNA 设备的直连流 URL（A 档·直传直连）。
-  /// 直接复用服务端 `streamUrlBuilder` 生成的带鉴权 URL，设备自拉流，不经本机。
-  String _directStreamUrl(String songId) => _streamUrlBuilder!(songId);
+  /// 为 songId 生成交给 DLNA 设备的直接可拉流 URL（A 档·直传直连）。
+  /// 先经服务端换一次性无鉴权 token（见 SubsonicApiClient.getDlnaCastStreamUrl），
+  /// 返回的 URL 无 `u/t/s` 鉴权，设备自拉流，不经本机。
+  Future<String> _directStreamUrl(String songId) => _streamUrlBuilder!(songId);
 
   // ==================== 设备发现 ====================
 
@@ -356,8 +359,8 @@ class DlnaManager {
   Future<void> _playCurrentTrack() async {
     final device = _currentDevice!;
     final track = _queue[_queueIndex];
-    // A 档：直接复用服务端直连流 URL（含鉴权），设备自拉流。
-    final url = _directStreamUrl(track.songId);
+    // A 档：先换无鉴权 token 流 URL，再交给设备自拉流。
+    final url = await _directStreamUrl(track.songId);
     final metadata = _buildDidlLite(
       title: track.title,
       uri: url,
@@ -454,8 +457,8 @@ class DlnaManager {
 
     final device = _currentDevice!;
     final next = _queue[nextIndex];
-    // A 档：预置下一首同样用服务端直连流 URL。
-    final url = _directStreamUrl(next.songId);
+    // A 档：预置下一首同样用无鉴权 token 流 URL。
+    final url = await _directStreamUrl(next.songId);
     final metadata = _buildDidlLite(
       title: next.title,
       uri: url,

@@ -238,6 +238,41 @@ class SubsonicApiClient {
     return urlWithParams.toString();
   }
 
+  /// 生成 DLNA 设备可直拉的「无鉴权」流 URL（A 档·直传直连投屏专用）。
+  ///
+  /// 部分渲染器（尤其 OpenWrt 上的 GMediaRender）拉流时无法携带 Subsonic 的
+  /// `u/t/s` 鉴权参数，客户端直接把带鉴权的 `/rest/stream?...` 交给设备会因
+  /// 鉴权解析失败而无声。这里走主项目自定义 API `POST /rest/api/v1/dlna/stream-url`
+  /// （请求仍带 `u/t/s`，用于向服务端换 token），换取一次性 token 后，再用客户端
+  /// **自身的 baseUrl** 拼出 `<baseUrl>/rest/dlna/stream/:token` —— 该 URL 无鉴权、
+  /// 公网可达，交给设备自拉流即可正常播放。
+  ///
+  /// 服务端只返回相对路径 `/rest/dlna/stream/:token`，由客户端拼接主机，这样即便
+  /// 服务端探测到的 baseUrl 是局域网 IP，设备也能通过客户端的公网域名拿到流。
+  /// 换取失败时回退旧行为（返回带鉴权的 `/rest/stream` URL），保证投屏不中断。
+  Future<String> getDlnaCastStreamUrl(
+    String songId, {
+    int? maxBitRate,
+  }) async {
+    final baseUrl = _dio.options.baseUrl;
+    if (_library == null || baseUrl.isEmpty) return '';
+    try {
+      final data = await postRaw(
+        ApiConstants.dlnaStreamUrl,
+        data: <String, dynamic>{'songId': songId},
+      ) as Map<String, dynamic>;
+      final path = data['streamUrl'] as String?;
+      if (path == null || path.isEmpty) {
+        throw StateError('服务端未返回 streamUrl');
+      }
+      final uri = Uri.parse(joinServerUrl(baseUrl, path));
+      return uri.toString();
+    } catch (e) {
+      Logger.warn('DLNA 无鉴权流获取失败，回退带鉴权流', e);
+      return getStreamUrl(songId, maxBitRate: maxBitRate);
+    }
+  }
+
   /// 从服务端拉取单曲流音频字节。
   /// [url] 为 `getStreamUrl` 生成的单曲流 URL；支持 Range 分段拉取（边下边播/拖动）。
   Future<Uint8List> fetchStreamBytes(

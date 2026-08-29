@@ -202,7 +202,7 @@ void main() {
     await fake.start();
     manager = DlnaManager();
     await manager.init(
-      streamUrlBuilder: (songId) => 'http://server/stream/$songId.m3u8',
+      streamUrlBuilder: (songId) async => 'http://server/stream/$songId.m3u8',
     );
   });
 

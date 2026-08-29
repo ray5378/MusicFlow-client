@@ -48,4 +48,8 @@ class ApiConstants {
 
   // 流预探测
   static const String streamProbe = '/rest/api/v1/stream/probe';
+
+  // DLNA 无鉴权流 URL 的 token 换取端点（主项目自定义 API，带 u/t/s 鉴权）。
+  // 返回 { token, streamUrl: '/rest/dlna/stream/:token', expiresAt }。
+  static const String dlnaStreamUrl = '/rest/api/v1/dlna/stream-url';
 }
