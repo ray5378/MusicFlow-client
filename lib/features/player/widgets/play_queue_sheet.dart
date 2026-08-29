@@ -708,7 +708,7 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
   Widget build(BuildContext context) {
     final current = widget.currentIndex;
     return ReorderableListView.builder(
-      controller: _controller,
+      scrollController: _controller,
       padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
       buildDefaultDragHandles: false,
       itemCount: widget.queue.length,
