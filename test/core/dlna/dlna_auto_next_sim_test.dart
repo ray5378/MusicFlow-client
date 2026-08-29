@@ -249,9 +249,19 @@ void main() {
 
     expect(trace.length, greaterThan(0));
     expect(trace.last.$2, greaterThan(0), reason: '播放结束后应自动推到下一首');
-    // 不得一次跨越到第 2 首：进度按 1 首 1 推。
-    expect(trace.last.$2, lessThanOrEqualTo(1),
-        reason: '游标应只推进 1 首（验证互斥、不双推/skip）');
+    // 进度按 1 首 1 推：多首曲目像放完时允许逐首推进到 1、2…，但不得跨曲跳歌。
+    // 先去掉重复广播的同一 index（如 `(4,1),(4,1)` 实为同一次推进被记录两次），
+    // 再断言相邻两次推进的曲目下标严格 +1，即能拦截「双推/skip」类竞态。
+    final advanced = <int>[];
+    for (final e in trace) {
+      if (advanced.isEmpty || advanced.last != e.$2) advanced.add(e.$2);
+    }
+    expect(advanced, isNotEmpty);
+    for (var k = 1; k < advanced.length; k++) {
+      expect(advanced[k] - advanced[k - 1], 1,
+          reason: '不得跨曲跳歌（应逐首 1→2→3…推进），观测到 '
+              '${advanced[k - 1]}→${advanced[k]}');
+    }
     expect(fake.playedUris.length, greaterThanOrEqualTo(2));
     expect(fake.playedUris[1], contains('song1'),
         reason: '设备应实际收到第 1 首的直链');
