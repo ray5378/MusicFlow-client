@@ -1,4 +1,4 @@
-import '../data/models/song.dart';
+import '../../data/models/song.dart';
 
 /// 无损 / Hi-Res 后缀集合（小写比较）。
 const Set<String> _losslessSuffixes = <String>{
