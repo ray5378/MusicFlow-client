@@ -1,7 +1,6 @@
 package com.musicflow.app
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -13,7 +12,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
@@ -21,15 +19,10 @@ class MainActivity : AudioServiceFragmentActivity() {
     companion object {
         private const val APP_LIFECYCLE_CHANNEL = "com.musicflow.app/app_lifecycle"
         private const val DLNA_CHANNEL = "com.musicflow.app/dlna"
-        // 投屏心跳溯源事件通道：CastHeartbeat 的原生事件(arm.exact/arm.inexact/cancel/woken)
-        // 从这里逆向上报给 Dart,进入 app 内日志(HEARTBEAT tag)。
-        private const val DLNA_EVENTS_CHANNEL = "com.musicflow.app/dlna_events"
         private const val NEARBY_PERMISSION_REQ = 31001
 
         private var multicastLock: WifiManager.MulticastLock? = null
         private var wakeLock: PowerManager.WakeLock? = null
-        // 投屏心跳事件回传 sink：onListen 时被注入,onCancel 时清空。
-        private var dlnaEventSink: EventChannel.EventSink? = null
         // 直投后台续播保活：CLOSE_WAKE_TIMEOUT 为 0 表示常驻，
         // 视觉维持 FULL 走 mediaPlayback 前台服务，CPU 用 PARTIAL 保持 timer 触发。
         private const val CAST_WAKE_LOCK_TAG = "musicflow:dlna_cast"
@@ -69,30 +62,6 @@ class MainActivity : AudioServiceFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             _dlnaHandler(call, result)
         }
-
-        // 投屏心跳溯源事件通道：Dart 侧通过 EventChannel 订阅回调。
-        // onEvent 注入在 onListen 里,保证只有 Dart 真正监听时才把原生事件回传，
-        // onCancel 时解绑,避免持有失效的 EventSink(若 FlutterEngine 重建)。
-        EventChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            DLNA_EVENTS_CHANNEL
-        ).setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                dlnaEventSink = events
-                CastHeartbeat.onEvent = { event, arg ->
-                    try {
-                        dlnaEventSink?.success(
-                            mapOf("event" to event, "arg" to (arg ?: 0L))
-                        )
-                    } catch (_: Throwable) {}
-                }
-            }
-
-            override fun onCancel(arguments: Any?) {
-                dlnaEventSink = null
-                CastHeartbeat.onEvent = null
-            }
-        })
     }
 
     private fun _dlnaHandler(call: MethodCall, result: MethodChannel.Result) {
@@ -194,53 +163,6 @@ class MainActivity : AudioServiceFragmentActivity() {
             "hasNearbyWifiDevicesPermission" -> {
                 result.success(_hasNearbyPermission())
             }
-            // 投屏抗冻结心跳走 AlarmManager.setExact*(allowWhileIdle) 需要 Android 12+ 的
-            // SCHEDULE_EXACT_ALARM 权限；未授予时心跳只能退到非精确版，在国产 ROM/鸿蒙冻结
-            // 期间会被合并到极长的维护窗口（实测超 10 分钟不响 → 歌放完迟迟不续播）。
-            // 这里开放「查询是否可精确排闹钟」供 Dart 决定何时请求授权。
-            "canScheduleExactAlarms" -> {
-                result.success(_canScheduleExactAlarms())
-            }
-            // Android 12+ 弹出「闹钟和提醒」授权页，用户授予后心跳即可精确准点唤醒进程续播。
-            // API 33+ 对大部分应用默认直接拒绝该 intent（无弹窗），此时仍靠电池优化白名单兜底。
-            "requestScheduleExactAlarm" -> {
-                if (_canScheduleExactAlarms()) {
-                    result.success(true)
-                } else {
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            startActivity(
-                                Intent(
-                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                    Uri.parse("package:$packageName")
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }
-                        result.success(true)
-                    } catch (e: Exception) {
-                        result.error("REQUEST_EXACT_ALARM_FAILED", e.message, null)
-                    }
-                }
-            }
-            // 曲末一次性心跳：Dart 算好「结束前几秒」的绝对时刻，原生按此预约唤醒进程，
-            // 由 Dart 曲末看门狗判断是否该推下一首/已切歌。幂等：反复 arm 覆盖旧预约。
-            "armCastHeartbeat" -> {
-                try {
-                    val triggerAtMs = call.argument<Long>("triggerAtMs") ?: 0L
-                    CastHeartbeat.arm(this, triggerAtMs)
-                    result.success(true)
-                } catch (e: Exception) {
-                    result.error("ARM_CAST_HEARTBEAT_FAILED", e.message, null)
-                }
-            }
-            "cancelCastHeartbeat" -> {
-                try {
-                    CastHeartbeat.cancel(this)
-                    result.success(true)
-                } catch (e: Exception) {
-                    result.error("CANCEL_CAST_HEARTBEAT_FAILED", e.message, null)
-                }
-            }
             "requestNearbyWifiDevicesPermission" -> {
                 if (_hasNearbyPermission()) {
                     result.success(true)
@@ -269,12 +191,6 @@ class MainActivity : AudioServiceFragmentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         return pm.isIgnoringBatteryOptimizations(packageName)
-    }
-
-    /** Android 12+ 是否已可精确调度闹钟（SCHEDULE_EXACT_ALARM）；<12 恒为 true。 */
-    private fun _canScheduleExactAlarms(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        return getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     }
 
     override fun onRequestPermissionsResult(

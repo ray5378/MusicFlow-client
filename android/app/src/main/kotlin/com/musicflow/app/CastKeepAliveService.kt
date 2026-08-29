@@ -24,19 +24,17 @@ class CastKeepAliveService : Service() {
     override fun onCreate() {
         super.onCreate()
         acquireKeepAlive()
-        // 抗冻结心跳已改为「按曲末时刻一次性预约」模型：具体曲目/时刻由 Dart 侧在
-        // 每首歌开始时算好并通过 armCastHeartbeat 预约。本服务负责持有唤醒锁，
-        // 保证 Dart 轮询与曲末唤醒都能落地；停止时 cancel 心跳。
+        // 曲末续播已统一为客户端本地 Dart Timer + 2s 看门狗：本服务只负责持有
+        // 唤醒锁，保证 Dart 轮询与曲末看门狗能落地；停止时释放唤醒锁。
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // START_STICKY：系统偶尔回收后会自动重建，确保投屏期间保活尽量不中断。
-        // 一次性的曲末心跳由 Dart 每次监督预约，服务重建不影响其有效性。
+        // 一次性的曲末提醒由 Dart 每次监督预约，服务重建不影响其有效性。
         return START_STICKY
     }
 
     override fun onDestroy() {
-        CastHeartbeat.cancel(this)
         releaseKeepAlive()
         super.onDestroy()
     }

@@ -14,59 +14,10 @@ import 'api_provider.dart';
 import 'audio_quality_provider.dart';
 import 'player_provider.dart';
 
-/// DLNA 原生平台通道（Android：MulticastLock / Android 13+ 附近设备权限）
+/// DLNA 原生平台通道（Android：MulticastLock / 电池优化豁免等系统级能力）
 const MethodChannel _dlnaPlatformChannel = MethodChannel(
   'com.musicflow.app/dlna',
 );
-
-/// 投屏心跳溯源事件通道（Android）：接收 CastHeartbeat 原生逆向上报的事件，
-/// 进入 app 内日志(HEARTBEAT tag)，便于排查「算错时长 / 没 set 上 / 精确 or 非精确 / 是否被系统拉起」。
-const EventChannel _dlnaHeartbeatEventChannel = EventChannel(
-  'com.musicflow.app/dlna_events',
-);
-
-/// 事件通道只订阅一次（幂等）。
-bool _heartbeatEventsSubscribed = false;
-
-/// 模块级「最近一次真正预约(setAlarmClock)的触发时刻」：供 woken 事件比对迟到量
-/// (诊断冻结/维护窗口外唤醒)。只在 armCastHeartbeat 时写入；被 woken 事件消费后清零，
-/// cancel 不清零(冻结恢复时 cancel 可能先于 woken 到达，清零会丢真值)。
-int _moduleLastArmTrigger = 0;
-
-/// 订阅原生心跳事件并落到 app 内日志（仅 Android），供复盘续播链路。
-void _initDlnaHeartbeatEventLogging() {
-  if (_heartbeatEventsSubscribed) return;
-  _heartbeatEventsSubscribed = true;
-  if (!Platform.isAndroid) return;
-  _dlnaHeartbeatEventChannel.receiveBroadcastStream().listen(
-    (event) {
-      try {
-        if (event is! Map) return;
-        final name = event['event'];
-        final arg = event['arg'];
-        if (name == null) return;
-        if (name == 'woken') {
-          // arg=实际唤醒时刻,与最近预约(_moduleLastArmTrigger)比对迟到量。
-          final now = (arg as num?)?.toInt() ?? 0;
-          final lateMs = _moduleLastArmTrigger > 0 ? now - _moduleLastArmTrigger : 0;
-          final lateS = lateMs / 1000.0;
-          Logger.infoWithTag(
-            'DLNA-HB',
-            '闹钟被系统拉起(woken): at=${DateTime.fromMillisecondsSinceEpoch(now)} '
-                'scheduled=${DateTime.fromMillisecondsSinceEpoch(_moduleLastArmTrigger)} '
-                'late=${lateS.toStringAsFixed(1)}s',
-          );
-          // 本次唤醒已消费，重置最近预约值，避免下次 woken 误用旧时刻。
-          _moduleLastArmTrigger = 0;
-        } else {
-          Logger.infoWithTag('DLNA-HB', '闹钟事件 $name arg=${arg ?? 0}');
-        }
-      } catch (_) {}
-    },
-    onError: (Object _) {},
-    cancelOnError: false,
-  );
-}
 
 int _multicastLockRefs = 0;
 int _wakeLockRefs = 0;
@@ -135,8 +86,6 @@ Future<void> startCastKeepAliveService() async {
 ///     某些 ROM 会连带停掉该服务，进程退回后台即冻结，轮询随之中断。
 ///  2. 请求电池优化豁免 —— 相对国产 ROM 后台冻结最有效的糖衣手段，
 ///     用户确认后应用列入白名单，退后台/锁屏仍持续轮询 → 到点准点推下一首。
-/// (注：曲末兜底闹钟已用 setAlarmClock，其不依赖 SCHEDULE_EXACT_ALARM 权限，
-///  故不再请求精确闹钟授权，减少一次系统弹窗。)
 Future<void> _requestBackgroundCastPerms() async {
   // 1) POST_NOTIFICATIONS（Android 13+；旧版本 API 由插件自动放行）
   try {
@@ -159,36 +108,11 @@ Future<void> _requestBackgroundCastPerms() async {
   } catch (_) {}
 }
 
-/// 停止「投屏保活」前台服务。仅 Android、幂等。
+/// 停止「投屏保活」服务。仅 Android、幂等。
 Future<void> stopCastKeepAliveService() async {
   if (!Platform.isAndroid) return;
   try {
     await _dlnaPlatformChannel.invokeMethod('stopCastService');
-  } catch (_) {}
-}
-
-/// 预约一次「曲末唤醒」：原生在 [triggerAtMs]（绝对毫秒）唤醒一次进程，兜住国产 ROM /
-/// 鸿蒙在冻结期间把 Dart 计时一并停摆的场景（此时客户端自身倒计时无效，只能靠系统闹钟
-/// 把进程拉回）。配合 Dart 侧自身的曲末 Timer 一起，是「混合型」抗冻结方案的系统层兜底。
-/// 仅 Android、幂等：反复 arm 覆盖旧预约，Dart 随播放进度(含 seek)更新安全。
-Future<void> armCastHeartbeat(int triggerAtMs) async {
-  if (!Platform.isAndroid) return;
-  _moduleLastArmTrigger = triggerAtMs;
-  try {
-    await _dlnaPlatformChannel
-        .invokeMethod('armCastHeartbeat', {'triggerAtMs': triggerAtMs});
-  } catch (_) {
-    Logger.debugWithTag('DLNA-HB', 'armCastHeartbeat 平台通道调用失败 triggerAtMs=$triggerAtMs');
-  }
-}
-
-/// 取消已预约的一次性曲末唤醒（停止投屏 / 压制重复唤醒时调用）。仅 Android、幂等。
-/// 不重置 [_moduleLastArmTrigger]：该值只保留「最近一次真正 arm 的触发时刻」，
-/// 供随后可能到达的 woken 事件计算迟到量；消费后由 woken 处理器清零。
-Future<void> cancelCastHeartbeat() async {
-  if (!Platform.isAndroid) return;
-  try {
-    await _dlnaPlatformChannel.invokeMethod('cancelCastHeartbeat');
   } catch (_) {}
 }
 
@@ -368,8 +292,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 让全屏页封面跟随 DLNA 设备(等价于链路 A 的后端队列镜像)。
   List<Song>? _sourceQueue;
 
-  /// 曲末唤醒的本地 Dart Timer(混合方案通用层)：所有平台都起，覆盖「进程存活」的正常后台。
-  /// 冻结场景下 Dart 计时停摆，由 Android 系统闹钟(armCastHeartbeat)兜底。
+  /// 曲末提醒的客户端本地 Dart Timer：进程存活期间到点触发，配合曲末看门狗(2s 轮询)
+  /// 判定是否推下一首。进程存活时即唯一可靠机制（关闭了 Android 系统闹钟兜底）。
   Timer? _endTimer;
 
   /// 最近一次预约的唤醒时刻(毫秒)：用于去抖，避免 status 每 2s 更新时反复重设闹钟。
@@ -452,20 +376,16 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     _tickTimer = null;
   }
 
-  /// 取消曲末唤醒（本地 Dart Timer + Android 系统闹钟）。
+  /// 取消曲末提醒（客户端本地 Dart Timer）。
   void _cancelHeartbeat() {
     _endTimer?.cancel();
     _endTimer = null;
     _lastHeartbeatTrigger = 0;
-    Logger.debugWithTag('DLNA-HB', '取消心跳(本地 Timer + 系统闹钟)');
-    cancelCastHeartbeat();
+    Logger.debugWithTag('DLNA-HB', '取消心跳(本地 Dart Timer)');
   }
 
-  /// 按当前曲目剩余时长预约「曲末唤醒」——混合型抗冻结方案的统一入口：
-  /// 1) 通用层(Dart Timer，所有平台)：进程存活时到点触发，覆盖正常退后台/锁屏；
-  ///    到点后续播交给曲末看门狗(2s 轮询)处理，并顺手取消 Android 闹钟避免重复唤醒。
-  /// 2) 兜底层(Android 系统闹钟)：进程被 ROM/鸿蒙冻结、Dart 计时停摆时由系统拉回，
-  ///    到点看门狗填帧判断「已切歌则忽略 / 未切则推下一首」。
+  /// 按当前曲目剩余时长预约「曲末提醒」——客户端本地 Dart Timer：
+  /// 进程存活时到点触发，续播交给曲末看门狗(2s 轮询)处理。
   /// 去抖：status 每 2s 更新，仅当预计唤醒时刻变化 >2s 才重设，减少无谓调度。
   void _armEndHeartbeat(DlnaDeviceStatus status) {
     if (!state.isCasting || status.state != 'PLAYING') {
@@ -521,26 +441,14 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
     _endTimer?.cancel();
     _endTimer = Timer(Duration(milliseconds: delayMs.toInt()), () {
-      // Dart 本地计时到点：进程仍存活。取消系统闹钟避免冻结场景重复唤醒，
-      // 续播是否触发由曲末看门狗(2s 轮询)依据当前状态判断。
+      // 本地 Dart 计时到点：进程存活。续播是否触发由曲末看门狗(2s 轮询)
+      // 依据当前状态判断（已切歌则忽略 / 未切则推下一首）。
       _endTimer = null;
       Logger.infoWithTag(
         'DLNA-HB',
-        '本地 Dart Timer 到点(进程存活), 取消系统闹钟避免重复唤醒 trigger=$trigger',
+        '本地 Dart Timer 到点(进程存活) trigger=$trigger',
       );
-      cancelCastHeartbeat();
     });
-
-    // Android：额外预约系统闹钟兜住「进程被冻结」时 Dart 计时停摆。
-    if (Platform.isAndroid) {
-      Logger.infoWithTag(
-        'DLNA-HB',
-        '预约闹钟: now=${DateTime.fromMillisecondsSinceEpoch(now)} '
-            'trigger=${DateTime.fromMillisecondsSinceEpoch(trigger)} '
-            'delayMs=${delayMs}ms(after clamp)',
-      );
-      armCastHeartbeat(trigger);
-    }
   }
 
   /// 播放中按现实时间平滑推进进度(0.5s 步进),设备轮询(2s)回写修正。
@@ -570,8 +478,6 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     await acquireMulticastLock();
     final sourceQueue = List<Song>.of(_ref.read(playerProvider).queue);
     _sourceQueue = sourceQueue;
-    // 订阅原生心跳事件(幂等),让闹钟溯源日志进入 app 内。
-    _initDlnaHeartbeatEventLogging();
     state = state.copyWith(
       isCasting: true,
       queue: List.unmodifiable(tracks),
@@ -667,8 +573,6 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     final tracks = songs.map(dlnaCastTrackFromSong).toList();
     final start = startIndex.clamp(0, tracks.length - 1);
     _sourceQueue = List<Song>.of(songs);
-    // 订阅原生心跳事件(幂等),让闹钟溯源日志进入 app 内。
-    _initDlnaHeartbeatEventLogging();
     state = state.copyWith(
       isCasting: true,
       queue: List.unmodifiable(tracks),
@@ -799,7 +703,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   Future<void> stopCast() async {
     _stopTick();
     _sourceQueue = null;
-    // 取消曲末唤醒（本地 Dart Timer + Android 系统闹钟），避免停止后残留闹钟。
+    // 取消曲末提醒（客户端本地 Dart Timer），避免停止后残留定时器。
     _cancelHeartbeat();
     // 停止前记录投屏当前曲目与进度，用于停止后在本机续播。
     final castIndex = state.currentIndex;
