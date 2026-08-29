@@ -266,12 +266,12 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             controller: _pageController,
             physics: const BouncingScrollPhysics(),
             children: <Widget>[
-              // 页 0：歌词页（从封面右滑到达）。
-              _PlayerLyricsPane(activeColor: lyricAccent),
+              // 页 0：歌曲信息页（从封面右滑到达）。
+              SongInfoPage(song: song),
               // 页 1：封面 + 播放控件页（默认首屏）。
               _buildCoverStagePage(song, subtitle: subtitle),
-              // 页 2：歌曲信息页（从封面左滑到达）。
-              SongInfoPage(song: song),
+              // 页 2：歌词页（从封面左滑到达）。
+              _PlayerLyricsPane(activeColor: lyricAccent),
             ],
           ),
         ),

@@ -193,7 +193,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         SliverPadding(
                           padding: EdgeInsets.fromLTRB(
                             context.musicFlowPageHorizontalPadding,
-                            context.musicFlowSpacing.xxs,
+                            // 分类导航自带竖向内边距，这里不再叠加，让首个模块
+                            // 紧贴库按钮（对齐箭头音乐的紧凑首屏）。
+                            0,
                             context.musicFlowPageHorizontalPadding,
                             context.musicFlowSpacing.xxl +
                                 context.musicFlowShellBottomObstruction,
@@ -210,7 +212,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             },
                             // 模块间距对齐箭头音乐（更紧凑）。
                             separatorBuilder: (context, index) => SizedBox(
-                              height: context.musicFlowSpacing.xs,
+                              height: context.musicFlowSpacing.xxs,
                             ),
                           ),
                         ),

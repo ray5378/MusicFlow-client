@@ -14,6 +14,7 @@ import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
 import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/library_stats_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../library/pages/playlist_detail_page.dart';
@@ -56,6 +57,11 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 标题下方展示库总览计数（艺术家/专辑/歌曲/歌单）。
+    final countsText = ref
+        .watch(libraryCountsProvider)
+        .maybeWhen(data: (counts) => counts.format(), orElse: () => '');
+
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
       debugLabel: 'playlist_search_page',
@@ -65,6 +71,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
         topBar: MusicFlowTopBar.back(
           context: context,
           title: '所有歌单',
+          subtitle: countsText,
         ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

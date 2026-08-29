@@ -12,6 +12,7 @@ import '../../../features/player/widgets/song_options_sheet.dart';
 import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/song_list_item.dart';
@@ -88,6 +89,11 @@ class _SongListPageState extends ConsumerState<SongListPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 标题下方展示库总览计数（艺术家/专辑/歌曲/歌单）。
+    final countsText = ref
+        .watch(libraryCountsProvider)
+        .maybeWhen(data: (counts) => counts.format(), orElse: () => '');
+
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
       debugLabel: 'song_list_page',
@@ -97,6 +103,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
         topBar: MusicFlowTopBar.back(
           context: context,
           title: '所有歌曲',
+          subtitle: countsText,
           actions: <Widget>[
             if (_searchQuery.isEmpty)
               MusicFlowIconButton(

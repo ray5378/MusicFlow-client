@@ -37,6 +37,8 @@ class DiscoverSongTile extends StatelessWidget {
         moreSemanticLabel: '${song.title} 操作',
         // 歌名只占一行,过长截断,保证随机歌曲行高与参考稿一致。
         titleMaxLines: 1,
+        // 底部信息行：歌手 · 音质 · 码率 · 格式 · 大小 · 时长（时长挪到末尾）。
+        richMetadata: true,
       ),
     );
   }

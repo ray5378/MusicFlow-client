@@ -133,6 +133,9 @@ class MusicFlowTopBar extends StatelessWidget {
                         SizedBox(height: spacing.xxs),
                         Text(
                           subtitle!,
+                          // 副标题可能较长（库总览计数）：单行截断，避免撑高顶栏。
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: context.musicFlowTypography.metadata.copyWith(
                             color: colors.muted,
                           ),

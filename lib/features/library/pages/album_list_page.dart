@@ -12,6 +12,7 @@ import '../../../features/search/widgets/aggregate_search_results.dart';
 import '../../../features/search/widgets/entity_search_bar.dart';
 import '../../../features/search/widgets/search_result_card.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
@@ -59,13 +60,22 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 标题下方展示库总览计数（艺术家/专辑/歌曲/歌单）。
+    final countsText = ref
+        .watch(libraryCountsProvider)
+        .maybeWhen(data: (counts) => counts.format(), orElse: () => '');
+
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
       debugLabel: 'album_list_page',
       shouldRetry: (ref) => _list.hasError,
       onRetry: (ref) => _list.retry(),
       child: MusicFlowScaffold(
-        topBar: MusicFlowTopBar.back(context: context, title: '所有专辑'),
+        topBar: MusicFlowTopBar.back(
+          context: context,
+          title: '所有专辑',
+          subtitle: countsText,
+        ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[

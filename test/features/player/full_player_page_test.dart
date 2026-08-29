@@ -436,26 +436,23 @@ void main() {
 
     await tester.tap(find.text('打开播放器'));
     await tester.pumpAndSettle();
-    // 三页结构:[歌词(0) / 封面(1) / 信息(2)]。封面左滑进歌曲信息页。
+    // 三页结构:[信息(0) / 封面(1) / 歌词(2)]。封面左滑进歌词页。
     await tester.drag(
       find.byKey(const ValueKey<String>('full_player_cover')),
       const Offset(-500, 0),
     );
     await tester.pumpAndSettle();
-    expect(find.text('歌曲信息'), findsOneWidget);
+    expect(find.text('暂无歌词'), findsOneWidget);
 
-    // 右滑回封面页，再右滑进入歌词页。
-    await tester.drag(
-      find.byKey(const ValueKey<String>('full_player_song_info_page')),
-      const Offset(500, 0),
-    );
+    // 右滑回封面页，再右滑进入歌曲信息页。
+    await tester.drag(find.text('暂无歌词'), const Offset(500, 0));
     await tester.pumpAndSettle();
     await tester.drag(
       find.byKey(const ValueKey<String>('full_player_cover')),
       const Offset(500, 0),
     );
     await tester.pumpAndSettle();
-    expect(find.text('暂无歌词'), findsOneWidget);
+    expect(find.text('歌曲信息'), findsOneWidget);
 
     await tester.tap(find.byIcon(AppIcons.chevronDown));
     await tester.pump();
@@ -676,11 +673,11 @@ void main() {
     );
     await tester.pump();
 
-    // 「更多」按钮已从顶栏移除：左滑进信息页，从「歌曲操作」入口打开
+    // 「更多」按钮已从顶栏移除：右滑进歌曲信息页，从「歌曲操作」入口打开
     // 同一个操作面板（下一曲播放/添加到歌单/跳转歌手与专辑 全部保留）。
     await tester.drag(
       find.byKey(const ValueKey<String>('full_player_cover')),
-      const Offset(-500, 0),
+      const Offset(500, 0),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('歌曲操作'));

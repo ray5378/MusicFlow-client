@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/design/music_flow_design.dart';
+import '../core/utils/song_quality.dart';
 import '../data/models/song.dart';
 import 'music_flow_artwork.dart';
 import 'music_flow_metadata_line.dart';
@@ -33,6 +34,7 @@ class MusicFlowSongRow extends StatelessWidget {
     this.showMoreButton = true,
     this.titleMaxLines = 2,
     this.coverSize = 48,
+    this.richMetadata = false,
   });
 
   static const double _numberWidth = 36;
@@ -61,6 +63,10 @@ class MusicFlowSongRow extends StatelessWidget {
 
   /// 封面尺寸。默认 48；首页随机歌曲传 56 以匹配参考比例。
   final double coverSize;
+
+  /// 底部信息行是否用「歌手 · 音质 · 码率 · 格式 · 大小 · 时长」的丰富格式。
+  /// 默认 false（歌手 · 时长），仅首页随机歌曲开启。
+  final bool richMetadata;
 
   bool get _favorite => isFavorite ?? song.starred;
   bool get _preview => isPreview ?? song.isPreview;
@@ -197,8 +203,11 @@ class MusicFlowSongRow extends StatelessWidget {
         SizedBox(height: context.musicFlowSpacing.xxs),
         Flexible(
           child: MusicFlowMetadataLine(
-            items: <String?>[artistText, song.durationString],
-            maxLines: showFullText ? null : 2,
+            items: richMetadata
+                ? songMetadataParts(song, artistFallback: artistText)
+                : <String?>[artistText, song.durationString],
+            // 丰富信息行只占一行：过长截断，避免把随机歌曲行高撑开。
+            maxLines: showFullText ? null : (richMetadata ? 1 : 2),
           ),
         ),
         if (statusMarkers.isNotEmpty) ...<Widget>[
