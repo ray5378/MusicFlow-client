@@ -278,6 +278,14 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   DlnaCastNotifier(this._ref) : super(const DlnaCastState()) {
     final manager = _ref.read(dlnaManagerProvider);
+
+    // 用户手动清理 App（划掉任务）时释放客户端保活：由音频 handler 的
+    // onTaskRemoved 触发，避免划掉后仍在后台轮询/持唤醒锁/自动切歌。
+    final handler = _ref.read(playerProvider.notifier).audioHandler;
+    if (handler != null) {
+      handler.onTaskRemovedCallback = detachOnAppRemoved;
+    }
+
     manager.onStatusChanged = (status) {
       state = state.copyWith(
         status: status,
@@ -327,6 +335,17 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
           playing: false,
           position: Duration.zero,
         );
+  }
+
+  /// App 被用户手动清理（划掉任务）时释放「客户端保活」：停 500ms 平滑 tick、
+  /// 取消曲末心跳、释放唤醒锁、隐藏投屏通知，并停止管理器轮询/摘回调。
+  /// 不向设备发 STOP——设备把当前曲放完自然结束，客户端不再自动切歌。
+  Future<void> detachOnAppRemoved() async {
+    _stopTick();
+    _cancelHeartbeat();
+    releaseCastWakeLock();
+    _disableNotificationCast();
+    _ref.read(dlnaManagerProvider).detachClientKeepalive();
   }
 
   /// 把当前投屏队列/游标镜像进 playerProvider,让全屏页的曲目/封面/歌词

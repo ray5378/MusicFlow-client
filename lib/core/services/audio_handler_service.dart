@@ -24,6 +24,23 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   bool _castPlaying = true;
   Duration _castPosition = Duration.zero;
 
+  /// 用户手动从后台任务划掉 App 时的回调（由外部注册，如 DLNA 客户端释放保活）。
+  /// 本 handler 本身负责停掉本机播放；回调交上层处理投屏等对外资源。
+  Future<void> Function()? onTaskRemovedCallback;
+
+  /// 用户手动清理 App（从后台任务划掉）时触发：直接结束 App——
+  /// 停掉本机播放，让前台媒体服务随通知消失被回收；由于没有 START_STICKY
+  /// 前台服务可重启，进程随后即可被系统回收，不再后台保活/自动重启。
+  @override
+  Future<void> onTaskRemoved() async {
+    try {
+      await _audioPlayer.stop();
+    } catch (_) {}
+    try {
+      await onTaskRemovedCallback?.call();
+    } catch (_) {}
+  }
+
   MusicFlowAudioHandler(this._audioPlayer) {
     _init();
   }

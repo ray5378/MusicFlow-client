@@ -98,6 +98,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   AudioPlayer? _audioPlayer;
   MusicFlowAudioHandler? _audioHandler;
+
+  /// 当前音频处理器（后台服务中初始化）。供 DLNA 等注册「任务被手动清理」回调，
+  /// 以便在用户划掉 App 时释放各自的后台保活。
+  MusicFlowAudioHandler? get audioHandler => _audioHandler;
   StreamSubscription<NetworkType>? _networkTypeSubscription;
   final Random _random = Random();
   final List<ShuffleHistoryEntry> _shuffleBackHistory = <ShuffleHistoryEntry>[];

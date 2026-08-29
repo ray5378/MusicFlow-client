@@ -483,6 +483,18 @@ class DlnaManager {
     onCastDisconnected?.call();
   }
 
+  /// 手动清理 App 时释放「客户端保活」而不干预设备：停止状态轮询与曲末调度，
+  /// 并摘掉对外回调。设备继续把当前曲放完自然结束即可，客户端不再自动切下一首。
+  void detachClientKeepalive() {
+    _stopStatusPolling();
+    _endScheduler?.cancel();
+    _endScheduler = null;
+    _playSegmentStart = null;
+    onStatusChanged = null;
+    onTrackChanged = null;
+    onCastDisconnected = null;
+  }
+
   void _clearCastState() {
     _endScheduler?.cancel();
     _endScheduler = null;
