@@ -243,14 +243,12 @@ class SubsonicApiClient {
   /// 部分渲染器（尤其 OpenWrt 上的 GMediaRender）拉流时无法携带 Subsonic 的
   /// `u/t/s` 鉴权参数，客户端直接把带鉴权的 `/rest/stream?...` 交给设备会因
   /// 鉴权解析失败而无声。这里走主项目自定义 API `POST /rest/api/v1/dlna/stream-url`
-  /// （请求仍带 `u/t/s`，用于向服务端换 token），服务端返回**完整的、设备所在
-  /// 网络可达的** URL `<host>/rest/dlna/stream/:token`——该 URL 无鉴权，交给设备
-  /// 自拉流即可正常播放。
+  /// （请求仍带 `u/t/s`，用于向服务端换 token），换取一次性 token 后，再用客户端
+  /// **自身的 baseUrl** 拼出 `<baseUrl>/rest/dlna/stream/:token` —— 该 URL 无鉴权、
+  /// 公网可达，交给设备自拉流即可正常播放。
   ///
-  /// 主机由服务端 `getDlnaBaseUrl` 决定：经公网域名进入时回退到服务端自动探测的
-  /// 局域网 IP（同网段设备才能回连出声），经内网 IP/.local 进入时直接复用该 Host。
-  /// 客户端必须**原样使用**服务端返回的完整 URL，绝不能再用自己的公网域名重新
-  /// 拼接主机——否则设备拿到公网域名无法回连（表现即「同网段投屏无声」）。
+  /// 服务端只返回相对路径 `/rest/dlna/stream/:token`，由客户端拼接主机，这样即便
+  /// 服务端探测到的 baseUrl 是局域网 IP，设备也能通过客户端的公网域名拿到流。
   /// 换取失败时回退旧行为（返回带鉴权的 `/rest/stream` URL），保证投屏不中断。
   Future<String> getDlnaCastStreamUrl(
     String songId, {
@@ -263,13 +261,12 @@ class SubsonicApiClient {
         ApiConstants.dlnaStreamUrl,
         data: <String, dynamic>{'songId': songId},
       ) as Map<String, dynamic>;
-      final streamUrl = data['streamUrl'] as String?;
-      if (streamUrl == null || streamUrl.isEmpty) {
+      final path = data['streamUrl'] as String?;
+      if (path == null || path.isEmpty) {
         throw StateError('服务端未返回 streamUrl');
       }
-      // 直接使用服务端返回的完整 URL（含正确可达的主机），不要用 joinServerUrl
-      // 去拼客户端的 baseUrl。
-      return streamUrl;
+      final uri = Uri.parse(joinServerUrl(baseUrl, path));
+      return uri.toString();
     } catch (e) {
       Logger.warn('DLNA 无鉴权流获取失败，回退带鉴权流', e);
       return getStreamUrl(songId, maxBitRate: maxBitRate);
