@@ -154,40 +154,33 @@ void main() {
     expect(widget.currentPlayerName, '客厅音箱');
   });
 
-  testWidgets(
-    'progress spans the surface, sits at the bottom, and shares its clip',
-    (tester) async {
-      await tester.pumpWidget(appFor(view(state: playerState())));
-      await tester.pump();
+  testWidgets('progress ring wraps the cover and shares the surface clip', (
+    tester,
+  ) async {
+    await tester.pumpWidget(appFor(view(state: playerState())));
+    await tester.pump();
 
-      final surface = find.byKey(const Key('mini-player-surface'));
-      final progress = find.byKey(const Key('mini-player-progress'));
-      final surfaceRect = tester.getRect(surface);
-      final progressRect = tester.getRect(progress);
-      final progressBar = tester.widget<MusicFlowProgressBar>(progress);
-      final fraction = tester.widget<AnimatedFractionallySizedBox>(
-        find.descendant(
-          of: progress,
-          matching: find.byType(AnimatedFractionallySizedBox),
-        ),
-      );
-      final surfaceClip = find.ancestor(
-        of: progress,
-        matching: find.byKey(const Key('mini-player-surface-clip')),
-      );
-      final clip = tester.widget<ClipRRect>(surfaceClip);
+    // 封面外圈进度环（替代底部横向进度条）：50s/200s = 0.25。
+    final ring = find.byType(CircularProgressIndicator);
+    expect(ring, findsOneWidget);
+    final indicator = tester.widget<CircularProgressIndicator>(ring);
+    expect(indicator.value, closeTo(0.25, 0.001));
 
-      expect(progressRect.left, surfaceRect.left);
-      expect(progressRect.right, surfaceRect.right);
-      expect(progressRect.bottom, surfaceRect.bottom);
-      expect(surfaceClip, findsOneWidget);
-      expect(clip.borderRadius, tester.element(surface).musicFlowRadii.scene);
-      expect(clip.clipBehavior, isNot(Clip.none));
-      expect(progressBar.trackColor, Colors.transparent);
-      expect(fraction.alignment, Alignment.centerLeft);
-      expect(fraction.widthFactor, closeTo(0.25, 0.001));
-    },
-  );
+    // 环色随迷你条底色明暗取黑/白（浅底黑、深底白）。
+    final visuals = MusicFlowMediaVisuals.fallback(
+      seed: MusicFlowColors.contentTintFallback,
+    );
+    expect(indicator.color, MusicFlowColors.readableOn(visuals.miniSurface));
+
+    // 表面 clip 仍然存在并保持四边圆弧。
+    final surface = find.byKey(const Key('mini-player-surface'));
+    final surfaceClip = find.byKey(const Key('mini-player-surface-clip'));
+    final clip = tester.widget<ClipRRect>(surfaceClip);
+    expect(surfaceClip, findsOneWidget);
+    expect(clip.borderRadius, tester.element(surface).musicFlowRadii.scene);
+    expect(clip.clipBehavior, isNot(Clip.none));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('bright and dark visuals drive local player tokens', (
     tester,
@@ -210,8 +203,8 @@ void main() {
         find.textContaining(songs[1].title),
       );
       final playIcon = tester.widget<Icon>(find.byIcon(AppIcons.play));
-      final progress = tester.widget<MusicFlowProgressBar>(
-        find.byKey(const Key('mini-player-progress')),
+      final ring = tester.widget<CircularProgressIndicator>(
+        find.byType(CircularProgressIndicator),
       );
       final backdrop = tester.widget<MusicFlowPlayerBackdrop>(
         find.byType(MusicFlowPlayerBackdrop),
@@ -227,15 +220,12 @@ void main() {
       // 表面(miniSurface)做决定性对比:ink = readableOn(miniSurface);
       // accent = ensureColorContrast(controlAccent, miniSurface)。
       final ink = MusicFlowColors.readableOn(visuals.miniSurface);
-      final accent = MusicFlowColors.ensureColorContrast(
-        visuals.controlAccent,
-        background: visuals.miniSurface,
-      );
       final titleSpan = (title.textSpan as TextSpan).children!.first
           as TextSpan;
       expect(titleSpan.style?.color, ink);
       expect(playIcon.color, ink);
-      expect(progress.color, accent);
+      // 封面外圈进度环：浅底黑环、深底白环（与 readableOn 同规则）。
+      expect(ring.color, MusicFlowColors.readableOn(visuals.miniSurface));
       expect(backdrop.visuals, visuals);
       expect(backdrop.mode, MusicFlowPlayerBackdropMode.mini);
       expect(

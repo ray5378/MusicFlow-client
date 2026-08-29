@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/design/music_flow_design.dart';
 import '../core/utils/cover_ref_security.dart';
+import '../data/models/server_address.dart';
 import '../providers/api_provider.dart';
 
 class CoverArtImage extends ConsumerWidget {
@@ -25,7 +26,11 @@ class CoverArtImage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 监听活跃地址变化：地址池探测/切线路完成后 baseUrl 就绪，封面 URL 依赖
     // dio.options.baseUrl，必须随地址重建，否则首屏占位后永不刷新（30da0e7 回归）。
-    ref.watch(activeAddressProvider);
+    final address = ref.watch(activeAddressProvider);
+    // 冷启动地址探测未完成前不发起封面请求：等后台连接服务器成功
+    // （status=ok）后本组件随 provider 重建，再真正请求封面，避免冷启动时
+    // 一堆失败请求与占位闪变（SPEC §8.3「视口内才发起请求」的配套时机控制）。
+    final serverReady = address?.status == ServerAddressStatus.ok;
 
     final raw = coverArtId?.trim() ?? '';
     if (raw.isEmpty) {
@@ -41,6 +46,9 @@ class CoverArtImage extends ConsumerWidget {
         size: resolvedCoverSize,
       );
       if (proxiedUrl.isNotEmpty) {
+        if (!serverReady) {
+          return _buildPlaceholder(context, isLoading: true);
+        }
         return _buildNetworkImage(context, proxiedUrl);
       }
       return _buildPlaceholder(context);
@@ -59,6 +67,9 @@ class CoverArtImage extends ConsumerWidget {
     );
     if (coverUrl.isEmpty) {
       return _buildPlaceholder(context);
+    }
+    if (!serverReady) {
+      return _buildPlaceholder(context, isLoading: true);
     }
 
     return _buildNetworkImage(context, coverUrl);

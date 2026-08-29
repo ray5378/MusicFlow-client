@@ -461,6 +461,15 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       visuals,
       backgrounds: <Color>[visuals.miniSurface],
     );
+    // 封面外圈进度环：进度来自投屏/本机统一的 effective 播放进度；
+    // 环色随底色明暗取黑/白（浅底黑、深底白），与可读前景同规则。
+    final effectivePosition = ref.watch(effectivePositionProvider);
+    final effectiveDuration = ref.watch(effectiveDurationProvider);
+    final coverRingProgress = effectiveDuration.inMilliseconds > 0
+        ? (effectivePosition.inMilliseconds /
+              effectiveDuration.inMilliseconds)
+        : 0.0;
+    final coverRingColor = MusicFlowColors.readableOn(visuals.miniSurface);
 
     return MusicFlowMediaColorScope(
       visuals: visuals,
@@ -526,6 +535,8 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                                     showSubtitle: showSubtitle,
                                     lyricLine: widget.lyricLine,
                                     lyricAccent: lyricAccent,
+                                    coverRingProgress: coverRingProgress,
+                                    coverRingColor: coverRingColor,
                                   ),
                                 ),
                               ),
@@ -703,22 +714,8 @@ class _MiniPlayerProgressSurfaceState
             },
           ),
         ),
-        PositionedDirectional(
-          start: 0,
-          end: 0,
-          bottom: 0,
-          child: IgnorePointer(
-            child: ExcludeSemantics(
-              child: MusicFlowProgressBar(
-                key: const Key('mini-player-progress'),
-                value: displayedProgress,
-                height: 2,
-                color: context.musicFlowColors.accent,
-                trackColor: Colors.transparent,
-              ),
-            ),
-          ),
-        ),
+        // 底部横向进度条已移除：进度改为封面外圈进度环（见
+        // _MiniPlayerProgressRing），这里只保留拖拽手势层与气泡。
         if (_scrubbing)
           PositionedDirectional(
             start: context.musicFlowSpacing.sm,
@@ -752,6 +749,8 @@ class _MiniPlayerTrack extends StatelessWidget {
     required this.showSubtitle,
     this.lyricLine,
     required this.lyricAccent,
+    required this.coverRingProgress,
+    required this.coverRingColor,
   });
 
   final Song? song;
@@ -761,6 +760,10 @@ class _MiniPlayerTrack extends StatelessWidget {
 
   /// 歌词高亮色：与大屏歌词页同源自适应暖黄。
   final Color lyricAccent;
+
+  /// 封面外圈进度环：0~1 播放进度（浅底黑环、深底白环）。
+  final double coverRingProgress;
+  final Color coverRingColor;
 
   @override
   Widget build(BuildContext context) {
@@ -777,7 +780,20 @@ class _MiniPlayerTrack extends StatelessWidget {
     final lyric = lyricLine?.trim().isNotEmpty == true
         ? lyricLine!.trim()
         : null;
-    final cover = _MiniPlayerCover(song: song);
+    final coverInner = _MiniPlayerCover(song: song);
+    // Hero 只包封面本体，进度环作为外层包装不参与飞行过渡。
+    final coverHero = useHero
+        ? Hero(
+            tag: playerCoverHeroTag,
+            createRectTween: playerCoverRectTween,
+            child: coverInner,
+          )
+        : coverInner;
+    final cover = _MiniPlayerProgressRing(
+      progress: coverRingProgress,
+      color: coverRingColor,
+      child: coverHero,
+    );
     final title = _MiniPlayerTitle(
       song: song,
       showArtist: showSubtitle,
@@ -786,14 +802,7 @@ class _MiniPlayerTrack extends StatelessWidget {
 
     return Row(
       children: <Widget>[
-        if (useHero)
-          Hero(
-            tag: playerCoverHeroTag,
-            createRectTween: playerCoverRectTween,
-            child: cover,
-          )
-        else
-          cover,
+        cover,
         SizedBox(width: context.musicFlowSpacing.sm),
         Expanded(
           child: Column(
@@ -888,6 +897,57 @@ class _MiniPlayerCover extends StatelessWidget {
           fit: BoxFit.cover,
           semanticLabel: '${song.title} 封面',
         ),
+      ),
+    );
+  }
+}
+
+/// 封面外圈播放进度环：替代底部横向进度条（对齐箭头音乐）。
+///
+/// 环色由底色明暗决定：浅底黑环、深底白环（与 [MusicFlowColors.readableOn]
+/// 同规则），保证任意封面上都清晰可见。
+class _MiniPlayerProgressRing extends StatelessWidget {
+  const _MiniPlayerProgressRing({
+    required this.progress,
+    required this.color,
+    required this.child,
+  });
+
+  final double progress;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // 封面 44 + 两侧各 3 的环留白 = 50。
+    const double ringDimension = 50;
+    const double coverDimension = 44;
+    final normalized = progress.clamp(0.0, 1.0).toDouble();
+    return SizedBox.square(
+      dimension: ringDimension,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          SizedBox.square(
+            dimension: ringDimension,
+            child: Semantics(
+              label: '播放进度 ${(normalized * 100).round()}%',
+              child: ExcludeSemantics(
+                child: CircularProgressIndicator(
+                  value: normalized,
+                  strokeWidth: 2,
+                  // 底色用同色低透明度做轨道，让环在任意底色上都可辨认。
+                  backgroundColor: color.withValues(alpha: 0.18),
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+          SizedBox.square(
+            dimension: coverDimension,
+            child: child,
+          ),
+        ],
       ),
     );
   }

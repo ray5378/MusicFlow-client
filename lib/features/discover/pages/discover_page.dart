@@ -205,9 +205,28 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             // KeyedSubtree 保证分区顺序变化时各分区(尤其状态型 RandomSongsSection)状态稳定。
                             itemBuilder: (context, index) {
                               final key = visibleSectionKeys[index];
-                              return KeyedSubtree(
+                              final child = KeyedSubtree(
                                 key: ValueKey<String>('home-section-$key'),
                                 child: sectionWidgets[key]!,
+                              );
+                              // 按参考稿精确位移（负内边距只上移视觉位置，
+                              // 由分区自身的 padding 兜底，不产生重叠）：
+                              // - 随机歌曲整体上移 5px；
+                              // - 最近更新的歌单上移 10px（其下区块自然跟随）。
+                              final topInset = switch (key) {
+                                'random-songs' => -5.0,
+                                'recent-playlists' => -6.0,
+                                _ => 0.0,
+                              };
+                              final bottomInset = key == 'random-songs'
+                                  ? -4.0
+                                  : 0.0;
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  top: topInset,
+                                  bottom: bottomInset,
+                                ),
+                                child: child,
                               );
                             },
                             // 模块间距对齐箭头音乐（更紧凑）。
