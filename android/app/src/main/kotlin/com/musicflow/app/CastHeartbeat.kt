@@ -82,7 +82,8 @@ object CastHeartbeat {
         // 无法作为后台曲末兜底；只有 setAlarmClock 是安卓保证准点的闹钟。不需要
         // SCHEDULE_EXACT_ALARM 权限。副作用：状态栏/锁屏会短暂显示「闹钟于 HH:MM 响」。
         val showPi = showPendingIntent(context)
-        am.setAlarmClock(AlarmManager.RTC_WAKEUP, trigger, showPi, pi)
+        val alarmInfo = AlarmManager.AlarmClockInfo(trigger, showPi)
+        am.setAlarmClock(alarmInfo, pi)
         val e = "arm.alarmClock"
         // 全量诊断：请求时刻 vs 实际触发时刻 + 距当前毫秒数 + 偏差。
         Log.i(
