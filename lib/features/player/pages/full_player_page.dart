@@ -430,15 +430,15 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   Widget _buildWideDetailsPane(Song song, {required String subtitle}) {
     final typography = context.musicFlowTypography;
-    // 大屏(Windows)下歌名与歌手名双倍放大，颜色与播放控件(进度条)
-    // 取色一致，统一用媒体强调色 accent。
+    // 歌名取色与 MINI 播放器歌名一致：媒体作用域 ink（= visuals.foreground，
+    // 随封面前景自动取色）；副标题用 muted，与 MINI「歌名 - 歌手」的层级一致。
     final titleStyle = typography.headline.copyWith(
       fontSize: (typography.headline.fontSize ?? 19) * 2,
-      color: context.musicFlowColors.accent,
+      color: context.musicFlowColors.ink,
     );
     final subtitleStyle = typography.body.copyWith(
       fontSize: (typography.body.fontSize ?? 13) * 2,
-      color: context.musicFlowColors.accent,
+      color: context.musicFlowColors.muted,
     );
 
     return Center(
