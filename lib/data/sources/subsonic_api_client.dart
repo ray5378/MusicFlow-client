@@ -7,6 +7,14 @@ import '../../core/utils/subsonic_auth.dart';
 import '../../core/utils/logger.dart';
 import '../models/music_library.dart';
 
+/// DLNA 流 URL 容噪清洗。
+/// 部分共享反向代理 / 服务端返回的 URL 可能把 `&` 转义成 `&amp;`(可无限嵌套,
+/// 如 `&amp;amp;`),在把 URL 交给设备自拉流前先把 `&(amp;)+` 还原成单个 `&`,
+/// 让设备拿到干净的流地址(与服务器端 parseLenientQuery 两端呼应)。
+String sanitizeDlnaStreamUrl(String url) {
+  return url.replaceAll(RegExp(r'&(amp;)+', caseSensitive: false), '&');
+}
+
 /// Subsonic API Client
 /// Updated to support MusicLibrary model and injected Dio.
 class SubsonicApiClient {
@@ -265,11 +273,15 @@ class SubsonicApiClient {
       if (path == null || path.isEmpty) {
         throw StateError('服务端未返回 streamUrl');
       }
-      final uri = Uri.parse(joinServerUrl(baseUrl, path));
-      return uri.toString();
+      final url = sanitizeDlnaStreamUrl(joinServerUrl(baseUrl, path));
+      return Uri.parse(url).toString();
     } catch (e) {
-      Logger.warn('DLNA 无鉴权流获取失败，回退带鉴权流', e);
-      return getStreamUrl(songId, maxBitRate: maxBitRate);
+      // 不再回退为带 u/t/s 鉴权参数的 /rest/stream URL 下发设备:这类 query 鉴权 URL
+      // 正是渲染器(如 GMediaRender)拉流失败、反向代理再把 `&` 转成 `&amp;` 时服务端
+      // 鉴权解析失败的根因。直接抛错,由上层把投屏标记失败,避免「看似在播实则无声」
+      // 的假象。
+      Logger.warn('DLNA 无鉴权流获取失败(投屏将终止)', e);
+      rethrow;
     }
   }
 
