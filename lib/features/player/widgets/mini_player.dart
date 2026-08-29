@@ -461,13 +461,12 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       visuals,
       backgrounds: <Color>[visuals.miniSurface],
     );
-    // 封面外圈进度环：进度来自投屏/本机统一的 effective 播放进度；
-    // 环色随底色明暗取黑/白（浅底黑、深底白），与可读前景同规则。
-    final effectivePosition = ref.watch(effectivePositionProvider);
-    final effectiveDuration = ref.watch(effectiveDurationProvider);
-    final coverRingProgress = effectiveDuration.inMilliseconds > 0
-        ? (effectivePosition.inMilliseconds /
-              effectiveDuration.inMilliseconds)
+    // 封面外圈进度环：进度与进度层同源（_playerState 的 position/duration
+    // 由外层用 effective provider 填充）；环色随底色明暗取黑/白
+    // （浅底黑、深底白），与可读前景同规则。
+    final coverRingProgress = _playerState.duration.inMilliseconds > 0
+        ? (_playerState.position.inMilliseconds /
+              _playerState.duration.inMilliseconds)
         : 0.0;
     final coverRingColor = MusicFlowColors.readableOn(visuals.miniSurface);
 
