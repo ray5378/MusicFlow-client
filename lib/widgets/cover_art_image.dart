@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,7 +8,18 @@ import '../core/utils/cover_ref_security.dart';
 import '../data/models/server_address.dart';
 import '../providers/api_provider.dart';
 
-class CoverArtImage extends ConsumerWidget {
+/// 网络封面图。
+///
+/// 冷启动兜底刷新策略（三层）：
+/// 1. **就绪兜底**：地址探测未完成（status != ok）不发起请求，等后台连接
+///    服务器成功后组件随 `activeAddressProvider` 重建再请求，避免冷启动
+///    一堆失败请求与占位闪变（SPEC §8.3 时机控制配套）。
+/// 2. **失败自动重试**：单次加载失败后指数退避重试（1s / 2s，共 3 次尝试），
+///    用带尝试次数的 key 强制重新请求，覆盖服务器刚就绪 / 线路切换 /
+///    偶发网络抖动导致的封面不稳定。
+/// 3. **地址/封面变化重置**：URL 变化（切线路导致 baseUrl 变化、封面 id
+///    变化）时重置重试计数，保证新地址的封面不被旧失败状态锁死。
+class CoverArtImage extends ConsumerStatefulWidget {
   final String? coverArtId;
   final double? size;
   final int? requestSize;
@@ -23,51 +36,80 @@ class CoverArtImage extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CoverArtImage> createState() => _CoverArtImageState();
+}
+
+class _CoverArtImageState extends ConsumerState<CoverArtImage> {
+  /// 最大尝试次数：首次 + 2 次重试。
+  static const int _maxAttempts = 3;
+  int _attempt = 0;
+  Timer? _retryTimer;
+  String? _lastUrl;
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 加载失败：未到上限则指数退避（1s / 2s）后重试一次。
+  void _scheduleRetry() {
+    if (!mounted || _attempt >= _maxAttempts - 1) return;
+    final delay = Duration(seconds: 1 << _attempt);
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() => _attempt += 1);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // 监听活跃地址变化：地址池探测/切线路完成后 baseUrl 就绪，封面 URL 依赖
     // dio.options.baseUrl，必须随地址重建，否则首屏占位后永不刷新（30da0e7 回归）。
     final address = ref.watch(activeAddressProvider);
     // 冷启动地址探测未完成前不发起封面请求：等后台连接服务器成功
-    // （status=ok）后本组件随 provider 重建，再真正请求封面，避免冷启动时
-    // 一堆失败请求与占位闪变（SPEC §8.3「视口内才发起请求」的配套时机控制）。
+    // （status=ok）后本组件随 provider 重建，再真正请求封面。
     final serverReady = address?.status == ServerAddressStatus.ok;
 
-    final raw = coverArtId?.trim() ?? '';
+    final raw = widget.coverArtId?.trim() ?? '';
     if (raw.isEmpty) {
-      return _buildPlaceholder(context);
-    }
-
-    final trustedCoverUrl = extractTrustedCoverUrl(raw);
-    if (trustedCoverUrl != null) {
-      final apiClient = ref.watch(subsonicApiClientProvider);
-      final resolvedCoverSize = _resolveCoverSize(context);
-      final proxiedUrl = apiClient.getCoverArtUrl(
-        trustedCoverUrl,
-        size: resolvedCoverSize,
-      );
-      if (proxiedUrl.isNotEmpty) {
-        if (!serverReady) {
-          return _buildPlaceholder(context, isLoading: true);
-        }
-        return _buildNetworkImage(context, proxiedUrl);
-      }
-      return _buildPlaceholder(context);
-    }
-
-    final safeCoverArtId = sanitizeServerCoverArtId(raw);
-    if (safeCoverArtId == null) {
       return _buildPlaceholder(context);
     }
 
     final apiClient = ref.watch(subsonicApiClientProvider);
     final resolvedCoverSize = _resolveCoverSize(context);
-    final coverUrl = apiClient.getCoverArtUrl(
-      safeCoverArtId,
-      size: resolvedCoverSize,
-    );
-    if (coverUrl.isEmpty) {
+    String? coverUrl;
+
+    final trustedCoverUrl = extractTrustedCoverUrl(raw);
+    if (trustedCoverUrl != null) {
+      coverUrl = apiClient.getCoverArtUrl(
+        trustedCoverUrl,
+        size: resolvedCoverSize,
+      );
+    } else {
+      final safeCoverArtId = sanitizeServerCoverArtId(raw);
+      if (safeCoverArtId == null) {
+        return _buildPlaceholder(context);
+      }
+      coverUrl = apiClient.getCoverArtUrl(
+        safeCoverArtId,
+        size: resolvedCoverSize,
+      );
+    }
+
+    if (coverUrl == null || coverUrl.isEmpty) {
       return _buildPlaceholder(context);
     }
+
+    // URL 变化（切线路 / 换封面）：重置重试计数，让新地址的封面立即重试，
+    // 不被旧地址的失败状态锁死。
+    if (_lastUrl != coverUrl) {
+      _lastUrl = coverUrl;
+      _attempt = 0;
+      _retryTimer?.cancel();
+    }
+
     if (!serverReady) {
       return _buildPlaceholder(context, isLoading: true);
     }
@@ -76,13 +118,13 @@ class CoverArtImage extends ConsumerWidget {
   }
 
   int _resolveCoverSize(BuildContext context) {
-    if (requestSize != null && requestSize! > 0) {
-      return requestSize!;
+    if (widget.requestSize != null && widget.requestSize! > 0) {
+      return widget.requestSize!;
     }
 
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    if (size != null && !size!.isInfinite) {
-      return (size! * devicePixelRatio).ceil();
+    if (widget.size != null && !widget.size!.isInfinite) {
+      return (widget.size! * devicePixelRatio).ceil();
     }
     return 500;
   }
@@ -91,13 +133,16 @@ class CoverArtImage extends ConsumerWidget {
     BuildContext context,
     String imageUrl,
   ) {
-    final loadedLabel = semanticLabel ?? '专辑封面';
+    final loadedLabel = widget.semanticLabel ?? '专辑封面';
     return RepaintBoundary(
       child: Image.network(
         imageUrl,
-        width: size,
-        height: size,
-        fit: fit,
+        // 带尝试次数的 key：重试时强制重建并重新发起网络请求
+        // （ImageCache 失败不缓存，同 key 不会自动重发）。
+        key: ValueKey<String>('$imageUrl#$_attempt'),
+        width: widget.size,
+        height: widget.size,
+        fit: widget.fit,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (frame == null) {
             return _buildPlaceholder(
@@ -112,12 +157,17 @@ class CoverArtImage extends ConsumerWidget {
             child: ExcludeSemantics(child: child),
           );
         },
-        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(
-          context,
-          accessibilityLabel: semanticLabel == null
-              ? '暂无封面'
-              : '$semanticLabel，不可用',
-        ),
+        errorBuilder: (context, error, stackTrace) {
+          // 失败自动重试兜底：指数退避后重发，覆盖服务器刚就绪/线路
+          // 切换/偶发网络抖动导致的封面不稳定。
+          _scheduleRetry();
+          return _buildPlaceholder(
+            context,
+            accessibilityLabel: widget.semanticLabel == null
+                ? '封面加载失败，自动重试中'
+                : '${widget.semanticLabel}，封面加载失败',
+          );
+        },
       ),
     );
   }
@@ -130,8 +180,8 @@ class CoverArtImage extends ConsumerWidget {
   }) {
     final bgColor = context.musicFlowColors.raised;
     final placeholder = SizedBox(
-      width: size,
-      height: size,
+      width: widget.size,
+      height: widget.size,
       child: isLoading
           ? _buildLoadingSkeleton()
           : ColoredBox(
@@ -151,7 +201,8 @@ class CoverArtImage extends ConsumerWidget {
     return Semantics(
       image: true,
       label:
-          accessibilityLabel ?? (isLoading ? '封面加载中' : semanticLabel ?? '暂无封面'),
+          accessibilityLabel ??
+          (isLoading ? '封面加载中' : widget.semanticLabel ?? '暂无封面'),
       child: ExcludeSemantics(child: placeholder),
     );
   }
@@ -168,8 +219,8 @@ class CoverArtImage extends ConsumerWidget {
         final fallbackExtent = boundedWidth ?? boundedHeight ?? 48.0;
 
         return MusicFlowSkeleton(
-          width: size ?? boundedWidth ?? fallbackExtent,
-          height: size ?? boundedHeight ?? fallbackExtent,
+          width: widget.size ?? boundedWidth ?? fallbackExtent,
+          height: widget.size ?? boundedHeight ?? fallbackExtent,
           borderRadius: BorderRadius.zero,
         );
       },
@@ -177,9 +228,9 @@ class CoverArtImage extends ConsumerWidget {
   }
 
   double? _getIconSize() {
-    if (size == null || size!.isInfinite) {
+    if (widget.size == null || widget.size!.isInfinite) {
       return 48;
     }
-    return size! * 0.5;
+    return widget.size! * 0.5;
   }
 }

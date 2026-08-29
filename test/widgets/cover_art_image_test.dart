@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
@@ -104,6 +105,18 @@ Widget scopeWithBoundClient({required Widget child}) {
     overrides: <Override>[
       activeLibraryProvider.overrideWithValue(library),
       subsonicApiClientProvider.overrideWithValue(client),
+      // 模拟后台连接服务器成功：CoverArtImage 冷启动时机控制要求
+      // activeAddress.status == ok 才真正发起封面请求。
+      activeAddressProvider.overrideWith(
+        (ref) => ServerAddress(
+          id: 'addr-ok',
+          libraryId: library.id,
+          label: '测试地址',
+          url: 'https://music.example.test',
+          priority: 0,
+          status: ServerAddressStatus.ok,
+        ),
+      ),
     ],
     child: child,
   );
@@ -112,6 +125,18 @@ Widget scopeWithBoundClient({required Widget child}) {
 void main() {
   Widget buildSubject(String? coverArtId) {
     return ProviderScope(
+      overrides: <Override>[
+        activeAddressProvider.overrideWith(
+          (ref) => ServerAddress(
+            id: 'addr-ok',
+            libraryId: 'library-cover',
+            label: '测试地址',
+            url: 'https://music.example.test',
+            priority: 0,
+            status: ServerAddressStatus.ok,
+          ),
+        ),
+      ],
       child: MaterialApp(
         home: Scaffold(
           body: Center(child: CoverArtImage(coverArtId: coverArtId, size: 48)),
