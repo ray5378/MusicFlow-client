@@ -257,7 +257,13 @@ class SubsonicApiClient {
   ///
   /// 服务端只返回相对路径 `/rest/dlna/stream/:token`，由客户端拼接主机，这样即便
   /// 服务端探测到的 baseUrl 是局域网 IP，设备也能通过客户端的公网域名拿到流。
-  /// 换取失败时回退旧行为（返回带鉴权的 `/rest/stream` URL），保证投屏不中断。
+  ///
+  /// ⚠️ 外网直投的服务器地址必须用明文 `http`，不要用 `https`：大量 DLNA 渲染器
+  /// （尤其 OpenWrt 上的 GMediaRender/GStreamer 精简构建）没有 TLS 栈，拿到 `https`
+  /// 的流 URL 会直接拒拉流——一次 GET 都不发、卡在 TRANSITIONING 且无声。流 URL 与
+  /// 客户端服务器地址共用同一个 baseUrl，因此只要把服务器配成 `http://域名:端口`（并
+  /// 保证该 http 端点公网可达），设备即用 http 拉流，无需改任何投屏代码。仅当机型
+  /// 明确必须 https 时才需要单独处理。换取/下发失败时直接抛错，由上层把投屏标记失败。
   Future<String> getDlnaCastStreamUrl(
     String songId, {
     int? maxBitRate,
