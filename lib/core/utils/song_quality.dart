@@ -45,18 +45,13 @@ String? songFileSizeLabel(Song song) {
   return '$size B';
 }
 
-/// 歌曲信息行的分段文本：`歌手 · 音质 · 码率 · 格式 · 大小 · 时长`。
+/// 歌曲刮削标签分段：`音质 · 码率 · 格式 · 大小 · 时长`。
 ///
-/// 缺失字段自动跳过（对齐「没有要自动隐藏标签」的约定）。时长固定放末尾，
-/// 不再紧跟歌手——避免与新补齐的音质信息重复。
-List<String?> songMetadataParts(
-  Song song, {
-  String artistFallback = '-',
-}) {
+/// 歌手不在这里——随机歌曲信息区改为 3 行（歌名 / 歌手 / 本标签行），
+/// 由行组件单独渲染歌手。缺失字段自动跳过（对齐「没有要自动隐藏标签」），
+/// 时长固定放末尾。
+List<String?> songMetadataParts(Song song) {
   final parts = <String?>[];
-
-  final artist = song.artist?.trim();
-  parts.add(artist != null && artist.isNotEmpty ? artist : artistFallback);
 
   final quality = songQualityLabel(song);
   if (quality != null) parts.add(quality);

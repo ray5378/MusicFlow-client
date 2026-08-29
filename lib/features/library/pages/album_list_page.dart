@@ -60,10 +60,10 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 标题下方展示库总览计数（艺术家/专辑/歌曲/歌单）。
+    // 标题下方只显示本页对应的计数（共多少张专辑）。
     final countsText = ref
         .watch(libraryCountsProvider)
-        .maybeWhen(data: (counts) => counts.format(), orElse: () => '');
+        .maybeWhen(data: (counts) => counts.albumsLabel ?? '', orElse: () => '');
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,

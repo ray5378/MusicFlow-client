@@ -40,6 +40,15 @@ class LibraryCounts {
       if (playlistCount != null) '$playlistCount 个歌单',
     ].join(' · ');
   }
+
+  /// 单维度标签：库页面只显示本页对应类型的计数（null 表示该维度缺失）。
+  String? get artistsLabel =>
+      artistCount == null ? null : '共 $artistCount 名艺人';
+  String? get albumsLabel =>
+      albumCount == null ? null : '共 $albumCount 张专辑';
+  String? get songsLabel => songCount == null ? null : '共 $songCount 首歌曲';
+  String? get playlistsLabel =>
+      playlistCount == null ? null : '共 $playlistCount 个歌单';
 }
 
 /// 库总览计数。非 autoDispose：五个库页面共用一份结果，切库时自动重算。

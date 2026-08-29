@@ -25,19 +25,20 @@ class DiscoverSongTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 行高与封面等高(56)：信息区 3 行（歌名/歌手/刮削标签）正好填满。
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 64),
+      constraints: const BoxConstraints(minHeight: 56),
       child: MusicFlowSongRow(
         song: song,
         coverSize: 56,
-        contentPadding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xxs),
+        contentPadding: EdgeInsets.zero,
         onPressed: onPressed,
         onLongPress: onLongPress ?? onOpenActions,
         onMorePressed: onOpenActions,
         moreSemanticLabel: '${song.title} 操作',
         // 歌名只占一行,过长截断,保证随机歌曲行高与参考稿一致。
         titleMaxLines: 1,
-        // 底部信息行：歌手 · 音质 · 码率 · 格式 · 大小 · 时长（时长挪到末尾）。
+        // 信息区 3 行：歌名 / 歌手 / 刮削标签（音质·码率·格式·大小·时长）。
         richMetadata: true,
       ),
     );

@@ -184,6 +184,8 @@ class MusicFlowSongRow extends StatelessWidget {
     // 「紧凑三行带」)时,二者在有界高度内分配空间并收缩换行,超高部分被裁剪/
     // 省略,**不再触发 RenderFlex 溢出**;在常规无界高度列表里 Flexible(loose)
     // 仍取自然高度,行为与之前一致。
+    // 随机歌曲（richMetadata）信息区为 3 行：歌名 / 歌手 / 刮削标签，
+    // 整体高度与封面（56）等高；常规列表保持 title + metadata 两行。
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,11 +202,25 @@ class MusicFlowSongRow extends StatelessWidget {
             ),
           ),
         ),
+        if (richMetadata) ...<Widget>[
+          SizedBox(height: context.musicFlowSpacing.xxs),
+          // 第 2 行：歌手（单行截断）。
+          Flexible(
+            child: Text(
+              artistText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.musicFlowTypography.metadata.copyWith(
+                color: context.musicFlowColors.muted,
+              ),
+            ),
+          ),
+        ],
         SizedBox(height: context.musicFlowSpacing.xxs),
         Flexible(
           child: MusicFlowMetadataLine(
             items: richMetadata
-                ? songMetadataParts(song, artistFallback: artistText)
+                ? songMetadataParts(song)
                 : <String?>[artistText, song.durationString],
             // 丰富信息行只占一行：过长截断，避免把随机歌曲行高撑开。
             maxLines: showFullText ? null : (richMetadata ? 1 : 2),

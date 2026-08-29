@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/repositories/music_repository.dart';
 import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/song_list_item.dart';
@@ -35,14 +34,8 @@ class StarredPage extends ConsumerWidget {
     final total = value == null
         ? null
         : value.songs.length + value.albums.length + value.artists.length;
-    // 标题下方：收藏数 + 库总览计数（艺术家/专辑/歌曲/歌单）。
-    final countsText = ref
-        .watch(libraryCountsProvider)
-        .maybeWhen(data: (counts) => counts.format(), orElse: () => '');
-    final subtitleText = <String>[
-      if (total != null) '$total 项收藏',
-      if (countsText.isNotEmpty) countsText,
-    ].join(' · ');
+    // 标题下方只显示收藏总数。
+    final subtitleText = total == null ? null : '$total 项收藏';
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
@@ -62,7 +55,7 @@ class StarredPage extends ConsumerWidget {
                   MusicFlowTopBar.back(
                     context: tabContext,
                     title: '收藏夹',
-                    subtitle: subtitleText.isEmpty ? null : subtitleText,
+                    subtitle: subtitleText,
                   ),
                   _StarredTabStrip(controller: controller),
                   const MusicFlowDivider(),

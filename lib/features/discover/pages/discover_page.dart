@@ -629,11 +629,11 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
     if (songs.isEmpty) return const SizedBox.shrink();
 
     final columnCount = (songs.length + 2) ~/ 3;
-    // 每列最多 3 行。参考箭头音乐把随机歌曲整体改紧凑:
-    // 行高最小约束 64 + 两处 2px 行距,再留少量余量兜底。
-    const double tileRowMinHeight = 64;
+    // 每列最多 3 行。行高与封面等高(56):信息区 3 行(歌名/歌手/标签)
+    // 正好塞进 56 高,行距 2px,再留少量余量兜底。
+    const double tileRowMinHeight = 56;
     const double rowGap = 2;
-    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 206
+    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 182
 
     return ClipRect(
       child: SizedBox(
@@ -783,7 +783,7 @@ class _RandomSongsLoading extends StatelessWidget {
     final itemWidth =
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
     // 高度与数据态 _buildSongsContent 保持一致,避免「加载态→数据态」跳变。
-    const double skeletonColumnHeight = 206;
+    const double skeletonColumnHeight = 182;
     return ClipRect(
       child: SizedBox(
         height: skeletonColumnHeight,
@@ -829,11 +829,9 @@ class _RandomSongTileSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 64),
+      constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: context.musicFlowSpacing.xxs,
-        ),
+        padding: EdgeInsets.zero,
           child: Row(
             children: <Widget>[
               const MusicFlowSkeleton(width: 56, height: 56),
