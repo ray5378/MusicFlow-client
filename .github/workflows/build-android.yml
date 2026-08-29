@@ -68,8 +68,24 @@ jobs:
       # 已在 music_flow_message.dart 修复）用完整 `flutter test` 校验。仓库仍有其他
       # 与本次无关的历史失败用例（CI 过往从未跑测试），故这里先聚焦本特性。
       # device_description_test.dart 回归「能发现设备但投屏失败」的控制 URL 解析错误。
+      # 三条投屏/保活链路回归：
+      #   · 链路 A（切换播放器）：test/providers/cast_peer_provider_test.dart
+      #   · 链路 B（局域网 DLNA 直投）：test/providers/dlna_provider_test.dart
+      #     + test/core/dlna/dlna_auto_next_sim_test.dart（曲末看门狗续播）
+      #   · 客户端保活：test/core/dlna/dlna_keepalive_test.dart（引用计数）
+      #     + test/core/services/audio_handler_service_test.dart（本机音频前台媒体会话）
       - name: Run DLNA feature tests
-        run: flutter test test/core/dlna/dlna_models_test.dart test/core/dlna/device_description_test.dart test/features/player/local_dlna_cast_sheet_test.dart test/core/utils/toast_notifier_test.dart
+        run: >-
+          flutter test
+          test/core/dlna/dlna_models_test.dart
+          test/core/dlna/device_description_test.dart
+          test/core/dlna/dlna_keepalive_test.dart
+          test/core/dlna/dlna_auto_next_sim_test.dart
+          test/features/player/local_dlna_cast_sheet_test.dart
+          test/core/utils/toast_notifier_test.dart
+          test/core/services/audio_handler_service_test.dart
+          test/providers/cast_peer_provider_test.dart
+          test/providers/dlna_provider_test.dart
 
   build-android:
     name: Android APK

@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../core/dlna/dlna_keepalive.dart';
 import '../core/dlna/dlna_manager.dart';
 import '../core/utils/logger.dart';
 import '../core/dlna/dlna_models.dart';
@@ -19,13 +20,15 @@ const MethodChannel _dlnaPlatformChannel = MethodChannel(
   'com.musicflow.app/dlna',
 );
 
-int _multicastLockRefs = 0;
-int _wakeLockRefs = 0;
+/// 直投后台保活引用计数（纯 Dart，见 DlnaKeepaliveController）。
+/// 0→1 才向原生挂锁、1→0 才向原生摘锁，重叠加/减不重复调用原生。
+final DlnaKeepaliveController _keepalive = DlnaKeepaliveController();
 
 /// 持有 Wi-Fi 多播锁（SSDP 需要；引用计数防重叠释放）。仅 Android、幂等。
 Future<void> acquireMulticastLock() async {
   if (!Platform.isAndroid) return;
-  _multicastLockRefs++;
+  final needsHold = _keepalive.acquireMulticastLock();
+  if (!needsHold) return; // 已持有，引用数增加即可，不重复 acquire
   try {
     await _dlnaPlatformChannel.invokeMethod('acquireMulticastLock');
   } catch (_) {
@@ -36,12 +39,11 @@ Future<void> acquireMulticastLock() async {
 /// 释放 Wi-Fi 多播锁（引用计数归零才真正释放）。仅 Android、幂等。
 Future<void> releaseMulticastLock() async {
   if (!Platform.isAndroid) return;
-  if (_multicastLockRefs > 0) _multicastLockRefs--;
-  if (_multicastLockRefs == 0) {
-    try {
-      await _dlnaPlatformChannel.invokeMethod('releaseMulticastLock');
-    } catch (_) {}
-  }
+  final needRelease = _keepalive.releaseMulticastLock();
+  if (!needRelease) return; // 引用数仍在 1 之上，不真正释放
+  try {
+    await _dlnaPlatformChannel.invokeMethod('releaseMulticastLock');
+  } catch (_) {}
 }
 
 /// 持有 PARTIAL WakeLock（直投后台保活）：屏幕熄灭 / Doze 下 CPU 仍保持活跃，
@@ -49,7 +51,8 @@ Future<void> releaseMulticastLock() async {
 /// 引用计数防重叠释放。仅 Android、幂等。
 Future<void> acquireCastWakeLock() async {
   if (!Platform.isAndroid) return;
-  _wakeLockRefs++;
+  final needsHold = _keepalive.acquireWakeLock();
+  if (!needsHold) return; // 已持有，引用数增加即可，不重复 acquire
   try {
     await _dlnaPlatformChannel.invokeMethod('acquireWakeLock');
   } catch (_) {}
@@ -58,12 +61,11 @@ Future<void> acquireCastWakeLock() async {
 /// 释放 PARTIAL WakeLock（引用计数归零才真正释放）。仅 Android、幂等。
 Future<void> releaseCastWakeLock() async {
   if (!Platform.isAndroid) return;
-  if (_wakeLockRefs > 0) _wakeLockRefs--;
-  if (_wakeLockRefs == 0) {
-    try {
-      await _dlnaPlatformChannel.invokeMethod('releaseWakeLock');
-    } catch (_) {}
-  }
+  final needRelease = _keepalive.releaseWakeLock();
+  if (!needRelease) return; // 引用数仍在 1 之上，不真正释放
+  try {
+    await _dlnaPlatformChannel.invokeMethod('releaseWakeLock');
+  } catch (_) {}
 }
 
 /// 后台投屏续播的前置权限/豁免（幂等、全静默失败降级，不阻断投屏）：
