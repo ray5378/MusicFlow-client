@@ -630,10 +630,10 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
 
     final columnCount = (songs.length + 2) ~/ 3;
     // 每列最多 3 行。行高与封面等高(56):信息区 3 行(歌名/歌手/标签)
-    // 正好塞进 56 高,行距 2px,再留少量余量兜底。
+    // 正好塞进 56 高,行距 5px(比原 2px 多 3px),再留少量余量兜底。
     const double tileRowMinHeight = 56;
-    const double rowGap = 2;
-    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 182
+    const double rowGap = 5;
+    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 188
 
     return ClipRect(
       child: SizedBox(
@@ -783,7 +783,7 @@ class _RandomSongsLoading extends StatelessWidget {
     final itemWidth =
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
     // 高度与数据态 _buildSongsContent 保持一致,避免「加载态→数据态」跳变。
-    const double skeletonColumnHeight = 182;
+    const double skeletonColumnHeight = 188;
     return ClipRect(
       child: SizedBox(
         height: skeletonColumnHeight,
@@ -808,7 +808,7 @@ class _RandomSongsLoading extends StatelessWidget {
                             width: itemWidth,
                             child: const _RandomSongTileSkeleton(),
                           ),
-                          if (row < 2) const SizedBox(height: 2),
+                          if (row < 2) const SizedBox(height: 5),
                         ],
                       ],
                     ),

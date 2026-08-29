@@ -218,13 +218,21 @@ class MusicFlowSongRow extends StatelessWidget {
         ],
         SizedBox(height: context.musicFlowSpacing.xxs),
         Flexible(
-          child: MusicFlowMetadataLine(
-            items: richMetadata
-                ? songMetadataParts(song)
-                : <String?>[artistText, song.durationString],
-            // 丰富信息行只占一行：过长截断，避免把随机歌曲行高撑开。
-            maxLines: showFullText ? null : (richMetadata ? 1 : 2),
-          ),
+          child: richMetadata
+              // 刮削标签行：FittedBox 自动缩放字号直到完整显示
+              // （不硬编码更小字号，符合 SPEC 禁止写死字号的约束）。
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: MusicFlowMetadataLine(
+                    items: songMetadataParts(song),
+                    maxLines: 1,
+                  ),
+                )
+              : MusicFlowMetadataLine(
+                  items: <String?>[artistText, song.durationString],
+                  maxLines: showFullText ? null : 2,
+                ),
         ),
         if (statusMarkers.isNotEmpty) ...<Widget>[
           SizedBox(height: context.musicFlowSpacing.xxs),
