@@ -26,14 +26,17 @@ class DiscoverSongTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 72),
+      constraints: const BoxConstraints(minHeight: 64),
       child: MusicFlowSongRow(
         song: song,
+        coverSize: 56,
         contentPadding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xxs),
         onPressed: onPressed,
         onLongPress: onLongPress ?? onOpenActions,
         onMorePressed: onOpenActions,
         moreSemanticLabel: '${song.title} 操作',
+        // 歌名只占一行,过长截断,保证随机歌曲行高与参考稿一致。
+        titleMaxLines: 1,
       ),
     );
   }
@@ -1243,7 +1246,8 @@ class DiscoverPlaylistCard extends StatelessWidget {
               SizedBox(height: context.musicFlowSpacing.xs),
               Text(
                 title,
-                maxLines: 2,
+                // 歌单名只显示一行,过长截断。
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: context.musicFlowTypography.title,
               ),

@@ -101,7 +101,11 @@ class _PlayerBackdropSpec {
   final MusicFlowMediaVisuals visuals;
   final MusicFlowPlayerBackdropMode mode;
 
-  static const BorderRadius _miniRadius = BorderRadius.all(Radius.circular(16));
+  // MINI 播放条：参考箭头音乐做成底部浮起的圆角胶囊，只保留顶部圆弧。
+  static const BorderRadius _miniRadius = BorderRadius.only(
+    topLeft: Radius.circular(24),
+    topRight: Radius.circular(24),
+  );
   static const List<double> _gradientStops = <double>[0, 0.48, 1];
 
   List<Color> get colors => switch (mode) {

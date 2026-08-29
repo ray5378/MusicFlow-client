@@ -16,6 +16,13 @@ Future<void> main() async {
     () async {
       await WidgetsFlutterBinding.ensureInitialized();
 
+      // 收紧 Flutter 内部图片内存缓存：禁止磁盘/内存图片缓存的策略下，
+      // 只保留极小的解码缓存兜底，并允许在切库/线路变化时快速清理。
+      // 具体请求仍走 CoverArtImage 的 size 预算与视口优先加载。
+      PaintingBinding.instance.imageCache
+        ..maximumSize = 64
+        ..maximumSizeBytes = 32 << 20;
+
       // 应用持久化的日志开关（默认关闭，需用户在设置里手动开启）。
       Logger.setLoggingEnabled(await LocalStorage.getLoggingEnabled());
 

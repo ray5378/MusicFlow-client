@@ -126,18 +126,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     ];
     final sectionKeys =
         orderedKeys.isEmpty ? kDefaultHomeSectionKeys : orderedKeys;
-    final sectionChildren = <Widget>[];
+    final sectionWidgets = <String, Widget>{};
     for (final key in sectionKeys) {
       final sectionWidget = _homeSectionWidget(key);
       if (sectionWidget == null) continue;
-      if (sectionChildren.isNotEmpty) {
-        sectionChildren.add(SizedBox(height: context.musicFlowSpacing.sm));
-      }
-      // KeyedSubtree 保证分区顺序变化时各分区(尤其状态型 RandomSongsSection)状态稳定。
-      sectionChildren.add(
-        KeyedSubtree(key: ValueKey<String>('home-section-$key'), child: sectionWidget),
-      );
+      sectionWidgets[key] = sectionWidget;
     }
+    final visibleSectionKeys = sectionWidgets.keys.toList();
 
     return VisibleRemoteRetryScope(
       branchIndex: discoverBranchIndex,
@@ -189,26 +184,37 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1400),
-                      child: CustomScrollView(
-                        cacheExtent: 1500,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: <Widget>[
-                          SliverPadding(
-                            padding: EdgeInsets.fromLTRB(
-                              context.musicFlowPageHorizontalPadding,
-                              context.musicFlowSpacing.xs,
-                              context.musicFlowPageHorizontalPadding,
-                              context.musicFlowSpacing.xxl +
-                                  context.musicFlowShellBottomObstruction,
-                            ),
-                            sliver: SliverList(
-                              delegate: SliverChildListDelegate(
-                                sectionChildren,
-                              ),
+                    child: CustomScrollView(
+                      // 降低垂直缓存区：只构建视口附近分区，避免冷启动时
+                      // 一次性拉起所有横向列表的封面请求，保证视口内封面优先加载。
+                      cacheExtent: 400,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: <Widget>[
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(
+                            context.musicFlowPageHorizontalPadding,
+                            context.musicFlowSpacing.xs,
+                            context.musicFlowPageHorizontalPadding,
+                            context.musicFlowSpacing.xxl +
+                                context.musicFlowShellBottomObstruction,
+                          ),
+                          sliver: SliverList.separated(
+                            itemCount: visibleSectionKeys.length,
+                            // KeyedSubtree 保证分区顺序变化时各分区(尤其状态型 RandomSongsSection)状态稳定。
+                            itemBuilder: (context, index) {
+                              final key = visibleSectionKeys[index];
+                              return KeyedSubtree(
+                                key: ValueKey<String>('home-section-$key'),
+                                child: sectionWidgets[key]!,
+                              );
+                            },
+                            separatorBuilder: (context, index) => SizedBox(
+                              height: context.musicFlowSpacing.sm,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
                     ),
                   ),
                 ),
@@ -318,7 +324,10 @@ class RandomSongsSection extends ConsumerStatefulWidget {
   ConsumerState<RandomSongsSection> createState() => _RandomSongsSectionState();
 }
 
-class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
+// 随机歌曲区块有本地状态(轮次 token/滚动控制器/自动重试等),在
+// SliverList.builder 的惰性布局里需要保持存活,避免滑出视口后状态丢失。
+class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
+    with AutomaticKeepAliveClientMixin {
   /// 首页随机歌曲本地缓存的有效期(TTL):超过该时长即便本地有缓存,
   /// 也会后台拉取一次最新结果,避免「换了一批 / 歌单更新后首页仍显示旧歌」。
   /// 30 分钟内视为新鲜,直接使用本地缓存秒开。
@@ -326,7 +335,6 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
 
   bool _autoContinue = false;
   int _roundToken = 0;
-  final ScrollController _scrollCtrl = ScrollController();
   StreamSubscription<int>? _randomSongsSubscription;
 
   /// 自动重试定时器与计数:首载失败(无缓存)时自动补拉,有界重试,
@@ -339,6 +347,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   /// 最近一次可展示的歌曲(本地缓存或远程结果)。打开首页时先用它秒出内容,
   /// 同时后台拉取远程最新结果,避免每次都阻塞在远程请求与后端惰性刷新上。
   List<Song>? _lastKnownSongs;
+
+  @override
+  bool get wantKeepAlive => true;
 
   /// 本轮随机歌曲的 id 集合:用于判断当前播放队列是否仍是随机轮次,
   /// 避免歌单更新推送把随机歌曲误追加到用户手动切换的其他歌单。
@@ -590,8 +601,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
 /// 否则(同样的问题)会导致水平 viewport 高度异常、随机歌曲重叠无法操作,
 /// 并拖垮下方歌单区块的布局。
   Widget _buildSongsContent(List<Song> songs) {
+    // 宽度撑开:保证底部「歌手 · 时长」信息行只占一行(过窄会折成两行)。
     final itemWidth =
-        (MediaQuery.sizeOf(context).width * 0.48).clamp(180.0, 240.0);
+        (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
     if (songs.isEmpty) return const SizedBox.shrink();
 
     final columnCount = (songs.length + 2) ~/ 3;
@@ -662,12 +674,12 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
   void dispose() {
     _randomSongsSubscription?.cancel();
     _autoRetryTimer?.cancel();
-    _scrollCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final loadFailed = ref.watch(randomSongsLoadFailedProvider);
     final knownSongs = _lastKnownSongs;
     final hasContent = knownSongs != null && knownSongs.isNotEmpty;
@@ -699,44 +711,40 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
       content = const _RandomSongsLoading();
     }
 
-    return DecoratedBox(
+    // 去掉外框(原 surface 背景 + 描边):参考箭头音乐,随机歌曲区块直接融入
+    // 页面底色,不再用卡片包裹。保留 key 供测试定位。
+    return Padding(
       key: const Key('discover-random-mix'),
-      decoration: BoxDecoration(
-        color: context.musicFlowColors.surface,
-        borderRadius: context.musicFlowRadii.surface,
-        border: Border.all(color: context.musicFlowColors.divider),
+      padding: EdgeInsets.symmetric(
+        horizontal: context.musicFlowSpacing.sm,
+        vertical: context.musicFlowSpacing.xs,
       ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: context.musicFlowSpacing.sm,
-          vertical: context.musicFlowSpacing.xs,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            MusicFlowSectionHeader(
-              title: '随机歌曲',
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  MusicFlowIconButton(
-                    icon: AppIcons.refresh,
-                    label: '换一批随机歌曲',
-                    onPressed: _refresh,
-                  ),
-                  SizedBox(width: context.musicFlowSpacing.xs),
-                  MusicFlowIconButton(
-                    icon: AppIcons.play,
-                    label: '播放随机歌曲',
-                    onPressed: _playRound,
-                  ),
-                ],
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          MusicFlowSectionHeader(
+            title: '随机歌曲',
+            // 刷新按钮挨着模块标题,播放按钮由 Spacer 推到最右。
+            trailingFollowsTitle: true,
+            trailing: Row(
+              children: <Widget>[
+                MusicFlowIconButton(
+                  icon: AppIcons.refresh,
+                  label: '换一批随机歌曲',
+                  onPressed: _refresh,
+                ),
+                const Spacer(),
+                MusicFlowIconButton(
+                  icon: AppIcons.play,
+                  label: '播放随机歌曲',
+                  onPressed: _playRound,
+                ),
+              ],
             ),
-            SizedBox(height: context.musicFlowSpacing.xs),
-            content,
-          ],
-        ),
+          ),
+          SizedBox(height: context.musicFlowSpacing.xs),
+          content,
+        ],
       ),
     );
   }
@@ -749,8 +757,9 @@ class _RandomSongsLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 宽度撑开:保证底部「歌手 · 时长」信息行只占一行(过窄会折成两行)。
     final itemWidth =
-        (MediaQuery.sizeOf(context).width * 0.48).clamp(180.0, 240.0);
+        (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
     // 高度与数据态 _buildSongsContent 保持一致,避免「加载态→数据态」跳变。
     const double skeletonColumnHeight = 206;
     return ClipRect(
@@ -803,12 +812,12 @@ class _RandomSongTileSkeleton extends StatelessWidget {
         padding: EdgeInsets.symmetric(
           vertical: context.musicFlowSpacing.xxs,
         ),
-        child: Row(
-          children: <Widget>[
-            const MusicFlowSkeleton(width: 48, height: 48),
-            SizedBox(width: context.musicFlowSpacing.sm),
-            const Expanded(
-              child: Column(
+          child: Row(
+            children: <Widget>[
+              const MusicFlowSkeleton(width: 56, height: 56),
+              SizedBox(width: context.musicFlowSpacing.sm),
+              const Expanded(
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -839,6 +848,8 @@ class RecentPlaylistsSection extends ConsumerWidget {
       children: <Widget>[
         MusicFlowSectionHeader(
           title: '最近更新的歌单',
+          // 刷新按钮挨着模块标题。
+          trailingFollowsTitle: true,
           trailing: MusicFlowIconButton(
             icon: AppIcons.refresh,
             label: '刷新最近更新歌单',

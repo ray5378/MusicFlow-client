@@ -31,9 +31,10 @@ class MusicFlowSongRow extends StatelessWidget {
     this.isFavorite,
     this.isPreview,
     this.showMoreButton = true,
+    this.titleMaxLines = 2,
+    this.coverSize = 48,
   });
 
-  static const double _coverSize = 48;
   static const double _numberWidth = 36;
 
   final Song song;
@@ -53,6 +54,13 @@ class MusicFlowSongRow extends StatelessWidget {
   final bool? isFavorite;
   final bool? isPreview;
   final bool showMoreButton;
+
+  /// 歌名最大行数。默认 2 行（常规列表）；首页随机歌曲传 1，
+  /// 过长截断，保持行高与参考稿一致。
+  final int titleMaxLines;
+
+  /// 封面尺寸。默认 48；首页随机歌曲传 56 以匹配参考比例。
+  final double coverSize;
 
   bool get _favorite => isFavorite ?? song.starred;
   bool get _preview => isPreview ?? song.isPreview;
@@ -177,7 +185,7 @@ class MusicFlowSongRow extends StatelessWidget {
         Flexible(
           child: Text(
             song.title,
-            maxLines: showFullText ? null : 2,
+            maxLines: showFullText ? null : titleMaxLines,
             overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
             style: context.musicFlowTypography.title.copyWith(
               color: isCurrent
@@ -210,7 +218,7 @@ class MusicFlowSongRow extends StatelessWidget {
   Widget _buildLeading(BuildContext context) {
     return switch (variant) {
       MusicFlowSongRowVariant.standard => SizedBox.square(
-        dimension: _coverSize,
+        dimension: coverSize,
         child: Stack(
           clipBehavior: Clip.none,
           children: <Widget>[
@@ -218,6 +226,7 @@ class MusicFlowSongRow extends StatelessWidget {
               child: MusicFlowArtwork(
                 coverArtId: coverArtId ?? song.artworkReference,
                 semanticLabel: '${song.title} 封面',
+                size: coverSize,
                 requestSize: 192,
                 borderRadius: context.musicFlowRadii.detail,
               ),

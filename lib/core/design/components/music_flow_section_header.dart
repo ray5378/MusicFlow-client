@@ -12,6 +12,7 @@ class MusicFlowSectionHeader extends StatelessWidget {
     this.onAction,
     this.trailing,
     this.padding = EdgeInsets.zero,
+    this.trailingFollowsTitle = false,
   });
 
   final String title;
@@ -20,6 +21,11 @@ class MusicFlowSectionHeader extends StatelessWidget {
   final VoidCallback? onAction;
   final Widget? trailing;
   final EdgeInsetsGeometry padding;
+
+  /// 为 true 时标题不抢占剩余宽度,trailing 紧跟标题显示(首页「刷新」按钮
+  /// 需挨着模块标题);trailing 内部可用 Spacer 把其余按钮推到最右。
+  /// 默认 false,保持既有「trailing 靠右」行为,不影响其它使用方。
+  final bool trailingFollowsTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -53,10 +59,13 @@ class MusicFlowSectionHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Expanded(child: text),
+          if (trailingFollowsTitle)
+            Flexible(child: text)
+          else
+            Expanded(child: text),
           if (action != null) ...<Widget>[
             SizedBox(width: context.musicFlowSpacing.sm),
-            action,
+            if (trailingFollowsTitle) Expanded(child: action) else action,
           ],
         ],
       ),

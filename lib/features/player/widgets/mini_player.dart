@@ -23,7 +23,8 @@ import 'play_queue_sheet.dart';
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
 
-  static const double height = 72;
+  // 对齐箭头音乐：底部 MINI 播放条更紧凑。
+  static const double height = 64;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -284,6 +285,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         child: MusicFlowIconButton(
           icon: AppIcons.previous,
           label: '上一首',
+          iconSize: 20,
           foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onPrevious,
@@ -294,6 +296,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         child: MusicFlowIconButton(
           icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
           label: _playerState.isPlaying ? '暂停' : '播放',
+          iconSize: 20,
           foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: _togglePlayPause,
@@ -304,6 +307,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         child: MusicFlowIconButton(
           icon: AppIcons.next,
           label: '下一首',
+          iconSize: 20,
           foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onNext,
@@ -311,6 +315,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       ),
       _PlayModeButton(
         mode: widget.playMode,
+        iconSize: 20,
         onPressed: widget.onTogglePlayMode,
       ),
       Tooltip(
@@ -318,6 +323,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         child: MusicFlowIconButton(
           icon: isFav ? AppIcons.heart : AppIcons.heartOutline,
           label: isFav ? '取消红心' : '红心',
+          iconSize: 20,
           selected: isFav,
           onPressed: widget.onToggleFavorite,
         ),
@@ -327,6 +333,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         child: MusicFlowIconButton(
           icon: AppIcons.queue,
           label: '当前播放列表',
+          iconSize: 20,
           foregroundColor: context.musicFlowColors.ink,
           backgroundColor: Colors.transparent,
           onPressed: widget.onOpenQueue,
@@ -338,6 +345,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         child: MusicFlowIconButton(
           icon: AppIcons.signalTower,
           label: '切换播放器，当前：${widget.currentPlayerName}',
+          iconSize: 20,
           foregroundColor: widget.isCasting
               ? context.musicFlowColors.accent
               : context.musicFlowColors.ink,
@@ -402,6 +410,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       MusicFlowIconButton(
         icon: _playerState.isPlaying ? AppIcons.pause : AppIcons.play,
         label: _playerState.isPlaying ? '暂停' : '播放',
+        iconSize: 20,
         foregroundColor: context.musicFlowColors.ink,
         backgroundColor: Colors.transparent,
         onPressed: _togglePlayPause,
@@ -409,6 +418,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       MusicFlowIconButton(
         icon: AppIcons.signalTower,
         label: '切换播放器，当前：${widget.currentPlayerName}',
+        iconSize: 20,
         foregroundColor: widget.isCasting
             ? context.musicFlowColors.accent
             : context.musicFlowColors.ink,
@@ -490,9 +500,9 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                     Padding(
                       padding: EdgeInsetsDirectional.fromSTEB(
                         context.musicFlowSpacing.sm,
+                        context.musicFlowSpacing.xxs,
                         context.musicFlowSpacing.xs,
-                        context.musicFlowSpacing.xs,
-                        context.musicFlowSpacing.xs,
+                        context.musicFlowSpacing.xxs,
                       ),
                       child: LayoutBuilder(
                         builder: (context, constraints) => Row(
@@ -529,7 +539,11 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                     Positioned.fill(
                       child: ClipRRect(
                         key: const Key('mini-player-surface-clip'),
-                        borderRadius: context.musicFlowRadii.surface,
+                        // 与 backdrop 一致：只保留顶部圆弧，形成底部浮起卡片。
+                        borderRadius: BorderRadius.only(
+                          topLeft: context.musicFlowRadii.scene.topLeft,
+                          topRight: context.musicFlowRadii.scene.topRight,
+                        ),
                         child:
                             widget.progressLayer ??
                             _MiniPlayerProgressSurface(
@@ -694,7 +708,7 @@ class _MiniPlayerProgressSurfaceState
               child: MusicFlowProgressBar(
                 key: const Key('mini-player-progress'),
                 value: displayedProgress,
-                height: 3,
+                height: 2,
                 color: context.musicFlowColors.accent,
                 trackColor: Colors.transparent,
               ),
@@ -807,15 +821,15 @@ class _MiniPlayerEmptyTrack extends StatelessWidget {
     return Row(
       children: <Widget>[
         Container(
-          width: 48,
-          height: 48,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: context.musicFlowColors.surface,
             shape: BoxShape.circle,
           ),
           child: Icon(
             AppIcons.music,
-            size: 24,
+            size: 22,
             color: context.musicFlowColors.muted,
           ),
         ),
@@ -856,11 +870,11 @@ class _MiniPlayerCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
-      dimension: 48,
+      dimension: 44,
       child: ClipOval(
         child: CoverArtImage(
           coverArtId: song.artworkReference,
-          size: 48,
+          size: 44,
           requestSize: 320,
           fit: BoxFit.cover,
           semanticLabel: '${song.title} 封面',
@@ -951,12 +965,17 @@ class _MiniPlayerLyric extends StatelessWidget {
 /// 桌面端播放模式切换按钮(单一按钮,对齐主项目前端 cyclePlayMode):
 /// 点击循环切换 order→one→all→shuffle,图标与文案随模式变换。
 class _PlayModeButton extends StatelessWidget {
-  const _PlayModeButton({required this.mode, required this.onPressed});
+  const _PlayModeButton({
+    required this.mode,
+    required this.onPressed,
+    this.iconSize,
+  });
 
   final String mode;
 
   /// null 时按钮禁用(未提供回调)。
   final VoidCallback? onPressed;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -979,6 +998,7 @@ class _PlayModeButton extends StatelessWidget {
       child: MusicFlowIconButton(
         icon: modeIcon,
         label: modeLabel,
+        iconSize: iconSize,
         selected: selected,
         onPressed: onPressed,
       ),

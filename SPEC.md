@@ -39,7 +39,7 @@
 | 本地配置 | shared_preferences | 主题、音质等 |
 | 路由 | go_router | StatefulShellRoute 分页导航 |
 | 模型 | freezed（^3.1.0）+ json_serializable | 不可变数据类 |
-| 图片 | cached_network_image + palette_generator | 封面/配色 |
+| 图片 | palette_generator（配色提取）；封面走 `Image.network` 直连 | **禁止任何图片缓存**（磁盘/内存/解码缓存一律不保留，见 §1.5 / §8.3）；`cached_network_image` 仅作候选，**当前不启用其缓存能力** |
 | 工具 | crypto / uuid / path / path_provider / share_plus / package_info_plus / url_launcher / connectivity_plus / permission_handler | |
 | 列表增强 | scrollable_positioned_list（队列滚动定位）、animations | |
 | 遗留待清理 | azlistview / lpinyin / marquee | v2 已移除 A-Z 索引且 marquee 无使用，**确认无用后从依赖移除** |
@@ -66,7 +66,8 @@
 - 列表窗口化缓存：浏览过的旧块超窗即置空（见 §4.2）。
 - 投屏状态轮询：每个远端 peer 的轮询定时器在切回本机/退出时必须 `dispose`，禁止泄漏（见 §3.3）。
 - 链路 B 投屏：**v3.2 起无本地中继/推流**，设备直连服务端自拉流（A 档）或 CDS 清单自播（B 档）；客户端仅保留轮询/看门狗定时器，停止/退出时全部 `dispose`，不得泄漏（见 §3.6）。
-- 封面/歌词缓存：按 LRU 或固定槽位上限。
+- **封面图片一律禁止缓存**（v3.4 起，ray 确认）：不写磁盘缓存、不驻留内存解码缓存，图像处理缓存（`ImageCache`）需显式收紧上限并在内存紧张时清理；封面每次直连 `getCoverArt` 拿图，避免冷启动/滚动时缓存抖动与陈旧封面。
+  - 歌词缓存不受此限，仍按 LRU 或固定槽位上限。
 
 ### 1.6 构建约束（CI-only + 性能门槛）
 
@@ -391,7 +392,8 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 ### 8.3 图片与解码
 
 - 封面请求一律带 `size` 预算（对齐主项目 `coverUrl(id, 300)` 思路），禁止请求超尺寸原图；
-- 全屏背景图解码后按显示尺寸缩放，禁止大图直接上屏；解码缓存带上限（§1.5）。
+- 全屏背景图解码后按显示尺寸缩放，禁止大图直接上屏；
+- **禁止图片缓存（§1.5 硬约束）**：不使用任何磁盘/内存图片缓存（含 `cached_network_image` 的缓存落地），`ImageCache` 上限需显式收紧并可清理；只保留请求侧 `size` 预算与「视口内才发起请求」的加载时机控制（冷启动优先加载视口封面，视口外延后/不请求）。
 
 ### 8.4 音频后端选型（Windows）
 
