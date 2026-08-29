@@ -69,7 +69,7 @@ class SongInfoPage extends ConsumerWidget {
           _InfoGroup(
             icon: AppIcons.music,
             title: '歌曲信息',
-            rows: <_InfoRow?>[
+            rows: <Widget?>[
               _buildRow(
                 '时长',
                 song.duration == null ? null : song.durationString,
@@ -82,7 +82,7 @@ class SongInfoPage extends ConsumerWidget {
           _InfoGroup(
             icon: AppIcons.equalizer,
             title: '音频信息',
-            rows: <_InfoRow?>[
+            rows: <Widget?>[
               _buildRow('文件类型', _fileTypeLabel(song)),
               _buildRow('码率', _bitRateLabel(song, bitRateKbps)),
               _buildRow('采样率', _samplingRateLabel(song.samplingRate)),
@@ -94,7 +94,7 @@ class SongInfoPage extends ConsumerWidget {
           _InfoGroup(
             icon: AppIcons.fileText,
             title: '文件信息',
-            rows: <_InfoRow?>[
+            rows: <Widget?>[
               _buildRow('文件大小', _fileSizeLabel(song.size)),
               _buildRow('歌曲路径', _nonEmpty(song.path)),
             ],
@@ -103,7 +103,7 @@ class SongInfoPage extends ConsumerWidget {
           _InfoGroup(
             icon: AppIcons.more,
             title: '操作',
-            rows: <_InfoRow?>[
+            rows: <Widget?>[
               _SongActionRow(
                 label: '歌曲操作',
                 description: '下一曲播放、添加到歌单、查看歌手与专辑',
@@ -196,11 +196,11 @@ class _InfoGroup extends StatelessWidget {
 
   final IconData icon;
   final String title;
-  final List<_InfoRow?> rows;
+  final List<Widget?> rows;
 
   @override
   Widget build(BuildContext context) {
-    final visibleRows = rows.whereType<_InfoRow>().toList(growable: false);
+    final visibleRows = rows.whereType<Widget>().toList(growable: false);
     if (visibleRows.isEmpty) return const SizedBox.shrink();
 
     final spacing = context.musicFlowSpacing;
