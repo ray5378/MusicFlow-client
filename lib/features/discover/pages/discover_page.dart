@@ -33,14 +33,13 @@ import '../../player/widgets/song_options_sheet.dart';
 import '../widgets/discover_media_widgets.dart';
 import '../widgets/hoverable_horizontal_scroll.dart';
 
-const double _playlistCardWidth = 152;
+const double _playlistCardWidth = 128;
 
 /// 歌单卡片行高度:随文本缩放自适应,避免大字号下溢出。
-/// 需容纳:封面(152) + 标题最多 2 行 + 「N 首」副标题 ——
-/// 固定余量从 56 提到 70,保证标题换行时数量行不被挤出可视区。
+/// 需容纳:封面(128) + 标题最多 2 行 + 「N 首」副标题。
 double playlistRailHeight(BuildContext context) {
   final scale = MediaQuery.textScalerOf(context).scale(1);
-  return _playlistCardWidth + 70 + ((scale - 1) * 48).clamp(0.0, 72.0);
+  return _playlistCardWidth + 56 + ((scale - 1) * 40).clamp(0.0, 56.0);
 }
 
 /// 首页标题:Windows 桌面端不显示标题;安卓端显示 MusicFlow;其余平台沿用「音乐流」。
@@ -592,15 +591,15 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection> {
 /// 并拖垮下方歌单区块的布局。
   Widget _buildSongsContent(List<Song> songs) {
     final itemWidth =
-        (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
+        (MediaQuery.sizeOf(context).width * 0.48).clamp(180.0, 240.0);
     if (songs.isEmpty) return const SizedBox.shrink();
 
     final columnCount = (songs.length + 2) ~/ 3;
-    // 每列最多 3 行。《随机歌曲》行高最小约束 72 + 两处 2px 行距,再留少量
-    // 余量兜底(个别长标题换行时避免溢出),ClipRect 负责裁剪。
-    const double tileRowMinHeight = 72;
+    // 每列最多 3 行。参考箭头音乐把随机歌曲整体改紧凑:
+    // 行高最小约束 64 + 两处 2px 行距,再留少量余量兜底。
+    const double tileRowMinHeight = 64;
     const double rowGap = 2;
-    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 230
+    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 206
 
     return ClipRect(
       child: SizedBox(
@@ -751,9 +750,9 @@ class _RandomSongsLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final itemWidth =
-        (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
+        (MediaQuery.sizeOf(context).width * 0.48).clamp(180.0, 240.0);
     // 高度与数据态 _buildSongsContent 保持一致,避免「加载态→数据态」跳变。
-    const double skeletonColumnHeight = 230;
+    const double skeletonColumnHeight = 206;
     return ClipRect(
       child: SizedBox(
         height: skeletonColumnHeight,
@@ -799,7 +798,7 @@ class _RandomSongTileSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 72),
+      constraints: const BoxConstraints(minHeight: 64),
       child: Padding(
         padding: EdgeInsets.symmetric(
           vertical: context.musicFlowSpacing.xxs,
