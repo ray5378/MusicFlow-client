@@ -192,11 +192,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                       slivers: <Widget>[
                         SliverPadding(
                           padding: EdgeInsets.fromLTRB(
-                            context.musicFlowPageHorizontalPadding,
+                            context.musicFlowPageHorizontalPadding - 5,
                             // 分类导航自带竖向内边距，这里不再叠加，让首个模块
                             // 紧贴库按钮（对齐箭头音乐的紧凑首屏）。
                             0,
-                            context.musicFlowPageHorizontalPadding,
+                            context.musicFlowPageHorizontalPadding - 5,
                             context.musicFlowSpacing.xxl +
                                 context.musicFlowShellBottomObstruction,
                           ),
@@ -268,7 +268,7 @@ class CategoryNavBar extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(
-          horizontal: context.musicFlowPageHorizontalPadding,
+          horizontal: context.musicFlowPageHorizontalPadding - 5,
           vertical: context.musicFlowSpacing.xs,
         ),
         child: Row(
@@ -642,9 +642,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
           builder: (context, controller) => ListView.builder(
             controller: controller,
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: context.musicFlowSpacing.xs,
-            ),
+            padding: EdgeInsets.zero,
             itemCount: columnCount,
             itemBuilder: (context, col) {
               final firstRow = col * 3;
@@ -737,8 +735,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
     // 页面底色,不再用卡片包裹。保留 key 供测试定位。
     return Padding(
       key: const Key('discover-random-mix'),
+      // 区块不加横向内边距：标题/封面与歌单封面统一从页级边距起，垂直对齐。
       padding: EdgeInsets.symmetric(
-        horizontal: context.musicFlowSpacing.sm,
+        horizontal: 0,
         vertical: context.musicFlowSpacing.xxs,
       ),
       child: Column(
@@ -791,9 +790,7 @@ class _RandomSongsLoading extends StatelessWidget {
           builder: (context, controller) => SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: context.musicFlowSpacing.xs,
-            ),
+            padding: EdgeInsets.zero,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -898,9 +895,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
                 child: ListView.separated(
                   controller: controller,
                   scrollDirection: Axis.horizontal,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: context.musicFlowPageHorizontalPadding,
-                  ),
+                  padding: EdgeInsets.zero,
                   itemCount: playlists.length,
                   separatorBuilder: (context, index) =>
                       SizedBox(width: context.musicFlowSpacing.sm),
@@ -934,9 +929,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
             height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(
-                horizontal: context.musicFlowPageHorizontalPadding,
-              ),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               separatorBuilder: (context, index) =>
                   SizedBox(width: context.musicFlowSpacing.sm),
@@ -1015,9 +1008,7 @@ class FixedRecommendSection extends ConsumerWidget {
                 child: ListView.separated(
                   controller: controller,
                   scrollDirection: Axis.horizontal,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: context.musicFlowPageHorizontalPadding,
-                  ),
+                  padding: EdgeInsets.zero,
                   itemCount: cards.length,
                   separatorBuilder: (context, index) =>
                       SizedBox(width: context.musicFlowSpacing.sm),
@@ -1051,9 +1042,7 @@ class FixedRecommendSection extends ConsumerWidget {
             height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(
-                horizontal: context.musicFlowPageHorizontalPadding,
-              ),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               separatorBuilder: (context, index) =>
                   SizedBox(width: context.musicFlowSpacing.sm),
@@ -1199,9 +1188,7 @@ class PlatformRecommendSection extends ConsumerWidget {
                         child: ListView.separated(
                           controller: controller,
                           scrollDirection: Axis.horizontal,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: context.musicFlowPageHorizontalPadding,
-                          ),
+                          padding: EdgeInsets.zero,
                           itemCount: channel.playlists.length,
                           separatorBuilder: (context, index) =>
                               SizedBox(width: context.musicFlowSpacing.sm),
@@ -1237,9 +1224,7 @@ class PlatformRecommendSection extends ConsumerWidget {
             height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(
-                horizontal: context.musicFlowPageHorizontalPadding,
-              ),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               separatorBuilder: (context, index) =>
                   SizedBox(width: context.musicFlowSpacing.sm),
@@ -1338,9 +1323,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                         child: ListView.separated(
                           controller: controller,
                           scrollDirection: Axis.horizontal,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: context.musicFlowPageHorizontalPadding,
-                          ),
+                          padding: EdgeInsets.zero,
                           itemCount: channel.playlists.length,
                           separatorBuilder: (context, index) =>
                               SizedBox(width: context.musicFlowSpacing.sm),
@@ -1377,9 +1360,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
             height: playlistRailHeight(context),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(
-                horizontal: context.musicFlowPageHorizontalPadding,
-              ),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               separatorBuilder: (context, index) =>
                   SizedBox(width: context.musicFlowSpacing.sm),
