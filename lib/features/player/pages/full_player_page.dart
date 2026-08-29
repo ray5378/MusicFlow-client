@@ -42,9 +42,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       const AlwaysStoppedAnimation<double>(1);
   CurvedAnimation? _routeForegroundCurvedAnimation;
 
-  /// 方案 A 自适应暖黄基色：暗底保持纯色，亮底自动加深至 AA 可读。
-  static const Color _warmLyricYellow = Color(0xFFFFC233);
-
   @override
   void initState() {
     super.initState();
@@ -251,10 +248,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   Widget _buildPortraitPlayerLayout(Song song, {required String subtitle}) {
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
     // 方案 A 自适应暖黄：对三段舞台底色保 4.5:1——暗底保持纯黄(参考截图观感)，
-    // 亮底自动朝前景墨色加深，任何封面都可读。
-    final lyricAccent = MusicFlowMediaVisuals.ensureAccentContrast(
-      _warmLyricYellow,
-      target: visuals.foreground,
+    // 亮底自动朝前景墨色加深，任何封面都可读。基色与 MINI 播放条共用。
+    final lyricAccent = MusicFlowMediaVisuals.lyricAccentFor(
+      visuals,
       backgrounds: <Color>[
         visuals.stageGlow,
         visuals.stageBase,

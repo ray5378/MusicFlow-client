@@ -154,6 +154,25 @@ class MusicFlowMediaVisuals {
     );
   }
 
+  /// 歌词高亮基线色（暖黄）。大屏歌词页与 MINI 播放条共用同一取色，
+  /// 禁止在 UI 里另写死黄色。
+  static const Color warmLyricYellow = Color(0xFFFFC233);
+
+  /// 歌词高亮色：以 [warmLyricYellow] 为基线，对 [backgrounds] 做 4.5:1
+  /// 自适应——暗底保持纯黄（参考截图观感），亮底自动朝前景墨色加深。
+  ///
+  /// 大屏传舞台三段底色，MINI 传迷你条底色，取色规则一致。
+  static Color lyricAccentFor(
+    MusicFlowMediaVisuals visuals, {
+    required Iterable<Color> backgrounds,
+  }) {
+    return ensureAccentContrast(
+      warmLyricYellow,
+      target: visuals.foreground,
+      backgrounds: backgrounds,
+    );
+  }
+
   /// Stable media visuals used before artwork is available or has no palette.
   factory MusicFlowMediaVisuals.fallback({
     Color seed = MusicFlowColors.contentTintFallback,

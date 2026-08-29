@@ -455,6 +455,12 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
         MusicFlowMediaVisuals.fallback(
           seed: widget.albumColor ?? MusicFlowColors.contentTintFallback,
         );
+    // 歌词高亮与大屏歌词页同取色：暖黄对迷你条底色做 4.5:1 自适应，
+    // 随封面配色自动变化，不再写死黄色。
+    final lyricAccent = MusicFlowMediaVisuals.lyricAccentFor(
+      visuals,
+      backgrounds: <Color>[visuals.miniSurface],
+    );
 
     return MusicFlowMediaColorScope(
       visuals: visuals,
@@ -519,6 +525,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                                     useHero: true,
                                     showSubtitle: showSubtitle,
                                     lyricLine: widget.lyricLine,
+                                    lyricAccent: lyricAccent,
                                   ),
                                 ),
                               ),
@@ -744,12 +751,16 @@ class _MiniPlayerTrack extends StatelessWidget {
     required this.useHero,
     required this.showSubtitle,
     this.lyricLine,
+    required this.lyricAccent,
   });
 
   final Song? song;
   final bool useHero;
   final bool showSubtitle;
   final String? lyricLine;
+
+  /// 歌词高亮色：与大屏歌词页同源自适应暖黄。
+  final Color lyricAccent;
 
   @override
   Widget build(BuildContext context) {
@@ -798,8 +809,9 @@ class _MiniPlayerTrack extends StatelessWidget {
                 )
               else
                 title,
-              // 当前歌词行：黄色高亮显示（对齐主项目前端歌词配色）。
-              if (lyric != null) _MiniPlayerLyric(text: lyric),
+              // 当前歌词行：暖黄高亮，取色与大屏歌词页一致（随封面自适应）。
+              if (lyric != null)
+                _MiniPlayerLyric(text: lyric, color: lyricAccent),
             ],
           ),
         ),
@@ -930,13 +942,12 @@ class _MiniPlayerTitle extends StatelessWidget {
   }
 }
 
-/// 迷你播放器当前歌词行：黄色显示（对齐主项目前端歌词配色）。
+/// 迷你播放器当前歌词行：暖黄高亮，取色与大屏歌词页同源（随封面自适应）。
 class _MiniPlayerLyric extends StatelessWidget {
-  const _MiniPlayerLyric({required this.text});
+  const _MiniPlayerLyric({required this.text, required this.color});
 
   final String text;
-
-  static const Color _lyricYellow = Color(0xFFFFD700);
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -950,7 +961,7 @@ class _MiniPlayerLyric extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           // 歌词用 body(13) 而非 metadata(11)：现状偏小，适当放大。
           style: context.musicFlowTypography.body.copyWith(
-            color: _lyricYellow,
+            color: color,
             fontWeight: FontWeight.w500,
           ),
         ),
