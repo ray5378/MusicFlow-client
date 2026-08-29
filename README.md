@@ -33,6 +33,7 @@
   - **A 档·直传**：客户端把**服务端直连流 URL** 交给 DLNA 设备，设备自拉流；客户端作为 Control Point 每 2s 轮询 `GetPositionInfo` 展示进度 + 遥控，以「近曲末 / 墙钟兜底 / 设备自然停播」三种判定在看门狗里**主动把下一首直链推给设备**，实现自动续播
   - **B 档·CDS 清单**：设备支持 ContentDirectory 时，服务端 `GET /castPlaylist` 提供 DIDL-Lite 整队列容器，设备整队列自播，杀掉客户端也能续播完
   - 已砍掉本地中继 / HttpServer 推流，回归标准 DLNA「Control Point + DMR 自拉流」分工
+  - **外网投屏必须用 `http`**：这些投屏盒子（尤其 OpenWrt 上的 GMediaRender/GStreamer）**不支持 https**。外网访问客户端使用投屏时，若使用该功能遇到 https 无法投屏（停在同一首 / 无声），请把客户端服务器地址改为 **http 协议**即可正常投流
 - 迷你播放条 + 全屏播放器（黑胶唱片 + 歌词 + 队列 + 播放模式）
 - 播放模式：`order / one / all / shuffle`；投屏中加歌 / 点歌 / 队列编辑 / 拖拽排序
 - 平滑进度：远端状态 2s 轮询 + 250ms tick 本地插值，进度条无跳变（直投时以 `GetPositionInfo` + 墙钟兜底合成）
