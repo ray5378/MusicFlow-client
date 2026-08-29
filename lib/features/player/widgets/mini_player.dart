@@ -968,14 +968,15 @@ class _PlayModeButton extends StatelessWidget {
   const _PlayModeButton({
     required this.mode,
     required this.onPressed,
-    this.iconSize,
+    // 与 MusicFlowIconButton.iconSize 默认值保持一致(非空)。
+    this.iconSize = 22,
   });
 
   final String mode;
 
   /// null 时按钮禁用(未提供回调)。
   final VoidCallback? onPressed;
-  final double? iconSize;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
