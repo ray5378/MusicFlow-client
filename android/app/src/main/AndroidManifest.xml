@@ -69,11 +69,11 @@
             </intent-filter>
         </service>
 
-        <!-- DLNA 投屏后台保活前台服务：直投期间置前台态 + PARTIAL 唤醒锁，
-             保证熄屏/退后台时进程不被冻结或杀死，2s 轮询持续触发 → 曲毕自动推下一首。 -->
+        <!-- DLNA 投屏后台保活服务：仅持有 PARTIAL 唤醒锁，保证熄屏/退后台时 CPU 常醒，
+             2s 轮询持续触发 → 曲毕自动推下一首。前台态与常驻音乐通知由 AudioService
+             的媒体播放前台服务承担，本服务不再自建通知，避免与播放通知重复。 -->
         <service
             android:name=".CastKeepAliveService"
-            android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
 
         <!-- 投屏抗冻结心跳接收器：进程被冻结时由系统唤醒，续订心跳并让 Dart 轮询补齐 -->
