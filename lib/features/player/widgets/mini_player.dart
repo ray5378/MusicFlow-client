@@ -23,8 +23,8 @@ import 'play_queue_sheet.dart';
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
 
-  // 对齐箭头音乐：底部 MINI 播放条更紧凑。
-  static const double height = 64;
+  // 对齐箭头音乐：底部悬浮胶囊更紧凑。
+  static const double height = 56;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -539,11 +539,8 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                     Positioned.fill(
                       child: ClipRRect(
                         key: const Key('mini-player-surface-clip'),
-                        // 与 backdrop 一致：只保留顶部圆弧，形成底部浮起卡片。
-                        borderRadius: BorderRadius.only(
-                          topLeft: context.musicFlowRadii.scene.topLeft,
-                          topRight: context.musicFlowRadii.scene.topRight,
-                        ),
+                        // 与 backdrop 一致：四边圆弧的悬浮胶囊。
+                        borderRadius: context.musicFlowRadii.scene,
                         child:
                             widget.progressLayer ??
                             _MiniPlayerProgressSurface(

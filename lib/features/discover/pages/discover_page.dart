@@ -193,7 +193,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                         SliverPadding(
                           padding: EdgeInsets.fromLTRB(
                             context.musicFlowPageHorizontalPadding,
-                            context.musicFlowSpacing.xs,
+                            context.musicFlowSpacing.xxs,
                             context.musicFlowPageHorizontalPadding,
                             context.musicFlowSpacing.xxl +
                                 context.musicFlowShellBottomObstruction,
@@ -208,8 +208,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                 child: sectionWidgets[key]!,
                               );
                             },
+                            // 模块间距对齐箭头音乐（更紧凑）。
                             separatorBuilder: (context, index) => SizedBox(
-                              height: context.musicFlowSpacing.sm,
+                              height: context.musicFlowSpacing.xs,
                             ),
                           ),
                         ),
@@ -717,12 +718,12 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
       key: const Key('discover-random-mix'),
       padding: EdgeInsets.symmetric(
         horizontal: context.musicFlowSpacing.sm,
-        vertical: context.musicFlowSpacing.xs,
+        vertical: context.musicFlowSpacing.xxs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          MusicFlowSectionHeader(
+          MusicFlowSectionHeader.compact(
             title: '随机歌曲',
             // 刷新按钮挨着模块标题,播放按钮由 Spacer 推到最右。
             trailingFollowsTitle: true,
@@ -742,7 +743,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
               ],
             ),
           ),
-          SizedBox(height: context.musicFlowSpacing.xs),
+          SizedBox(height: context.musicFlowSpacing.xxs),
           content,
         ],
       ),
@@ -846,7 +847,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        MusicFlowSectionHeader(
+        MusicFlowSectionHeader.compact(
           title: '最近更新的歌单',
           // 刷新按钮挨着模块标题。
           trailingFollowsTitle: true,
@@ -950,7 +951,7 @@ class FixedRecommendSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        MusicFlowSectionHeader(
+        MusicFlowSectionHeader.compact(
           title: '为你推荐',
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
@@ -1136,7 +1137,7 @@ class PlatformRecommendSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        MusicFlowSectionHeader(
+        MusicFlowSectionHeader.compact(
           title: '平台推荐',
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
@@ -1264,7 +1265,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        MusicFlowSectionHeader(title: '本地随机'),
+        MusicFlowSectionHeader.compact(title: '本地随机'),
         SizedBox(height: context.musicFlowSpacing.xxs),
         channelsAsync.when(
           skipLoadingOnRefresh: false,

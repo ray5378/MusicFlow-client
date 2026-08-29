@@ -78,7 +78,7 @@ void main() {
     );
   }
 
-  testWidgets('stays 64dp, keeps two visible actions, and survives 200% text', (
+  testWidgets('stays 56dp, keeps two visible actions, and survives 200% text', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -181,14 +181,7 @@ void main() {
       expect(progressRect.right, surfaceRect.right);
       expect(progressRect.bottom, surfaceRect.bottom);
       expect(surfaceClip, findsOneWidget);
-      final radii = tester.element(surface).musicFlowRadii;
-      expect(
-        clip.borderRadius,
-        BorderRadius.only(
-          topLeft: radii.scene.topLeft,
-          topRight: radii.scene.topRight,
-        ),
-      );
+      expect(clip.borderRadius, tester.element(surface).musicFlowRadii.scene);
       expect(clip.clipBehavior, isNot(Clip.none));
       expect(progressBar.trackColor, Colors.transparent);
       expect(fraction.alignment, Alignment.centerLeft);

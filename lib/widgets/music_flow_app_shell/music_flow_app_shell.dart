@@ -159,11 +159,13 @@ class MusicFlowMiniPlayerSlot extends StatelessWidget {
                     bottom: includeBottomSafeArea,
                     child: Padding(
                       key: const ValueKey<String>('musicflow-mini-player-chrome'),
+                      // 手机端底部导航上方留出空隙，让 MINI 播放条像箭头音乐一样
+                      // 悬浮；桌面端已占满内容列底部，只需 xxs 小边距。
                       padding: EdgeInsets.fromLTRB(
                         spacing.sm,
                         spacing.xs,
                         spacing.sm,
-                        spacing.xxs,
+                        includeBottomSafeArea ? spacing.xxs : spacing.sm,
                       ),
                       child: child,
                     ),

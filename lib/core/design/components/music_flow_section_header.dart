@@ -13,7 +13,19 @@ class MusicFlowSectionHeader extends StatelessWidget {
     this.trailing,
     this.padding = EdgeInsets.zero,
     this.trailingFollowsTitle = false,
-  });
+  }) : _compact = false;
+
+  /// 首页紧凑标题：字号比默认 headline 小一档（对齐箭头音乐首页模块标题）。
+  const MusicFlowSectionHeader.compact({
+    super.key,
+    required this.title,
+    this.description,
+    this.actionLabel,
+    this.onAction,
+    this.trailing,
+    this.padding = EdgeInsets.zero,
+    this.trailingFollowsTitle = false,
+  }) : _compact = true;
 
   final String title;
   final String? description;
@@ -27,6 +39,8 @@ class MusicFlowSectionHeader extends StatelessWidget {
   /// 默认 false,保持既有「trailing 靠右」行为,不影响其它使用方。
   final bool trailingFollowsTitle;
 
+  final bool _compact;
+
   @override
   Widget build(BuildContext context) {
     final action =
@@ -34,13 +48,18 @@ class MusicFlowSectionHeader extends StatelessWidget {
         (actionLabel == null
             ? null
             : MusicFlowButton.ghost(label: actionLabel!, onPressed: onAction));
+    final titleStyle = _compact
+        ? context.musicFlowTypography.title.copyWith(
+            fontWeight: FontWeight.w700,
+          )
+        : context.musicFlowTypography.headline;
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Semantics(
           header: true,
-          child: Text(title, style: context.musicFlowTypography.headline),
+          child: Text(title, style: titleStyle),
         ),
         if (description != null) ...<Widget>[
           SizedBox(height: context.musicFlowSpacing.xxs),
@@ -64,7 +83,12 @@ class MusicFlowSectionHeader extends StatelessWidget {
           else
             Expanded(child: text),
           if (action != null) ...<Widget>[
-            SizedBox(width: context.musicFlowSpacing.sm),
+            // 首页紧凑模式下标题与刷新按钮更贴近箭头音乐。
+            SizedBox(
+              width: trailingFollowsTitle
+                  ? context.musicFlowSpacing.xs
+                  : context.musicFlowSpacing.sm,
+            ),
             if (trailingFollowsTitle) Expanded(child: action) else action,
           ],
         ],

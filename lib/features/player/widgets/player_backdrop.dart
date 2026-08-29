@@ -101,12 +101,16 @@ class _PlayerBackdropSpec {
   final MusicFlowMediaVisuals visuals;
   final MusicFlowPlayerBackdropMode mode;
 
-  // MINI 播放条：参考箭头音乐做成底部浮起的圆角胶囊，只保留顶部圆弧。
-  static const BorderRadius _miniRadius = BorderRadius.only(
-    topLeft: Radius.circular(24),
-    topRight: Radius.circular(24),
-  );
+  // MINI 播放条：参考箭头音乐的底部悬浮胶囊，四边都圆角并带轻微阴影。
+  static const BorderRadius _miniRadius = BorderRadius.all(Radius.circular(24));
   static const List<double> _gradientStops = <double>[0, 0.48, 1];
+  static final List<BoxShadow> _miniShadow = <BoxShadow>[
+    BoxShadow(
+      color: const Color(0x14000000),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+  ];
 
   List<Color> get colors => switch (mode) {
     MusicFlowPlayerBackdropMode.mini => <Color>[
@@ -131,6 +135,11 @@ class _PlayerBackdropSpec {
     MusicFlowPlayerBackdropMode.stage => null,
   };
 
+  List<BoxShadow> get boxShadow => switch (mode) {
+    MusicFlowPlayerBackdropMode.mini => _miniShadow,
+    MusicFlowPlayerBackdropMode.stage => const <BoxShadow>[],
+  };
+
   BoxDecoration get decoration => BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
@@ -147,7 +156,7 @@ class _PlayerBackdropSpec {
     ),
     borderRadius: borderRadius,
     border: border,
-    boxShadow: const <BoxShadow>[],
+    boxShadow: boxShadow,
   );
 
   static BoxDecoration lerp(
@@ -181,7 +190,11 @@ class _PlayerBackdropSpec {
         progress,
       ),
       border: BoxBorder.lerp(from.border, to.border, progress),
-      boxShadow: const <BoxShadow>[],
+      boxShadow: BoxShadow.lerpList(
+        from.boxShadow,
+        to.boxShadow,
+        progress,
+      ),
     );
   }
 }
