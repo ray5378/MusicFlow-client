@@ -7,14 +7,6 @@ import '../../core/utils/subsonic_auth.dart';
 import '../../core/utils/logger.dart';
 import '../models/music_library.dart';
 
-/// DLNA 流 URL 容噪清洗。
-/// 部分共享反向代理 / 服务端返回的 URL 可能把 `&` 转义成 `&amp;`(可无限嵌套,
-/// 如 `&amp;amp;`),在把 URL 交给设备自拉流前先把 `&(amp;)+` 还原成单个 `&`,
-/// 让设备拿到干净的流地址(与服务器端 parseLenientQuery 两端呼应)。
-String sanitizeDlnaStreamUrl(String url) {
-  return url.replaceAll(RegExp(r'&(amp;)+', caseSensitive: false), '&');
-}
-
 /// Subsonic API Client
 /// Updated to support MusicLibrary model and injected Dio.
 class SubsonicApiClient {
@@ -257,13 +249,14 @@ class SubsonicApiClient {
   ///
   /// 服务端只返回相对路径 `/rest/dlna/stream/:token`，由客户端拼接主机，这样即便
   /// 服务端探测到的 baseUrl 是局域网 IP，设备也能通过客户端的公网域名拿到流。
+  /// 换取失败时回退旧行为（返回带鉴权的 `/rest/stream` URL），保证投屏不中断。
   ///
-  /// ⚠️ 外网直投的服务器地址必须用明文 `http`，不要用 `https`：大量 DLNA 渲染器
-  /// （尤其 OpenWrt 上的 GMediaRender/GStreamer 精简构建）没有 TLS 栈，拿到 `https`
-  /// 的流 URL 会直接拒拉流——一次 GET 都不发、卡在 TRANSITIONING 且无声。流 URL 与
-  /// 客户端服务器地址共用同一个 baseUrl，因此只要把服务器配成 `http://域名:端口`（并
-  /// 保证该 http 端点公网可达），设备即用 http 拉流，无需改任何投屏代码。仅当机型
-  /// 明确必须 https 时才需要单独处理。换取/下发失败时直接抛错，由上层把投屏标记失败。
+  /// ⚠️ 外网直投的服务器地址必须用明文 `http`，不要用 `https`：很多 DLNA 设备
+  /// 不支持 https 投流（尤其 OpenWrt 上的 GMediaRender/GStreamer 精简构建没有
+  /// TLS 栈），拿到 `https` 的流 URL 会直接拒拉流——一次 GET 都不发、卡在
+  /// TRANSITIONING 且无声。流 URL 与客户端服务器地址共用同一个 baseUrl，因此只需
+  /// 把服务器配成 `http://域名:端口`（并保证该 http 端点公网可达），设备即用 http
+  /// 拉流，无需改任何投屏代码。仅当机型明确必须 https 时才需单独处理。
   Future<String> getDlnaCastStreamUrl(
     String songId, {
     int? maxBitRate,
@@ -279,15 +272,11 @@ class SubsonicApiClient {
       if (path == null || path.isEmpty) {
         throw StateError('服务端未返回 streamUrl');
       }
-      final url = sanitizeDlnaStreamUrl(joinServerUrl(baseUrl, path));
-      return Uri.parse(url).toString();
+      final uri = Uri.parse(joinServerUrl(baseUrl, path));
+      return uri.toString();
     } catch (e) {
-      // 不再回退为带 u/t/s 鉴权参数的 /rest/stream URL 下发设备:这类 query 鉴权 URL
-      // 正是渲染器(如 GMediaRender)拉流失败、反向代理再把 `&` 转成 `&amp;` 时服务端
-      // 鉴权解析失败的根因。直接抛错,由上层把投屏标记失败,避免「看似在播实则无声」
-      // 的假象。
-      Logger.warn('DLNA 无鉴权流获取失败(投屏将终止)', e);
-      rethrow;
+      Logger.warn('DLNA 无鉴权流获取失败，回退带鉴权流', e);
+      return getStreamUrl(songId, maxBitRate: maxBitRate);
     }
   }
 
