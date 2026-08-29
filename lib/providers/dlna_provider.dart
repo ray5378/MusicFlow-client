@@ -28,7 +28,9 @@ const EventChannel _dlnaHeartbeatEventChannel = EventChannel(
 /// 事件通道只订阅一次（幂等）。
 bool _heartbeatEventsSubscribed = false;
 
-/// 模块级「最近一次预约触发时刻」：供 woken 事件比对迟到量(诊断冻结/维护窗口外唤醒)。
+/// 模块级「最近一次真正预约(setAlarmClock)的触发时刻」：供 woken 事件比对迟到量
+/// (诊断冻结/维护窗口外唤醒)。只在 armCastHeartbeat 时写入；被 woken 事件消费后清零，
+/// cancel 不清零(冻结恢复时 cancel 可能先于 woken 到达，清零会丢真值)。
 int _moduleLastArmTrigger = 0;
 
 /// 订阅原生心跳事件并落到 app 内日志（仅 Android），供复盘续播链路。
@@ -54,6 +56,8 @@ void _initDlnaHeartbeatEventLogging() {
                 'scheduled=${DateTime.fromMillisecondsSinceEpoch(_moduleLastArmTrigger)} '
                 'late=${lateS.toStringAsFixed(1)}s',
           );
+          // 本次唤醒已消费，重置最近预约值，避免下次 woken 误用旧时刻。
+          _moduleLastArmTrigger = 0;
         } else {
           Logger.infoWithTag('DLNA-HB', '闹钟事件 $name arg=${arg ?? 0}');
         }
@@ -131,8 +135,8 @@ Future<void> startCastKeepAliveService() async {
 ///     某些 ROM 会连带停掉该服务，进程退回后台即冻结，轮询随之中断。
 ///  2. 请求电池优化豁免 —— 相对国产 ROM 后台冻结最有效的糖衣手段，
 ///     用户确认后应用列入白名单，退后台/锁屏仍持续轮询 → 到点准点推下一首。
-///  3. 请求精确闹钟 SCHEDULE_EXACT_ALARM —— 混合方案里「冻结兜底」的系统闹钟依赖它；
-///     未授予时曲末闹钟只能在深度冻结时长得多的大维护窗口里被合并触发，等同于不响。
+/// (注：曲末兜底闹钟已用 setAlarmClock，其不依赖 SCHEDULE_EXACT_ALARM 权限，
+///  故不再请求精确闹钟授权，减少一次系统弹窗。)
 Future<void> _requestBackgroundCastPerms() async {
   // 1) POST_NOTIFICATIONS（Android 13+；旧版本 API 由插件自动放行）
   try {
@@ -151,16 +155,6 @@ Future<void> _requestBackgroundCastPerms() async {
         .invokeMethod<bool>('isIgnoringBatteryOptimization');
     if (ignoring != true) {
       await _dlnaPlatformChannel.invokeMethod('requestIgnoreBatteryOptimization');
-    }
-  } catch (_) {}
-
-  // 3) 精确闹钟（Android 12+）：冻结兜底的系统闹钟若不能精确调度，冻结期间几乎不触发。
-  //    尽力请求一次，用户授予后曲末唤醒才能基本准点；拒授时靠电池白名单 + Dart 自身计时兜住。
-  try {
-    final canExact = await _dlnaPlatformChannel
-        .invokeMethod<bool>('canScheduleExactAlarms');
-    if (canExact != true) {
-      await _dlnaPlatformChannel.invokeMethod('requestScheduleExactAlarm');
     }
   } catch (_) {}
 }
@@ -189,9 +183,10 @@ Future<void> armCastHeartbeat(int triggerAtMs) async {
 }
 
 /// 取消已预约的一次性曲末唤醒（停止投屏 / 压制重复唤醒时调用）。仅 Android、幂等。
+/// 不重置 [_moduleLastArmTrigger]：该值只保留「最近一次真正 arm 的触发时刻」，
+/// 供随后可能到达的 woken 事件计算迟到量；消费后由 woken 处理器清零。
 Future<void> cancelCastHeartbeat() async {
   if (!Platform.isAndroid) return;
-  _moduleLastArmTrigger = 0;
   try {
     await _dlnaPlatformChannel.invokeMethod('cancelCastHeartbeat');
   } catch (_) {}

@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 
 /**
@@ -21,15 +20,14 @@ import android.util.Log
  * 正常播放几乎零打扰：每首歌只在结尾前几秒醒一次；歌曲时长未知（设备 RawHTTP
  * 时长回报 0）时，由 Dart 回退到固定间隔兜底。
  *
- * 用 allowWhileIdle 类闹钟：Doze / 冻结下仍会尽量按维护窗口触发。Android 12+ 的
- * setExactAndAllowWhileIdle 需要 SCHEDULE_EXACT_ALARM，未授予会抛 SecurityException，
- * 这时退到非精确版（深度冻结里会被合并到很久的维护窗口）。因此投屏启动时 Dart 会
- * 主动请求 SCHEDULE_EXACT_ALARM（见 startCastKeepAliveService 的 _requestBackgroundCastPerms），
- * 把「精确闹钟」真正要下来，让曲末唤醒在冻结期间也能基本准点。
+ * 用 setAlarmClock（系统最高优先级闹钟，Doze / 深度冻结下保证准点）：曲末兜底唤醒
+ * 唯一可靠手段。实测 setExactAndAllowWhileIdle 在深冻结下会被推迟数分钟甚至不触发，
+ * 无法兜住后台续播；setAlarmClock 无需 SCHEDULE_EXACT_ALARM 权限，代价是状态栏/锁屏
+ * 会短暂显示一条「闹钟将于 HH:MM 响」的系统提示（唱完即消失）。
  *
  * 承载全链路诊断日志：直接打 system logcat（tag `MusicFlowHB`），并通过 [onEvent]
  * 逆向上报给 Dart（最终进入 app 内可查看的 HEARTBEAT 日志），便于定位
- * 「算错时长 / 没 set 上 / 选择精确还是非精确 / 是否被系统拉起」。
+ * 「算错时长 / 没 set 上 / 是否被系统拉起」。
  */
 object CastHeartbeat {
 
@@ -42,11 +40,13 @@ object CastHeartbeat {
     const val FALLBACK_INTERVAL_MS = 45_000L
 
     private const val REQ_CODE = 0x5A01
+    // setAlarmClock 的 showIntent 专用 requestCode：与触发闹钟(alarmPi)区分，互不覆盖。
+    private const val REQ_CODE_SHOW = 0x5A02
     private const val ACTION_HEARTBEAT = "com.musicflow.app.action.CAST_HEARTBEAT"
 
     /**
      * 原生事件上报给 Dart（逆向通道由 MainActivity 注入）。
-     * event 取值：arm.exact / arm.inexact / cancel / woken。
+     * event 取值：arm.alarmClock / cancel / woken。
      */
     var onEvent: ((String, Long?) -> Unit)? = null
 
@@ -77,39 +77,17 @@ object CastHeartbeat {
         val requested = triggerAtMs
         val trigger = if (triggerAtMs <= now) now + 1_000L else triggerAtMs
         val pi = pendingIntent(context)
-        var exact = false
-        var reason = "api<23"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                am.canScheduleExactAlarms()
-            if (canExact) {
-                try {
-                    // 精确版 allowWhileIdle：冻结下也能按接近触发时间拉起（API 31+ 需权限）。
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
-                    exact = true
-                    reason = "exact granted (canScheduleExactAlarms=true)"
-                } catch (e: SecurityException) {
-                    // 权限判定与实际授予存在竞态：退非精确版兜底，并记录原因以便排查「为什么不精确」。
-                    Log.w(LOG_TAG, "setExactAndAllowWhileIdle SecurityException=$e -> fallback inexact")
-                    reason = "exact SecurityException=${e.message}"
-                }
-            } else {
-                reason = "no SCHEDULE_EXACT_ALARM (sdk>=31 canScheduleExactAlarms=false)"
-            }
-            if (!exact) {
-                // 未授予 SCHEDULE_EXACT_ALARM：退非精确版 allowWhileIdle，尽力在维护窗口触发。
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
-            }
-        } else {
-            // API < 23 无 Doze，直接精确触发。
-            am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi)
-            exact = true
-        }
-        val e = if (exact) "arm.exact" else "arm.inexact"
-        // 全量诊断：请求时刻 vs 实际触发时刻 + 距当前毫秒数 + 精确/非精确选择原因。
+        // setAlarmClock：系统最高优先级闹钟，Doze / 深度冻结下也保证准点唤醒。
+        // 实测 setExactAndAllowWhileIdle 在深冻结下会被推迟数分钟甚至不触发(=不响)，
+        // 无法作为后台曲末兜底；只有 setAlarmClock 是安卓保证准点的闹钟。不需要
+        // SCHEDULE_EXACT_ALARM 权限。副作用：状态栏/锁屏会短暂显示「闹钟于 HH:MM 响」。
+        val showPi = showPendingIntent(context)
+        am.setAlarmClock(AlarmManager.RTC_WAKEUP, trigger, showPi, pi)
+        val e = "arm.alarmClock"
+        // 全量诊断：请求时刻 vs 实际触发时刻 + 距当前毫秒数 + 偏差。
         Log.i(
             LOG_TAG,
-            "$e requested=$requested trigger=$trigger now=$now inMs=${trigger - now} driftFromNow=${trigger - requested} reason=$reason"
+            "$e requested=$requested trigger=$trigger now=$now inMs=${trigger - now} driftFromNow=${trigger - requested}"
         )
         emit(e, trigger)
     }
@@ -127,6 +105,21 @@ object CastHeartbeat {
         return PendingIntent.getBroadcast(
             context,
             REQ_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    /**
+     * setAlarmClock 必传的 showIntent：系统在状态栏/锁屏展示「闹钟将于 HH:MM 响」时，
+     * 用户点按后的落地页。这里指向 MainActivity（回到 app，无副作用）。请求码与
+     * 触发闹钟(alarmPi)区分，避免 PendingIntent 相互覆盖。
+     */
+    private fun showPendingIntent(context: Context): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java)
+        return PendingIntent.getActivity(
+            context,
+            REQ_CODE_SHOW,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
