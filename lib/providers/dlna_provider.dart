@@ -66,24 +66,9 @@ Future<void> releaseCastWakeLock() async {
   }
 }
 
-/// 启动「投屏保活」前台服务：进程置前台态 + PARTIAL 唤醒锁，避免熄屏/退后台
-/// 时进程被冻结或杀死，保证 2s 状态轮询定时器持续触发 → 曲毕自动推下一首。
-/// 明显区别于纯唤醒锁：前台态可抵御系统按内存压力后台杀进程。仅 Android、幂等。
-/// 启动前先补齐后台续播的前置条件：Android 13+ 通知权限(前台服务常驻可见) +
-/// 电池优化白名单(国产 ROM 后台冻结的根治手段)。
-Future<void> startCastKeepAliveService() async {
-  if (!Platform.isAndroid) return;
-  await _requestBackgroundCastPerms();
-  try {
-    await _dlnaPlatformChannel.invokeMethod('startCastService');
-  } catch (_) {
-    // 通道不可用/权限缺失时静默降级，不阻断投屏本身
-  }
-}
-
 /// 后台投屏续播的前置权限/豁免（幂等、全静默失败降级，不阻断投屏）：
-///  1. Android 13+ 请求通知权限 —— mediaPlayback 前台服务的通知若不显示，
-///     某些 ROM 会连带停掉该服务，进程退回后台即冻结，轮询随之中断。
+///  1. Android 13+ 请求通知权限 —— 音乐播放通知（AudioService 媒体前台服务）
+///     若被系统拦截/不显示，进程退回后台即可能被冻结，曲末轮询随之中断。
 ///  2. 请求电池优化豁免 —— 相对国产 ROM 后台冻结最有效的糖衣手段，
 ///     用户确认后应用列入白名单，退后台/锁屏仍持续轮询 → 到点准点推下一首。
 Future<void> _requestBackgroundCastPerms() async {
@@ -105,14 +90,6 @@ Future<void> _requestBackgroundCastPerms() async {
     if (ignoring != true) {
       await _dlnaPlatformChannel.invokeMethod('requestIgnoreBatteryOptimization');
     }
-  } catch (_) {}
-}
-
-/// 停止「投屏保活」服务。仅 Android、幂等。
-Future<void> stopCastKeepAliveService() async {
-  if (!Platform.isAndroid) return;
-  try {
-    await _dlnaPlatformChannel.invokeMethod('stopCastService');
   } catch (_) {}
 }
 
@@ -328,7 +305,6 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       _cancelHeartbeat();
       _disableNotificationCast();
       releaseCastWakeLock();
-      stopCastKeepAliveService();
     };
   }
 
@@ -498,7 +474,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       // 后台保活（仅 Android）：唤醒锁 + 前台服务双重保障，熄屏/退后台时
       // 进程不被冻结或杀死，2s 轮询持续触发 → 曲毕自动推下一首。
       acquireCastWakeLock();
-      startCastKeepAliveService();
+      await _requestBackgroundCastPerms();
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
@@ -588,7 +564,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         castPath: manager.castPath,
       );
       acquireCastWakeLock();
-      startCastKeepAliveService();
+      await _requestBackgroundCastPerms();
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
@@ -716,7 +692,6 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       smoothPositionSeconds: 0,
     );
     await releaseMulticastLock();
-    stopCastKeepAliveService();
 
     await _resumeLocalPlayback(castIndex: castIndex, position: castPosition);
   }

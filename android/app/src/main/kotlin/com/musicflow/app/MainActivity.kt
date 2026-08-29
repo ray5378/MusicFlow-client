@@ -113,29 +113,6 @@ class MainActivity : AudioServiceFragmentActivity() {
                     result.error("RELEASE_WAKE_LOCK_FAILED", e.message, null)
                 }
             }
-            // 直投期间启动/停止「投屏保活」前台服务：进程置前台态 + 唤醒锁，
-            // 保证后台曲末看门狗持续运行。幂等：重复启动无害，停止以显式调用为准。
-            "startCastService" -> {
-                try {
-                    ContextCompat.startForegroundService(
-                        this,
-                        Intent(this, CastKeepAliveService::class.java)
-                    )
-                    result.success(true)
-                } catch (e: Exception) {
-                    result.error("START_CAST_SERVICE_FAILED", e.message, null)
-                }
-            }
-            "stopCastService" -> {
-                try {
-                    val started = stopService(
-                        Intent(this, CastKeepAliveService::class.java)
-                    )
-                    result.success(started)
-                } catch (e: Exception) {
-                    result.error("STOP_CAST_SERVICE_FAILED", e.message, null)
-            }
-            }
             // 电池优化豁免：国产 ROM 后台冻结常导致投屏轮询 timer 停摆，即使前台服务
             // + 唤醒锁也难幸免。主动请求让应用列入「不优化」白名单，保证切后台/锁屏仍轮询。
             "isIgnoringBatteryOptimization" -> {

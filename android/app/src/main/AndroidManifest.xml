@@ -66,13 +66,6 @@
             </intent-filter>
         </service>
 
-        <!-- DLNA 投屏后台保活服务：仅持有 PARTIAL 唤醒锁，保证熄屏/退后台时 CPU 常醒，
-             2s 轮询持续触发 → 曲毕自动推下一首。前台态与常驻音乐通知由 AudioService
-             的媒体播放前台服务承担，本服务不再自建通知，避免与播放通知重复。 -->
-        <service
-            android:name=".CastKeepAliveService"
-            android:exported="false" />
-
         <!-- 媒体按钮接收器 -->
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"
