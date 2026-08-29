@@ -134,6 +134,26 @@ class MusicFlowMediaVisuals {
     );
   }
 
+  /// Adjusts [candidate] toward [target] until it contrasts with every surface
+  /// in [backgrounds] at [minimumRatio].
+  ///
+  /// Lets consumers keep a custom accent — e.g. the warm-yellow lyric
+  /// highlight — readable on every cover: dark stages keep the pure candidate,
+  /// light stages deepen it toward the stage ink just enough to pass.
+  static Color ensureAccentContrast(
+    Color candidate, {
+    required Color target,
+    required Iterable<Color> backgrounds,
+    double minimumRatio = 4.5,
+  }) {
+    return _ensureContrastAcrossToward(
+      candidate,
+      target: target,
+      backgrounds: backgrounds,
+      minimumRatio: minimumRatio,
+    );
+  }
+
   /// Stable media visuals used before artwork is available or has no palette.
   factory MusicFlowMediaVisuals.fallback({
     Color seed = MusicFlowColors.contentTintFallback,

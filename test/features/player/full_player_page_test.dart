@@ -120,12 +120,13 @@ void main() {
     final utility = find.byKey(
       const ValueKey<String>('full_player_utility_bar'),
     );
-    final quality = find.byKey(
-      const ValueKey<String>('full_player_quality_metadata'),
-    );
     expect(transport, findsOneWidget);
     expect(utility, findsOneWidget);
-    expect(quality, findsOneWidget);
+    // 底部音质信息栏已移除：信息迁移到歌曲信息页。
+    expect(
+      find.byKey(const ValueKey<String>('full_player_quality_metadata')),
+      findsNothing,
+    );
     // 图标断言(widget 树),语义树在测试环境不可靠。
     expect(
       find.descendant(of: transport, matching: find.byIcon(AppIcons.previous)),
@@ -145,10 +146,10 @@ void main() {
       find.descendant(of: transport, matching: find.byIcon(AppIcons.next)),
       findsOneWidget,
     );
-    // 播放模式图标随状态三选一(随机/列表循环/单曲循环)。
+    // 播放模式与队列下沉到播放控制行两侧(参考截图布局)。
     expect(
       find.descendant(
-        of: utility,
+        of: transport,
         matching: find.byWidgetPredicate((w) =>
             w is Icon &&
             (w.icon == AppIcons.shuffle ||
@@ -158,9 +159,10 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: utility, matching: find.byIcon(AppIcons.queue)),
+      find.descendant(of: transport, matching: find.byIcon(AppIcons.queue)),
       findsOneWidget,
     );
+    // 工具栏精简为 4 项:DLNA 直投(最左) / 红心 / 音量 / 切换播放器(最右)。
     expect(
       find.descendant(
           of: utility, matching: find.byIcon(AppIcons.heartOutline)),
@@ -169,6 +171,11 @@ void main() {
     expect(
       find.descendant(
           of: utility, matching: find.byIcon(AppIcons.dlnaLocal)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+          of: utility, matching: find.byIcon(AppIcons.signalTower)),
       findsOneWidget,
     );
     expect(
@@ -429,10 +436,23 @@ void main() {
 
     await tester.tap(find.text('打开播放器'));
     await tester.pumpAndSettle();
-    // 封面页左滑进入歌词页(歌词与封面由 PageView 无缝切换)。
+    // 三页结构:[歌词(0) / 封面(1) / 信息(2)]。封面左滑进歌曲信息页。
     await tester.drag(
       find.byKey(const ValueKey<String>('full_player_cover')),
       const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('歌曲信息'), findsOneWidget);
+
+    // 右滑回封面页，再右滑进入歌词页。
+    await tester.drag(
+      find.byKey(const ValueKey<String>('full_player_song_info_page')),
+      const Offset(500, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const ValueKey<String>('full_player_cover')),
+      const Offset(500, 0),
     );
     await tester.pumpAndSettle();
     expect(find.text('暂无歌词'), findsOneWidget);
@@ -609,7 +629,9 @@ void main() {
     );
     await tester.pump();
 
-    final titleContext = tester.element(find.text('正在播放'));
+    // 顶栏「正在播放」文字已换成页签圆点：改取收起按钮所在上下文校验
+    // 媒体作用域令牌(按钮位于 MusicFlowMediaColorScope 内)。
+    final titleContext = tester.element(find.byIcon(AppIcons.chevronDown));
     final stageTokens = _mediaScopeTokens(visuals, visuals.stageBase);
     expect(titleContext.musicFlowColors.ink, stageTokens.ink);
     expect(titleContext.musicFlowColors.muted, stageTokens.muted);
@@ -654,7 +676,14 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(AppIcons.more));
+    // 「更多」按钮已从顶栏移除：左滑进信息页，从「歌曲操作」入口打开
+    // 同一个操作面板（下一曲播放/添加到歌单/跳转歌手与专辑 全部保留）。
+    await tester.drag(
+      find.byKey(const ValueKey<String>('full_player_cover')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('歌曲操作'));
     await tester.pumpAndSettle();
 
     final sheet = find.byType(MusicFlowBottomSheet);

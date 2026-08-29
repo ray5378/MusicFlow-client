@@ -18,6 +18,76 @@ class _LyricsRenderParts {
   final String? secondary;
 }
 
+final RegExp _cjkRegExp = RegExp(r'[\u4e00-\u9fff]');
+final RegExp _latinRegExp = RegExp(r'[A-Za-z]');
+final RegExp _enZhBoundary = RegExp(
+  r'^(.*?[A-Za-z0-9][^\u4e00-\u9fff]*?)\s+([\u4e00-\u9fff].*)$',
+);
+final RegExp _zhEnBoundary = RegExp(
+  r'^([\u4e00-\u9fff].*?)\s+([A-Za-z].*)$',
+);
+final RegExp _visibleLyricsCharacter = RegExp(
+  r'[^\s\u0000-\u001F\u007F-\u009F\u00AD\u034F\u061C\u180E'
+  r'\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFE00-\uFE0F\uFEFF]',
+  unicode: true,
+);
+
+/// Returns the index of the lyric line that is active at [position].
+///
+/// Falls back to 0 for unsynced or empty lyrics so callers can always render
+/// "the current line" without special-casing.
+int syncedLyricIndexFor(StructuredLyrics lyrics, Duration position) {
+  final lines = lyrics.lines;
+  if (!lyrics.synced || lines.isEmpty) return 0;
+
+  final offset = lyrics.offsetMs;
+  var low = 0;
+  var high = lines.length - 1;
+  var result = 0;
+  while (low <= high) {
+    final middle = (low + high) >> 1;
+    final start = (lines[middle].startMs ?? 0) + offset;
+    if (position.inMilliseconds >= start) {
+      result = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return result;
+}
+
+/// Splits one raw lyric line into its (primary, secondary) halves.
+///
+/// Bilingual lines (Latin + CJK in either order) split at the language
+/// boundary; single-language lines keep [secondary] empty.
+(String, String?) lyricLineParts(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty) return ('', null);
+  if (!_cjkRegExp.hasMatch(text) || !_latinRegExp.hasMatch(text)) {
+    return (text, null);
+  }
+
+  final enZh = _enZhBoundary.firstMatch(text);
+  if (enZh != null) {
+    final first = enZh.group(1)?.trim() ?? '';
+    final second = enZh.group(2)?.trim() ?? '';
+    if (first.isNotEmpty && second.isNotEmpty) {
+      return (first, second);
+    }
+  }
+
+  final zhEn = _zhEnBoundary.firstMatch(text);
+  if (zhEn != null) {
+    final first = zhEn.group(1)?.trim() ?? '';
+    final second = zhEn.group(2)?.trim() ?? '';
+    if (first.isNotEmpty && second.isNotEmpty) {
+      return (first, second);
+    }
+  }
+  return (text, null);
+}
+
 class SyncedLyricsView extends ConsumerWidget {
   const SyncedLyricsView({
     super.key,
@@ -82,20 +152,6 @@ class SyncedLyricsSurface extends StatefulWidget {
 }
 
 class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
-  static final RegExp _cjkRegExp = RegExp(r'[\u4e00-\u9fff]');
-  static final RegExp _latinRegExp = RegExp(r'[A-Za-z]');
-  static final RegExp _enZhBoundary = RegExp(
-    r'^(.*?[A-Za-z0-9][^\u4e00-\u9fff]*?)\s+([\u4e00-\u9fff].*)$',
-  );
-  static final RegExp _zhEnBoundary = RegExp(
-    r'^([\u4e00-\u9fff].*?)\s+([A-Za-z].*)$',
-  );
-  static final RegExp _visibleLyricsCharacter = RegExp(
-    r'[^\s\u0000-\u001F\u007F-\u009F\u00AD\u034F\u061C\u180E'
-    r'\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFE00-\uFE0F\uFEFF]',
-    unicode: true,
-  );
-
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -155,51 +211,12 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
   }
 
   int _findCurrentLineIndex(int currentMs) {
-    final lines = widget.lyrics.lines;
-    if (!widget.lyrics.synced || lines.isEmpty) return 0;
-
-    final offset = widget.lyrics.offsetMs;
-    var low = 0;
-    var high = lines.length - 1;
-    var result = 0;
-    while (low <= high) {
-      final middle = (low + high) >> 1;
-      final start = (lines[middle].startMs ?? 0) + offset;
-      if (currentMs >= start) {
-        result = middle;
-        low = middle + 1;
-      } else {
-        high = middle - 1;
-      }
-    }
-    return result;
+    return syncedLyricIndexFor(widget.lyrics, Duration(milliseconds: currentMs));
   }
 
   _LyricsRenderParts _splitBilingualLine(String raw) {
-    final text = raw.trim();
-    if (text.isEmpty) return const _LyricsRenderParts('');
-    if (!_cjkRegExp.hasMatch(text) || !_latinRegExp.hasMatch(text)) {
-      return _LyricsRenderParts(text);
-    }
-
-    final enZh = _enZhBoundary.firstMatch(text);
-    if (enZh != null) {
-      final first = enZh.group(1)?.trim() ?? '';
-      final second = enZh.group(2)?.trim() ?? '';
-      if (first.isNotEmpty && second.isNotEmpty) {
-        return _LyricsRenderParts(first, second);
-      }
-    }
-
-    final zhEn = _zhEnBoundary.firstMatch(text);
-    if (zhEn != null) {
-      final first = zhEn.group(1)?.trim() ?? '';
-      final second = zhEn.group(2)?.trim() ?? '';
-      if (first.isNotEmpty && second.isNotEmpty) {
-        return _LyricsRenderParts(first, second);
-      }
-    }
-    return _LyricsRenderParts(text);
+    final (primary, secondary) = lyricLineParts(raw);
+    return _LyricsRenderParts(primary, secondary);
   }
 
   bool _hasVisibleLyricsCharacters(String value) {

@@ -6,14 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../core/design/music_flow_design.dart';
-import '../../../core/network/connectivity_monitor.dart';
-import '../../../data/models/audio_quality.dart';
 import '../../../data/models/song.dart';
-import '../../../providers/audio_quality_provider.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/library_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -22,7 +18,7 @@ import '../widgets/local_dlna_cast_sheet.dart';
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/player_hero_helpers.dart';
 import '../widgets/player_scrubber.dart';
-import '../widgets/song_options_sheet.dart';
+import '../widgets/song_info_page.dart';
 import '../widgets/synced_lyrics_view.dart';
 import '../widgets/vinyl_record_cover.dart';
 import '../../../widgets/windows_title_bar.dart';
@@ -39,16 +35,20 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     with TickerProviderStateMixin {
   bool _isClosingRoute = false;
 
-  /// 封面页 ↔ 歌词页 的滑页控制器：封面左滑进歌词、歌词右滑回封面，实时渲染无缝切换。
-  late final PageController _lyricsPageController;
+  /// 三页滑页控制器：[歌词页(0), 封面+控件页(1), 歌曲信息页(2)]，首屏停在封面页。
+  /// 手指左滑翻向更高下标——从封面左滑进歌曲信息页，右滑回歌词页。
+  late final PageController _pageController;
   Animation<double> _routeForegroundOpacity =
       const AlwaysStoppedAnimation<double>(1);
   CurvedAnimation? _routeForegroundCurvedAnimation;
 
+  /// 方案 A 自适应暖黄基色：暗底保持纯色，亮底自动加深至 AA 可读。
+  static const Color _warmLyricYellow = Color(0xFFFFC233);
+
   @override
   void initState() {
     super.initState();
-    _lyricsPageController = PageController(initialPage: 0);
+    _pageController = PageController(initialPage: 1);
   }
 
   @override
@@ -78,7 +78,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   @override
   void dispose() {
     _routeForegroundCurvedAnimation?.dispose();
-    _lyricsPageController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -104,15 +104,13 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     showMusicFlowMessage(context, message, kind: kind);
   }
 
-  void _showSongActions(Song song) {
-    final mediaVisuals = ref.read(resolvedCurrentSongMediaVisualsProvider);
-    unawaited(
-      showSongOptionsSheet(
-        context: context,
-        song: song,
-        mediaVisuals: mediaVisuals,
-      ),
-    );
+  /// 打开播放队列：移动端走底部弹窗，桌面端走右侧面板开关。
+  void _openQueue() {
+    if (context.musicFlowWindowClass == MusicFlowWindowClass.compact) {
+      unawaited(showPlayQueueSheet(context: context));
+    } else {
+      toggleRightQueuePanel(context: context);
+    }
   }
 
   @override
@@ -251,16 +249,36 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   }
 
   Widget _buildPortraitPlayerLayout(Song song, {required String subtitle}) {
+    final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
+    // 方案 A 自适应暖黄：对三段舞台底色保 4.5:1——暗底保持纯黄(参考截图观感)，
+    // 亮底自动朝前景墨色加深，任何封面都可读。
+    final lyricAccent = MusicFlowMediaVisuals.ensureAccentContrast(
+      _warmLyricYellow,
+      target: visuals.foreground,
+      backgrounds: <Color>[
+        visuals.stageGlow,
+        visuals.stageBase,
+        visuals.stageBottom,
+      ],
+    );
     return Column(
       key: const ValueKey<String>('full_player_portrait_layout'),
       children: <Widget>[
-        _PlayerTopBar(
-          song: song,
-          onClose: _closeToMini,
-          onOpenActions: () => _showSongActions(song),
+        _PlayerTopBar(controller: _pageController, onClose: _closeToMini),
+        Expanded(
+          child: PageView(
+            controller: _pageController,
+            physics: const BouncingScrollPhysics(),
+            children: <Widget>[
+              // 页 0：歌词页（从封面右滑到达）。
+              _PlayerLyricsPane(activeColor: lyricAccent),
+              // 页 1：封面 + 播放控件页（默认首屏）。
+              _buildCoverStagePage(song, subtitle: subtitle),
+              // 页 2：歌曲信息页（从封面左滑到达）。
+              SongInfoPage(song: song),
+            ],
+          ),
         ),
-        Expanded(child: _buildMiddleContent(song, subtitle: subtitle)),
-        _buildControlPanel(song),
       ],
     );
   }
@@ -449,71 +467,60 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     );
   }
 
-  Widget _buildMiddleContent(Song song, {required String subtitle}) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final spacing = context.musicFlowSpacing;
-        final textScale = MediaQuery.textScalerOf(context).scale(1);
-        final horizontalPadding =
-            context.musicFlowWindowClass == MusicFlowWindowClass.compact
-            ? spacing.lg
-            : spacing.xl;
-        final titleReserve =
-            (24 * textScale * 1.18 * 2) +
-            (subtitle.isEmpty ? 0 : 15 * textScale * 1.45 * 2) +
-            spacing.xxl;
-        final maxCoverByWidth = (constraints.maxWidth - horizontalPadding * 2)
-            .clamp(0.0, 400.0);
-        final maxCoverByHeight = (constraints.maxHeight - titleReserve).clamp(
-          0.0,
-          400.0,
-        );
-        final coverSize = maxCoverByWidth < maxCoverByHeight
-            ? maxCoverByWidth
-            : maxCoverByHeight;
-        final availableTopSpace =
-            (constraints.maxHeight - coverSize - titleReserve) / 2;
-        final coverTopSpace = availableTopSpace.clamp(spacing.xs, spacing.xl);
-        final expandedTitleStyle = context.musicFlowTypography.headline.copyWith(
-          color: context.musicFlowColors.ink,
-        );
-        final subtitleStyle = context.musicFlowTypography.body.copyWith(
-          color: context.musicFlowColors.muted,
-        );
+  /// 首屏（页 1）：黑胶封面（弹性居中）→ 歌名/歌手 → 当前歌词行 → 控制面板。
+  ///
+  /// 文本顺序按确认稿：歌名-歌手在上，歌词行在下；封面尺寸由剩余空间夹取，
+  /// 任何字号/机型下都不会溢出。
+  Widget _buildCoverStagePage(Song song, {required String subtitle}) {
+    final spacing = context.musicFlowSpacing;
+    final typography = context.musicFlowTypography;
+    final horizontalPadding =
+        context.musicFlowWindowClass == MusicFlowWindowClass.compact
+        ? spacing.lg
+        : spacing.xl;
+    final titleStyle = typography.headline.copyWith(
+      fontSize: 24,
+      color: context.musicFlowColors.ink,
+    );
+    final subtitleStyle = typography.body.copyWith(
+      fontSize: 15,
+      color: context.musicFlowColors.muted,
+    );
 
-        // 封面页 ↔ 歌词页：左右滑动实时渲染、无缝切换。取代原先「点封面开歌词、
-        // 点歌词空白回封面」——封面左滑进入歌词页，歌词页右滑返回封面页。
-        return Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: PageView(
-            controller: _lyricsPageController,
-            physics: const BouncingScrollPhysics(),
-            children: <Widget>[
-              // 页 0：封面页（歌曲信息 + 大封面）。
-              Column(
-                children: <Widget>[
-                  SizedBox(height: coverTopSpace),
-                  _buildCoverHero(song, coverSize, opacity: 1),
-                  SizedBox(height: spacing.lg),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: _buildSongIdentity(
-                        song: song,
-                        subtitle: subtitle,
-                        titleStyle: expandedTitleStyle,
-                        subtitleStyle: subtitleStyle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              // 页 1：歌词页（常驻歌词，右滑返回封面页）。
-              const _PlayerLyricsPane(),
-            ],
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      child: Column(
+        children: <Widget>[
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final maxByWidth = constraints.maxWidth.clamp(0.0, 400.0);
+                final maxByHeight = constraints.maxHeight.clamp(0.0, 400.0);
+                final coverSize = maxByWidth < maxByHeight
+                    ? maxByWidth
+                    : maxByHeight;
+                return Center(
+                  child: _buildCoverHero(song, coverSize, opacity: 1),
+                );
+              },
+            ),
           ),
-        );
-      },
+          _buildSongIdentity(
+            song: song,
+            subtitle: subtitle,
+            titleStyle: titleStyle,
+            subtitleStyle: subtitleStyle,
+            titleMaxLines: 2,
+            subtitleMaxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            scrollable: false,
+          ),
+          SizedBox(height: spacing.sm),
+          const _CurrentLyricLine(),
+          SizedBox(height: spacing.lg),
+          _buildControlPanel(song),
+        ],
+      ),
     );
   }
 
@@ -605,27 +612,18 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       key: const ValueKey<String>('full_player_control_panel'),
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
+        _PlayerUtilityBar(
+          key: const ValueKey<String>('full_player_utility_bar'),
+          currentSong: song,
+        ),
+        SizedBox(height: compact ? spacing.xxs : spacing.sm),
         const ProgressBar(),
         SizedBox(height: compact ? spacing.xxs : spacing.sm),
         PlaybackControls(
           key: const ValueKey<String>('full_player_transport_controls'),
           compact: compact,
+          onOpenQueue: _openQueue,
         ),
-        SizedBox(height: compact ? spacing.xxs : spacing.xs),
-        _PlayerUtilityBar(
-          key: const ValueKey<String>('full_player_utility_bar'),
-          currentSong: song,
-          onOpenQueue: () {
-            // 移动端:打开底部弹窗(可下滑/叉号关闭);桌面端:右侧面板点开/点关切换。
-            if (context.musicFlowWindowClass == MusicFlowWindowClass.compact) {
-              unawaited(showPlayQueueSheet(context: context));
-            } else {
-              toggleRightQueuePanel(context: context);
-            }
-          },
-        ),
-        SizedBox(height: spacing.xxs),
-        _buildQualityIndicator(),
       ],
     );
 
@@ -643,228 +641,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
         spacing.sm,
       ),
       child: content,
-    );
-  }
-
-  String _formatSamplingRate(int rate) {
-    final khz = rate / 1000;
-    return khz == khz.truncateToDouble()
-        ? '${khz.toInt()}kHz'
-        : '${khz.toStringAsFixed(1)}kHz';
-  }
-
-  String _buildAudioSpecText(Song? song) {
-    final bitDepth = song?.bitDepth;
-    final samplingRate = song?.samplingRate;
-    if (bitDepth != null && samplingRate != null && samplingRate > 0) {
-      return '${bitDepth}bit/${_formatSamplingRate(samplingRate)}';
-    }
-    if (bitDepth != null) return '${bitDepth}bit';
-    if (samplingRate != null && samplingRate > 0) {
-      return _formatSamplingRate(samplingRate);
-    }
-    return '';
-  }
-
-  String _normalizeQualityPartForCompare(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return '';
-    final bitrateMatch = RegExp(
-      r'(\d{2,4})\s*(k|kbps|kbit/s|kb/s)',
-      caseSensitive: false,
-    ).firstMatch(trimmed);
-    if (bitrateMatch != null) return '${bitrateMatch.group(1)}k';
-    return trimmed.toLowerCase().replaceAll(RegExp(r'\s+'), '');
-  }
-
-  void _appendUniqueQualityPart(List<String> parts, String part) {
-    final candidate = part.trim();
-    if (candidate.isEmpty) return;
-    final normalized = _normalizeQualityPartForCompare(candidate);
-    if (parts.any(
-      (existing) => _normalizeQualityPartForCompare(existing) == normalized,
-    )) {
-      return;
-    }
-    parts.add(candidate);
-  }
-
-  Widget _buildQualityIndicator() {
-    return Consumer(
-      builder: (context, ref, child) {
-        final playerState = ref.watch(
-          playerProvider.select(
-            (state) => (
-              currentSong: state.currentSong,
-              currentBitRateKbps: state.currentBitRateKbps,
-              currentQuality: state.currentQuality,
-              playbackSource: state.playbackSource,
-            ),
-          ),
-        );
-        final song = playerState.currentSong;
-        final rawBitRate = playerState.currentBitRateKbps > 0
-            ? playerState.currentBitRateKbps
-            : ((song?.bitRate ?? 0) >= 10000
-                  ? ((song?.bitRate ?? 0) ~/ 1000)
-                  : (song?.bitRate ?? 0));
-        final bitRateText = rawBitRate > 0 ? '${rawBitRate}Kbps' : '未知码率';
-        final audioSpecText = _buildAudioSpecText(song);
-        final parts = <String>[];
-        const icon = AppIcons.headphones;
-
-        // 详情面板行数据：拖动 Popup 面板，不再把码率内联进标签切换。
-        final source = playerState.playbackSource ?? PlaybackSource.stream;
-        final qualityLabel =
-            song?.isPreview == true
-                ? (song?.previewQualityLabel?.trim().isNotEmpty == true
-                      ? song!.previewQualityLabel!.trim()
-                      : '未知音质')
-                : switch (playerState.currentQuality ??
-                      ref.watch(effectiveQualityProvider)) {
-                    AudioQualityLevel.original => '原始无损',
-                    AudioQualityLevel.high => '高品质',
-                    AudioQualityLevel.standard => '标准',
-                    AudioQualityLevel.dataSaver => '流量节省',
-                    null => '未知音质',
-                  };
-        final sourceLabel =
-            song?.isPreview == true
-                ? '试听'
-                : switch (source) {
-                    PlaybackSource.stream => switch (ref
-                        .watch(currentNetworkTypeProvider)
-                        .valueOrNull) {
-                        NetworkType.wifi => 'Wi-Fi',
-                        NetworkType.mobile => '移动数据',
-                        NetworkType.none => '无网络',
-                        null => '未知网络',
-                      },
-                  };
-        parts.add(sourceLabel);
-        _appendUniqueQualityPart(parts, qualityLabel);
-        if (audioSpecText.isNotEmpty) {
-          _appendUniqueQualityPart(parts, audioSpecText);
-        }
-        final text = parts.join(' · ');
-
-        return MusicFlowPressable(
-          key: const ValueKey<String>('full_player_quality_metadata'),
-          semanticLabel: '$text，点击查看播放详情',
-          onPressed: () => _showQualityDetailSheet(
-            context: context,
-            title: song?.title ?? '播放详情',
-            subtitle: song?.artist,
-            isPreview: song?.isPreview == true,
-            sourceLabel: sourceLabel,
-            qualityLabel: qualityLabel,
-            bitRateText: bitRateText,
-            audioSpecText: audioSpecText,
-          ),
-          minimumSize: Size(
-            context.musicFlowInteraction.minimumTouchTarget,
-            context.musicFlowInteraction.minimumTouchTarget,
-          ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.sm),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(icon, size: 16, color: context.musicFlowColors.ink),
-                SizedBox(width: context.musicFlowSpacing.xs),
-                Flexible(
-                  child: Text(
-                    text,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: context.musicFlowTypography.metadata.copyWith(
-                      color: context.musicFlowColors.muted,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 点击音质/码率信息时弹出的详情面板：把来源、音质、码率、采样规格等
-  /// 详情收进一个面板展示，替代原先「把码率内联进标签」的点击切换。
-  Future<void> _showQualityDetailSheet({
-    required BuildContext context,
-    required String title,
-    required String? subtitle,
-    required bool isPreview,
-    required String sourceLabel,
-    required String qualityLabel,
-    required String bitRateText,
-    required String audioSpecText,
-  }) async {
-    await showMusicFlowBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      builder: (sheetContext) => MusicFlowBottomSheet(
-        title: isPreview ? '试听详情' : '播放详情',
-        subtitle: subtitle,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _QualityDetailRow(label: '曲目', value: title),
-            _QualityDetailRow(label: '播放来源', value: sourceLabel),
-            _QualityDetailRow(label: '音质等级', value: qualityLabel),
-            _QualityDetailRow(label: '码率', value: bitRateText),
-            if (audioSpecText.isNotEmpty)
-              _QualityDetailRow(label: '采样规格', value: audioSpecText),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 播放详情面板里的一行「标签 — 值」只读数据项。
-class _QualityDetailRow extends StatelessWidget {
-  const _QualityDetailRow({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: context.musicFlowSpacing.xs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 88,
-            child: Text(
-              label,
-              style: context.musicFlowTypography.metadata.copyWith(
-                color: context.musicFlowColors.muted,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: context.musicFlowTypography.body.copyWith(
-                color: context.musicFlowColors.ink,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -896,15 +672,10 @@ class _WideDragBanner extends StatelessWidget {
 }
 
 class _PlayerTopBar extends StatelessWidget {
-  const _PlayerTopBar({
-    required this.song,
-    required this.onClose,
-    required this.onOpenActions,
-  });
+  const _PlayerTopBar({required this.controller, required this.onClose});
 
-  final Song song;
+  final PageController controller;
   final VoidCallback onClose;
-  final VoidCallback onOpenActions;
 
   @override
   Widget build(BuildContext context) {
@@ -920,27 +691,63 @@ class _PlayerTopBar extends StatelessWidget {
               onPressed: onClose,
             ),
             Expanded(
-              child: Semantics(
-                header: true,
-                child: Text(
-                  '正在播放',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: context.musicFlowTypography.label.copyWith(
-                    color: context.musicFlowColors.ink,
-                  ),
-                ),
-              ),
+              child: Center(child: _PageDots(controller: controller)),
             ),
-            _PlayerIconButton(
-              icon: AppIcons.more,
-              label: '${song.title} 操作',
-              onPressed: onOpenActions,
-            ),
+            // 右侧对称占位:与左侧收起按钮等宽,保证圆点指示器水平居中。
+            const SizedBox(width: 48),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 三等宽圆点页签指示器：与 [PageController] 实时联动，滑动时亮度平滑插值。
+/// 顺序与页面一致（左→右 = 歌词页 / 封面页 / 信息页）。
+class _PageDots extends StatelessWidget {
+  const _PageDots({required this.controller});
+
+  static const double _dotSize = 6;
+  static const double _dotGap = 6;
+
+  final PageController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.musicFlowColors.ink;
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final page = controller.hasClients
+            ? (controller.page ?? controller.initialPage.toDouble())
+            : controller.initialPage.toDouble();
+        final activeIndex = page.round().clamp(0, 2);
+        return Semantics(
+          label: '播放器页面，第 ${activeIndex + 1} 页，共 3 页',
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                for (var index = 0; index < 3; index += 1) ...<Widget>[
+                  if (index > 0) const SizedBox(width: _dotGap),
+                  Opacity(
+                    opacity:
+                        0.38 +
+                        0.62 * (1 - (page - index).abs()).clamp(0.0, 1.0),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: ink,
+                        shape: BoxShape.circle,
+                      ),
+                      child: SizedBox.square(dimension: _dotSize),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -990,6 +797,75 @@ class _PlayerLyricsPane extends ConsumerWidget {
         actionLabel: '重试',
         onAction: () => ref.invalidate(currentLyricsProvider),
       ),
+    );
+  }
+}
+
+/// 首屏的当前歌词行：歌名-歌手下方，1–2 行居中，muted 色（参考截图样式）。
+/// 无歌词或未同步时整体隐藏，不占位。
+class _CurrentLyricLine extends ConsumerWidget {
+  const _CurrentLyricLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyricsAsync = ref.watch(currentLyricsProvider);
+    final position = ref.watch(effectivePositionProvider);
+    return lyricsAsync.when(
+      data: (lyrics) {
+        if (lyrics == null || lyrics.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final best = lyrics.getBest();
+        if (best == null || !best.synced || best.lines.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final index = syncedLyricIndexFor(best, position);
+        final (primary, secondary) = lyricLineParts(best.lines[index].value);
+        if (primary.isEmpty && (secondary?.isEmpty ?? true)) {
+          return const SizedBox.shrink();
+        }
+        final muted = context.musicFlowColors.muted;
+        final typography = context.musicFlowTypography;
+        final duration = context.musicFlowMotion.resolve(
+          context,
+          context.musicFlowMotion.state,
+        );
+        return AnimatedSwitcher(
+          duration: duration,
+          child: Column(
+            key: ValueKey<int>(index),
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (primary.isNotEmpty)
+                Text(
+                  primary,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.body.copyWith(
+                    fontSize: 15,
+                    color: muted,
+                  ),
+                ),
+              if (secondary != null && secondary.isNotEmpty) ...<Widget>[
+                SizedBox(height: context.musicFlowSpacing.xxs),
+                Text(
+                  secondary,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.body.copyWith(
+                    fontSize: 13,
+                    color: muted.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (Object error, StackTrace stackTrace) => const SizedBox.shrink(),
     );
   }
 }
@@ -1313,10 +1189,11 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
   }
 }
 
-/// 主播放控件:上一首/播放暂停/下一首,对齐主项目前端播放条的中央控制区。
+/// 主播放控件行:循环/上一首/播放暂停/下一首/队列,对齐参考截图——
+/// 播放模式与队列分列两侧,主按钮居中。
 /// 投屏时该控件直接控制 DLNA 设备(切歌 = 把队列相邻曲目重新投射并同步游标)。
 class PlaybackControls extends ConsumerWidget {
-  const PlaybackControls({super.key, this.compact = false});
+  const PlaybackControls({super.key, this.compact = false, this.onOpenQueue});
 
   // The Remix play glyph has a centered advance box, but its triangular ink
   // mass sits to the left of that center. Shift it by the measured optical
@@ -1324,19 +1201,70 @@ class PlaybackControls extends ConsumerWidget {
   static const double _playIconOpticalCorrection = 0.09;
 
   final bool compact;
+  final VoidCallback? onOpenQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
+    final modeState = ref.watch(
+      playerProvider.select(
+        (state) =>
+            (shuffleEnabled: state.shuffleEnabled, loopMode: state.loopMode),
+      ),
+    );
+    final cast = ref.watch(castPeerControllerProvider);
+    final isCastMode = cast.activePeer != null;
+    // 链路 B（局域网 DLNA 直投）投屏态，独立于链路 A 的 cast。
+    final dlnaCast = ref.watch(dlnaCastProvider);
+    // 投屏态:播放模式以后端 playMode 为准(order|one|all|shuffle);
+    // 链路 B 投屏态:以 dlnaCast.playMode 为准(本机为遥控器);
+    // 本机:以本地三态为准。
+    final mode = isCastMode
+        ? cast.playMode
+        : (dlnaCast.isCasting
+              ? dlnaCast.playMode
+              : (modeState.shuffleEnabled
+                    ? 'shuffle'
+                    : (modeState.loopMode == LoopMode.one ? 'one' : 'all')));
+    final modeIcon = switch (mode) {
+      'shuffle' => AppIcons.shuffle,
+      'one' => AppIcons.repeatOne,
+      'order' => AppIcons.queue,
+      _ => AppIcons.repeat,
+    };
+    final modeLabel = switch (mode) {
+      'shuffle' => '随机播放，点击切换到顺序播放',
+      'one' => '单曲循环，点击切换到列表循环',
+      'order' => '顺序播放，点击切换到单曲循环',
+      _ => '列表循环，点击切换到随机播放',
+    };
 
     final playDimension = compact ? 56.0 : 64.0;
     final playIconSize = compact ? 30.0 : 32.0;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
+        constraints: const BoxConstraints(maxWidth: 380),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
+            _PlayerIconButton(
+              icon: modeIcon,
+              label: modeLabel,
+              selected: mode != 'all' && mode != 'order',
+              onPressed: () {
+                // 链路 B 投屏态:指挥 DLNA 设备;链路 A 投屏态下发后端 play-mode;
+                // 本机走本地三态。
+                if (dlnaCast.isCasting) {
+                  ref.read(dlnaCastProvider.notifier).cyclePlayMode();
+                } else if (isCastMode) {
+                  ref
+                      .read(castPeerControllerProvider.notifier)
+                      .cyclePlayMode();
+                } else {
+                  ref.read(playerProvider.notifier).cyclePlaybackMode();
+                }
+              },
+            ),
             _PlayerIconButton(
               icon: AppIcons.previous,
               label: '上一首',
@@ -1358,6 +1286,11 @@ class PlaybackControls extends ConsumerWidget {
               label: '下一首',
               onPressed: () => unawaited(nextEffectivePlayback(ref)),
             ),
+            _PlayerIconButton(
+              icon: AppIcons.queue,
+              label: '播放队列',
+              onPressed: onOpenQueue,
+            ),
           ],
         ),
       ),
@@ -1366,52 +1299,20 @@ class PlaybackControls extends ConsumerWidget {
 }
 
 class _PlayerUtilityBar extends ConsumerWidget {
-  const _PlayerUtilityBar({
-    super.key,
-    required this.currentSong,
-    required this.onOpenQueue,
-  });
+  const _PlayerUtilityBar({super.key, required this.currentSong});
 
   final Song currentSong;
-  final VoidCallback onOpenQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(
       playerProvider.select(
-        (state) => (
-          shuffleEnabled: state.shuffleEnabled,
-          loopMode: state.loopMode,
-          starred: state.currentSong?.starred ?? currentSong.starred,
-        ),
+        (state) => (starred: state.currentSong?.starred ?? currentSong.starred),
       ),
     );
     final cast = ref.watch(castPeerControllerProvider);
-    final isCastMode = cast.activePeer != null;
     // 链路 B（局域网 DLNA 直投）投屏态，独立于链路 A 的 cast。
     final dlnaCast = ref.watch(dlnaCastProvider);
-    // 投屏态:播放模式以后端 playMode 为准(order|one|all|shuffle);
-    // 链路 B 投屏态:以 dlnaCast.playMode 为准(本机为遥控器);
-    // 本机:以本地三态为准。
-    final mode = isCastMode
-        ? cast.playMode
-        : (dlnaCast.isCasting
-              ? dlnaCast.playMode
-              : (state.shuffleEnabled
-                    ? 'shuffle'
-                    : (state.loopMode == LoopMode.one ? 'one' : 'all')));
-    final modeIcon = switch (mode) {
-      'shuffle' => AppIcons.shuffle,
-      'one' => AppIcons.repeatOne,
-      'order' => AppIcons.queue,
-      _ => AppIcons.repeat,
-    };
-    final modeLabel = switch (mode) {
-      'shuffle' => '随机播放，点击切换到顺序播放',
-      'one' => '单曲循环，点击切换到列表循环',
-      'order' => '顺序播放，点击切换到单曲循环',
-      _ => '列表循环，点击切换到随机播放',
-    };
 
     return Center(
       child: ConstrainedBox(
@@ -1428,29 +1329,6 @@ class _PlayerUtilityBar extends ConsumerWidget {
                   : '局域网 DLNA 直投',
               selected: dlnaCast.isCasting,
               onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
-            ),
-            _PlayerIconButton(
-              icon: modeIcon,
-              label: modeLabel,
-              selected: mode != 'all' && mode != 'order',
-              onPressed: () {
-                // 链路 B 投屏态:指挥 DLNA 设备;链路 A 投屏态下发后端 play-mode;
-                // 本机走本地三态。
-                if (dlnaCast.isCasting) {
-                  ref
-                      .read(dlnaCastProvider.notifier)
-                      .cyclePlayMode();
-                } else if (isCastMode) {
-                  ref.read(castPeerControllerProvider.notifier).cyclePlayMode();
-                } else {
-                  ref.read(playerProvider.notifier).cyclePlaybackMode();
-                }
-              },
-            ),
-            _PlayerIconButton(
-              icon: AppIcons.queue,
-              label: '播放队列',
-              onPressed: onOpenQueue,
             ),
             _PlayerIconButton(
               icon: state.starred ? AppIcons.heart : AppIcons.heartOutline,
