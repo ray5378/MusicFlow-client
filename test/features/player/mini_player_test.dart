@@ -166,11 +166,17 @@ void main() {
     final indicator = tester.widget<CircularProgressIndicator>(ring);
     expect(indicator.value, closeTo(0.25, 0.001));
 
-    // 环色随迷你条底色明暗取黑/白（浅底黑、深底白）。
+    // 环色与大屏歌词取色一致：暖黄对迷你条底色自适应（4.5:1）。
     final visuals = MusicFlowMediaVisuals.fallback(
       seed: MusicFlowColors.contentTintFallback,
     );
-    expect(indicator.color, MusicFlowColors.readableOn(visuals.miniSurface));
+    expect(
+      indicator.color,
+      MusicFlowMediaVisuals.lyricAccentFor(
+        visuals,
+        backgrounds: <Color>[visuals.miniSurface],
+      ),
+    );
 
     // 表面 clip 仍然存在并保持四边圆弧。
     final surface = find.byKey(const Key('mini-player-surface'));
@@ -224,8 +230,14 @@ void main() {
           as TextSpan;
       expect(titleSpan.style?.color, ink);
       expect(playIcon.color, ink);
-      // 封面外圈进度环：浅底黑环、深底白环（与 readableOn 同规则）。
-      expect(ring.color, MusicFlowColors.readableOn(visuals.miniSurface));
+      // 封面外圈进度环：与大屏歌词取色一致（暖黄自适应）。
+      expect(
+        ring.color,
+        MusicFlowMediaVisuals.lyricAccentFor(
+          visuals,
+          backgrounds: <Color>[visuals.miniSurface],
+        ),
+      );
       expect(backdrop.visuals, visuals);
       expect(backdrop.mode, MusicFlowPlayerBackdropMode.mini);
       expect(

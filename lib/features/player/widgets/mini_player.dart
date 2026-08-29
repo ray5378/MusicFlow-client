@@ -462,13 +462,13 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
       backgrounds: <Color>[visuals.miniSurface],
     );
     // 封面外圈进度环：进度与进度层同源（_playerState 的 position/duration
-    // 由外层用 effective provider 填充）；环色随底色明暗取黑/白
-    // （浅底黑、深底白），与可读前景同规则。
+    // 由外层用 effective provider 填充）；环色与大屏歌词取色一致 ——
+    // 暖黄对迷你条底色做 4.5:1 自适应（同 lyricAccent）。
     final coverRingProgress = _playerState.duration.inMilliseconds > 0
         ? (_playerState.position.inMilliseconds /
               _playerState.duration.inMilliseconds)
         : 0.0;
-    final coverRingColor = MusicFlowColors.readableOn(visuals.miniSurface);
+    final coverRingColor = lyricAccent;
 
     return MusicFlowMediaColorScope(
       visuals: visuals,
@@ -918,8 +918,11 @@ class _MiniPlayerProgressRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 封面 44 + 两侧各 3 的环留白 = 50。
-    const double ringDimension = 50;
+    // 高度核算（避免圆环被播放条裁剪）：
+    //   播放条 = MiniPlayer.height(56)；内容区 = 56 - 上下 padding(4+4) = 48；
+    //   环取 46（封面 44 + 两侧各 1），在 48 内容区内居中，上下各留 1px 余量，
+    //   任何 1px 级的布局误差都不会触发 ClipRect(48) 裁剪。
+    const double ringDimension = 46;
     const double coverDimension = 44;
     final normalized = progress.clamp(0.0, 1.0).toDouble();
     return SizedBox.square(
