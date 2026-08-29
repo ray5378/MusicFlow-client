@@ -88,6 +88,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
               ] else ...<Widget>[
                 _buildDeviceList(cast, devicesState),
               ],
+              _buildBackgroundHint(),
             ],
           ),
         ),
@@ -221,6 +222,35 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
             ),
           ),
       ],
+    );
+  }
+
+  /// 后台续播提示：引导用户放开系统冻结，保证曲末能自动切下一首。
+  /// 主要面向安卓（含鸿蒙4）：国产 ROM / 鸿蒙默认会深度冻结后台音频进程，
+  /// 仅靠前台服务+闹钟可能仍被压制，最有效的做法是在系统层把本应用放开。
+  Widget _buildBackgroundHint() {
+    final colors = context.musicFlowColors;
+    final typography = context.musicFlowTypography;
+    return Padding(
+      padding: EdgeInsets.only(
+        top: context.musicFlowSpacing.md,
+        bottom: context.musicFlowSpacing.xs,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(AppIcons.info, size: 16, color: colors.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '为保证后台持续投屏并自动切下一首：请在系统设置中将 MusicFlow 的'
+              '「电池优化」改为「不限制」，并将「应用启动管理」改为「手动管理」后'
+              '全部允许（允许自启动 / 关联启动 / 后台活动），避免曲末时因后台冻结而停播。',
+              style: typography.body.copyWith(color: colors.muted),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
