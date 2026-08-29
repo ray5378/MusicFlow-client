@@ -580,47 +580,12 @@ class CastQueueSheetView extends StatelessWidget {
                       description: '后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。',
                       icon: AppIcons.queue,
                     )
-                  : ReorderableListView.builder(
-                      padding: EdgeInsets.symmetric(
-                        vertical: context.musicFlowSpacing.xs,
-                      ),
-                      buildDefaultDragHandles: false,
-                      itemCount: queue.length,
-                      onReorder: (from, to) {
-                        // onReorder 的 to 为移除后的净插入位(>from 时为原始坐标+1),
-                        // 与 reorderQueue 的约定一致,直接下发后端 reorder。
-                        if (from != to) onReorder(from, to);
-                      },
-                      proxyDecorator: (child, index, animation) => Material(
-                        color: Colors.transparent,
-                        elevation: 0,
-                        child: child,
-                      ),
-                      itemBuilder: (context, index) {
-                        final song = queue[index];
-                        return KeyedSubtree(
-                          key: ValueKey<String>('cast-queue-$index-${song.id}'),
-                          child: ReorderableDelayedDragStartListener(
-                            index: index,
-                            child: MusicFlowSongRow(
-                              index: index,
-                              song: song,
-                              variant: MusicFlowSongRowVariant.standard,
-                              isCurrent: index == currentIndex,
-                              contentPadding: EdgeInsetsDirectional.fromSTEB(
-                                context.musicFlowSpacing.md,
-                                context.musicFlowSpacing.xs,
-                                context.musicFlowSpacing.xs,
-                                context.musicFlowSpacing.xs,
-                              ),
-                              onPressed: () => unawaited(onSelect(index)),
-                              onMorePressed: () => onRemove(index),
-                              moreSemanticLabel: '${song.title}，从投屏队列移除',
-                              showMoreButton: false,
-                            ),
-                          ),
-                        );
-                      },
+                  : _AutoCenterCastList(
+                      queue: queue,
+                      currentIndex: currentIndex,
+                      onSelect: onSelect,
+                      onRemove: onRemove,
+                      onReorder: onReorder,
                     ),
             ),
             const MusicFlowDivider(),
@@ -644,6 +609,147 @@ class CastQueueSheetView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 投屏/遥控队列列表:自动把「当前播放」滚动到视口中间(对齐上层 _AutoCenterQueueList)。
+/// 复用同一套居中策略:行高不定,不依赖 itemExtent,用 Scrollable.ensureVisible
+/// (alignment:0.5) 精确居中;当前曲目下标变化后重新居中。仍保持 ReorderableListView
+/// 以支持拖拽排序。
+class _AutoCenterCastList extends StatefulWidget {
+  const _AutoCenterCastList({
+    required this.queue,
+    required this.currentIndex,
+    required this.onSelect,
+    required this.onRemove,
+    required this.onReorder,
+  });
+
+  final List<Song> queue;
+  final int currentIndex;
+  final Future<void> Function(int index) onSelect;
+  final void Function(int index) onRemove;
+  final void Function(int from, int to) onReorder;
+
+  @override
+  State<_AutoCenterCastList> createState() => _AutoCenterCastListState();
+}
+
+class _AutoCenterCastListState extends State<_AutoCenterCastList> {
+  final ScrollController _controller = ScrollController();
+  final GlobalKey _currentKey = GlobalKey();
+
+  // 行高不定但大体均匀;仅用于懒加载下「先跳到附近」的粗估,
+  // 最终由 ensureVisible 精确定位,不依赖精确 itemExtent。
+  static const double _kEstRowHeight = 56.0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.queue.isNotEmpty && widget.currentIndex >= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+    }
+  }
+
+  @override
+  void didUpdateWidget(_AutoCenterCastList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 只响应「当前曲目下标」变化而居中;列表引用变化不触发,避免抖动。
+    if (widget.currentIndex != oldWidget.currentIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _centerOnCurrent() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _currentKey.currentContext;
+      if (ctx != null) {
+        _revealCentered(ctx);
+        return;
+      }
+      // 当前行尚未构建(懒加载):先用均高粗估跳到附近,下一帧再精确居中。
+      if (!_controller.hasClients || widget.queue.isEmpty) return;
+      final last = widget.queue.length - 1;
+      final index = (last <= 0 ? 0 : widget.currentIndex.clamp(0, last)).toInt();
+      final target = index * _kEstRowHeight;
+      final offset = target.clamp(
+        0.0,
+        _controller.position.maxScrollExtent,
+      ).toDouble();
+      _controller.jumpTo(offset);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final refined = _currentKey.currentContext;
+        if (refined == null) return;
+        _revealCentered(refined);
+      });
+    });
+  }
+
+  void _revealCentered(BuildContext target) {
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = widget.currentIndex;
+    return ReorderableListView.builder(
+      controller: _controller,
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
+      buildDefaultDragHandles: false,
+      itemCount: widget.queue.length,
+      onReorder: (from, to) {
+        // onReorder 的 to 为移除后的净插入位(>from 时为原始坐标+1),
+        // 与 reorderQueue 的约定一致,直接下发后端 reorder。
+        if (from != to) widget.onReorder(from, to);
+      },
+      proxyDecorator: (child, index, animation) => Material(
+        color: Colors.transparent,
+        elevation: 0,
+        child: child,
+      ),
+      itemBuilder: (context, index) {
+        final song = widget.queue[index];
+        final isCurrent = index == current;
+        final row = KeyedSubtree(
+          key: ValueKey<String>('cast-queue-$index-${song.id}'),
+          child: ReorderableDelayedDragStartListener(
+            index: index,
+            child: MusicFlowSongRow(
+              index: index,
+              song: song,
+              variant: MusicFlowSongRowVariant.standard,
+              isCurrent: isCurrent,
+              contentPadding: EdgeInsetsDirectional.fromSTEB(
+                context.musicFlowSpacing.md,
+                context.musicFlowSpacing.xs,
+                context.musicFlowSpacing.xs,
+                context.musicFlowSpacing.xs,
+              ),
+              onPressed: () => unawaited(widget.onSelect(index)),
+              onMorePressed: () => widget.onRemove(index),
+              moreSemanticLabel: '${song.title}，从投屏队列移除',
+              showMoreButton: false,
+            ),
+          ),
+        );
+        // 只在当前行挂 GlobalKey,供 ensureVisible 精确定位居中。
+        return isCurrent ? KeyedSubtree(key: _currentKey, child: row) : row;
+      },
     );
   }
 }
