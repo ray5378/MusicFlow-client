@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/utils/logger.dart';
 import '../core/utils/network_error_notifier.dart';
 import '../data/models/playlist.dart';
+import '../data/repositories/metadata_cache_repository.dart';
 import '../data/repositories/playlist_repository.dart';
 
 import 'package:musicflow_client/providers/library_provider.dart';
 
 import 'api_provider.dart';
+import 'fetch_with_cache_fallback.dart';
 import 'metadata_cache_provider.dart';
 
 const _playlistLogTag = 'PLAYLIST';
@@ -27,114 +29,111 @@ final playlistDetailLoadFailedProvider = StateProvider.family<bool, String>(
 /// 最近更新的歌单(按 changed 倒序取前 20)
 final recentPlaylistsLoadFailedProvider = StateProvider<bool>((ref) => false);
 
-final recentPlaylistsProvider =
-    FutureProvider.autoDispose<List<Playlist>>((ref) async {
-  final repository = ref.watch(playlistRepositoryProvider);
-  final cache = ref.watch(metadataCacheRepositoryProvider);
-  final libraryId = ref.watch(activeLibraryProvider)?.id;
-  if (repository == null || libraryId == null || libraryId.isEmpty) {
-    // 冷启动活跃库尚未就绪:先用缓存兜底最近歌单秒出,
-    // 避免「打开即空白、要手动下拉刷新才显示」(安卓首页痛点)。
-    if (libraryId != null && libraryId.isNotEmpty) {
-      final cached = await cache.getPlaylists(libraryId);
-      if (cached != null && cached.isNotEmpty) {
-        final sorted = [...cached]
-          ..sort((a, b) {
-            final ta = a.changed?.millisecondsSinceEpoch ?? 0;
-            final tb = b.changed?.millisecondsSinceEpoch ?? 0;
-            return tb.compareTo(ta);
-          });
-        return sorted.take(20).toList();
-      }
-    }
-    Logger.warnWithTag(
-      _playlistLogTag,
-      'recentPlaylists skipped: repository or library unavailable',
-    );
-    return [];
-  }
-  try {
-    await ref.read(ensureActiveAddressProvider.future);
-    final all = await repository.getPlaylists();
-    // 写全量缓存,冷启动未就绪时可用同一缓存兜底排序取最近歌单。
-    await cache.cachePlaylists(libraryId, all);
-    all.sort((a, b) {
+/// 按 changed 倒序取最近更新的前 20 个歌单(缓存/远程共用同一排序口径)。
+List<Playlist> _sortRecentPlaylists(List<Playlist> source) {
+  final sorted = <Playlist>[...source]
+    ..sort((a, b) {
       final ta = a.changed?.millisecondsSinceEpoch ?? 0;
       final tb = b.changed?.millisecondsSinceEpoch ?? 0;
       return tb.compareTo(ta);
     });
-    final result = all.take(20).toList();
-    ref.read(recentPlaylistsLoadFailedProvider.notifier).state = false;
-    Logger.infoWithTag('PLAYLIST', 'recent playlists loaded, count=${result.length}');
-    return result;
-  } catch (e, stackTrace) {
-    Logger.warnWithTag('PLAYLIST', 'recent playlists load failed', e);
-    Logger.debugWithTag('PLAYLIST', 'recent playlists stackTrace', null, stackTrace);
-    // 远程失败:先读缓存兜底,命中即静默展示,不打扰用户。
-    final cached = await cache.getPlaylists(libraryId);
-    if (cached != null && cached.isNotEmpty) {
-      final sorted = [...cached]
-        ..sort((a, b) {
-          final ta = a.changed?.millisecondsSinceEpoch ?? 0;
-          final tb = b.changed?.millisecondsSinceEpoch ?? 0;
-          return tb.compareTo(ta);
-        });
-      ref.read(recentPlaylistsLoadFailedProvider.notifier).state = false;
-      return sorted.take(20).toList();
-    }
-    ref.read(recentPlaylistsLoadFailedProvider.notifier).state = true;
-    return [];
-  }
-});
+  return sorted.take(20).toList();
+}
 
-/// 所有歌单 Provider
-final playlistsProvider = FutureProvider.autoDispose<List<Playlist>>((
-  ref,
+/// 冷启动活跃库尚未就绪时的缓存兜底:回退到最近使用的库 ID 读缓存秒出。
+///
+/// 旧实现把这段写在了 `libraryId` 判空的分支里、内层又要求 libraryId 非空,
+/// 恒为假 —— 缓存兜底从未生效,正是「首页歌单冷启动不显示」的根因。
+Future<List<Playlist>?> _recentPlaylistsFromCache(
+  MetadataCacheRepository cache,
+  String? libraryId,
 ) async {
+  if (libraryId == null || libraryId.isEmpty) return null;
+  final cached = await cache.getPlaylists(libraryId);
+  if (cached == null || cached.isEmpty) return null;
+  return _sortRecentPlaylists(cached);
+}
+
+/// 最近更新的歌单(按 changed 倒序取前 20)
+///
+/// 与 randomSongsProvider 对齐 —— **保持数据,不自动释放**。
+/// 首页分区已改为惰性构建(SliverList.separated),若这里用 autoDispose,
+/// 歌单区块一旦滑出视口数据就被释放、滑回来又要重拉,表现为「歌单一直
+/// 加载不出来 / 闪一下就空了」;随机歌曲区块之所以正常,正是因为它既
+/// keepAlive 又自己先读缓存秒出。
+final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final repository = ref.watch(playlistRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);
-  final libraryId = ref.watch(activeLibraryProvider)?.id;
+  var libraryId = ref.watch(activeLibraryProvider)?.id;
+
+  // 冷启动活跃库尚未从 drift 就绪:回退到最近使用的库 ID,读缓存秒出,
+  // 避免「打开即空白、要手动下拉刷新才显示」。
+  if (libraryId == null || libraryId.isEmpty) {
+    libraryId = await cache.getLastLibraryId();
+  }
+
+  if (repository == null || libraryId == null || libraryId.isEmpty) {
+    Logger.warnWithTag(
+      _playlistLogTag,
+      'recentPlaylists skipped: repository or library unavailable',
+    );
+    return <Playlist>[];
+  }
+
+  final resolvedLibraryId = libraryId;
+
+  final all = await fetchWithCacheFallback<List<Playlist>>(
+    ref: ref,
+    label: 'recentPlaylists',
+    fetch: () async {
+      final list = await repository.getPlaylists();
+      list.sort((a, b) {
+        final ta = a.changed?.millisecondsSinceEpoch ?? 0;
+        final tb = b.changed?.millisecondsSinceEpoch ?? 0;
+        return tb.compareTo(ta);
+      });
+      return list;
+    },
+    // 写全量缓存,冷启动未就绪时可用同一缓存兜底排序取最近歌单。
+    cacheWrite: (list) => cache.cachePlaylists(resolvedLibraryId, list),
+    cacheRead: () => _recentPlaylistsFromCache(cache, resolvedLibraryId),
+    failedProvider: recentPlaylistsLoadFailedProvider,
+    errorMessage: '网络异常，歌单加载失败',
+    emptyValue: <Playlist>[],
+  );
+  return _sortRecentPlaylists(all);
+});
+
+/// 所有歌单 Provider(同样保持数据,不自动释放)
+final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
+  final repository = ref.watch(playlistRepositoryProvider);
+  final cache = ref.watch(metadataCacheRepositoryProvider);
+  var libraryId = ref.watch(activeLibraryProvider)?.id;
+
+  if (libraryId == null || libraryId.isEmpty) {
+    libraryId = await cache.getLastLibraryId();
+  }
+
   if (repository == null || libraryId == null || libraryId.isEmpty) {
     Logger.warnWithTag(
       _playlistLogTag,
       'playlists skipped: repository or library unavailable',
     );
-    return [];
+    return <Playlist>[];
   }
-  try {
-    await ref.read(ensureActiveAddressProvider.future);
-    final playlists = await repository.getPlaylists();
-    await cache.cachePlaylists(libraryId, playlists);
-    ref.read(playlistsLoadFailedProvider.notifier).state = false;
-    Logger.infoWithTag(
-      _playlistLogTag,
-      'playlists loaded from remote, count=${playlists.length}',
-    );
-    return playlists;
-  } catch (e, stackTrace) {
-    Logger.warnWithTag(_playlistLogTag, 'playlists remote load failed', e);
-    Logger.debugWithTag(
-      _playlistLogTag,
-      'playlists fallback stackTrace',
-      null,
-      stackTrace,
-    );
-    // 先读缓存：命中即静默兜底，避免「有缓存展示着，却仍弹网络异常」的打扰。
-    final cached = await cache.getPlaylists(libraryId);
-    if (cached != null) {
-      ref.read(playlistsLoadFailedProvider.notifier).state = false;
-      Logger.infoWithTag(
-        _playlistLogTag,
-        'playlists fallback to cache, count=${cached.length}',
-      );
-      return cached;
-    }
-    // 远程失败且无缓存，才提示网络异常。
-    NetworkErrorNotifier.show('网络异常，歌单加载失败');
-    ref.read(playlistsLoadFailedProvider.notifier).state = true;
-    Logger.warnWithTag(_playlistLogTag, 'playlists cache miss');
-    return [];
-  }
+
+  final resolvedLibraryId = libraryId;
+
+  return fetchWithCacheFallback<List<Playlist>>(
+    ref: ref,
+    label: 'playlists',
+    fetch: () => repository.getPlaylists(),
+    cacheWrite: (list) => cache.cachePlaylists(resolvedLibraryId, list),
+    cacheRead: () => cache.getPlaylists(resolvedLibraryId),
+    failedProvider: playlistsLoadFailedProvider,
+    errorMessage: '网络异常，歌单加载失败',
+    emptyValue: <Playlist>[],
+  );
 });
 
 /// 歌单详情 Provider

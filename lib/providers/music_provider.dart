@@ -11,6 +11,7 @@ import '../core/utils/logger.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 
 import 'api_provider.dart';
+import 'fetch_with_cache_fallback.dart';
 import 'metadata_cache_provider.dart';
 import 'playlist_provider.dart';
 
@@ -44,78 +45,6 @@ final topSongsByArtistLoadFailedProvider = StateProvider.family<bool, String>(
 final searchLoadFailedProvider = StateProvider.autoDispose.family<bool, String>(
   (ref, query) => false,
 );
-
-// ---------------------------------------------------------------------------
-// 通用辅助：远程获取 + 缓存回退
-// ---------------------------------------------------------------------------
-
-/// 通用的远程获取 + 缓存回退逻辑。
-///
-/// [label] 用于日志标识。
-/// [fetch] 执行远程 API 调用。
-/// [cacheWrite] 将远程结果写入缓存。
-/// [cacheRead] 在远程失败时从缓存读取。
-/// [failedNotifier] 用于更新加载失败状态的 StateProvider notifier。
-/// [errorMessage] 网络异常时的用户提示。
-/// [emptyValue] 远程和缓存都不可用时的默认空值。
-Future<T> _fetchWithCacheFallback<T>({
-  required Ref ref,
-  required String label,
-  required Future<T> Function() fetch,
-  required Future<void> Function(T data) cacheWrite,
-  required Future<T?> Function() cacheRead,
-  required StateProvider<bool> failedProvider,
-  required String errorMessage,
-  required T emptyValue,
-}) async {
-  try {
-    await ref.read(ensureActiveAddressProvider.future);
-    final data = await fetch();
-    // 缓存写入失败绝不反噬本次已成功获取的数据:写缓存只是为下次命中做优化。
-    // Windows 上若个别歌曲元数据含 shared_prefs 无法落盘的字符(孤立代理对/超大值),
-    // jsonEncode 或存储会抛 FormatException,若让它冒出去会把整次请求判失败——
-    // 于是「网络明明 200、却弹网络异常且不进缓存兜底」,正是 Windows 有网却不显示、
-    // 安卓因旧缓存命中而能显示的差异点。
-    try {
-      await cacheWrite(data);
-    } catch (e) {
-      Logger.warnWithTag(_musicLogTag, '$label cache write failed', e);
-    }
-    ref.read(failedProvider.notifier).state = false;
-    Logger.infoWithTag(_musicLogTag, '$label loaded from remote');
-    return data;
-  } catch (e, stackTrace) {
-    Logger.warnWithTag(_musicLogTag, '$label remote load failed', e);
-    Logger.debugWithTag(
-      _musicLogTag,
-      '$label fallback stackTrace',
-      null,
-      stackTrace,
-    );
-    // 先读缓存;若命中即用缓存兜底并静默返回,不再对用户弹「网络异常」。
-    // 否则「Win 刷新随机歌曲」等场景里,明明是离线/接口不可用的环境,每次刷新
-    // 都会先弹一次网络异常(尽管随后能展示缓存),造成「总有弹窗又拦不住」的观感,
-    // 在安卓弱网下更是集中轰炸,拖累首屏交互。
-    T? cached;
-    try {
-      cached = await cacheRead();
-    } catch (e) {
-      // 缓存读取本身异常(平台存储/单条坏数据)也不能冒泡成 uncaught,
-      // 否则会把一组可恢复的失败放大成整页报错。
-      Logger.warnWithTag(_musicLogTag, '$label cache read failed', e);
-    }
-    if (cached != null) {
-      ref.read(failedProvider.notifier).state = false;
-      Logger.infoWithTag(_musicLogTag, '$label fallback to cache');
-      return cached;
-    }
-    // 远程失败且无缓存兜底,才向用户提示网络异常。
-    NetworkErrorNotifier.show(errorMessage);
-    ref.read(failedProvider.notifier).state = true;
-    Logger.warnWithTag(_musicLogTag, '$label cache miss');
-    return emptyValue;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Provider 定义
@@ -156,7 +85,7 @@ final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (musicRepo == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'randomSongs',
     fetch: () => musicRepo.getRandomSongs(size: 48),
@@ -175,7 +104,7 @@ final recentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (repository == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'recentAlbums',
     fetch: () => repository.getAlbumList(type: 'recent', size: 10),
@@ -194,7 +123,7 @@ final frequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (repository == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'frequentAlbums',
     fetch: () => repository.getAlbumList(type: 'frequent', size: 10),
@@ -213,7 +142,7 @@ final newestAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (repository == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'newestAlbums',
     fetch: () => repository.getAlbumList(type: 'newest', size: 20),
@@ -232,7 +161,7 @@ final allAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (repository == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'allAlbums',
     fetch: () => repository.getAllAlbums(),
@@ -254,7 +183,7 @@ final albumDetailProvider = FutureProvider.autoDispose
         return null;
       }
 
-      return _fetchWithCacheFallback<AlbumDetail?>(
+      return fetchWithCacheFallback<AlbumDetail?>(
         ref: ref,
         label: 'albumDetail($albumId)',
         fetch: () => repository.getAlbum(albumId),
@@ -275,7 +204,7 @@ final allSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (repository == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'allSongs',
     fetch: () => repository.getAllSongs(),
@@ -296,7 +225,7 @@ final allArtistsProvider = FutureProvider.autoDispose<List<Artist>>((
   final libraryId = ref.watch(activeLibraryProvider)?.id;
   if (repository == null || libraryId == null || libraryId.isEmpty) return [];
 
-  return _fetchWithCacheFallback(
+  return fetchWithCacheFallback(
     ref: ref,
     label: 'allArtists',
     fetch: () => repository.getAllArtists(),
@@ -318,7 +247,7 @@ final artistDetailProvider = FutureProvider.autoDispose
         return null;
       }
 
-      return _fetchWithCacheFallback<ArtistDetail?>(
+      return fetchWithCacheFallback<ArtistDetail?>(
         ref: ref,
         label: 'artistDetail($artistId)',
         fetch: () => repository.getArtist(artistId),
@@ -420,7 +349,7 @@ final starredProvider = FutureProvider.autoDispose<StarredResult>((ref) async {
     return StarredResult(artists: [], albums: [], songs: []);
   }
 
-  return _fetchWithCacheFallback<StarredResult>(
+  return fetchWithCacheFallback<StarredResult>(
     ref: ref,
     label: 'starred',
     fetch: () => repository.getStarred(),
