@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
 import 'features/auth/pages/login_page.dart';
+import 'features/settings/services/startup_update_checker.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cast_peer_provider.dart';
 import 'providers/theme_provider.dart';
@@ -122,7 +123,9 @@ class App extends ConsumerWidget {
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: _systemUiOverlayStyle(context),
-          child: content,
+          // 启动后延迟在后台检查更新（仅 Windows / Android），
+          // 有新版本时弹出可关闭的提示框。
+          child: StartupUpdateCheckScope(child: content),
         );
       },
     );
