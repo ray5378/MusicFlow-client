@@ -1444,9 +1444,9 @@ class _VerticalVolumeSlider extends StatelessWidget {
   final Color activeColor;
   final Color inactiveColor;
 
-  // 横条样式拇指：比轨道宽、高度小，两端圆角（对齐参考图中的白色横杠）。
-  static const double _thumbWidth = 32;
-  static const double _thumbHeight = 6;
+  // 横条样式拇指：比轨道宽、高度小，两端圆角（对齐参考图中的实心浅色横杠）。
+  static const double _thumbWidth = 36;
+  static const double _thumbHeight = 8;
   static const double _trackWidth = 10;
 
   @override
@@ -1510,7 +1510,7 @@ class _VerticalVolumeSlider extends StatelessWidget {
                         ),
                       ),
                     ),
-                  // 拇指：横向圆角短条（参考图样式），宽度超出轨道便于辨识。
+                  // 拇指：实心横向圆角短条，与已激活段同色（参考图样式）。
                   Positioned(
                     top: thumbTop,
                     left: 0,
@@ -1518,16 +1518,8 @@ class _VerticalVolumeSlider extends StatelessWidget {
                     child: Center(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: colors.surface,
+                          color: activeColor,
                           borderRadius: BorderRadius.circular(_thumbHeight / 2),
-                          border: Border.all(color: activeColor, width: 2),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: colors.scrim.withValues(alpha: 0.22),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                         child: const SizedBox(
                           width: _thumbWidth,
