@@ -863,11 +863,13 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
       content = const _RandomSongsLoading();
     }
 
-    // 播放按钮右缘距窗口右边缘保持 20px 视觉间隔,随窗口宽度自适应:
-    // 内容区右缘本身距窗口 `musicFlowPageHorizontalPadding - 5` px,这里补上
-    // 差额让按钮右缘精确停在 20px;expanded 窗口内容区右缘已 ≥20 时不内缩
-    // (clamp≥0,避免负数/负 EdgeInsets 断言)。
-    final playRightGap = (20 - (context.musicFlowPageHorizontalPadding - 5))
+    // 播放「图标」距窗口右边缘保持 20px 视觉间隔,随窗口宽度自适应:
+    // MusicFlowIconButton 盒内 22px 图标居中(图标右缘距盒右缘 13px),内容区
+    // 右缘本身距窗口 `pageHorizPadding - 5` px。令 盒右缘距窗口 = (pageHoriz
+    // Padding-5) + gap,图标右缘距窗口 = 盒右缘 - 13,要等于 20:
+    //   (pageHorizPadding-5) + gap - 13 = 20  →  gap = 38 - pageHorizPadding
+    // clamp≥0 兜底,避免负数/负 EdgeInsets 断言。
+    final playRightGap = (38 - context.musicFlowPageHorizontalPadding)
         .clamp(0.0, double.infinity)
         .toDouble();
 
@@ -895,9 +897,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                   onPressed: _refresh,
                 ),
                 const Spacer(),
-                // 播放按钮右侧 20px 留白(指右缘距窗口右边缘的视觉间隔,
-                // 见上方 playRightGap 换算)。用 Padding 而不是 Transform 位移,
-                // 避免共享 header 修好布局后按钮越界/靠边抖动。
+                // 播放按钮右侧留白(图标距窗口右边缘 20px,见上方 playRightGap
+                // 换算)。用 Padding 而不是 Transform 位移,随窗口宽度自适应,
+                // 也避免共享 header 修好布局后按钮越界/靠边抖动。
                 Padding(
                   padding: EdgeInsets.only(right: playRightGap),
                   child: MusicFlowIconButton(

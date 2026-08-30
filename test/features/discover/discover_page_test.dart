@@ -82,8 +82,8 @@ void main() {
       closeTo(15, 0.001),
     );
 
-    // 随机歌曲:播放图标距「屏幕」右边缘 15px(“离右侧边缘”从屏幕边缘起算;
-    // 按钮以负内边距延伸进 11px 页边距,见 discover_page 的换算注释)。
+    // 随机歌曲:播放图标距「窗口」右边缘 20px(“离右侧边缘”从窗口边缘起算;
+    // 可见图标距右缘 20px,随窗口宽度自适应,见 discover_page 的换算注释)。
     expect(
       390 -
           tester.getRect(
@@ -92,7 +92,7 @@ void main() {
               matching: find.byType(Icon),
             ),
           ).right,
-      closeTo(15, 0.001),
+      closeTo(20, 0.001),
     );
 
     // 最近更新的歌单:刷新图标距标题最后一个字 15px。回归保护:trailing
