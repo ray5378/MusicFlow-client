@@ -262,7 +262,12 @@ class MusicFlowBottomSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final spacing = context.musicFlowSpacing;
     final sceneRadiusValue = context.musicFlowRadii.scene;
-    final borderRadius = sceneRadius
+    // 桌面端居中显示时拒绝安卓式底部抽屉痕迹：隐藏 drag handle 并使用
+    // 四角等圆角，呈现原生对话框观感而非手机 bottom sheet。
+    final isDesktop = context.musicFlowWindowClass != MusicFlowWindowClass.compact;
+    final effectiveShowDragHandle = showDragHandle && !isDesktop;
+    final effectiveSceneRadius = sceneRadius || isDesktop;
+    final borderRadius = effectiveSceneRadius
         ? sceneRadiusValue
         : BorderRadius.only(
             topLeft: sceneRadiusValue.topLeft,
@@ -285,7 +290,7 @@ class MusicFlowBottomSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              if (showDragHandle) ...<Widget>[
+              if (effectiveShowDragHandle) ...<Widget>[
                 SizedBox(height: spacing.xs),
                 Center(
                   child: ExcludeSemantics(
@@ -294,7 +299,11 @@ class MusicFlowBottomSheet extends StatelessWidget {
                         color: context.musicFlowColors.divider,
                         borderRadius: context.musicFlowRadii.pill,
                       ),
-                      child: const SizedBox(width: 36, height: 4),
+                      child: const SizedBox(
+                        key: ValueKey<String>('music_flow_bottom_sheet_drag_handle'),
+                        width: 36,
+                        height: 4,
+                      ),
                     ),
                   ),
                 ),

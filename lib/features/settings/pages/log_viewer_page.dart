@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/design/components/music_flow_app_bar.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/logger.dart';
 
@@ -89,7 +90,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
     final lines = _visibleLines;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: MusicFlowAppBar(
         title: const Text('诊断日志'),
         actions: <Widget>[
           MusicFlowIconButton(

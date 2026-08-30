@@ -4,6 +4,9 @@ import '../../theme/app_icons.dart';
 import '../music_flow_context.dart';
 import '../layout/music_flow_shell_obstruction.dart';
 import 'music_flow_icon_button.dart';
+// Windows 桌面端为右上角系统窗口按钮（最小化/最大化/关闭）预留空间。
+import '../../../widgets/windows_title_bar.dart'
+    show isWindowsDesktop, kWindowsWindowControlsWidth;
 
 /// Stable page frame for MusicFlow feature surfaces.
 ///
@@ -147,6 +150,10 @@ class MusicFlowTopBar extends StatelessWidget {
                 if (actions.isNotEmpty) ...<Widget>[
                   SizedBox(width: spacing.xs),
                   ...actions,
+                  // Windows 无标题栏：系统窗口控制按钮覆盖在右上角，
+                  // 顶栏右侧留白避免页面自己的操作按钮与关闭按钮重叠。
+                  if (isWindowsDesktop)
+                    const SizedBox(width: kWindowsWindowControlsWidth),
                 ],
               ],
             ),

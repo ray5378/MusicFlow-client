@@ -13,6 +13,18 @@ const MethodChannel kWindowsWindowChannel = MethodChannel(
 bool get isWindowsDesktop =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
+/// Windows 窗口控制按钮区总宽度（最小化/最大化/关闭各 46px）。
+///
+/// 页面顶部若使用 [AppBar.actions]，在 Windows 桌面端需留出该宽度，
+/// 避免自定义操作按钮与系统关闭/最大化/最小化按钮重叠。
+const double kWindowsWindowControlsWidth = 46.0 * 3;
+
+/// Windows 窗口控制按钮的高度（与 [WindowsWindowChrome] 覆盖层一致）。
+const double kWindowsWindowControlsHeight = 40.0;
+
+/// 系统窗口控制按钮的 key 前缀，供 CI 重叠检测排除自身。
+const String kWindowControlButtonKeyPrefix = 'windows-window-control-';
+
 /// 把文本写入托盘图标 tooltip(空文本恢复默认应用名)。
 Future<void> setTrayTooltip(String text) async {
   if (!isWindowsDesktop) return;
@@ -126,6 +138,10 @@ class _WindowControlButton extends StatelessWidget {
       child: Tooltip(
         message: tooltip,
         child: MusicFlowPressable(
+          // 便于 CI 重叠检测排除系统窗口按钮自身。
+          key: ValueKey<String>(
+            '$kWindowControlButtonKeyPrefix${tooltip.hashCode}',
+          ),
           onPressed: onPressed,
           borderRadius: BorderRadius.zero,
           minimumSize: Size.zero,
