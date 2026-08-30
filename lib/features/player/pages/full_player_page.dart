@@ -322,25 +322,38 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      // 左栏:封面(上) + 信息/控件(下)
+                      // 左栏:封面(视口中段) → 歌曲信息(紧贴封面下方) → 播放控件(贴底)
                       SizedBox(
                         key: const ValueKey<String>('full_player_artwork_pane'),
                         width: leftPaneWidth,
                         child: Column(
+                          // 剩余空间归顶部:信息区用不满份额时多出来的高度补进
+                          // 顶部留白,底部播放控件始终贴底不被推下。
+                          mainAxisAlignment: MainAxisAlignment.end,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
+                            // 顶部留白:把封面从窗口顶端下推到视口中段,同时与顶部
+                            // 拖拽横幅拉开距离。flex 越高封面越靠下。
+                            const Spacer(flex: 3),
                             Expanded(
-                              flex: 3,
+                              flex: 9,
                               child: _buildWideArtworkPane(song),
                             ),
                             SizedBox(height: spacing.md),
-                            Expanded(
-                              flex: 5,
-                              child: _buildWideControlPane(
-                                song,
-                                subtitle: subtitle,
+                            // 歌曲信息:紧贴封面下方,不再与控件同框。矮视口(横屏)
+                            // 下优先让位给控件——自身收缩并可滚动,不挤压控件。
+                            Flexible(
+                              flex: 4,
+                              child: SingleChildScrollView(
+                                child: _buildWideDetailsPane(
+                                  song,
+                                  subtitle: subtitle,
+                                ),
                               ),
                             ),
+                            SizedBox(height: spacing.xs),
+                            // 播放控件:贴在左栏最底部,始终可达。
+                            _buildControlPanel(song, compact: true),
                           ],
                         ),
                       ),
@@ -374,34 +387,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             ),
         ],
       ),
-    );
-  }
-
-  /// 大屏左栏下半部分:播放控件(始终优先可见) + 歌曲信息(吸收剩余空间)。
-  /// 短视口(横屏)下控件置于最上方,保证主播放按钮始终可达不被挤出窗口。
-  Widget _buildWideControlPane(Song song, {required String subtitle}) {
-    final spacing = context.musicFlowSpacing;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        // 播放控件:独立占位,始终可见。Flexible + 滚动兜底,高文本缩放下
-        // 若超出分栏高度也只滚动而不溢出。
-        Flexible(
-          child: SingleChildScrollView(
-            child: _buildControlPanel(song, compact: true),
-          ),
-        ),
-        SizedBox(height: spacing.sm),
-        // 信息区:可收缩,滚动兜底,绝不让控件溢出。
-        Flexible(
-          child: Center(
-            child: SingleChildScrollView(
-              child: _buildWideDetailsPane(song, subtitle: subtitle),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -445,25 +430,25 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
       color: context.musicFlowColors.muted,
     );
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          _buildSongIdentity(
-            song: song,
-            subtitle: subtitle,
-            titleStyle: titleStyle,
-            subtitleStyle: subtitleStyle,
-            textAlign: TextAlign.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            titleMaxLines: 2,
-            subtitleMaxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            scrollable: false,
-          ),
-        ],
-      ),
+    // 不用 Center 包裹:Center 在 Column 的 loose 约束下会撑满整栏高度,
+    // 把底部播放控件挤出视口。信息改为自身最小高度,紧贴封面下方。
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _buildSongIdentity(
+          song: song,
+          subtitle: subtitle,
+          titleStyle: titleStyle,
+          subtitleStyle: subtitleStyle,
+          textAlign: TextAlign.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          titleMaxLines: 2,
+          subtitleMaxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          scrollable: false,
+        ),
+      ],
     );
   }
 

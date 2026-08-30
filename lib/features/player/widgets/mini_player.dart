@@ -1444,21 +1444,23 @@ class _VerticalVolumeSlider extends StatelessWidget {
   final Color activeColor;
   final Color inactiveColor;
 
-  static const double _thumbSize = 28;
-  static const double _trackWidth = 8;
+  // 横条样式拇指：比轨道宽、高度小，两端圆角（对齐参考图中的白色横杠）。
+  static const double _thumbWidth = 32;
+  static const double _thumbHeight = 6;
+  static const double _trackWidth = 10;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final height = constraints.maxHeight;
-        final travel = (height - _thumbSize)
+        final travel = (height - _thumbHeight)
             .clamp(0.0, double.infinity)
             .toDouble();
         final progress = value.clamp(0.0, 1.0).toDouble();
         // 上=大声：拇指中心距顶部 = travel * progress。
-        final thumbTop = height - _thumbSize / 2 - travel * progress;
-        final fillHeight = height - (thumbTop + _thumbSize / 2);
+        final thumbTop = height - _thumbHeight / 2 - travel * progress;
+        final fillHeight = height - (thumbTop + _thumbHeight / 2);
 
         // 拖动中最后应用的值：松手/抬起时提交它，而不是读取可能落后一帧的
         // [value] 属性——指针释放时的即时位置必须被准确落盘。
@@ -1467,7 +1469,7 @@ class _VerticalVolumeSlider extends StatelessWidget {
         void apply(double dy) {
           // 顶部(Y=0)=100%，底部(Y=height)=0%。
           final next =
-              (1 - ((dy - _thumbSize / 2) / travel)).clamp(0.0, 1.0).toDouble();
+              (1 - ((dy - _thumbHeight / 2) / travel)).clamp(0.0, 1.0).toDouble();
           lastApplied = next;
           onChanged(next);
         }
@@ -1508,7 +1510,7 @@ class _VerticalVolumeSlider extends StatelessWidget {
                         ),
                       ),
                     ),
-                  // 拇指：加大尺寸 + 白色描边，触屏可辨识、易抓握。
+                  // 拇指：横向圆角短条（参考图样式），宽度超出轨道便于辨识。
                   Positioned(
                     top: thumbTop,
                     left: 0,
@@ -1517,7 +1519,7 @@ class _VerticalVolumeSlider extends StatelessWidget {
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: colors.surface,
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(_thumbHeight / 2),
                           border: Border.all(color: activeColor, width: 2),
                           boxShadow: <BoxShadow>[
                             BoxShadow(
@@ -1527,7 +1529,10 @@ class _VerticalVolumeSlider extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const SizedBox.square(dimension: _thumbSize),
+                        child: const SizedBox(
+                          width: _thumbWidth,
+                          height: _thumbHeight,
+                        ),
                       ),
                     ),
                   ),
