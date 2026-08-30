@@ -5,6 +5,7 @@ import '../../../core/design/music_flow_design.dart';
 import '../../../core/dlna/dlna_models.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/player_provider.dart';
+import '../../../widgets/windows_title_bar.dart' show isWindowsDesktop;
 
 /// 链路 B：局域网 DLNA 直投面板（独立副轨道）
 /// 与「选择播放器」（链路 A，cast_peer_provider）完全独立：客户端自行 SSDP 发现
@@ -71,6 +72,12 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
     final cast = ref.watch(dlnaCastProvider);
     final devicesState = ref.watch(dlnaDevicesProvider);
 
+    // Windows 桌面端由外层 MusicFlowDesktopDialog 提供标题栏/圆角/滚动，
+    // 此处只渲染面板内容；其余平台保持安卓底部抽屉自带头部。
+    if (isWindowsDesktop) {
+      return _buildContent(context, cast, devicesState);
+    }
+
     return MusicFlowBottomSheet(
       title: '局域网 DLNA 直投',
       subtitle: '客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。',
@@ -79,20 +86,30 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
           maxHeight: MediaQuery.sizeOf(context).height * 0.6,
         ),
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              if (cast.isCasting) ...<Widget>[
-                _buildCastingPanel(cast),
-              ] else ...<Widget>[
-                _buildDeviceList(cast, devicesState),
-              ],
-              _buildBackgroundHint(),
-            ],
-          ),
+          child: _buildContent(context, cast, devicesState),
         ),
       ),
+    );
+  }
+
+  /// 面板主体：投屏态/设备列表 + 后台续播提示（与容器解耦，供
+  /// 安卓底部抽屉与 Windows 桌面对话框共用）。
+  Widget _buildContent(
+    BuildContext context,
+    DlnaCastState cast,
+    DlnaDevicesState devicesState,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (cast.isCasting) ...<Widget>[
+          _buildCastingPanel(cast),
+        ] else ...<Widget>[
+          _buildDeviceList(cast, devicesState),
+        ],
+        _buildBackgroundHint(),
+      ],
     );
   }
 

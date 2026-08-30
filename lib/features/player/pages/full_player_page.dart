@@ -130,10 +130,14 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   alignment: AlignmentDirectional.centerStart,
                   child: Padding(
                     padding: EdgeInsets.all(context.musicFlowSpacing.xs),
-                    child: MusicFlowIconButton(
-                      icon: AppIcons.chevronDown,
-                      label: '关闭播放器',
-                      onPressed: _closeToMini,
+                    child: Tooltip(
+                      message: '关闭播放器',
+                      waitDuration: const Duration(milliseconds: 400),
+                      child: MusicFlowIconButton(
+                        icon: AppIcons.chevronDown,
+                        label: '关闭播放器',
+                        onPressed: _closeToMini,
+                      ),
                     ),
                   ),
                 ),
@@ -1372,6 +1376,21 @@ class _PlayerUtilityBar extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
+    // Windows 桌面端用「窗户」样式对话框（独立标题栏 + 等圆角），
+    // 与安卓底部抽屉区分（对齐更新检测/设置页的平台样式策略）。
+    if (isWindowsDesktop) {
+      await showMusicFlowDesktopDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        builder: (dialogContext) => const MusicFlowDesktopDialog(
+          icon: AppIcons.dlnaLocal,
+          title: '局域网 DLNA 直投',
+          subtitle: '客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。',
+          child: LocalDlnaCastSheet(),
+        ),
+      );
+      return;
+    }
     await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -1417,32 +1436,38 @@ class _PlayerIconButton extends StatelessWidget {
         ? colors.ink.withValues(alpha: 0.14)
         : Colors.transparent;
 
-    return MusicFlowPressable(
-      semanticLabel: label,
-      selected: selected,
-      onPressed: onPressed,
-      enableHaptics: true,
-      minimumSize: Size.square(dimension),
-      borderRadius: context.musicFlowRadii.pill,
-      child: SizedBox.square(
-        dimension: dimension,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: context.musicFlowRadii.pill,
-            border: !emphasized && selected
-                ? Border.all(color: colors.accent)
-                : null,
-          ),
-          child: Center(
-            child: Transform.translate(
-              key: emphasized
-                  ? const ValueKey<String>(
-                      'full_player_primary_transport_glyph',
-                    )
+    return Tooltip(
+      // 桌面端鼠标悬停显示文字注释（对齐 mini 播放器的按钮提示）；
+      // 移动端长按/无障碍由 semanticLabel 承担，Tooltip 不影响触屏行为。
+      message: label,
+      waitDuration: const Duration(milliseconds: 400),
+      child: MusicFlowPressable(
+        semanticLabel: label,
+        selected: selected,
+        onPressed: onPressed,
+        enableHaptics: true,
+        minimumSize: Size.square(dimension),
+        borderRadius: context.musicFlowRadii.pill,
+        child: SizedBox.square(
+          dimension: dimension,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: context.musicFlowRadii.pill,
+              border: !emphasized && selected
+                  ? Border.all(color: colors.accent)
                   : null,
-              offset: iconOffset,
-              child: Icon(icon, size: iconSize, color: foreground),
+            ),
+            child: Center(
+              child: Transform.translate(
+                key: emphasized
+                    ? const ValueKey<String>(
+                        'full_player_primary_transport_glyph',
+                      )
+                    : null,
+                offset: iconOffset,
+                child: Icon(icon, size: iconSize, color: foreground),
+              ),
             ),
           ),
         ),
