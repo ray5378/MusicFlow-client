@@ -63,8 +63,6 @@ bool FlutterWindow::OnCreate() {
     this->Show();
   });
 
-  flutter_controller_->ForceRedraw();
-
   return true;
 }
 
