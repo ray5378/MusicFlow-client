@@ -168,6 +168,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             children: <Widget>[
               MusicFlowPageHeader(
                 title: resolveMusicFlowHomeTitle(),
+                // 与下方内容区(页级边距-5)对齐：菜单/更多设置按钮与标题同列。
+                padding: EdgeInsets.fromLTRB(
+                  context.musicFlowPageHorizontalPadding - 5,
+                  context.musicFlowSpacing.sm,
+                  context.musicFlowPageHorizontalPadding - 5,
+                  context.musicFlowSpacing.sm,
+                ),
                 leading: shouldShowPageDrawerTrigger(context)
                     ? MusicFlowIconButton(
                         icon: AppIcons.menu,
@@ -630,10 +637,10 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
 
     final columnCount = (songs.length + 2) ~/ 3;
     // 每列最多 3 行。行高与封面等高(56):信息区 3 行(歌名/歌手/标签)
-    // 正好塞进 56 高,行距 5px(比原 2px 多 3px),再留少量余量兜底。
+    // 正好塞进 56 高,行距 10px(参考稿,当前 5px 的 2 倍),再留少量余量兜底。
     const double tileRowMinHeight = 56;
-    const double rowGap = 5;
-    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 188
+    const double rowGap = 10;
+    final columnHeight = tileRowMinHeight * 3 + rowGap * 2 + 10; // = 198
 
     return ClipRect(
       child: SizedBox(
@@ -755,10 +762,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                   onPressed: _refresh,
                 ),
                 const Spacer(),
-                MusicFlowIconButton(
-                  icon: AppIcons.play,
-                  label: '播放随机歌曲',
-                  onPressed: _playRound,
+                // 播放按钮距内容区右边缘 15px（对齐箭头音乐参考稿）。
+                Padding(
+                  padding: const EdgeInsets.only(right: 15),
+                  child: MusicFlowIconButton(
+                    icon: AppIcons.play,
+                    label: '播放随机歌曲',
+                    onPressed: _playRound,
+                  ),
                 ),
               ],
             ),
@@ -782,7 +793,7 @@ class _RandomSongsLoading extends StatelessWidget {
     final itemWidth =
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
     // 高度与数据态 _buildSongsContent 保持一致,避免「加载态→数据态」跳变。
-    const double skeletonColumnHeight = 188;
+    const double skeletonColumnHeight = 198;
     return ClipRect(
       child: SizedBox(
         height: skeletonColumnHeight,
@@ -805,7 +816,7 @@ class _RandomSongsLoading extends StatelessWidget {
                             width: itemWidth,
                             child: const _RandomSongTileSkeleton(),
                           ),
-                          if (row < 2) const SizedBox(height: 5),
+                          if (row < 2) const SizedBox(height: 10),
                         ],
                       ],
                     ),
