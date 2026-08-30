@@ -41,8 +41,11 @@ class MusicFlowSectionHeader extends StatelessWidget {
 
   final bool _compact;
 
-  /// 首页紧凑标题行：刷新按钮距标题最后一个字 25px（对齐箭头音乐参考稿）。
-  static const double _titleToActionGap = 25;
+  /// 首页紧凑标题行：刷新按钮的「图标」距标题最后一个字 15px（对齐箭头音乐
+  /// 参考稿）。间距按可见图标字形计算，而非 48dp 触控盒边缘：
+  /// MusicFlowIconButton = 48dp 盒内 22px 图标居中（两侧各 13px 不可见留白），
+  /// 故盒间距 = 15 - (48 - 22) / 2 = 2px。
+  static const double _titleToActionGap = 2;
 
   @override
   Widget build(BuildContext context) {
@@ -86,14 +89,28 @@ class MusicFlowSectionHeader extends StatelessWidget {
           else
             Expanded(child: text),
           if (action != null) ...<Widget>[
-            // 首页紧凑模式（compact + trailingFollowsTitle）下刷新按钮距标题
-            // 最后一个字 25px（对齐箭头音乐参考稿）；其余场景保持既有间距。
+            // 首页紧凑模式（compact + trailingFollowsTitle）下刷新按钮「图标」
+            // 距标题最后一个字 15px（对齐箭头音乐参考稿，见 _titleToActionGap
+            // 的换算说明）；其余场景保持既有间距。
             SizedBox(
               width: trailingFollowsTitle
                   ? _titleToActionGap
                   : context.musicFlowSpacing.sm,
             ),
-            if (trailingFollowsTitle) Expanded(child: action) else action,
+            // trailing 若直接放进 Expanded，紧约束会把 MusicFlowIconButton
+            // 整体拉宽到剩余空间，其内部 Center 会把图标「居中」到行中间
+            // （最近更新歌单的刷新按钮曾因此浮在半路）。必须用 Align 把
+            // trailing 左对齐：单个按钮保持 48dp 自然宽度紧贴标题；trailing
+            // 为 Row 时内部 Row 仍占满宽度、Spacer 照常把播放按钮推到最右。
+            if (trailingFollowsTitle)
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: action,
+                ),
+              )
+            else
+              action,
           ],
         ],
       ),

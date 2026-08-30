@@ -61,6 +61,57 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('home section headers keep 15px title and right-edge gaps', (
+    tester,
+  ) async {
+    await _pumpDiscover(tester);
+
+    // 间距按「可见图标字形」计算,而非 48dp 触控盒边缘(MusicFlowIconButton
+    // 盒内 22px 图标居中,两侧各留白 13px)。通过语义标签定位按钮,再取其
+    // 内部 Icon 的实际渲染矩形来断言视觉间距。
+
+    // 随机歌曲:刷新图标距标题最后一个字 15px。
+    expect(
+      tester.getRect(
+        find.descendant(
+          of: find.bySemanticsLabel('换一批随机歌曲'),
+          matching: find.byType(Icon),
+        ),
+      ).left -
+          tester.getRect(find.text('随机歌曲')).right,
+      closeTo(15, 0.001),
+    );
+
+    // 随机歌曲:播放图标距「屏幕」右边缘 15px(“离右侧边缘”从屏幕边缘起算;
+    // 按钮以负内边距延伸进 11px 页边距,见 discover_page 的换算注释)。
+    expect(
+      390 -
+          tester.getRect(
+            find.descendant(
+              of: find.bySemanticsLabel('播放随机歌曲'),
+              matching: find.byType(Icon),
+            ),
+          ).right,
+      closeTo(15, 0.001),
+    );
+
+    // 最近更新的歌单:刷新图标距标题最后一个字 15px。回归保护:trailing
+    // 若未经 Align 左对齐直接放进 Expanded,紧约束会把按钮拉宽、图标被
+    // Center 居中到行中间,此断言即失败。
+    expect(
+      tester.getRect(
+        find.descendant(
+          of: find.bySemanticsLabel('刷新最近更新歌单'),
+          matching: find.byType(Icon),
+        ),
+      ).left -
+          tester.getRect(find.text('最近更新的歌单')).right,
+      closeTo(15, 0.001),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('song taps and the mix action preserve queue playback', (
     tester,
   ) async {
