@@ -800,11 +800,12 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                 const Spacer(),
                 // 播放按钮的「图标」距屏幕右边缘 15px（对齐箭头音乐参考稿，
                 // 「离右侧边缘」从屏幕边缘起算，而非内容区右边缘）。换算：
-                // 页面横向内边距(compact=md 16-5=11) + 48dp 触控盒内 22px
-                // 图标居中(右侧留白 13) → 盒右内边距 = 15 - 11 - 13 = -9。
-                // 负内边距让按钮延伸进页边距（与区块负 topInset 同类用法）。
-                Padding(
-                  padding: const EdgeInsets.only(right: -9),
+                // 内容边距(11) + 盒内图标右侧留白(13) - 目标(15) = 需视觉
+                // 右移 9px。Padding 禁止负值(debug 断言 isNonNegative)，故用
+                // Transform.translate 做纯视觉位移，布局仍在内容区内、点击
+                // 命中随 transform 生效。
+                Transform.translate(
+                  offset: const Offset(9, 0),
                   child: MusicFlowIconButton(
                     icon: AppIcons.play,
                     label: '播放随机歌曲',
