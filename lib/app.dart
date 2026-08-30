@@ -89,6 +89,8 @@ class App extends ConsumerWidget {
       darkTheme: AppTheme.dark(seedColor: themeSettings.seedColor),
       themeMode: themeSettings.mode,
       routerConfig: router,
+      // 注意：不能用 MaterialApp.router 的 navigatorKey（该构造没有此参数）；
+      // 根 Navigator 由 GoRouter 持有（navigatorKey: rootNavigatorKey）。
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
@@ -125,7 +127,10 @@ class App extends ConsumerWidget {
           value: _systemUiOverlayStyle(context),
           // 启动后延迟在后台检查更新（仅 Windows / Android），
           // 有新版本时弹出可关闭的提示框。
-          child: StartupUpdateCheckScope(child: content),
+          child: StartupUpdateCheckScope(
+            navigatorKey: rootNavigatorKey,
+            child: content,
+          ),
         );
       },
     );

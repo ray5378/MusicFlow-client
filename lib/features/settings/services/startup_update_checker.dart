@@ -32,6 +32,9 @@ bool startupUpdateCheckSupported({
 /// 用户在框内点「前往下载」后直接用系统浏览器打开下载链接。
 ///
 /// [checker] / [launcher] / [platform] 仅用于测试注入真实实现。
+/// [navigatorKey] 为根导航器 key：scope 挂载在 MaterialApp.builder 层时
+/// 其 context 位于 Navigator **之上**，showDialog 找不到 Navigator 会静默失败，
+/// 因此弹窗必须改用 Navigator 之下（overlay）的 context（生产环境必传）。
 /// 返回是否向用户弹出了更新提示。
 @visibleForTesting
 Future<bool> runStartupUpdateCheck(
@@ -40,6 +43,7 @@ Future<bool> runStartupUpdateCheck(
   Future<void> Function(String url)? launcher,
   TargetPlatform? platform,
   Duration delay = kStartupUpdateCheckDelay,
+  GlobalKey<NavigatorState>? navigatorKey,
 }) async {
   if (!startupUpdateCheckSupported(platform: platform)) return false;
   if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -48,20 +52,22 @@ Future<bool> runStartupUpdateCheck(
   try {
     final result = await (checker ?? UpdateChecker.check)();
     if (!result.hasUpdate) return false;
-    if (!context.mounted) return false;
+
+    // 弹窗上下文：优先用根 Navigator 的 overlay context（在 Navigator 之下），
+    // 避免 MaterialApp.builder 层 context 找不到 Navigator 导致弹窗静默失败。
+    final dialogContext =
+        navigatorKey?.currentState?.overlay?.context ?? context;
+    if (!dialogContext.mounted) return false;
 
     // 不 await 弹窗：提示框的 Future 要等用户关闭才完成，await 会把本函数
     // 一直挂起（调用方 StartupUpdateCheckScope 也就一直挂着）。
     // 这里只负责「发现更新 → 安排弹窗」，随即返回。
     unawaited(
-      showUpdateAvailableDialog(
-        context,
+      _showUpdateDialogSafely(
+        dialogContext,
         result: result,
         platform: platform,
-        onDownload: (url) {
-          final launch = launcher ?? _launchInBrowser;
-          unawaited(launch(url));
-        },
+        launcher: launcher ?? _launchInBrowser,
       ),
     );
     return true;
@@ -75,6 +81,34 @@ Future<bool> runStartupUpdateCheck(
       stackTrace,
     );
     return false;
+  }
+}
+
+/// 弹窗调用的安全包装：showDialog 在找不到 Navigator（context 在 Navigator
+/// 之上）等情况下会抛错。弹窗是锦上添花，任何失败只打日志、绝不外溢成
+/// 未处理异常（否则 unawaited 会让异常变成无人处理的异步错误）。
+Future<void> _showUpdateDialogSafely(
+  BuildContext context, {
+  required UpdateCheckResult result,
+  required TargetPlatform? platform,
+  required Future<void> Function(String url) launcher,
+}) async {
+  try {
+    await showUpdateAvailableDialog(
+      context,
+      result: result,
+      platform: platform,
+      onDownload: (url) {
+        unawaited(launcher(url));
+      },
+    );
+  } catch (error, stackTrace) {
+    Logger.errorWithTag(
+      'UPDATE',
+      'startup update dialog failed',
+      error,
+      stackTrace,
+    );
   }
 }
 
@@ -98,6 +132,7 @@ class StartupUpdateCheckScope extends StatefulWidget {
     this.checker,
     this.launcher,
     this.delay = kStartupUpdateCheckDelay,
+    this.navigatorKey,
   });
 
   final Widget child;
@@ -109,6 +144,11 @@ class StartupUpdateCheckScope extends StatefulWidget {
   final Future<void> Function(String url)? launcher;
 
   final Duration delay;
+
+  /// 根导航器 key：弹窗需要 Navigator 之下的 context（scope 在
+  /// MaterialApp.builder 层时其自身 context 在 Navigator 之上，见
+  /// [runStartupUpdateCheck]）。生产环境由 app.dart 传入。
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   State<StartupUpdateCheckScope> createState() =>
@@ -134,6 +174,7 @@ class _StartupUpdateCheckScopeState extends State<StartupUpdateCheckScope> {
           launcher: widget.launcher,
           // 延迟已在本 scope 完成，这里不再二次等待。
           delay: Duration.zero,
+          navigatorKey: widget.navigatorKey,
         ),
       );
     });

@@ -287,5 +287,68 @@ void main() {
       expect(find.text('发现新版本 3.5.0'), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     });
+
+    // 回归：生产环境 scope 挂在 MaterialApp.builder 层（context 在 Navigator
+    // 之上）。必须通过根 navigatorKey 取 Navigator 之下的 context 弹窗，
+    // 否则 showDialog 静默失败、用户永远看不到更新提示。
+    testWidgets('builder wiring shows dialog via root navigator key', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      final navKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navKey,
+          theme: AppTheme.dark(),
+          home: const Scaffold(body: SizedBox()),
+          builder: (context, child) => StartupUpdateCheckScope(
+            delay: Duration.zero,
+            navigatorKey: navKey,
+            checker: () async => updateResult(),
+            launcher: (_) async {},
+            child: child!,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('发现新版本 3.5.0'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('builder wiring without navigator key stays silent', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: const Scaffold(body: SizedBox()),
+          builder: (context, child) => StartupUpdateCheckScope(
+            delay: Duration.zero,
+            checker: () async => updateResult(),
+            launcher: (_) async {},
+            child: child!,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 弹窗找不到 Navigator 时应被内部吞掉（不外溢成未处理异常），
+      // 且不弹出任何提示。
+      expect(find.text('发现新版本 3.5.0'), findsNothing);
+      expect(tester.takeException(), isNull);
+      debugDefaultTargetPlatformOverride = null;
+    });
   });
 }
