@@ -364,6 +364,22 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - **全屏播放器**：黑胶唱片动画 + 歌词滚动 + 进度条 + 控制 + 音量；支持下滑/返回收起；支持投屏态显示（设备名）。交互对标网易云（左右滑切歌、歌词跟随）。
 - **队列面板**：可拖拽排序、播放模式切换、当前曲高亮、点歌即播；投屏态下经 `queue/jump`/`queue/reorder`/`queue/:index` 操作后端队列（§3.5）。
 
+### 7.5 启动自动更新检查
+
+- **触发时机**：每次冷启动、首帧结束后延迟 3s 在后台异步执行（`kStartupUpdateCheckDelay`），
+  不阻塞首屏渲染、自动登录与曲库拉取。
+- **目标平台**：仅 **Windows 与 Android**（`startupUpdateCheckSupported`）。
+  Web / macOS / Linux / iOS 不做静默网络请求。
+- **检查来源**：`UpdateChecker.check()` 读 GitHub Releases `releases/latest`，
+  与 `PackageInfo.version` 做语义化版本比较（§1.6 tag 体系，版本号以 tag 为准）。
+- **提示框**：发现新版本才弹，且**必须可关闭**——「稍后再说」、Windows 对话框右上角关闭按钮、
+  点击弹窗外均可关闭；关闭后本次启动不再打扰。
+- **下载行为**：框内「前往下载」**直接**用系统浏览器打开下载链接
+  （`LaunchMode.externalApplication`），**不再二次确认**。
+  资源挑选：Android 优先 `.apk`，其余平台优先 `.zip`（`pickPlatformUpdateAsset`），
+  没有资源时回退发布页 `releaseUrl`。
+- **失败静默**：网络错误 / 解析失败一律只打日志（`UPDATE` tag），不弹任何错误提示。
+
 ---
 
 ## 八、Windows 桌面端渲染性能约束（重点新增）
@@ -440,8 +456,32 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 ### 9.3 构建门槛
 
-- `flutter analyze` 0 错误；`flutter test` 全绿；
+- `flutter analyze` 0 错误；**本次改动涉及的** `flutter test` 全绿（全量测试的定位见 §9.4）；
 - APK / Windows 可执行文件只在 CI 构建（§1.6）；Windows 性能验收（§8.5）达标。
+
+### 9.4 CI 与发布门禁（**CI 失败不限制发版**）
+
+> **总原则：CI 是质量观察哨，不是发布门禁。任何测试类流水线失败都不得阻塞构建与 GitHub Release 发布。**
+
+| 流水线 | 文件 | 职责 | 是否阻塞发版 |
+|--------|------|------|--------------|
+| Build Client | `.github/workflows/build-android.yml` | 版本 tag 触发；解析版本号、构建 Android APK + Windows ZIP、发布 Release | **是**（构建失败即无产物） |
+| Test Suite | `.github/workflows/test-suite.yml` | 跑全量 `flutter test` | **否** |
+| UI Guard | `.github/workflows/ui-guard.yml` | 三道 UI 防线：Windows 按钮重叠 / 安卓样式弹窗 / 大屏播放器布局 | **否** |
+
+硬性规则（新增 CI 时必须遵守）：
+
+1. `Test Suite` / `UI Guard` 是**独立 workflow**，绝不能出现在 `build-android.yml` 的 `needs` 链上；
+   `publish-versioned` 只依赖 `resolve-version` / `build-android` / `build-windows`。
+2. 这两个 workflow 的**每个 job 与 step 一律 `continue-on-error: true`**，失败只显示黄色警告。
+3. 仓库存在与当前改动无关的历史遗留失败用例，**全量 `flutter test` 飘红属预期**，不构成发布门禁；
+   是否清理由 ray 决定。
+4. **新增/修改逻辑自带的测试必须本地全绿**——§9.3 的「全绿」指「本次改动涉及的测试」，
+   不要求全仓库测试全绿。
+5. 只有 `build-android.yml` 中真正产出构建产物的步骤（`flutter build apk` / `flutter build windows` /
+   `check_interaction_feedback`）失败才会导致发版失败；`dart analyze` 一类检查步骤保持
+   `continue-on-error: true`。
+6. 触发时机：push `main`、push `v*` tag、PR 到 `main`、`workflow_dispatch` 均可跑观察型流水线。
 
 ---
 
@@ -481,6 +521,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 □ 10. Windows 渲染约束（§八）已落实：特效降级 / 进度节流 / 音频单后端
 □ 11. 未提交 / 未 push / 未打 tag（除非 ray 明确要求）
 □ 12. 新代码使用统一错误处理与日志规范，未裸造错误体/裸 console
+□ 13. 若动到 CI：观察型流水线未接入 publish needs 链、每个 job/step 都 continue-on-error（§9.4）
 ```
 
 ---

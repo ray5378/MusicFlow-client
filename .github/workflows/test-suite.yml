@@ -1,0 +1,45 @@
+name: Test Suite
+
+# 全量 flutter test 观察流水线，与发版完全解耦（SPEC §9.4）：
+#   · 独立 workflow，不在 build-client.yml 的 needs 链上；
+#   · job 与 step 一律 continue-on-error，失败只显示黄色警告，
+#     绝不会阻塞 Build Client 的构建与 GitHub Release 发布。
+#
+# 仓库存在与当前改动无关的历史遗留失败用例，全量跑飘红属预期，
+# 按 SPEC §9.4：测试结果是质量参考，不构成发布门禁。
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  full-test-suite:
+    name: flutter test (all) - non-blocking
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # expanded reporter：逐个用例输出，便于在日志里直接定位失败项。
+      - name: Run full test suite
+        run: flutter test --reporter expanded
+        continue-on-error: true
+
+      - name: Run dart analyze (informational)
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
