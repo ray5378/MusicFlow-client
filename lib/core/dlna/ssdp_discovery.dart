@@ -7,6 +7,19 @@ import '../utils/logger.dart';
 /// SSDP 设备发现模块
 /// 使用 UDP 多播发送 M-SEARCH 并监听 NOTIFY 响应。
 ///
+/// **** Windows 收包修复（v3）：必须用 listen() 事件驱动收包 ****
+/// 实测(Windows 10/11 x64, Dart 3.13)：`RawDatagramSocket` 底层走 IOCP 完成
+/// 端口，**只有调用 `listen()` 注册读事件后，数据报才会被投递到 Dart 侧**；
+/// 此前用 `Timer.periodic + socket.receive()` 轮询在 Windows 上永远收不到任何
+/// SSDP 回包（多播/广播/单播全部静默丢失），导致 Windows 客户端扫不到局域网
+/// DLNA 设备。本版修复：
+///   1. 主动扫描(M-SEARCH)每个拨号 socket 改为 `listen()` 事件驱动收包，
+///      收到 `RawSocketEvent.read` 后一次性 drain 全部排队数据报。
+///   2. 被动监听(NOTIFY)同样改为 `listen()` 事件驱动，保证 ssdp:alive
+///      自播能被及时捕获。
+///   3. 保留原有逐接口 join / 重发 3 次 / 定向广播兜底 / 单播主机扫描 /
+///      虚拟接口过滤等 Windows 多网卡策略不变。
+///
 /// **** Windows 多网卡扫描修复（v2） ****
 /// 实测：单纯「逐接口发多播」在 Windows 多网卡(多网段)下仍扫不到只在其中一个
 /// 网段的 DLNA 设备，原因是 Windows 的多播**出接口**并不总是跟随 socket 绑定的
@@ -43,7 +56,7 @@ class SsdpDiscovery {
 
   final Map<String, _SsdpAnnounced> _announced = {};
   final List<RawDatagramSocket> _listenerSockets = [];
-  final List<Timer> _listenerTimers = [];
+  final List<StreamSubscription<RawSocketEvent>> _listenerSubscriptions = [];
   bool _listening = false;
 
   /// 发送 M-SEARCH 并收集响应
@@ -57,6 +70,7 @@ class SsdpDiscovery {
   }) async {
     final locations = <String>{};
     final sockets = <RawDatagramSocket>[];
+    final subscriptions = <StreamSubscription<RawSocketEvent>>[];
     final timers = <Timer>[];
     // 已做过单播主机扫描的私有 /24 子网（避免重复投递多张网卡落在同一子网）。
     final scannedSubnets = <String>{};
@@ -77,13 +91,14 @@ class SsdpDiscovery {
     ].join('\r\n');
     final data = Uint8List.fromList(msearch.codeUnits);
 
-    Future<void> drain(RawDatagramSocket socket) {
+    /// 一次性 drain 当前排队的数据报，提取全部 LOCATION。
+    /// 由 listen() 的 read 事件触发（Windows IOCP 语义下必须事件驱动才能收到包）。
+    void drain(RawDatagramSocket socket) {
       locations.addAll(_collect(socket));
-      return Future.value();
     }
 
     /// 对单个接口拨号：绑定该接口 IP → 在该接口 join 多播 → 重发 M-SEARCH(多播+
-    /// 定向广播兜底)。
+    /// 定向广播兜底)。收包统一走 listen() 事件驱动。
     Future<void> dial(String addr) async {
       RawDatagramSocket socket;
       final isAny = addr == _anyAddressSentinel;
@@ -115,11 +130,14 @@ class SsdpDiscovery {
       } catch (_) {}
 
       sockets.add(socket);
-      final drainTimer =
-          Timer.periodic(const Duration(milliseconds: 80), (_) {
-        drain(socket);
+      // **** Windows 收包修复：必须 listen() 事件驱动，Timer 轮询 receive()
+      // 在 Windows(IOCP) 上永远收不到 SSDP 回包（实测多播/广播/单播全部丢失）。
+      final sub = socket.listen((event) {
+        if (event == RawSocketEvent.read) {
+          drain(socket);
+        }
       });
-      timers.add(drainTimer);
+      subscriptions.add(sub);
 
       /// 一轮探测：主发多播 + 兜底广播。
       void sendProbe() {
@@ -148,7 +166,7 @@ class SsdpDiscovery {
 
       // 单播主机扫描兜底：对/24 私有子网逐 host 发单播 M-SEARCH。多播/广播在个别
       // Windows 网卡上可能受系统多播行为影响收不到回包，但单播请求+单播回源不依赖
-      // OS 多播，命中 DLNA 设备最稳。仅在子网唯一时执行一次（避免 g_Gk 多网卡重复）。
+      // OS 多播，命中 DLNA 设备最稳。仅在子网唯一时执行一次（避免多网卡重复）。
       if (!isAny) {
         final subnet = _subnetBase24(addr);
         if (subnet != null && scannedSubnets.add(subnet)) {
@@ -170,6 +188,9 @@ class SsdpDiscovery {
     } finally {
       for (final t in timers) {
         t.cancel();
+      }
+      for (final s in subscriptions) {
+        await s.cancel();
       }
       for (final s in sockets) {
         s.close();
@@ -355,10 +376,14 @@ class SsdpDiscovery {
       } catch (_) {}
 
       _listenerSockets.add(socket);
-      final timer = Timer.periodic(const Duration(milliseconds: 120), (_) {
-        _drainSsdp(socket, onDeviceUpdate);
+      // **** Windows 收包修复：被动监听同样必须 listen() 事件驱动，
+      // Timer 轮询在 Windows(IOCP) 上收不到任何 NOTIFY。
+      final sub = socket.listen((event) {
+        if (event == RawSocketEvent.read) {
+          _drainSsdp(socket, onDeviceUpdate);
+        }
       });
-      _listenerTimers.add(timer);
+      _listenerSubscriptions.add(sub);
     }
   }
 
@@ -399,10 +424,12 @@ class SsdpDiscovery {
 
   /// 停止被动监听
   void stopListening() {
-    for (final t in _listenerTimers) {
-      t.cancel();
+    for (final s in _listenerSubscriptions) {
+      // cancel() 返回 Future；stopListening 为同步清理接口，丢弃异步结果
+      //（socket 关闭后 subscription 随之结束，无需等待）。
+      unawaited(s.cancel());
     }
-    _listenerTimers.clear();
+    _listenerSubscriptions.clear();
     for (final s in _listenerSockets) {
       s.close();
     }
