@@ -45,3 +45,6 @@ unlinked_spec.ds
 # Local config / secrets
 .env
 *.key
+
+# Local preview artifacts (golden PNGs generated for manual review)
+/outputs/

@@ -1,0 +1,115 @@
+name: UI Guard
+
+# 纯质量观察流水线，与发版完全解耦：
+#   · 独立 workflow，不在 build-client.yml 的 needs 链上；
+#   · 每个 job / step 一律 continue-on-error，失败只显示黄色警告，
+#     绝不会阻塞 Build Client 的构建与 GitHub Release 发布。
+#
+# 覆盖三道 UI 防线：
+#   1. Windows 右上角按钮重叠（系统窗口控制区避让）
+#   2. Windows 客户端出现安卓样式弹窗（drag handle / 底部抽屉圆角）
+#   3. 大屏播放器布局回归（含 Windows 大屏避让）
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  windows-button-overlap:
+    name: Windows button overlap guard (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Top-bar / AppBar window-control clearance
+        run: >-
+          flutter test
+          test/core/design/music_flow_top_bar_test.dart
+          test/features/settings/log_viewer_page_test.dart
+          test/features/library/windows_top_bar_overlap_test.dart
+        continue-on-error: true
+
+  android-style-dialog:
+    name: Android-style dialog guard (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Desktop dialog has no bottom-sheet drag handle
+        run: flutter test test/core/design/music_flow_bottom_sheet_test.dart
+        continue-on-error: true
+
+  player-layout:
+    name: Player layout guard (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Full player (portrait + Windows wide layout)
+        run: >-
+          flutter test
+          test/features/player/full_player_page_test.dart
+          test/features/player/mini_player_test.dart
+          test/features/player/dlna_volume_test.dart
+        continue-on-error: true
+
+  analyze:
+    name: dart analyze (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run flutter analyze
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true

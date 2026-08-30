@@ -19,6 +19,8 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import 'test_player_notifier.dart';
 
+import '../../helpers/windows_overlap.dart';
+
 MusicFlowPressable? _heartPressable(WidgetTester tester, IconData icon) {
   final pressable = find.ancestor(
     of: find.byIcon(icon),
@@ -366,6 +368,38 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       // 平台 override 须在测试体结束前复位:校验早于任何 addTearDown。
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets(
+    'windows wide layout keeps controls clear of window controls',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      // Windows 同样是非触屏平台，会走大屏分栏布局。
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      // 暂停态:黑胶旋转为无限动画,会让 pumpAndSettle 无法收敛。
+      final notifier = TestPlayerNotifier(
+        initialState().copyWith(isPlaying: false),
+      );
+      await tester.pumpWidget(
+        providerApp(
+          notifier: notifier,
+          disableAnimations: false,
+          home: const FullPlayerPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey<String>('full_player_wide_layout')),
+        findsOneWidget,
+      );
+      expectNoWindowsWindowControlOverlap(tester, viewportWidth: 1440);
       debugDefaultTargetPlatformOverride = null;
     },
   );
