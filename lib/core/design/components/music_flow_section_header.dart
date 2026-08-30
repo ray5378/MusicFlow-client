@@ -41,8 +41,8 @@ class MusicFlowSectionHeader extends StatelessWidget {
 
   final bool _compact;
 
-  /// 首页紧凑标题行：刷新按钮距标题最后一个字 25px（对齐箭头音乐参考稿）。
-  static const double _titleToActionGap = 25;
+  /// 首页紧凑标题行：刷新按钮距标题最后一个字 15px（对齐箭头音乐参考稿）。
+  static const double _titleToActionGap = 15;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +87,7 @@ class MusicFlowSectionHeader extends StatelessWidget {
             Expanded(child: text),
           if (action != null) ...<Widget>[
             // 首页紧凑模式（compact + trailingFollowsTitle）下刷新按钮距标题
-            // 最后一个字 25px（对齐箭头音乐参考稿）；其余场景保持既有间距。
+            // 最后一个字 15px（对齐箭头音乐参考稿）；其余场景保持既有间距。
             SizedBox(
               width: trailingFollowsTitle
                   ? _titleToActionGap
