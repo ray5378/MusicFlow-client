@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../core/dlna/cast_http.dart';
 import '../core/dlna/dlna_keepalive.dart';
 import '../core/dlna/dlna_manager.dart';
 import '../core/utils/logger.dart';
@@ -13,7 +14,20 @@ import '../data/models/peer.dart';
 import '../data/models/song.dart';
 import 'api_provider.dart';
 import 'audio_quality_provider.dart';
+import 'library_provider.dart';
 import 'player_provider.dart';
+
+/// 直投专用 http 拉流基地址；null = 当前媒体库没有可用 http 地址（禁止直投）。
+///
+/// 规则见 [resolveDlnaCastHttpBase]：交给 DLNA 设备的拉流 URL 一律强制 http
+/// （很多 DLNA 设备不支持 https），控制面维持当前线路。watch 当前媒体库 +
+/// 活跃地址：编辑媒体库地址 / 探测切换线路都会触发重算，面板打开与每次
+/// 换 token 拿到的都是最新判定。
+final dlnaCastHttpBaseProvider = Provider<String?>((ref) {
+  final library = ref.watch(activeLibraryProvider);
+  final active = ref.watch(activeAddressProvider);
+  return resolveDlnaCastHttpBase(library: library, activeAddress: active);
+});
 
 /// DLNA 原生平台通道（Android：MulticastLock / 电池优化豁免等系统级能力）
 const MethodChannel _dlnaPlatformChannel = MethodChannel(
@@ -103,17 +117,34 @@ final dlnaManagerProvider = Provider<DlnaManager>((ref) {
 });
 
 /// 确保链路 B 管理器已初始化（幂等）：接入服务端直连流 URL 构建。
-/// A 档·直传直连：先经服务端 `getDlnaCastStreamUrl` 换一次性**无鉴权** token 流 URL
+/// A 档·直传直连：先经服务端 `getDlnaCastStreamUrl` 换**无鉴权** token 流 URL
 /// （`<baseUrl>/rest/dlna/stream/:token`），再交给 DLNA 设备让其直连服务器自拉流。
 /// 设备不连本机、无本地中继/监听端口；无鉴权 URL 与 GMediaRender 等渲染器兼容，
 /// 避免带 `u/t/s` 鉴权的 /rest/stream URL 被设备拉流失败而无声。
+///
+/// 强制 http 拉流：换 token 的请求仍走客户端当前连接（https 也可以），
+/// 但拼接给设备的流 URL 一律用投流专用 http 基地址（[dlnaCastHttpBaseProvider]），
+/// 很多 DLNA 设备不支持 https。无可用 http 地址时抛
+/// [DlnaCastHttpUnavailableException]，由 startCast 捕获返回失败——
+/// 正常情况下面板打开时已拦截，这里是兜底防线。
 Future<void> ensureDlnaManagerReady(Ref ref) async {
   final manager = ref.read(dlnaManagerProvider);
   await manager.init(
     streamUrlBuilder: (songId) async {
       final client = ref.read(subsonicApiClientProvider);
       final quality = ref.read(effectiveQualityProvider);
-      return client.getDlnaCastStreamUrl(songId, maxBitRate: quality.maxBitRate);
+      final castBase = ref.read(dlnaCastHttpBaseProvider);
+      if (castBase == null) {
+        throw const DlnaCastHttpUnavailableException();
+      }
+      final url = await client.getDlnaCastStreamUrl(
+        songId,
+        maxBitRate: quality.maxBitRate,
+      );
+      if (url.isEmpty) return '';
+      // 回退路径（getStreamUrl 带 u/t/s）同样被 origin 重写覆盖：鉴权参数
+      // 与主机无关，重写后仍有效。
+      return rewriteUrlToBase(url, castBase);
     },
   );
 }

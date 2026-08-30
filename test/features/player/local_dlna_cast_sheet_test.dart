@@ -102,6 +102,9 @@ Widget _app({
   required DlnaDevicesState devices,
   PlayerState? player,
   bool fullPlayer = false,
+  // 直投 http 基地址：默认给一个可用值保持既有设备列表行为；
+  // 「无 http 地址」用例显式传 null 验证提示与投流拦截。
+  String? castHttpBase = 'http://192.168.1.5:4533',
 }) {
   return ProviderScope(
     overrides: [
@@ -112,6 +115,7 @@ Widget _app({
         MusicFlowMediaVisuals.fallback(),
       ),
       currentLyricsProvider.overrideWith((ref) async => null),
+      dlnaCastHttpBaseProvider.overrideWithValue(castHttpBase),
       dlnaCastProvider.overrideWith((ref) => _FakeCastNotifier(ref, cast)),
       dlnaDevicesProvider.overrideWith((ref) => _FakeDevicesNotifier(ref, devices)),
     ],
@@ -145,6 +149,28 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('无可用 http 地址时不出设备列表，只展示提示（禁止投流）', (tester) async {
+      final online = _device('u1', '客厅电视');
+      await tester.pumpWidget(
+        _app(
+          cast: const DlnaCastState(),
+          devices: DlnaDevicesState(devices: [online]),
+          castHttpBase: null,
+        ),
+      );
+      await tester.pump();
+
+      // 提示出现（ray 指定文案）
+      expect(
+        find.text('直投功能必须在媒体库中先添加http连接'),
+        findsOneWidget,
+      );
+      // 设备列表不渲染 → 无法发起投流
+      expect(find.text('客厅电视'), findsNothing);
+      expect(find.text('扫描局域网 DLNA 设备'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 

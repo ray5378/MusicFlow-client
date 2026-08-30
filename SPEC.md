@@ -261,6 +261,13 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 3. **设备发现**：客户端主动 SSDP `M-SEARCH` + 被动 `NOTIFY`（`ssdp_discovery.dart` 已实现）；Android 需持 **`MulticastLock`**（自写 MethodChannel acquire/release）；Android 13+ 按需申请 **`NEARBY_WIFI_DEVICES`**（`neverForLocation`，运行时）；Windows 提示放行防火墙"专用网络"。
 4. **进度/状态回写**：2s `Timer.periodic` 轮询 `GetTransportInfo/GetPositionInfo/GetVolume` 回写与会话；进度按 §3.3 同款插值，设备号 0 时长时用墙钟兜底保证播控中心进度跟随。所有定时器在停止/退出时 `dispose`，无递归 `Future.delayed`（§1.5 / §10 #14）。
 5. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"选择播放器"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
+6. **强制 http 拉流（ray 确认，2026-08-30）**：交给 DLNA 设备的**所有资源 URL（流/封面等）一律强制 http**——很多 DLNA 设备没有 TLS 栈，收到 https 拉流地址会直接拒拉（卡 TRANSITIONING 无声）。规则：
+   - http 地址可用性**沿用地址池健康检查结果**（`status == ok`），不额外探测；当前活跃地址本身是 http 时优先直接用；
+   - **手动锁定 https 线路不影响投流**（锁定只约束客户端控制面，不限制拉流面）；
+   - 换 token 的请求仍走客户端当前连接，仅拼接给设备的 URL 换 http origin（`rewriteUrlToBase`，回退的带鉴权 `/rest/stream` URL 同样被重写，鉴权参数与主机无关仍有效）；
+   - **打开直投面板即检测**：无可用 http 地址时不出设备列表、禁止发起投流，面板内提示「直投功能必须在媒体库中先添加http连接」（ray 指定措辞，`kDlnaCastHttpRequiredHint`）；
+   - 实现集中在 `lib/core/dlna/cast_http.dart`（纯函数）+ `dlnaCastHttpBaseProvider`（watch 当前媒体库与活跃地址，编辑地址/切换线路自动重算）+ `streamUrlBuilder` 内兜底抛 `DlnaCastHttpUnavailableException`（`startCast` 捕获返回失败）。
+   - 附：服务端 token 事实——`/rest/dlna/stream/:token` 的 token **有效期 6 小时**（`SESSION_TTL_MS`，`dlna/control.ts`），非一次性；期间可反复拉流/拖进度；每切一首歌换新 token。
 
 **权限/配置清单**：
 - Android：`ACCESS_WIFI_STATE`、`CHANGE_WIFI_MULTICAST_STATE`、`NEARBY_WIFI_DEVICES`（Android 13+）；统一走自写 MethodChannel（`com.musicflow.app/dlna`：`acquireMulticastLock` / `releaseMulticastLock` / `hasNearbyWifiDevicesPermission` / `requestNearbyWifiDevicesPermission`），不依赖 `permission_handler` 新增能力。
@@ -447,7 +454,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 模块 | 测试文件 | 重点 |
 |------|----------|------|
 | 投屏控制 | `test/providers/cast_peer_provider_test.dart` | peers 列表/切换/轮询/回本机/待办项（§3.5） |
-| 链路 B DLNA 直投（§3.6，A/B 双档位） | `test/core/dlna/dlna_models_test.dart`、`test/providers/dlna_provider_test.dart`、`test/core/dlna/device_description_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart`、`test/features/player/dlna_volume_test.dart` | DLNA 模型/设备描述(含 CDS URL)纯逻辑；`castPath`(A/B) 档位选择；直投面板空态/设备过滤；投屏态当前曲+播放控制+进度跟随；设备行发起点播；队列空则不投屏；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板；音量 |
+| 链路 B DLNA 直投（§3.6，A/B 双档位） | `test/core/dlna/dlna_models_test.dart`、`test/providers/dlna_provider_test.dart`、`test/core/dlna/device_description_test.dart`、`test/core/dlna/cast_http_test.dart`、`test/features/player/local_dlna_cast_sheet_test.dart`、`test/features/player/dlna_volume_test.dart` | DLNA 模型/设备描述(含 CDS URL)纯逻辑；`castPath`(A/B) 档位选择；直投 http 基地址挑选/URL origin 重写/缺 http 提示；直投面板空态/设备过滤；投屏态当前曲+播放控制+进度跟随；设备行发起点播；队列空则不投屏；全屏播放器独立入口与链路 A 图标共存、投屏态高亮并打开面板；音量 |
 | 播放队列/进度 | `test/providers/player_seek_policy_test.dart`、`test/providers/preview_playback_queue_test.dart` | 队列、切歌、播放模式、seek 策略 |
 | 数据源 | `test/data/sources/subsonic_api_client_test.dart` | 鉴权注入、响应解析、错误处理 |
 | 仓库 | `test/data/repositories/music_repository_test.dart` | 分页解析、窗口化切片 |

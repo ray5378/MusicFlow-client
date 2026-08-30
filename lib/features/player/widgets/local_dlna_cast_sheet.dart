@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../core/dlna/cast_http.dart';
 import '../../../core/dlna/dlna_models.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -33,6 +34,16 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
   }
 
   Future<void> _startCast(DlnaDevice device) async {
+    // 兜底防线：面板渲染时已拦截「无可用 http 地址」，这里再挡一次，
+    // 防止打开面板后地址被改动（编辑媒体库/线路切换）导致越界投流。
+    if (ref.read(dlnaCastHttpBaseProvider) == null) {
+      showMusicFlowMessage(
+        context,
+        kDlnaCastHttpRequiredHint,
+        kind: MusicFlowMessageKind.warning,
+      );
+      return;
+    }
     final playerState = ref.read(playerProvider);
     final tracks = playerState.queue
         .map(dlnaCastTrackFromSong)
@@ -99,17 +110,45 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
     DlnaCastState cast,
     DlnaDevicesState devicesState,
   ) {
+    // 打开面板即检测：媒体库没有可用 http 地址（DLNA 设备基本不支持 https）
+    // 时不出设备列表、禁止发起投流，只展示提示（ray 需求）。
+    // 已在投屏则保持投屏面板（停止投屏仍可用，不必打断既有会话）。
+    final castHttpBase = ref.watch(dlnaCastHttpBaseProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         if (cast.isCasting) ...<Widget>[
           _buildCastingPanel(cast),
+        ] else if (castHttpBase == null) ...<Widget>[
+          _buildHttpRequiredHint(),
         ] else ...<Widget>[
           _buildDeviceList(cast, devicesState),
         ],
         _buildBackgroundHint(),
       ],
+    );
+  }
+
+  /// 无可用 http 地址时的提示（替代设备列表，禁止发起投流）。
+  Widget _buildHttpRequiredHint() {
+    final colors = context.musicFlowColors;
+    final typography = context.musicFlowTypography;
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(AppIcons.warning, size: 16, color: colors.warning),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              kDlnaCastHttpRequiredHint,
+              style: typography.body.copyWith(color: colors.ink),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
