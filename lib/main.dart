@@ -24,7 +24,15 @@ Future<void> main() async {
         ..maximumSizeBytes = 32 << 20;
 
       // 应用持久化的日志开关（默认关闭，需用户在设置里手动开启）。
-      Logger.setLoggingEnabled(await LocalStorage.getLoggingEnabled());
+      // 注意：不能在 runApp 前 await 平台存储（SharedPreferences）——桌面端
+      // 平台插件在 C++ runner 的 OnCreate→RegisterPlugins 阶段才注册，Dart 侧
+      // 在 runApp 前 await 该 channel 会因插件未就绪而永久挂起，导致首帧永不
+      // 渲染、窗口透明只剩外框（Windows 尤甚，安卓注册路径不同不触发）。改为
+      // 异步应用，绝不阻塞首帧。
+      unawaited(
+        LocalStorage.getLoggingEnabled()
+            .then((enabled) => Logger.setLoggingEnabled(enabled)),
+      );
 
       // 开启「连接失败」提示的启动宽限期：打开软件后 10 秒内先待确认，
       // 避免首屏未就绪时立刻误报连接失败。
