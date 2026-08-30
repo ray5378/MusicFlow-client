@@ -322,39 +322,74 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      // 左栏:封面(视口中段) → 歌曲信息(紧贴封面下方) → 播放控件(贴底)
+                      // 左栏:封面上部 → 「歌名模块 + 播放控件」整体下移靠拢封面。
+                      // 与上一版相比:顶部留白减少(封面上移),底部新增留白把
+                      // 歌名/控件作为一个整体往上托,不再贴底。
+                      // 矮视口(横屏小窗)下退回旧比例并取消底部留白,保证控件不被推出视口。
                       SizedBox(
                         key: const ValueKey<String>('full_player_artwork_pane'),
                         width: leftPaneWidth,
-                        child: Column(
-                          // 剩余空间归顶部:信息区用不满份额时多出来的高度补进
-                          // 顶部留白,底部播放控件始终贴底不被推下。
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            // 顶部留白:把封面从窗口顶端下推到视口中段,同时与顶部
-                            // 拖拽横幅拉开距离。flex 越高封面越靠下。
-                            const Spacer(flex: 3),
-                            Expanded(
-                              flex: 9,
-                              child: _buildWideArtworkPane(song),
-                            ),
-                            SizedBox(height: spacing.md),
-                            // 歌曲信息:紧贴封面下方,不再与控件同框。矮视口(横屏)
-                            // 下优先让位给控件——自身收缩并可滚动,不挤压控件。
-                            Flexible(
-                              flex: 4,
-                              child: SingleChildScrollView(
-                                child: _buildWideDetailsPane(
-                                  song,
-                                  subtitle: subtitle,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final compactHeight = constraints.maxHeight < 460;
+                            return Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                // 顶部留白:把封面定位在左栏偏上区域(而非视口中段)。
+                                Spacer(flex: compactHeight ? 3 : 2),
+                                Expanded(
+                                  flex: compactHeight ? 9 : 8,
+                                  child: _buildWideArtworkPane(song),
                                 ),
-                              ),
-                            ),
-                            SizedBox(height: spacing.xs),
-                            // 播放控件:贴在左栏最底部,始终可达。
-                            _buildControlPanel(song, compact: true),
-                          ],
+                                SizedBox(height: spacing.md),
+                                // 歌曲信息 + 播放控件作为一个整体：信息区过长时内部滚动，
+                                // 控件始终固定在该整体底部，整体随底部留白一起上移。
+                                // 矮视口保持旧结构：详情可滚动，控件固定在最底部，
+                                // 避免被挤出视口。正常/大屏高度下把歌名+控件作为整体，
+                                // 并用底部留白把该整体上移。
+                                if (compactHeight)
+                                  Flexible(
+                                    flex: 4,
+                                    child: SingleChildScrollView(
+                                      child: _buildWideDetailsPane(
+                                        song,
+                                        subtitle: subtitle,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Flexible(
+                                    flex: 5,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: <Widget>[
+                                        Flexible(
+                                          child: SingleChildScrollView(
+                                            child: _buildWideDetailsPane(
+                                              song,
+                                              subtitle: subtitle,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(height: spacing.xs),
+                                        _buildControlPanel(song, compact: true),
+                                      ],
+                                    ),
+                                  ),
+                                if (compactHeight) ...<Widget>[
+                                  SizedBox(height: spacing.xs),
+                                  // 矮视口下控件固定在最底部，不被 Flexible 挤压。
+                                  _buildControlPanel(song, compact: true),
+                                ] else ...<Widget>[
+                                  SizedBox(height: spacing.xs),
+                                  // 底部留白:把「歌名+控件」整体上移,避免贴底。
+                                  const Spacer(flex: 2),
+                                ],
+                              ],
+                            );
+                          },
                         ),
                       ),
                       SizedBox(width: leftRightGap),
