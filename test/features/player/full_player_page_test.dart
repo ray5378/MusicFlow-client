@@ -55,6 +55,7 @@ void main() {
         'A deliberately long player title that must remain usable at large text sizes',
     artist: 'A long artist name',
     album: 'A long album name',
+    duration: 240,
     bitRate: 320,
     bitDepth: 24,
     samplingRate: 96000,

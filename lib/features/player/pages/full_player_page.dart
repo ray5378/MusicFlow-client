@@ -1239,61 +1239,75 @@ class PlaybackControls extends ConsumerWidget {
       _ => '列表循环，点击切换到随机播放',
     };
 
-    final playDimension = compact ? 56.0 : 64.0;
-    final playIconSize = compact ? 30.0 : 32.0;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            _PlayerIconButton(
-              icon: modeIcon,
-              label: modeLabel,
-              selected: mode != 'all' && mode != 'order',
-              onPressed: () {
-                // 链路 B 投屏态:指挥 DLNA 设备;链路 A 投屏态下发后端 play-mode;
-                // 本机走本地三态。
-                if (dlnaCast.isCasting) {
-                  ref.read(dlnaCastProvider.notifier).cyclePlayMode();
-                } else if (isCastMode) {
-                  ref
-                      .read(castPeerControllerProvider.notifier)
-                      .cyclePlayMode();
-                } else {
-                  ref.read(playerProvider.notifier).cyclePlaybackMode();
-                }
-              },
+    // 播放按钮尺寸随可用宽度自适应:5 个按钮(模式48 + 上一首48 + 播放 + 下一首
+    // 48 + 队列48)在窄屏/高文字缩放下可能超出可用宽度(RenderFlex overflow,
+    // 实测 320dp 时溢出 16px)。用 LayoutBuilder 感知约束,把播放按钮在
+    // [48, 64] 区间内收缩,保证总宽恰好放得下;视觉上主按钮仍≥48(触控标准)。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const sideButton = 48.0;
+        const minPlay = 48.0;
+        final maxPlay = compact ? 56.0 : 64.0;
+        // 可用宽度 - 4 个 48px 侧按钮 = 主播放按钮可分配宽度。
+        final available = constraints.maxWidth;
+        final playDimension =
+            (available - sideButton * 4).clamp(minPlay, maxPlay);
+        final playIconSize = (playDimension - 24).clamp(26.0, 32.0);
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                _PlayerIconButton(
+                  icon: modeIcon,
+                  label: modeLabel,
+                  selected: mode != 'all' && mode != 'order',
+                  onPressed: () {
+                    // 链路 B 投屏态:指挥 DLNA 设备;链路 A 投屏态下发后端 play-mode;
+                    // 本机走本地三态。
+                    if (dlnaCast.isCasting) {
+                      ref.read(dlnaCastProvider.notifier).cyclePlayMode();
+                    } else if (isCastMode) {
+                      ref
+                          .read(castPeerControllerProvider.notifier)
+                          .cyclePlayMode();
+                    } else {
+                      ref.read(playerProvider.notifier).cyclePlaybackMode();
+                    }
+                  },
+                ),
+                _PlayerIconButton(
+                  icon: AppIcons.previous,
+                  label: '上一首',
+                  onPressed: () => unawaited(previousEffectivePlayback(ref)),
+                ),
+                _PlayerIconButton(
+                  icon: isPlaying ? AppIcons.pause : AppIcons.play,
+                  label: isPlaying ? '暂停' : '播放',
+                  emphasized: true,
+                  dimension: playDimension,
+                  iconSize: playIconSize,
+                  iconOffset: isPlaying
+                      ? Offset.zero
+                      : Offset(playIconSize * _playIconOpticalCorrection, 0),
+                  onPressed: () => unawaited(toggleEffectivePlayback(ref)),
+                ),
+                _PlayerIconButton(
+                  icon: AppIcons.next,
+                  label: '下一首',
+                  onPressed: () => unawaited(nextEffectivePlayback(ref)),
+                ),
+                _PlayerIconButton(
+                  icon: AppIcons.queue,
+                  label: '播放队列',
+                  onPressed: onOpenQueue,
+                ),
+              ],
             ),
-            _PlayerIconButton(
-              icon: AppIcons.previous,
-              label: '上一首',
-              onPressed: () => unawaited(previousEffectivePlayback(ref)),
-            ),
-            _PlayerIconButton(
-              icon: isPlaying ? AppIcons.pause : AppIcons.play,
-              label: isPlaying ? '暂停' : '播放',
-              emphasized: true,
-              dimension: playDimension,
-              iconSize: playIconSize,
-              iconOffset: isPlaying
-                  ? Offset.zero
-                  : Offset(playIconSize * _playIconOpticalCorrection, 0),
-              onPressed: () => unawaited(toggleEffectivePlayback(ref)),
-            ),
-            _PlayerIconButton(
-              icon: AppIcons.next,
-              label: '下一首',
-              onPressed: () => unawaited(nextEffectivePlayback(ref)),
-            ),
-            _PlayerIconButton(
-              icon: AppIcons.queue,
-              label: '播放队列',
-              onPressed: onOpenQueue,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
