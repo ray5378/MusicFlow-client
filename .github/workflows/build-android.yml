@@ -75,6 +75,9 @@ jobs:
       #     + test/core/dlna/dlna_auto_next_sim_test.dart（曲末看门狗续播）
       #   · 客户端保活：test/core/dlna/dlna_keepalive_test.dart（引用计数）
       #     + test/core/services/audio_handler_service_test.dart（本机音频前台媒体会话）
+      #   · 首页布局回归（标题↔刷新按钮 15px、播放按钮距屏幕右边缘 15px，
+      #     含「trailing 直接放 Expanded 会被拉宽居中」的回归保护）：
+      #     test/features/discover/discover_page_test.dart
       - name: Run DLNA feature tests
         run: >-
           flutter test
@@ -87,6 +90,7 @@ jobs:
           test/core/services/audio_handler_service_test.dart
           test/providers/cast_peer_provider_test.dart
           test/providers/dlna_provider_test.dart
+          test/features/discover/discover_page_test.dart
 
   build-android:
     name: Android APK

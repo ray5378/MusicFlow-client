@@ -97,7 +97,20 @@ class MusicFlowSectionHeader extends StatelessWidget {
                   ? _titleToActionGap
                   : context.musicFlowSpacing.sm,
             ),
-            if (trailingFollowsTitle) Expanded(child: action) else action,
+            // trailing 若直接放进 Expanded，紧约束会把 MusicFlowIconButton
+            // 整体拉宽到剩余空间，其内部 Center 会把图标「居中」到行中间
+            // （最近更新歌单的刷新按钮曾因此浮在半路）。必须用 Align 把
+            // trailing 左对齐：单个按钮保持 48dp 自然宽度紧贴标题；trailing
+            // 为 Row 时内部 Row 仍占满宽度、Spacer 照常把播放按钮推到最右。
+            if (trailingFollowsTitle)
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: action,
+                ),
+              )
+            else
+              action,
           ],
         ],
       ),

@@ -66,10 +66,6 @@ void main() {
   ) async {
     await _pumpDiscover(tester);
 
-    // 内容区右边缘 = 屏宽 - 页面横向内边距(compact=md 16)再减 5
-    // (discover_page 的 SliverPadding 与区块负内边距)。
-    final contentRight = 390 - (MusicFlowSpacing.standard.md - 5);
-
     // 间距按「可见图标字形」计算,而非 48dp 触控盒边缘(MusicFlowIconButton
     // 盒内 22px 图标居中,两侧各留白 13px)。通过语义标签定位按钮,再取其
     // 内部 Icon 的实际渲染矩形来断言视觉间距。
@@ -86,9 +82,10 @@ void main() {
       closeTo(15, 0.001),
     );
 
-    // 随机歌曲:播放图标距内容区右边缘 15px。
+    // 随机歌曲:播放图标距「屏幕」右边缘 15px(“离右侧边缘”从屏幕边缘起算;
+    // 按钮以负内边距延伸进 11px 页边距,见 discover_page 的换算注释)。
     expect(
-      contentRight -
+      390 -
           tester.getRect(
             find.descendant(
               of: find.bySemanticsLabel('播放随机歌曲'),
@@ -98,7 +95,9 @@ void main() {
       closeTo(15, 0.001),
     );
 
-    // 最近更新的歌单:刷新图标距标题最后一个字 15px。
+    // 最近更新的歌单:刷新图标距标题最后一个字 15px。回归保护:trailing
+    // 若未经 Align 左对齐直接放进 Expanded,紧约束会把按钮拉宽、图标被
+    // Center 居中到行中间,此断言即失败。
     expect(
       tester.getRect(
         find.descendant(
