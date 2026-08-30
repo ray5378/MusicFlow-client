@@ -482,6 +482,14 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
    `check_interaction_feedback`）失败才会导致发版失败；`dart analyze` 一类检查步骤保持
    `continue-on-error: true`。
 6. 触发时机：push `main`、push `v*` tag、PR 到 `main`、`workflow_dispatch` 均可跑观察型流水线。
+7. **`continue-on-error` 不等于「可以没有结果」**——因为失败被允许，必须另有一条可见的结果通道，
+   否则「测试压根没跑起来（环境/依赖失败）」和「全绿」在 Job 上看起来一模一样。
+   `test-suite.yml` 因此强制产出三层结果可见性：
+   1. **Job Summary**：`flutter test --reporter json` 的原始事件交给
+      `.github/scripts/summarize_tests.py` 汇总，输出「通过 / 失败 / 跳过」计数与失败用例表格；
+   2. **黄色注解**：每个失败用例一条 `::warning::`（上限 40 条），在提交 / PR 页面直接可见；
+   3. **原始产物**：`test-results.jsonl` + `test-results.err` 上传为 artifact 留存 7 天，便于本地复现。
+   汇总脚本**退出码恒为 0**，只负责陈述结果，绝不参与门禁判定。
 
 ---
 

@@ -1,9 +1,15 @@
 name: Test Suite
 
 # 全量 flutter test 观察流水线，与发版完全解耦（SPEC §9.4）：
-#   · 独立 workflow，不在 build-client.yml 的 needs 链上；
+#   · 独立 workflow，不在 build-android.yml 的 needs 链上；
 #   · job 与 step 一律 continue-on-error，失败只显示黄色警告，
 #     绝不会阻塞 Build Client 的构建与 GitHub Release 发布。
+#
+# 注意：因为失败是「允许」的，所以必须把结果讲清楚，否则一昧 continue-on-error
+# 会让「测试没跑起来」和「全绿」看起来一模一样。本流水线因此额外产出：
+#   1) Job Summary 里的通过/失败/跳过计数与失败用例表格；
+#   2) 每个失败用例一条 ::warning:: 注解（提交/PR 上可见，黄色不阻断）；
+#   3) 原始 jsonl 结果作为 artifact 留存 7 天，便于本地复现。
 #
 # 仓库存在与当前改动无关的历史遗留失败用例，全量跑飘红属预期，
 # 按 SPEC §9.4：测试结果是质量参考，不构成发布门禁。
@@ -14,6 +20,9 @@ on:
   pull_request:
     branches: ['main']
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   full-test-suite:
@@ -35,11 +44,42 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # expanded reporter：逐个用例输出，便于在日志里直接定位失败项。
+      # json reporter：机器可读，交给 summarize_tests.py 汇总；
+      # 人类可读的进度仍由 stderr（非 json 行）承载，失败时可回溯。
       - name: Run full test suite
-        run: flutter test --reporter expanded
+        id: full_tests
         continue-on-error: true
+        run: |
+          set +e
+          flutter test --reporter json > test-results.jsonl 2> test-results.err
+          exit_code=$?
+          set -e
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/summarize_tests.py test-results.jsonl "$exit_code" >> "$GITHUB_STEP_SUMMARY"
+          if [ -s test-results.err ]; then
+            {
+              echo ""
+              echo "<details><summary>flutter test stderr（尾部 30 行）</summary>"
+              echo ""
+              echo '```'
+              tail -n 30 test-results.err
+              echo '```'
+              echo ""
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Run dart analyze (informational)
         run: flutter analyze --no-fatal-infos
         continue-on-error: true
+
+      - name: Upload raw test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-test-results
+          path: |
+            test-results.jsonl
+            test-results.err
+          retention-days: 7
+          if-no-files-found: ignore
