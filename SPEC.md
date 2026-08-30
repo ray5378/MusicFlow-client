@@ -490,6 +490,10 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
    2. **黄色注解**：每个失败用例一条 `::warning::`（上限 40 条），在提交 / PR 页面直接可见；
    3. **原始产物**：`test-results.jsonl` + `test-results.err` 上传为 artifact 留存 7 天，便于本地复现。
    汇总脚本**退出码恒为 0**，只负责陈述结果，绝不参与门禁判定。
+8. 观察型流水线里的 `dart analyze` 必须带 `--no-fatal-infos --no-fatal-warnings`
+   （只有真 error 才失败）——否则仓库存量 lint 会让步骤打出红色的
+   "Process completed with exit code 1" 注解，在「失败本就允许」的流水线上
+   反而淹没真正需要关注的失败用例警告。
 
 ---
 

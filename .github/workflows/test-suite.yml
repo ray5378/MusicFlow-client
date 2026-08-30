@@ -69,8 +69,12 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # --no-fatal-infos + --no-fatal-warnings：只有真正的 error 才让这一步失败。
+      # 否则仓库存量 lint（info/warning）会让这一步打出红色的
+      # "Process completed with exit code 1" 注解，在「失败是允许的」观察流水线里
+      # 反而淹没真正需要关注的失败用例警告。
       - name: Run dart analyze (informational)
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
         continue-on-error: true
 
       - name: Upload raw test results
