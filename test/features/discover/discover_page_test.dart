@@ -82,17 +82,13 @@ void main() {
       closeTo(15, 0.001),
     );
 
-    // 随机歌曲:播放图标距「窗口」右边缘 20px(“离右侧边缘”从窗口边缘起算;
-    // 可见图标距右缘 20px,随窗口宽度自适应,见 discover_page 的换算注释)。
+    // 随机歌曲:播放「按钮盒」距「窗口」右边缘 10px(“离右侧边缘”从窗口边缘
+    // 起算;盒右缘用 Transform 微调贴到 10px,随窗口宽度自适应,见 discover_page
+    // 的换算注释。图标在 48 盒内 22px 居中,右缘距盒右缘 13px,故图标实际
+    // 距窗口 23px;此处按盒断言,避免对图标盒内偏移的耦合)。
     expect(
-      390 -
-          tester.getRect(
-            find.descendant(
-              of: find.bySemanticsLabel('播放随机歌曲'),
-              matching: find.byType(Icon),
-            ),
-          ).right,
-      closeTo(20, 0.001),
+      390 - tester.getRect(find.bySemanticsLabel('播放随机歌曲')).right,
+      closeTo(10, 0.001),
     );
 
     // 最近更新的歌单:刷新图标距标题最后一个字 15px。回归保护:trailing
@@ -144,6 +140,7 @@ void main() {
     var recentLoads = 0;
     var cardsLoads = 0;
     var channelsLoads = 0;
+    var playlistsLoads = 0;
     final songs = _songs(count: 1);
     final playlists = <Playlist>[_playlist()];
     final randomRefresh = Completer<List<Song>>();
@@ -159,6 +156,13 @@ void main() {
           randomLoads += 1;
           return randomLoads == 1 ? songs : randomRefresh.future;
         }),
+        // 传 extraOverrides 时 _pumpDiscover 不再注入默认 playlists override,
+        // 必须显式覆盖,否则 _refresh 里 ref.refresh(playlistsProvider.future)
+        // 走真实 HTTP 在测试环境永不完成, Future.wait 挂起(超时)。
+        playlistsProvider.overrideWith((ref) async {
+          playlistsLoads += 1;
+          return playlistsLoads == 1 ? playlists : playlistsRefresh.future;
+        }),
         recentPlaylistsProvider.overrideWith((ref) async {
           recentLoads += 1;
           return recentLoads == 1 ? playlists : recentRefresh.future;
@@ -173,6 +177,17 @@ void main() {
               ? RecommendResult(providerId: '', channels: const [])
               : channelsRefresh.future;
         }),
+        // _refresh() 会 ref.refresh 这些 provider, 必须全部 override,
+        // 否则走真实 HTTP 在测试环境永不完成, Future.wait 挂起(超时)。
+        homeRecommendSectionProvider.overrideWith(
+          (ref) async => const HomeRecommendSection(
+            fixed: <HomeCard>[],
+            random: <Playlist>[],
+          ),
+        ),
+        localRecommendChannelsProvider.overrideWith(
+          (ref) async => const <LocalRecommendChannel>[],
+        ),
       ],
     );
 

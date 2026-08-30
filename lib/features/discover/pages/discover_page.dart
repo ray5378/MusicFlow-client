@@ -121,22 +121,41 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
 
     // compact + 有标题：大标题本身即「更多」入口，移到原按钮位置（最左端）。
     if (showDrawerTrigger && title.isNotEmpty) {
-      return Padding(
-        padding: headerPadding,
-        child: Row(
-          children: <Widget>[
-            // 标题整体作为按钮：与 MusicFlowPageHeader 的 leading 对齐，
-            // 点击打开应用菜单（显示更多导航/设置）。
-            MusicFlowPressable(
-              semanticLabel: '打开应用菜单',
-              onPressed: openMusicFlowAppDrawer,
-              child: Semantics(
-                header: true,
-                namesRoute: true,
-                child: Text(title, style: context.musicFlowTypography.display),
+      // SizedBox(width: ∞) 撑满列宽：外层 Column 默认 crossAxisAlignment.center
+      // 给子级的是无界宽松约束,若不撑满,Row 宽度=内容自然宽度,窄屏(320dp)+
+      // 大字体(200% 缩放)下超长标题会把整行撑爆(RenderFlex overflow 165px)。
+      return SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: headerPadding,
+          child: Row(
+            children: <Widget>[
+              // 标题整体作为按钮：与 MusicFlowPageHeader 的 leading 对齐，
+              // 点击打开应用菜单（显示更多导航/设置）。
+              // 关键：必须 flex>0（参与弹性分配）子级才收到有界约束；
+              // flex:0 在 Flex 布局中按自然宽度给子级 unconstrained 约束，
+              // 窄屏(320dp)+大字体(200% 缩放)下超长标题会撑爆整行
+              // (RenderFlex overflow 165px)。loose fit 允许标题小于剩余
+              // 宽度时保持自然宽度，超过则单行省略。
+              Flexible(
+                flex: 1,
+                child: MusicFlowPressable(
+                  semanticLabel: '打开应用菜单',
+                  onPressed: openMusicFlowAppDrawer,
+                  child: Semantics(
+                    header: true,
+                    namesRoute: true,
+                    child: Text(
+                      title,
+                      style: context.musicFlowTypography.display,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -863,13 +882,15 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
       content = const _RandomSongsLoading();
     }
 
-    // 播放「图标」距窗口右边缘保持 20px 视觉间隔,随窗口宽度自适应:
-    // MusicFlowIconButton 盒内 22px 图标居中(图标右缘距盒右缘 13px),内容区
-    // 右缘本身距窗口 `pageHorizPadding - 5` px。令 盒右缘距窗口 = (pageHoriz
-    // Padding-5) + gap,图标右缘距窗口 = 盒右缘 - 13,要等于 20:
-    //   (pageHorizPadding-5) + gap - 13 = 20  →  gap = 38 - pageHorizPadding
-    // clamp≥0 兜底,避免负数/负 EdgeInsets 断言。
-    final playRightGap = (38 - context.musicFlowPageHorizontalPadding)
+    // 播放「按钮盒」右缘距窗口右边缘 10px 视觉间隔,随窗口宽度自适应:
+    // 内容区右缘本身距窗口 `pageHorizPadding - 5` px。Padding 只能让盒在
+    // 内容区内靠右(盒右缘距窗口 ≥ pageHorizPadding-5=11px),要精确贴到 10px
+    // 需在内容区基础上再右移 (pageHorizPadding-5) - 10 px(可正可负,取 clamp
+    // 下限 0 避免窄窗口下向左挤);用 Transform 平移(不参与布局,不挤压其它
+    // 元素),避免把整个 header 行拖宽。图标在 48 盒内 22px 居中(右缘距盒右缘
+    // 13px),故图标右缘距窗口 = 10 + 13 = 23px,测试按「盒右缘」断言。
+    final contentRightGap = context.musicFlowPageHorizontalPadding - 5;
+    final playRightShift = (contentRightGap - 10)
         .clamp(0.0, double.infinity)
         .toDouble();
 
@@ -897,11 +918,12 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                   onPressed: _refresh,
                 ),
                 const Spacer(),
-                // 播放按钮右侧留白(图标距窗口右边缘 20px,见上方 playRightGap
-                // 换算)。用 Padding 而不是 Transform 位移,随窗口宽度自适应,
-                // 也避免共享 header 修好布局后按钮越界/靠边抖动。
-                Padding(
-                  padding: EdgeInsets.only(right: playRightGap),
+                // 播放按钮右侧留白(盒右缘距窗口右边缘 10px,见上方
+                // playRightShift 换算)。用 Transform 平移而非 Padding:
+                // Padding 的最小右缘是内容区右缘(11px),贴不到 10px;
+                // Transform 不参与布局,不会挤压刷新按钮/标题。
+                Transform.translate(
+                  offset: Offset(playRightShift, 0),
                   child: MusicFlowIconButton(
                     icon: AppIcons.play,
                     label: '播放随机歌曲',
