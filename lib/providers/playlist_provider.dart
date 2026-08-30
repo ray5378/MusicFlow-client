@@ -61,9 +61,20 @@ Future<List<Playlist>?> _recentPlaylistsFromCache(
 /// 歌单区块一旦滑出视口数据就被释放、滑回来又要重拉,表现为「歌单一直
 /// 加载不出来 / 闪一下就空了」;随机歌曲区块之所以正常,正是因为它既
 /// keepAlive 又自己先读缓存秒出。
+///
+/// 冷启动「偶尔刷不出来」根因修复:
+/// - **watch 活跃地址状态**:地址探测完成(null→ok)或切线路(failed→ok)时
+///   provider 自动重建重拉。此前只 read 一次 ensureActiveAddressProvider,
+///   冷启动探测慢时首次用 best-effort 地址请求失败后,地址变 ok 也不会
+///   触发重拉,歌单一直停在空/缓存兜底态 —— 表现为「偶尔刷不出来」。
+/// - **仓库未就绪也先读缓存兜底**:冷启动活跃库未从 drift 恢复时
+///   repository 为 null,旧实现直接返回 [](区块整块隐藏),现改为
+///   用最近库 ID 读缓存秒出,和随机歌曲的秒出一致。
 final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final repository = ref.watch(playlistRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);
+  // 地址状态变化(探测完成/切线路)时重建重拉 —— 歌单冷启动自愈的关键。
+  ref.watch(activeAddressProvider);
   var libraryId = ref.watch(activeLibraryProvider)?.id;
 
   // 冷启动活跃库尚未从 drift 就绪:回退到最近使用的库 ID,读缓存秒出,
@@ -73,6 +84,16 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   }
 
   if (repository == null || libraryId == null || libraryId.isEmpty) {
+    // 仓库/库仍未就绪:先读缓存兜底(和 randomSongs 的秒出一致),
+    // 只有缓存也没有时才返回空。
+    final cached = await _recentPlaylistsFromCache(cache, libraryId);
+    if (cached != null) {
+      Logger.infoWithTag(
+        _playlistLogTag,
+        'recentPlaylists fallback to cache (repo not ready)',
+      );
+      return cached;
+    }
     Logger.warnWithTag(
       _playlistLogTag,
       'recentPlaylists skipped: repository or library unavailable',
@@ -108,6 +129,8 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
 final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final repository = ref.watch(playlistRepositoryProvider);
   final cache = ref.watch(metadataCacheRepositoryProvider);
+  // 地址状态变化时重建重拉,与 recentPlaylistsProvider 保持一致。
+  ref.watch(activeAddressProvider);
   var libraryId = ref.watch(activeLibraryProvider)?.id;
 
   if (libraryId == null || libraryId.isEmpty) {
@@ -115,6 +138,14 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
   }
 
   if (repository == null || libraryId == null || libraryId.isEmpty) {
+    final cached = await cache.getPlaylists(libraryId ?? '');
+    if (cached != null) {
+      Logger.infoWithTag(
+        _playlistLogTag,
+        'playlists fallback to cache (repo not ready)',
+      );
+      return cached;
+    }
     Logger.warnWithTag(
       _playlistLogTag,
       'playlists skipped: repository or library unavailable',

@@ -55,7 +55,8 @@ jobs:
         with:
           flutter-version: '3.47.1'
           channel: 'stable'
-          cache: true
+          # 禁用缓存构建：每次 tag 发布都全新编译，避免缓存命中旧产物
+          cache: false
 
       - name: Get dependencies
         run: flutter pub get
@@ -106,7 +107,11 @@ jobs:
         with:
           flutter-version: '3.47.1'
           channel: 'stable'
-          cache: true
+          # 禁用缓存构建：每次 tag 发布都全新编译，避免缓存命中旧产物
+          cache: false
+
+      - name: Clean previous build
+        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
@@ -159,7 +164,11 @@ jobs:
         with:
           flutter-version: '3.47.1'
           channel: 'stable'
-          cache: true
+          # 禁用缓存构建：每次 tag 发布都全新编译，避免缓存命中旧产物
+          cache: false
+
+      - name: Clean previous build
+        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
