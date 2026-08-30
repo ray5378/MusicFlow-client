@@ -61,6 +61,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('home section headers keep 15px title and right-edge gaps', (
+    tester,
+  ) async {
+    await _pumpDiscover(tester);
+
+    // 内容区右边缘 = 屏宽 - 页面横向内边距(compact=md 16)再减 5
+    // (discover_page 的 SliverPadding 与区块负内边距)。
+    final contentRight = 390 - (MusicFlowSpacing.standard.md - 5);
+
+    // 随机歌曲:刷新按钮距标题最后一个字 15px。
+    final randomRefresh = find.bySemanticsLabel('换一批随机歌曲');
+    expect(
+      tester.getRect(randomRefresh).left -
+          tester.getRect(find.text('随机歌曲')).right,
+      closeTo(15, 0.001),
+    );
+
+    // 随机歌曲:播放按钮距内容区右边缘 15px。
+    final playButton = find.bySemanticsLabel('播放随机歌曲');
+    expect(
+      contentRight - tester.getRect(playButton).right,
+      closeTo(15, 0.001),
+    );
+
+    // 最近更新的歌单:刷新按钮距标题最后一个字 15px。
+    final recentRefresh = find.bySemanticsLabel('刷新最近更新歌单');
+    expect(
+      tester.getRect(recentRefresh).left -
+          tester.getRect(find.text('最近更新的歌单')).right,
+      closeTo(15, 0.001),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('song taps and the mix action preserve queue playback', (
     tester,
   ) async {
