@@ -70,25 +70,42 @@ void main() {
     // (discover_page 的 SliverPadding 与区块负内边距)。
     final contentRight = 390 - (MusicFlowSpacing.standard.md - 5);
 
-    // 随机歌曲:刷新按钮距标题最后一个字 15px。
-    final randomRefresh = find.bySemanticsLabel('换一批随机歌曲');
+    // 间距按「可见图标字形」计算,而非 48dp 触控盒边缘(MusicFlowIconButton
+    // 盒内 22px 图标居中,两侧各留白 13px)。通过语义标签定位按钮,再取其
+    // 内部 Icon 的实际渲染矩形来断言视觉间距。
+
+    // 随机歌曲:刷新图标距标题最后一个字 15px。
     expect(
-      tester.getRect(randomRefresh).left -
+      tester.getRect(
+        find.descendant(
+          of: find.bySemanticsLabel('换一批随机歌曲'),
+          matching: find.byType(Icon),
+        ),
+      ).left -
           tester.getRect(find.text('随机歌曲')).right,
       closeTo(15, 0.001),
     );
 
-    // 随机歌曲:播放按钮距内容区右边缘 15px。
-    final playButton = find.bySemanticsLabel('播放随机歌曲');
+    // 随机歌曲:播放图标距内容区右边缘 15px。
     expect(
-      contentRight - tester.getRect(playButton).right,
+      contentRight -
+          tester.getRect(
+            find.descendant(
+              of: find.bySemanticsLabel('播放随机歌曲'),
+              matching: find.byType(Icon),
+            ),
+          ).right,
       closeTo(15, 0.001),
     );
 
-    // 最近更新的歌单:刷新按钮距标题最后一个字 15px。
-    final recentRefresh = find.bySemanticsLabel('刷新最近更新歌单');
+    // 最近更新的歌单:刷新图标距标题最后一个字 15px。
     expect(
-      tester.getRect(recentRefresh).left -
+      tester.getRect(
+        find.descendant(
+          of: find.bySemanticsLabel('刷新最近更新歌单'),
+          matching: find.byType(Icon),
+        ),
+      ).left -
           tester.getRect(find.text('最近更新的歌单')).right,
       closeTo(15, 0.001),
     );

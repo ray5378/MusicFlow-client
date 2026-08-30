@@ -762,9 +762,11 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                   onPressed: _refresh,
                 ),
                 const Spacer(),
-                // 播放按钮距内容区右边缘 15px（对齐箭头音乐参考稿）。
+                // 播放按钮的「图标」距内容区右边缘 15px（对齐箭头音乐参考稿）。
+                // 间距按可见图标字形计算：48dp 触控盒内 22px 图标居中，
+                // 右侧留白 (48-22)/2 = 13px，故盒右内边距 = 15 - 13 = 2px。
                 Padding(
-                  padding: const EdgeInsets.only(right: 15),
+                  padding: const EdgeInsets.only(right: 2),
                   child: MusicFlowIconButton(
                     icon: AppIcons.play,
                     label: '播放随机歌曲',
