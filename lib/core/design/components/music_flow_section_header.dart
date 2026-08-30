@@ -85,7 +85,13 @@ class MusicFlowSectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           if (trailingFollowsTitle)
-            Flexible(child: text)
+            // 标题不参与 flex 分配(按自然宽度布局),把剩余宽度全部让给下方
+            // trailing 的 Expanded。此前用 Flexible(flex:1) 会与 Expanded(flex:1)
+            // 平分剩余宽度,且 Flexible 是 loose、用不满自己那半,多余的宽度又
+            // 不会再吐回给 Expanded,导致 trailing 只占约整个标题行一半——里面
+            // 的 Spacer 只能把播放按钮推到行中部附近,正是首页「播放按钮一直
+            // 自适应在页面中间」且多次改间距都无效的根因。
+            Flexible(flex: 0, child: text)
           else
             Expanded(child: text),
           if (action != null) ...<Widget>[
