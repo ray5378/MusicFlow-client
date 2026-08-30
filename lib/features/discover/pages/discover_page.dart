@@ -105,6 +105,55 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     notifyRandomSongsChanged();
   }
 
+  /// 首页顶部栏。compact 布局下用大项目标题作为「更多」入口：点击标题打开
+  /// 应用菜单（显示更多），不再单独放菜单按钮；标题为空（Windows 等不显示
+  /// 首页标题的平台）或宽屏布局（菜单已由侧边栏提供）时回退为原顶部栏。
+  Widget _buildHomeHeader(BuildContext context) {
+    final title = resolveMusicFlowHomeTitle();
+    final showDrawerTrigger = shouldShowPageDrawerTrigger(context);
+    final headerPadding = EdgeInsets.fromLTRB(
+      context.musicFlowPageHorizontalPadding - 5,
+      context.musicFlowSpacing.sm,
+      context.musicFlowPageHorizontalPadding - 5,
+      context.musicFlowSpacing.sm,
+    );
+
+    // compact + 有标题：大标题本身即「更多」入口，移到原按钮位置（最左端）。
+    if (showDrawerTrigger && title.isNotEmpty) {
+      return Padding(
+        padding: headerPadding,
+        child: Row(
+          children: <Widget>[
+            // 标题整体作为按钮：与 MusicFlowPageHeader 的 leading 对齐，
+            // 点击打开应用菜单（显示更多导航/设置）。
+            MusicFlowPressable(
+              semanticLabel: '打开应用菜单',
+              onPressed: openMusicFlowAppDrawer,
+              child: Semantics(
+                header: true,
+                namesRoute: true,
+                child: Text(title, style: context.musicFlowTypography.display),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return MusicFlowPageHeader(
+      title: title,
+      // 与下方内容区(页级边距-5)对齐：菜单/更多设置按钮与标题同列。
+      padding: headerPadding,
+      leading: showDrawerTrigger
+          ? MusicFlowIconButton(
+              icon: AppIcons.menu,
+              label: '打开应用菜单',
+              onPressed: openMusicFlowAppDrawer,
+            )
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final randomSongsLoadFailed = ref.watch(randomSongsLoadFailedProvider);
@@ -166,23 +215,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           bottom: false,
           child: Column(
             children: <Widget>[
-              MusicFlowPageHeader(
-                title: resolveMusicFlowHomeTitle(),
-                // 与下方内容区(页级边距-5)对齐：菜单/更多设置按钮与标题同列。
-                padding: EdgeInsets.fromLTRB(
-                  context.musicFlowPageHorizontalPadding - 5,
-                  context.musicFlowSpacing.sm,
-                  context.musicFlowPageHorizontalPadding - 5,
-                  context.musicFlowSpacing.sm,
-                ),
-                leading: shouldShowPageDrawerTrigger(context)
-                    ? MusicFlowIconButton(
-                        icon: AppIcons.menu,
-                        label: '打开应用菜单',
-                        onPressed: openMusicFlowAppDrawer,
-                      )
-                    : null,
-              ),
+              // 首页顶部：compact 布局下直接用大项目标题作为「更多」入口
+              // （点击标题打开应用菜单），不再单独放置菜单按钮；标题为空或
+              // 宽屏布局（菜单已由侧边栏提供）时保持原样。
+              _buildHomeHeader(context),
               const CategoryNavBar(),
               Expanded(
                 child: MusicFlowRefreshView(
