@@ -71,7 +71,16 @@
 
 ### 1.6 构建约束（CI-only + 性能门槛）
 
-**禁止在本地机器构建 APK 或 Windows 可执行文件**，一律走 GitHub Actions：
+**禁止在本地机器构建 APK 或 Windows 可执行文件**，一律走 GitHub Actions。
+
+**为什么必须 CI-only（安卓签名硬约束，不可绕过）**：
+- 安卓只允许**同一签名证书**的应用覆盖安装（升级）。正式签名 keystore 只存在于
+  仓库 Secrets（`ANDROID_KEYSTORE_BASE64` 等），CI 的 `Decode signing keystore`
+  → `flutter build apk --release` 步骤用它签出 release APK。
+- 本地机器**没有** keystore，本地构建的 APK 要么未签名、要么用 debug 签名，
+  装不上到已安装的正式版上（签名冲突）。因此**任何发到 GitHub Release 的产物
+  必须由 Build Client workflow 构建**——AI/开发者的职责只是打 tag 并推送，
+  构建与发布完全交给 CI。
 
 **发版规则（纯 tag 驱动，唯一发版体系）：**
 - **触发**：仅**版本 tag**（`vX.Y.Z`）触发构建与发布；不再监听 `main` 推送、删除滚动/`latest` 预发布、也无 `workflow_dispatch`。即 **push main 不产生任何构建**，强制所有发版走 tag。
@@ -534,6 +543,8 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 □ 11. 未提交 / 未 push / 未打 tag（除非 ray 明确要求）
 □ 12. 新代码使用统一错误处理与日志规范，未裸造错误体/裸 console
 □ 13. 若动到 CI：观察型流水线未接入 publish needs 链、每个 job/step 都 continue-on-error（§9.4）
+□ 14. 发版产物全部由 GitHub CI 构建（§1.6）：只打 tag 推送、绝不本地 `flutter build` 后手动上传；
+      Release 产物 uploader 必须是 `github-actions[bot]`（安卓签名证书只在仓库 Secrets）
 ```
 
 ---
@@ -551,7 +562,7 @@ dart run build_runner build --delete-conflicting-outputs
 flutter analyze
 flutter test
 
-# 构建：禁止本地执行！必须通过 GitHub Actions CI 构建。
-# 触发方式：push 到 main 分支 或手动 workflow_dispatch。
+# 构建：禁止本地执行！必须通过 GitHub Actions CI 构建（签名 keystore 只在仓库 Secrets）。
+# 触发方式：仅版本 tag (vX.Y.Z) 触发构建与发布（§1.6 纯 tag 体系）。
 # Windows 性能验收：本地 profile 构建实测（§8.5），发布产物仍走 CI release。
 ```
