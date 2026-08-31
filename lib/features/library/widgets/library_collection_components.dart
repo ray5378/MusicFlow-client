@@ -451,10 +451,9 @@ class MusicFlowMediaListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: count,
-      itemBuilder: (context, index) => Padding(
+    final rows = List<Widget>.generate(
+      count,
+      (index) => Padding(
         padding: EdgeInsets.symmetric(
           horizontal: context.musicFlowPageHorizontalPadding,
           vertical: context.musicFlowSpacing.xs,
@@ -482,6 +481,28 @@ class MusicFlowMediaListSkeleton extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    // 自适应高度上下文:
+    // - 有界(如 Expanded/页面主体):沿用 ListView 填满剩余空间;
+    // - 无界(如嵌在另一个 ListView 的 children 里):ListView 会因
+    //   「Vertical viewport was given unbounded height」直接崩,
+    //   改用 Column 按内容收缩。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: rows,
+          );
+        }
+        return ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: count,
+          itemBuilder: (context, index) => rows[index],
+        );
+      },
     );
   }
 }

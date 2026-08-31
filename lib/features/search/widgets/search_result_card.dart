@@ -18,10 +18,16 @@ class SearchResultList extends ConsumerWidget {
   final SearchEntityKind kind;
   final SearchOutcome outcome;
 
+  /// 是否自带底部留白(含 mini 播放条避让)。
+  /// 搜索页按「歌单/歌曲/专辑/艺术家」分组堆叠多个结果列表时,只有最后一组
+  /// 需要底部留白,其余组传 false 避免叠加出多份空白。
+  final bool includeBottomPadding;
+
   const SearchResultList({
     super.key,
     required this.kind,
     required this.outcome,
+    this.includeBottomPadding = true,
   });
 
   @override
@@ -126,8 +132,10 @@ class SearchResultList extends ConsumerWidget {
       padding: EdgeInsets.only(
         left: context.musicFlowPageHorizontalPadding,
         right: context.musicFlowPageHorizontalPadding,
-        bottom:
-            context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
+        bottom: includeBottomPadding
+            ? context.musicFlowSpacing.xxl +
+                context.musicFlowShellBottomObstruction
+            : 0,
       ),
       itemCount: songs.length,
       separatorBuilder: (_, _) => const SizedBox(height: 4),
@@ -193,7 +201,10 @@ class SearchResultList extends ConsumerWidget {
     final padding = EdgeInsets.only(
       left: context.musicFlowPageHorizontalPadding,
       right: context.musicFlowPageHorizontalPadding,
-      bottom: context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
+      bottom: includeBottomPadding
+          ? context.musicFlowSpacing.xxl +
+              context.musicFlowShellBottomObstruction
+          : 0,
     );
     // 桌面端(medium/expanded):改为**自适应列数**网格,单格宽度收敛到 ~158,
     // 封面随之收敛到与主页面歌单封面(DiscoverPlaylistCard, 152 宽方封面,

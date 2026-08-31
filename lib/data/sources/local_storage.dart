@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils/logger.dart';
 import '../models/server_config.dart';
 import '../models/audio_quality.dart';
+import '../models/search_history.dart';
 
 /// 本地存储封装（SharedPreferences）
 class LocalStorage {
@@ -28,6 +29,7 @@ class LocalStorage {
   static const String _keyStatusLyricsEnabled = 'status_lyrics_enabled';
   static const String _keyLyricsScrollDwellSeconds = 'lyrics_scroll_dwell_seconds';
   static const String _keyLoggingEnabled = 'logging_enabled';
+  static const String _keySearchHistory = 'search_history_v1';
 
   /// 是否开启日志抓取（默认关闭，需用户手动开启）。
   static Future<bool> getLoggingEnabled() async {
@@ -64,6 +66,49 @@ class LocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyHasLaunchedBefore, true);
     Logger.infoWithTag(_logTag, 'hasLaunchedBefore set to true');
+  }
+
+  /// 读取搜索历史(已按时间倒序,空词/过期项由调用方用
+  /// [pruneSearchHistory] 清理后写入)。文件缺失或损坏时返回空列表。
+  static Future<List<SearchHistoryEntry>> getSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keySearchHistory);
+    if (raw == null || raw.isEmpty) return const <SearchHistoryEntry>[];
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        Logger.warnWithTag(_logTag, 'invalid search history payload type');
+        return const <SearchHistoryEntry>[];
+      }
+      return <SearchHistoryEntry>[
+        for (final item in decoded)
+          if (item is Map)
+            SearchHistoryEntry.fromJson(
+              item.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+      ];
+    } catch (e) {
+      Logger.warnWithTag(_logTag, 'failed to parse search history', e);
+      return const <SearchHistoryEntry>[];
+    }
+  }
+
+  /// 保存搜索历史(覆盖写)。
+  static Future<void> saveSearchHistory(
+    List<SearchHistoryEntry> entries,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = jsonEncode(
+      entries.map((entry) => entry.toJson()).toList(growable: false),
+    );
+    await prefs.setString(_keySearchHistory, json);
+  }
+
+  /// 清除搜索历史。
+  static Future<void> clearSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keySearchHistory);
   }
 
   /// 保存服务器配置

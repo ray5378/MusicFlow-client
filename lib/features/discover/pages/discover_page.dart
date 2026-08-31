@@ -31,10 +31,21 @@ import '../../library/pages/playlist_search_page.dart';
 import '../../library/pages/song_list_page.dart';
 import '../../library/pages/starred_page.dart';
 import '../../player/widgets/song_options_sheet.dart';
+import '../../../widgets/windows_title_bar.dart'
+    show isWindowsDesktop, kWindowsWindowControlsWidth;
 import '../widgets/discover_media_widgets.dart';
 import '../widgets/hoverable_horizontal_scroll.dart';
+import 'search_page.dart';
 
 const double _playlistCardWidth = 128;
+
+/// 宽屏(无分类导航)时内容区顶部与首个分区之间的间距。
+///
+/// 取值使「随机歌曲」标题与侧边栏「主页」行落在同一水平线:
+/// 侧栏 113 = 头部 64 + 分割线 1 + 列表上边距 16 + 「主页」行半高 32;
+/// 内容区 = 搜索条上边距 12 + 搜索条 48 + 本间距 + 分区内边距 4 + 标题半高 24。
+/// 即 113 - 88 = 25。
+const double kHomeContentTopGap = 25;
 
 /// 歌单卡片行高度:随文本缩放自适应,避免大字号下溢出。
 /// 需容纳:封面(128) + 标题最多 2 行 + 「N 首」副标题。
@@ -112,6 +123,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   Widget _buildHomeHeader(BuildContext context) {
     final title = resolveMusicFlowHomeTitle();
     final showDrawerTrigger = shouldShowPageDrawerTrigger(context);
+    // 宽屏(侧边栏已提供导航与品牌标题)且该平台不显示首页标题(Windows)时:
+    // 不再渲染空标题栏 —— 空 header 会把「随机歌曲」整体压低约 72px,
+    // 永远对不齐侧边栏的「主页」行。
+    if (!showDrawerTrigger && title.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final headerPadding = EdgeInsets.fromLTRB(
       context.musicFlowPageHorizontalPadding - 5,
       context.musicFlowSpacing.sm,
@@ -202,6 +219,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       sectionWidgets[key] = sectionWidget;
     }
     final visibleSectionKeys = sectionWidgets.keys.toList();
+    // 分类导航只在 compact 展示(见下方 Column);宽屏没有它时,内容区需要
+    // 自己补一段顶部间距,让首个分区(随机歌曲)标题落在侧边栏「主页」行
+    // 的水平线上:侧栏 = 头部 64 + 分割线 1 + 列表上边距 16 + 行半高 32 = 113;
+    // 内容区 = 搜索条上边距 12 + 搜索条 48 + 本间距 + 分区内边距 4 + 标题半高 24。
+    final showCategoryNav = shouldShowPageDrawerTrigger(context);
 
     return VisibleRemoteRetryScope(
       branchIndex: discoverBranchIndex,
@@ -239,7 +261,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               // （点击标题打开应用菜单），不再单独放置菜单按钮；标题为空或
               // 宽屏布局（菜单已由侧边栏提供）时保持原样。
               _buildHomeHeader(context),
-              const CategoryNavBar(),
+              _HomeSearchEntry(),
+              // 分类导航(喜欢/歌单/歌曲/艺术家/专辑)只在 compact 布局展示:
+              // 宽屏/桌面端侧边抽屉已提供同样的入口,内容区不再重复一行,
+              // 同时让「随机歌曲」标题能与侧边栏「主页」行对齐。
+              if (showCategoryNav) const CategoryNavBar(),
               Expanded(
                 child: MusicFlowRefreshView(
                   onRefresh: _refresh,
@@ -257,8 +283,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                           padding: EdgeInsets.fromLTRB(
                             context.musicFlowPageHorizontalPadding - 5,
                             // 分类导航自带竖向内边距，这里不再叠加，让首个模块
-                            // 紧贴库按钮（对齐箭头音乐的紧凑首屏）。
-                            0,
+                            // 紧贴库按钮（对齐箭头音乐的紧凑首屏）；宽屏没有
+                            // 分类导航时改为 [kHomeContentTopGap]，把「随机歌曲」
+                            // 顶到与侧边栏「主页」行同一水平线。
+                            showCategoryNav ? 0 : kHomeContentTopGap,
                             context.musicFlowPageHorizontalPadding - 5,
                             context.musicFlowSpacing.xxl +
                                 context.musicFlowShellBottomObstruction,
@@ -397,6 +425,69 @@ class _RenderSectionShift extends RenderProxyBox {
     if (child != null) {
       context.paintChild(child!, offset + Offset(0, _top));
     }
+  }
+}
+
+/// 首页顶部搜索入口:点击进入搜索页(自动聚焦并浮出搜索范围)。
+///
+/// 只读入口,不持有输入状态:首页只负责跳转,所有输入都在搜索页完成,
+/// 避免首页与搜索页两份输入状态不同步。
+class _HomeSearchEntry extends StatelessWidget {
+  const _HomeSearchEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.musicFlowColors;
+    final spacing = context.musicFlowSpacing;
+    // Windows 无系统标题栏:右上角是窗口控制按钮(最小化/最大化/关闭),
+    // 搜索条右侧留出等宽空白,避免被按钮压住。
+    final rightInset = isWindowsDesktop ? kWindowsWindowControlsWidth : 0.0;
+    return Padding(
+      key: const ValueKey<String>('home-search-entry'),
+      padding: EdgeInsets.fromLTRB(
+        context.musicFlowPageHorizontalPadding - 5,
+        spacing.sm,
+        context.musicFlowPageHorizontalPadding - 5 + rightInset,
+        spacing.sm,
+      ),
+      child: MusicFlowPressable(
+        semanticLabel: '搜索',
+        onPressed: () {
+          Navigator.of(context).push<void>(
+            MusicFlowPageRoute<void>(
+              context: context,
+              builder: (context) => const SearchPage(),
+            ),
+          );
+        },
+        borderRadius: context.musicFlowRadii.pill,
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: context.musicFlowRadii.pill,
+            border: Border.all(color: colors.controlBoundary, width: 0.5),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(AppIcons.search, size: 20, color: colors.muted),
+              SizedBox(width: spacing.sm),
+              Expanded(
+                child: Text(
+                  '搜索歌曲、歌单、艺术家、专辑',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.musicFlowTypography.body.copyWith(
+                    color: colors.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
