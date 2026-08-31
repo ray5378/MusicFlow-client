@@ -1,0 +1,319 @@
+// Cover storage:
+//   - LOCAL covers (embedded artwork from scanned files, artist avatars from the
+//     local album scrape) live in data/covers.
+//   - PLATFORM covers (downloaded from online/music-dl providers via
+//     cacheRemoteCover: web song covers, imported go-music-dl playlist covers)
+//     live in data/online-covers, a separate directory that can be mounted to
+//     a different volume in docker-compose without touching the local covers.
+// Reads always probe both directories so legacy covers stored under
+// data/covers keep working after the split.
+import { db, sqlite } from "../db/index.js";
+import { songs, albums, playlists } from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
+import { getDataDir } from "../utils/env.js";
+
+// 数据目录统一走 getDataDir()(DATA_DIR 优先,默认 cwd/data),与 DB/插件/密钥同根:
+//   - data/covers        本地刮削封面(扫描内嵌封面、艺术家头像)
+//   - data/online-covers 平台/在线封面缓存(web 歌曲、歌单导入、按需获取),可独立挂卷
+const COVERS_DIR = path.join(getDataDir(), "covers");
+const ONLINE_COVERS_DIR = path.join(getDataDir(), "online-covers");
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
+
+// Resolved-path cache: probing both dirs costs a stat syscall per candidate on
+// slow storage, and the same cover filename is looked up by every page that
+// renders it. Cache the resolved absolute path (or null for a miss) per ref, so
+// each ref is probed only once while the server stays up. Invalidated on write
+// (cacheRemoteCover / deleteCover) so new downloads are seen immediately.
+const resolveCache = new Map<string, string | null>();
+const RESOLVE_CACHE_MAX = 2000;
+
+function ensureDir() {
+  if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
+  if (!fs.existsSync(ONLINE_COVERS_DIR)) fs.mkdirSync(ONLINE_COVERS_DIR, { recursive: true });
+}
+
+/** Absolute path of `ref` inside the platform covers dir (if it exists there). */
+export function platformCoverPath(ref: string): string {
+  return path.join(ONLINE_COVERS_DIR, ref);
+}
+
+/**
+ * Locate a cover file by its bare filename, probing the platform dir first then
+ * the local dir (legacy covers may still be under data/covers). Returns the
+ * absolute path, or null if the file exists in neither directory.
+ */
+export function resolveCoverFile(ref: string): string | null {
+  if (!ref) return null;
+  const cached = resolveCache.get(ref);
+  if (cached !== undefined) return cached;
+  let resolved: string | null = null;
+  for (const dir of [ONLINE_COVERS_DIR, COVERS_DIR]) {
+    try {
+      // 目录内校验:归一化(ref 可能含 ../ 或绝对路径)后,解析结果必须落在封面目录
+      // 内,否则拒绝——堵死经 getCoverArt 裸 id 等入口的路径穿越(任意文件读取)。
+      const p = path.resolve(dir, ref);
+      if (p !== dir && !p.startsWith(dir + path.sep)) continue;
+      if (fs.existsSync(p)) { resolved = p; break; }
+    } catch { /* 非法 ref(如空字节)→ 跳过该目录 */ }
+  }
+  if (resolveCache.size >= RESOLVE_CACHE_MAX) {
+    const first = resolveCache.keys().next().value;
+    if (first) resolveCache.delete(first);
+  }
+  resolveCache.set(ref, resolved);
+  return resolved;
+}
+
+/** Invalidate a cached path resolution (called by cover writes/deletes). */
+export function invalidateCoverResolve(ref: string): void {
+  resolveCache.delete(ref);
+}
+
+/**
+ * 复制一份已缓存的平台封面到新 ref(`<destSongId>` + 与源同扩展名)。
+ * 供导入批量去重:同一远程封面 URL 被歌单里多首歌引用时,只下载一次到首个
+ * ref,后续歌曲据此本地复制字节,避免重复网络拉取 + 重复落盘。失败返回 null
+ * (调用方回落 cacheRemoteCover 正常下载)。写入平台封面目录,保持在线封面可独立挂卷。
+ */
+export function copyOnlineCoverToRef(srcFileName: string, destSongId: string): string | null {
+  const src = resolveCoverFile(srcFileName);
+  if (!src) return null;
+  const ext = path.extname(src).toLowerCase() || ".jpg";
+  const destFileName = `${destSongId}${ext}`;
+  const destPath = path.join(ONLINE_COVERS_DIR, destFileName);
+  try {
+    ensureDir();
+    fs.copyFileSync(src, destPath);
+    invalidateCoverResolve(destFileName);
+    return destFileName;
+  } catch {
+    return null;
+  }
+}
+
+/** 清空封面路径解析缓存(文件不动,仅内存条目;供空闲内存回收)。 */
+export function clearCoverResolveCache(): void {
+  resolveCache.clear();
+}
+
+// Download a remote (platform) cover image and cache it locally. Returns the
+// local file ref or null. Stored under data/online-covers so it can be
+// mounted on a separate volume; reads resolve both dirs.
+// force=true ignores the TTL and re-downloads (used on manual playlist sync).
+export async function cacheRemoteCover(url: string, ref: string, force = false): Promise<string | null> {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  const ext = url.includes(".png") ? "png" : "jpg";
+  const fileName = `${ref}.${ext}`;
+  const filePath = path.join(ONLINE_COVERS_DIR, fileName);
+  if (!force && fs.existsSync(filePath)) {
+    const stat = fs.statSync(filePath);
+    if (Date.now() - stat.mtimeMs < CACHE_TTL) return fileName;
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "Mozilla/5.0" } });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length < 100) return null;
+    ensureDir();
+    fs.writeFileSync(filePath, buf);
+    invalidateCoverResolve(fileName);
+    return fileName;
+  } catch {
+    return null;
+  }
+}
+
+function mimeFor(name: string): string {
+  const ext = path.extname(name).toLowerCase();
+  return ext === ".png" ? "image/png" : ext === ".gif" ? "image/gif" : "image/jpeg";
+}
+
+// Copy an existing cover file (e.g. an album's cover_art) to a new ref name.
+// Used to give a playlist a self-contained cover that is independent of the
+// source entity (so it survives rename / source deletion). Returns the dest
+// ref on success, or null if the source file is missing.
+export function copyCoverToFile(destRef: string, srcCoverRef: string): string | null {
+  if (!srcCoverRef) return null;
+  const src = resolveCoverFile(srcCoverRef);
+  if (!src) return null;
+  try {
+    ensureDir();
+    fs.copyFileSync(src, path.join(COVERS_DIR, destRef));
+    invalidateCoverResolve(destRef);
+    return destRef;
+  } catch {
+    return null;
+  }
+}
+
+// Delete a song's cached cover file(s). Online/web songs cache their remote
+// cover under <songId>.jpg (.png), so removing the song must remove its cover
+// file too, otherwise orphaned covers accumulate in data/online-covers.
+// Returns how many files were actually removed.
+export function deleteSongCover(songId: string): number {
+  if (!songId) return 0;
+  let removed = 0;
+  for (const dir of [ONLINE_COVERS_DIR, COVERS_DIR]) {
+    for (const name of [`${songId}.jpg`, `${songId}.png`, `${songId}.gif`]) {
+      try {
+        const filePath = path.join(dir, name);
+        if (fs.existsSync(filePath)) { fs.unlinkSync(filePath); invalidateCoverResolve(name); removed++; }
+      } catch { /* ignore */ }
+    }
+  }
+  return removed;
+}
+
+// Clear the cached cover file for a playlist (called after sync / track changes)
+export function clearPlaylistCoverCache(playlistId: string) {
+  for (const dir of [ONLINE_COVERS_DIR, COVERS_DIR]) {
+    try {
+      const filePath = path.join(dir, `pl-${playlistId}.jpg`);
+      if (fs.existsSync(filePath)) { fs.unlinkSync(filePath); invalidateCoverResolve(`pl-${playlistId}.jpg`); }
+    } catch { /* ignore */ }
+  }
+  // Remove the stored ref so the cover is regenerated on next request
+  try {
+    db.update(playlists).set({ coverArt: null }).where(eq(playlists.id, playlistId)).run();
+  } catch { /* ignore */ }
+}
+
+// 共享:取歌单自身可播条目中所有「有封面」歌曲的封面**文件名**列表
+// (按 position 顺序、去重、且确保在封面目录真实存在,resolveCoverFile 校验)。
+// 优先级:opts.preferSongId 指定歌曲的封面(歌曲封面 > 专辑封面)排最前;随后按
+// 条目 position 顺序扫歌单(歌曲封面 > 专辑封面)。opts.excludeRefs 提供要排挤
+// 掉的封面 ref 集合(供多张固定推荐卡封面互不重复)。单条聚合 SQL + 少量候选,
+// 替代旧 N+1 逐条循环。供内置推荐插件(dailyRecommend/dailyRoam/localRecommend)
+// 与外置歌单宿主(discovery)统一使用。
+export interface CoverPickOptions {
+  preferSongId?: string | null;
+  /** 需要忽略的封面 ref(返回列表中将完全排除,用于多歌单封面互斥)。 */
+  excludeRefs?: string[];
+}
+
+export function listPlayableCoverRefs(playlistId: string, opts?: CoverPickOptions): string[] {
+  const exclude = new Set<string>(opts?.excludeRefs ?? []);
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  const pushRef = (ref: string | null | undefined) => {
+    if (!ref) return;
+    if (exclude.has(ref) || seen.has(ref)) return;
+    if (!resolveCoverFile(ref)) return;
+    seen.add(ref);
+    result.push(ref);
+  };
+
+  const prefer = opts?.preferSongId;
+  if (prefer) {
+    const p = sqlite.prepare(`
+      SELECT s.cover_art AS songCover, a.cover_art AS albumCover
+      FROM songs s LEFT JOIN albums a ON a.id = s.album_id
+      WHERE s.id = ?
+    `).get(prefer) as { songCover: string | null; albumCover: string | null } | undefined;
+    const c = p ? (p.songCover && p.songCover.trim() ? p.songCover : p.albumCover || null) : null;
+    pushRef(c);
+  }
+  const rows = sqlite.prepare(`
+    SELECT
+      CASE
+        WHEN s.cover_art IS NOT NULL AND s.cover_art <> '' THEN s.cover_art
+        WHEN a.cover_art IS NOT NULL AND a.cover_art <> '' THEN a.cover_art
+        ELSE NULL END AS coverFile
+    FROM playlist_songs ps
+    JOIN songs s ON ps.song_id = s.id
+    LEFT JOIN albums a ON a.id = s.album_id
+    WHERE ps.playlist_id = ? AND ps.playable = 1 AND ps.song_id IS NOT NULL
+    ORDER BY ps.position ASC
+    LIMIT 50
+  `).all(playlistId) as { coverFile: string | null }[];
+  for (const r of rows) pushRef(r.coverFile);
+  return result;
+}
+
+/** 取歌单自身可播条目中「第一首有封面」的歌曲封面**文件名**(列表首项)。 */
+export function firstPlayableCoverFile(playlistId: string, opts?: CoverPickOptions): string | null {
+  return listPlayableCoverRefs(playlistId, opts)[0] ?? null;
+}
+
+/**
+ * 按天轮换取歌单封面:列表按 position 去重排序后,用「距 epoch 的天数」对列表
+ * 长度取模 —— 同一天确定(内容不变则封面固定),跨天自动轮换一张(内容不变也换)。
+ *
+ * 封面互斥(可扩展):同一进程内所有固定推荐歌单当天生成时共享一张「已认领封面
+ * 注册表」——每个歌单会自动跳过其它歌单当天已认领的封面 ref,保证任意数量固定
+ * 歌单的封面两两不同;仅凭候选全部被占用时回退完整候选首项,保持有封面的行为。
+ * opts.excludeRefs 可额外指定禁用的 ref。
+ * opts.dateStr 供调用方注入当日 YYYY-MM-DD(默认取系统当天,与 todayStr 同源)。
+ */
+const claimedCoversByDay = new Map<string, Map<string, Set<string>>>();
+
+/** 测试/重跑用:清空按天封面认领表。 */
+export function resetDailyCoverClaims(): void {
+  claimedCoversByDay.clear();
+}
+
+export function pickDailyRotatedCover(playlistId: string, opts?: CoverPickOptions & { dateStr?: string }): string | null {
+  const s = opts?.dateStr;
+  const d = s ? new Date(`${s}T00:00:00Z`) : new Date();
+  const dateKey = s ?? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const dayIndex = Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 86400000);
+
+  // 当天已认领集合:其他歌单认领的 ref 全部排除,本歌单自己的认领不排除(可覆盖)。
+  let claims = claimedCoversByDay.get(dateKey);
+  if (!claims) {
+    claims = new Map();
+    claimedCoversByDay.set(dateKey, claims);
+  }
+  const others = new Set<string>();
+  for (const [pid, refs] of claims) {
+    if (pid !== playlistId) for (const r of refs) others.add(r);
+  }
+  for (const r of opts?.excludeRefs ?? []) others.add(r);
+
+  const refs = listPlayableCoverRefs(playlistId, { preferSongId: opts?.preferSongId, excludeRefs: [...others] });
+  let pick: string | null;
+  if (refs.length === 0) {
+    // 候选全部被排除(库内可用封面有限)——回退到完整候选(不排挤),照常有封面。
+    const all = listPlayableCoverRefs(playlistId, { preferSongId: opts?.preferSongId });
+    pick = all[0] ?? null;
+  } else {
+    pick = refs[dayIndex % refs.length];
+  }
+  if (pick) {
+    const mine = claims.get(playlistId) ?? new Set<string>();
+    mine.add(pick);
+    claims.set(playlistId, mine);
+  }
+  // 只保留最近 7 天,防止内存无界增长。
+  if (claimedCoversByDay.size > 7) {
+    const oldest = claimedCoversByDay.keys().next().value;
+    if (oldest !== undefined) claimedCoversByDay.delete(oldest);
+  }
+  return pick;
+}
+
+// Resolve playlist cover: serve the local cover image if it exists on disk.
+// Returns { file, mime } or null (UI falls back to the placeholder).
+// Do NOT create a permanent pl-<playlistId>.jpg cache here — that would freeze
+// the cover to the first song's artwork and prevent daily rotation for fixed
+// recommend playlists. The coverArt is set by the daily generation job or by
+// import processes; if the file doesn't exist on disk, just return null.
+export function getPlaylistCover(playlistId: string): { file: string; mime: string } | null {
+  const playlist = db.select().from(playlists).where(eq(playlists.id, playlistId)).get();
+  if (!playlist) return null;
+
+  // Serve the coverArt file if it exists on disk (probe both dirs).
+  if (playlist.coverArt && /\.(jpg|jpeg|png|gif)$/i.test(playlist.coverArt)) {
+    if (resolveCoverFile(playlist.coverArt)) {
+      return { file: playlist.coverArt, mime: mimeFor(playlist.coverArt) };
+    }
+  }
+
+  return null;
+}
