@@ -327,6 +327,8 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - **客户端交互契约（v3.4.48）**：入库 = 一次 POST 提交（秒回）→ 立即 Toast「已提交」→ **绝不弹任何阻塞遮罩/loading dialog**（v3.4.48 前歌单入库曾弹 `barrierDismissible: false` 全屏 loading 并同步轮询，大歌单直接卡死 UI，已修）。
 - 提交成功后 fire-and-forget 后台轮询 `GET /rest/api/v1/tasks/:id`（间隔 ~800ms，预算 5 分钟，`SearchRepository.waitTask`）；任务完成/失败经**全局 ToastNotifier**（根导航器 Overlay，不依赖页面 context）通知。
 - 后台轮询状态：`running` / `ok`（result 含 `playlistId` 或 `{ success, imported:[{fingerprint,id}], ids }`）/ `error`。
+- **任务状态字段嵌套在 `task` 下（v3.4.50 修正）**：`GET /v1/tasks/:id` 返回 `{ success, task: { status, result, error, progress } }`。客户端 `waitTask` 必须读 `task` 嵌套字段（兼容历史顶层直出）；曾因读顶层 `status` 恒为 null，后端入库完成却每次 5 分钟超时误报失败——链路断点，已修。
+- 同歌单去重（v3.4.50）：后端按 sourceUrl 去重，重复提交返回 `{ success:false, alreadyRunning:true, taskId }`；客户端**复用该 taskId 继续监听**，不报错。
 
 ### 5.4 搜索交互契约：范围下拉浮层（方案 A）+ 热门/历史（v3.4.47）
 
