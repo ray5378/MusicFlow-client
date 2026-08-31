@@ -6,6 +6,7 @@
 #include <string>
 #include <variant>
 
+#include "desktop_lyric.h"
 #include "flutter/generated_plugin_registrant.h"
 #include "tray.h"
 
@@ -126,6 +127,42 @@ void FlutterWindow::HandleWindowMethod(
       }
     }
     TraySetTooltip(tip);
+    result->Success();
+    return;
+  }
+  if (method == "set_desktop_lyric_text") {
+    // 桌面歌词浮窗:更新歌词文本(空文本清空;窗口自适应大小重绘)。
+    std::wstring text;
+    if (const flutter::EncodableValue* arguments = call.arguments()) {
+      if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
+        const auto& argsMap = std::get<flutter::EncodableMap>(*arguments);
+        const auto it = argsMap.find(flutter::EncodableValue("text"));
+        if (it != argsMap.end()) {
+          if (const auto* s = std::get_if<std::string>(&it->second)) {
+            text = Utf8ToUtf16(*s);
+          }
+        }
+      }
+    }
+    DesktopLyricSetText(text);
+    result->Success();
+    return;
+  }
+  if (method == "set_desktop_lyric_visible") {
+    // 桌面歌词浮窗:显示/隐藏(不抢焦点)。
+    bool visible = false;
+    if (const flutter::EncodableValue* arguments = call.arguments()) {
+      if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
+        const auto& argsMap = std::get<flutter::EncodableMap>(*arguments);
+        const auto it = argsMap.find(flutter::EncodableValue("visible"));
+        if (it != argsMap.end()) {
+          if (const auto* b = std::get_if<bool>(&it->second)) {
+            visible = *b;
+          }
+        }
+      }
+    }
+    DesktopLyricSetVisible(visible);
     result->Success();
     return;
   }

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <string>
 
+#include "desktop_lyric.h"
 #include "flutter_window.h"
 #include "tray.h"
 #include "utils.h"
@@ -42,7 +43,7 @@ static void ShowTrayMenu(HWND hwnd) {
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_NEXT, L"下一首(&N)");
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_SHOW, L"显示窗口(&S)");
-  AppendMenuW(g_tray_menu, MF_STRING, TRAY_LYRICS, L"显示状态栏歌词(&L)");
+  AppendMenuW(g_tray_menu, MF_STRING, TRAY_LYRICS, L"显示桌面歌词(&L)");
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_QUIT, L"退出(&X)");
 
@@ -186,6 +187,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   HWND hwnd = window.GetHandle();
   TrayInit(hwnd);
+  // 桌面歌词浮窗:无边框置顶悬浮窗,默认隐藏,由 Flutter 端开关控制。
+  DesktopLyricInit(instance);
 
   // 托盘图标消息(WM_TRAYICON)与托盘菜单命令(WM_COMMAND)统一在窗口过程
   // (flutter_window.cpp)里处理；这里只做标准消息泵，不再在 GetMessage 层
@@ -197,6 +200,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   TrayShutdown();
+  DesktopLyricShutdown();
 
   ::CoUninitialize();
   return EXIT_SUCCESS;

@@ -40,6 +40,36 @@ Future<void> setTrayTooltip(String text) async {
   }
 }
 
+/// 更新桌面歌词浮窗文本(空文本清空;原生层自适应大小重绘)。
+Future<void> setDesktopLyricText(String text) async {
+  if (!isWindowsDesktop) return;
+  try {
+    await kWindowsWindowChannel.invokeMethod<void>(
+      'set_desktop_lyric_text',
+      <String, Object>{'text': text},
+    );
+  } on MissingPluginException {
+    // 非 Windows 平台没有对应原生实现,静默忽略。
+  } on PlatformException {
+    // 歌词更新失败不影响主流程。
+  }
+}
+
+/// 显示/隐藏桌面歌词浮窗(原生层置顶、不抢焦点)。
+Future<void> setDesktopLyricVisible(bool visible) async {
+  if (!isWindowsDesktop) return;
+  try {
+    await kWindowsWindowChannel.invokeMethod<void>(
+      'set_desktop_lyric_visible',
+      <String, Object>{'visible': visible},
+    );
+  } on MissingPluginException {
+    // 非 Windows 平台没有对应原生实现,静默忽略。
+  } on PlatformException {
+    // 显隐失败不影响主流程。
+  }
+}
+
 /// Windows 客户端无标题栏的顶部窗口控制覆盖层。
 ///
 /// 去掉系统/自绘标题栏后,由本组件在窗口最顶上提供一个透明的拖拽区

@@ -33,6 +33,13 @@ SetupIconFile=runner\resources\app_icon.ico
 Name: "chinesesimplified"; MessagesFile: "lang\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+; Tasks 文案不是 Inno 标准消息,需按语言自定义(否则编译报 custom message not defined)。
+[CustomMessages]
+english.CreateStartMenuShortcut=Create a &start menu shortcut
+chinesesimplified.CreateStartMenuShortcut=创建开始菜单快捷方式(&S)
+english.CreateDesktopIcon=Create a &desktop icon
+chinesesimplified.CreateDesktopIcon=创建桌面快捷方式(&D)
+
 [Tasks]
 ; 开始菜单快捷方式:默认勾选,可取消;桌面快捷方式:默认不勾,可勾选。
 Name: "startmenu"; Description: "{cm:CreateStartMenuShortcut}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce

@@ -1290,8 +1290,8 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                     level: MusicFlowSurfaceLevel.floating,
                     padding: EdgeInsets.all(context.musicFlowSpacing.sm),
                     child: SizedBox(
-                      width: 76,
-                      height: 296,
+                      width: 134,
+                      height: 372,
                       // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
                       child: Consumer(
                         builder: (context, ref, _) {
@@ -1321,10 +1321,19 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                             valueListenable: _overlayVolume,
                             builder: (context, live, _) {
                               final percent = (live * 100).round();
+                              // 当前播放媒体:音量浮层顶部展示封面/标题/艺人,
+                              // 让调音量时一眼看到正在控制的是哪首歌。
+                              final currentSong = ref.watch(
+                                playerProvider.select((s) => s.currentSong),
+                              );
                               return Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  if (currentSong != null) ...[
+                                    _VolumeMediaInfo(song: currentSong),
+                                    const SizedBox(height: 10),
+                                  ],
                                   // 实时显示当前音量数值（拖动时即时刷新，字号更大便于触屏查看）。
                                   Text(
                                     '$percent%',
@@ -1534,6 +1543,63 @@ class _VerticalVolumeSlider extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// 音量浮层顶部的「当前播放媒体」信息:小封面 + 标题 + 艺人(单行省略),
+/// 让调音量时一眼看到正在控制的是哪首歌。
+class _VolumeMediaInfo extends StatelessWidget {
+  const _VolumeMediaInfo({required this.song});
+
+  final Song song;
+
+  @override
+  Widget build(BuildContext context) {
+    final artist = song.artist?.trim() ?? '';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: CoverArtImage(
+            coverArtId: song.coverArt,
+            size: 44,
+            requestSize: 120,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 60,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: context.musicFlowColors.ink,
+                ),
+              ),
+              if (artist.isNotEmpty)
+                Text(
+                  artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: context.musicFlowColors.muted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

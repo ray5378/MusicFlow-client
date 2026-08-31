@@ -158,7 +158,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       _startNetworkObservation();
     }
     _initTrayListener();
-    // 激活 Windows 托盘/任务栏歌词控制器(启动时恢复开关状态并监听歌词)。
+    // 激活 Windows 桌面歌词控制器(启动时恢复开关状态并监听歌词)。
     ref.read(statusLyricsControllerProvider);
     // 激活随机歌曲歌单「服务端推送」客户端:连接主项目 WebSocket,收到
     // random-songs-changed 信号时通知客户端按需重拉,替代客户端轮询。
@@ -179,7 +179,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           await ref.read(castPeerControllerProvider.notifier).next();
           break;
         case 'toggle_status_lyrics':
-          // 托盘菜单「显示状态栏歌词」:与客户端设置页开关共用同一个入口。
+          // 托盘菜单「显示桌面歌词」:与客户端设置页开关共用同一个入口。
           await ref.read(statusLyricsControllerProvider).toggle();
           break;
       }

@@ -8,11 +8,12 @@ import '../widgets/windows_title_bar.dart';
 import 'lyrics_cover_provider.dart';
 import 'player_provider.dart';
 
-/// Windows 托盘/任务栏「状态栏歌词」开关(默认关闭)。
+/// Windows 桌面歌词浮窗开关(默认关闭)。
 final statusLyricsEnabledProvider = StateProvider<bool>((ref) => false);
 
-/// 状态栏歌词控制器:持久化开关、监听当前歌词并把当前行推送到托盘 tooltip。
-/// 在 MainScaffold 初始化时读取一次以激活监听。
+/// 桌面歌词控制器:持久化开关、监听当前歌词并把当前行推送到桌面歌词浮窗
+/// (原生 Win32 无边框置顶悬浮窗,可拖动,非托盘 tooltip)。在 MainScaffold
+/// 初始化时读取一次以激活监听。
 final statusLyricsControllerProvider = Provider<StatusLyricsController>((ref) {
   final controller = StatusLyricsController(ref);
   ref.onDispose(controller.dispose);
@@ -27,11 +28,11 @@ class StatusLyricsController {
       (_, next) {
         _enabled = next;
         _syncLyricsSubscription();
-        _push();
+        _apply();
       },
     );
     _syncLyricsSubscription();
-    // 启动时恢复上次开关状态并立即推送一次。
+    // 启动时恢复上次开关状态并立即应用(开启则显示浮窗并推送歌词)。
     _restore();
   }
 
@@ -63,7 +64,19 @@ class StatusLyricsController {
     }
   }
 
-  /// 托盘菜单「显示状态栏歌词」与设置页开关共用入口。
+  /// 把开关状态应用到浮窗:开启 → 显示并推送当前歌词;关闭 → 隐藏并清空。
+  void _apply() {
+    if (_enabled) {
+      unawaited(setDesktopLyricVisible(true));
+      _lastPushed = null;
+      _push();
+    } else {
+      unawaited(setDesktopLyricVisible(false));
+      unawaited(setDesktopLyricText(''));
+    }
+  }
+
+  /// 托盘菜单「显示桌面歌词」与设置页开关共用入口。
   Future<void> toggle() async {
     final next = !_enabled;
     _ref.read(statusLyricsEnabledProvider.notifier).state = next;
@@ -75,15 +88,11 @@ class StatusLyricsController {
   }
 
   void _push() {
-    final String text;
-    if (!_enabled) {
-      text = '';
-    } else {
-      text = _ref.read(currentLyricLineProvider) ?? _fallbackText();
-    }
+    if (!_enabled) return;
+    final text = _ref.read(currentLyricLineProvider) ?? _fallbackText();
     if (text == _lastPushed) return;
     _lastPushed = text;
-    unawaited(setTrayTooltip(text));
+    unawaited(setDesktopLyricText(text));
   }
 
   String _fallbackText() {

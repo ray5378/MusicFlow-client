@@ -438,8 +438,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   if (isWindowsDesktop)
                     MusicFlowToggleSettingRow(
                       icon: AppIcons.lyrics,
-                      title: '任务栏歌词',
-                      description: '开启后，系统托盘图标旁显示当前播放歌词。',
+                      title: '桌面歌词',
+                      description: '开启后，桌面显示可拖动的歌词浮窗(置顶、不抢焦点)。',
                       value: statusLyricsEnabled,
                       onChanged: (_) =>
                           ref.read(statusLyricsControllerProvider).toggle(),
