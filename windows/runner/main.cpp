@@ -42,7 +42,11 @@ static void ShowTrayMenu(HWND hwnd) {
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_PREV, L"上一首(&V)");
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_NEXT, L"下一首(&N)");
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
-  AppendMenuW(g_tray_menu, MF_STRING, TRAY_SHOW, L"显示窗口(&S)");
+  // 主窗口可见(正常显示或在任务栏最小化)时画 √;仅在「隐藏到托盘」时才无 √。
+  const UINT showFlags =
+      MF_STRING |
+      ((IsWindowVisible(hwnd) || IsIconic(hwnd)) ? MF_CHECKED : MF_UNCHECKED);
+  AppendMenuW(g_tray_menu, showFlags, TRAY_SHOW, L"显示窗口(&S)");
   // 桌面歌词开启时在菜单项前画 √(与浮窗显隐状态同步)。
   const UINT lyricsFlags =
       MF_STRING | (DesktopLyricIsVisible() ? MF_CHECKED : MF_UNCHECKED);
