@@ -3,21 +3,43 @@ import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../utils/logger.dart';
+import 'windows_installer_detector.dart';
 
-/// 挑选适合当前平台的更新包：Android 优先 .apk，其余平台优先 .zip(Windows)。
+/// 挑选适合当前平台的更新包:
+/// - Android → `.apk`;
+/// - Windows → **安装版**选 `windows-setup.exe`(单文件安装包),
+///   **绿色版**选 `windows.zip`(解压即用);
+/// - 其它平台 → `.zip`。
 ///
-/// 没有匹配到首选后缀时回退第一个资源，没有资源则返回 null（调用方应改用
-/// 发布页 URL）。
+/// 没有匹配到首选后缀时回退第一个资源,没有资源则返回 null(调用方应改用
+/// 发布页 URL)。[isInstallerBuild] 仅测试注入用,默认自动检测
+/// (见 [isWindowsInstallerBuild])。
 ReleaseAsset? pickPlatformUpdateAsset(
   UpdateCheckResult result, {
   TargetPlatform? platform,
+  bool? isInstallerBuild,
 }) {
   if (result.assets.isEmpty) return null;
   final target = platform ?? defaultTargetPlatform;
   final isAndroid = !kIsWeb && target == TargetPlatform.android;
-  final preferred = isAndroid ? '.apk' : '.zip';
-  for (final asset in result.assets) {
-    if (asset.name.toLowerCase().contains(preferred)) return asset;
+  if (isAndroid) {
+    for (final asset in result.assets) {
+      if (asset.name.toLowerCase().contains('.apk')) return asset;
+    }
+    return result.assets.first;
+  }
+  final isWindows = !kIsWeb && target == TargetPlatform.windows;
+  if (isWindows) {
+    // 安装版 → 单文件安装包;绿色版 → zip 绿色版。
+    final wantsInstaller = isInstallerBuild ?? isWindowsInstallerBuild();
+    final preferred = wantsInstaller ? 'windows-setup.exe' : 'windows.zip';
+    for (final asset in result.assets) {
+      if (asset.name.toLowerCase().contains(preferred)) return asset;
+    }
+  } else {
+    for (final asset in result.assets) {
+      if (asset.name.toLowerCase().contains('.zip')) return asset;
+    }
   }
   return result.assets.first;
 }

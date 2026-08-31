@@ -8,6 +8,11 @@ import 'package:musicflow_client/features/settings/services/startup_update_check
 void main() {
   const assets = <ReleaseAsset>[
     ReleaseAsset(
+      name: 'MusicFlow-v350-windows-setup.exe',
+      downloadUrl: 'https://example.test/windows-setup.exe',
+      size: 1024,
+    ),
+    ReleaseAsset(
       name: 'MusicFlow-v350-windows.zip',
       downloadUrl: 'https://example.test/windows.zip',
       size: 1024,
@@ -79,10 +84,30 @@ void main() {
         )!.downloadUrl,
         'https://example.test/android.apk',
       );
+      // 默认自动检测:测试环境非安装版(无 Program Files / unins000.exe)→ zip。
       expect(
         pickPlatformUpdateAsset(
           updateResult(),
           platform: TargetPlatform.windows,
+        )!.downloadUrl,
+        'https://example.test/windows.zip',
+      );
+    });
+
+    test('Windows installer build prefers windows-setup.exe', () {
+      expect(
+        pickPlatformUpdateAsset(
+          updateResult(),
+          platform: TargetPlatform.windows,
+          isInstallerBuild: true,
+        )!.downloadUrl,
+        'https://example.test/windows-setup.exe',
+      );
+      expect(
+        pickPlatformUpdateAsset(
+          updateResult(),
+          platform: TargetPlatform.windows,
+          isInstallerBuild: false,
         )!.downloadUrl,
         'https://example.test/windows.zip',
       );
