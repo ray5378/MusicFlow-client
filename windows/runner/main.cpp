@@ -43,7 +43,10 @@ static void ShowTrayMenu(HWND hwnd) {
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_NEXT, L"下一首(&N)");
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_SHOW, L"显示窗口(&S)");
-  AppendMenuW(g_tray_menu, MF_STRING, TRAY_LYRICS, L"显示桌面歌词(&L)");
+  // 桌面歌词开启时在菜单项前画 √(与浮窗显隐状态同步)。
+  const UINT lyricsFlags =
+      MF_STRING | (DesktopLyricIsVisible() ? MF_CHECKED : MF_UNCHECKED);
+  AppendMenuW(g_tray_menu, lyricsFlags, TRAY_LYRICS, L"显示桌面歌词(&L)");
   AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(g_tray_menu, MF_STRING, TRAY_QUIT, L"退出(&X)");
 

@@ -10,6 +10,8 @@
 void DesktopLyricInit(HINSTANCE instance);
 void DesktopLyricSetText(const std::wstring& text);
 void DesktopLyricSetVisible(bool visible);
+// 供托盘菜单在「显示桌面歌词」项前画 √:返回当前开关状态。
+bool DesktopLyricIsVisible();
 void DesktopLyricShutdown();
 
 #endif  // MUSICFLOW_DESKTOP_LYRIC_H_

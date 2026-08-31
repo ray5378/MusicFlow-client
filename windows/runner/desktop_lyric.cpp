@@ -13,11 +13,10 @@ constexpr wchar_t kRegPosY[] = L"LyricY";
 
 // Font / layout constants.
 constexpr int kFontSize = 24;        // 歌词字号(逻辑像素)
-constexpr int kPaddingX = 26;        // 水平内边距
-constexpr int kPaddingY = 14;        // 垂直内边距
+constexpr int kWindowWidth = 520;    // 窗口固定宽度(不随文本伸缩)
+constexpr int kWindowHeight = 84;    // 窗口固定高度
+constexpr int kPaddingX = 26;        // 水平左对齐内边距
 constexpr int kShadowOffset = 2;     // 文字阴影偏移
-constexpr int kMinWidth = 160;       // 空歌词时最小宽度
-constexpr int kMinHeight = 56;       // 空歌词时最小高度
 constexpr BYTE kWindowAlpha = 210;   // 整窗透明度(0-255)
 constexpr int kCornerRadius = 12;    // 圆角半径
 constexpr COLORREF kBgColor = RGB(28, 28, 34);      // 深色圆角背景
@@ -60,25 +59,16 @@ void RestoreLyricPos(int* x, int* y) {
     *x = static_cast<int>(savedX);
     *y = static_cast<int>(savedY);
   }
+  // 窗口固定大小(520x84)后,旧保存位置可能使窗口部分超出工作区,clamp 回来。
+  if (*x + kWindowWidth > wa.right) *x = wa.right - kWindowWidth - 80;
+  if (*y + kWindowHeight > wa.bottom) *y = wa.bottom - kWindowHeight - 40;
+  if (*x < wa.left) *x = wa.left;
+  if (*y < wa.top) *y = wa.top;
 }
 
-// Resize the window to fit the current lyric text (keeps position).
-void FitWindowToText() {
-  if (!g_hwnd) return;
-  HDC hdc = GetDC(g_hwnd);
-  HFONT old = static_cast<HFONT>(SelectObject(hdc, g_font));
-  SIZE sz{};
-  if (!g_text.empty()) {
-    GetTextExtentPoint32W(hdc, g_text.c_str(), static_cast<int>(g_text.size()),
-                          &sz);
-  }
-  SelectObject(hdc, old);
-  ReleaseDC(g_hwnd, hdc);
-  const int w = std::max(static_cast<int>(sz.cx) + kPaddingX * 2, kMinWidth);
-  const int h = std::max(static_cast<int>(sz.cy) + kPaddingY * 2, kMinHeight);
-  SetWindowPos(g_hwnd, HWND_TOPMOST, 0, 0, w, h,
-               SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-  InvalidateRect(g_hwnd, nullptr, FALSE);
+// 窗口大小固定(不随歌词文本伸缩,避免长度跳动);歌词更新仅触发重绘。
+void RepaintLyric() {
+  if (g_hwnd) InvalidateRect(g_hwnd, nullptr, FALSE);
 }
 
 LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
@@ -98,12 +88,15 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       FillRgn(hdc, bg, brush);
       DeleteObject(brush);
       DeleteObject(bg);
-      // Lyric text: black shadow + white main text, centered vertically.
+      // Lyric text: black shadow + white main text.
+      // 水平左对齐(kPaddingX 起),垂直方向在窗口内上下居中。
       if (!g_text.empty()) {
         SetBkMode(hdc, TRANSPARENT);
         HFONT old = static_cast<HFONT>(SelectObject(hdc, g_font));
-        const int y =
-            (h - static_cast<int>(kPaddingY * 2)) / 2 + kPaddingY;
+        SIZE sz{};
+        GetTextExtentPoint32W(hdc, g_text.c_str(),
+                              static_cast<int>(g_text.size()), &sz);
+        const int y = (h - sz.cy) / 2;
         // Shadow pass.
         SetTextColor(hdc, kShadowColor);
         TextOutW(hdc, kPaddingX + kShadowOffset, y + kShadowOffset,
@@ -183,16 +176,17 @@ void DesktopLyricInit(HINSTANCE instance) {
                        DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei UI");
 
   // Default position: bottom-right of the work area (above the taskbar),
+  // keep some margin from the edges (80/40) so it is not glued to the corner;
   // restored position from registry wins when it is still on-screen.
   RECT wa{};
   SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
-  int x = wa.right - kMinWidth - 24;
-  int y = wa.bottom - kMinHeight - 12;
+  int x = wa.right - kWindowWidth - 80;
+  int y = wa.bottom - kWindowHeight - 40;
   RestoreLyricPos(&x, &y);
 
   g_hwnd = CreateWindowExW(
       WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, kLyricWindowClass,
-      L"MusicFlowLyric", WS_POPUP, x, y, kMinWidth, kMinHeight, nullptr,
+      L"MusicFlowLyric", WS_POPUP, x, y, kWindowWidth, kWindowHeight, nullptr,
       nullptr, instance, nullptr);
   if (!g_hwnd) return;
   SetLayeredWindowAttributes(g_hwnd, 0, kWindowAlpha, LWA_ALPHA);
@@ -201,7 +195,7 @@ void DesktopLyricInit(HINSTANCE instance) {
 void DesktopLyricSetText(const std::wstring& text) {
   if (g_text == text) return;
   g_text = text;
-  FitWindowToText();
+  RepaintLyric();
 }
 
 void DesktopLyricSetVisible(bool visible) {
@@ -215,6 +209,8 @@ void DesktopLyricSetVisible(bool visible) {
     ShowWindow(g_hwnd, SW_HIDE);
   }
 }
+
+bool DesktopLyricIsVisible() { return g_visible; }
 
 void DesktopLyricShutdown() {
   if (g_hwnd) {
