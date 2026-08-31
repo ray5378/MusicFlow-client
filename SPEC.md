@@ -302,9 +302,10 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - 视口渐进式加载：builder 触达行号即推进预取窗口（`ensureRange`，帧末调度避免同帧 notify）；未到达槽位渲染骨架占位。
 - 常驻缓存带上限/剪枝；旧块超窗置空（§1.5）。
 
-### 4.3 聚合/插件搜索与本地列表互斥
+### 4.3 聚合搜索展示形态（v3.4.45 起修订）
 
-- 聚合搜索走 §五 的 entity-search 端点，与本地曲库列表互斥展示（不同 tab/入口），不得混在一个列表。
+- ~~聚合搜索与本地曲库列表互斥展示（不同 tab/入口）~~ **已废弃**：不再提供来源切换按钮或独立入口。
+- 现行形态：搜索结果同页**分块展示**——本地结果（歌单/歌曲/专辑/艺术家，见 §5.4）在前，分隔线之后为全网聚合结果（走 §五 entity-search 端点）。
 
 ---
 
@@ -324,6 +325,39 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 - 导入：`POST /rest/api/v1/song-search/:pid/import`，body `{ songs:[{source,id,name,artist,album,duration,cover}] }` → 立即返回 `{ taskId }`（异步）。
 - 任务轮询：`GET /rest/api/v1/tasks/:id`（对齐主项目 `waitAsyncTask`，间隔 ~800ms）；完成返回 `{ result: { success, imported:[{fingerprint,id}], ids } }`。
+
+### 5.4 搜索交互契约：范围下拉浮层（方案 A）+ 热门/历史（v3.4.47）
+
+**范围五档（来源唯一）**
+
+- `SearchScope { all, playlist, song, artist, album }`，枚举与文案唯一来源 `lib/features/search/search_scope.dart`（含 `kSearchScopeStackOrder = [playlist, song, album, artist]`）。
+- UI 文案：所有 / 歌单 / 音乐 / 艺术家 / 专辑；「音乐」即歌曲，结果分组标题用「歌曲」。
+- **范围不跨启动记忆**：每次进入搜索页默认回到「所有」。
+
+**方案 A 下拉浮层（禁止改回全屏遮罩）**
+
+- 进入搜索页即浮出范围下拉浮层（`SearchScopePanel`），输入框保持聚焦、**可直接打字**。
+- 浮层实现 = `Positioned` 下拉 + `TapRegion(onTapOutside)` 收起；**严禁加全屏 scrim/遮罩**（会物理遮挡并拦截下方热门/历史区的点击，v3.4.47 曾因此返工）。
+- 输入关键词后浮层自动收起；清空关键词重新浮出；空白提交不触发搜索、浮层收起，点空输入框重新浮出。
+
+**「所有」档语义**
+
+- 对四类目（playlist/song/album/artist）**各发一次**聚合搜索（同关键词 4 条请求），结果按 `kSearchScopeStackOrder` 分组堆叠：歌单 → 歌曲 → 专辑 → 艺术家；非「所有」档只查对应单类目。
+
+**搜索历史（自动清理）**
+
+- 存储：SharedPreferences，key `search_history_v1`，条目 `{ q, ts }`。
+- 纯函数 `pruneSearchHistory`（`lib/data/models/search_history.dart`）：90 天过期（**严格 `isBefore`**，恰好 90 天不算过期）+ 忽略大小写去重（保留最近）+ 上限 30 条（淘汰最旧）；读取与写入各执行一次。
+- 点历史词即搜并置顶去重；支持单条删除与一键清空。
+
+**热门搜索（本地兜底）**
+
+- 无服务端接口，本地兜底：收藏的 艺术家名 > 专辑名 > 歌曲歌手名，去重后最多 10 个（`buildHotSearchTerms`）。
+- 无收藏时整块隐藏，**不放默认词**。
+
+**回归防线**
+
+- `test/features/discover/search_page_test.dart`（6 例）+ `test/features/search/search_history_test.dart`（4 例）必须保持通过；覆盖浮层交互、范围请求语义、热门/历史行为、堆叠顺序、点击播放/路由。
 
 ---
 
