@@ -357,9 +357,13 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - 无服务端接口，本地兜底：收藏的 艺术家名 > 专辑名 > 歌曲歌手名，去重后最多 10 个（`buildHotSearchTerms`）。
 - 无收藏时整块隐藏，**不放默认词**。
 
+**入口（多端一致）**
+
+- 搜索页是唯一搜索实现：Windows/宽屏走首页搜索条（`_HomeSearchEntry`），移动端 compact 额外在首页标题行右侧提供搜索图标按钮（`home-header-search`）——两入口共用 `_openSearchPage` 打开同一个全屏 `SearchPage`，逻辑零分叉（v3.4.49）。
+
 **回归防线**
 
-- `test/features/discover/search_page_test.dart`（6 例）+ `test/features/search/search_history_test.dart`（4 例）必须保持通过；覆盖浮层交互、范围请求语义、热门/历史行为、堆叠顺序、点击播放/路由。
+- `test/features/discover/search_page_test.dart`（6 例）+ `test/features/search/search_history_test.dart`（4 例）+ `discover_page_test.dart` 标题行搜索按钮用例必须保持通过；覆盖浮层交互、范围请求语义、热门/历史行为、堆叠顺序、点击播放/路由、入口跳转。
 
 ---
 
