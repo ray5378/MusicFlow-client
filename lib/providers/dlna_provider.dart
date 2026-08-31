@@ -461,7 +461,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         _endTimer!.isActive) {
       Logger.debugWithTag(
         'DLNA-HB',
-        'arm 去抖跳过: trigger=$trigger last=${_lastHeartbeatTrigger} '
+        'arm 去抖跳过: trigger=$trigger last=$_lastHeartbeatTrigger '
             'Δ=${trigger - _lastHeartbeatTrigger}ms 保持既有预约',
       );
       return;

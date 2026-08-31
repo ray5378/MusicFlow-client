@@ -58,6 +58,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
           tracks,
           startIndex: safeStart,
         );
+    if (!mounted) return;
     if (ok) {
       showMusicFlowMessage(
         context,
@@ -75,6 +76,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
 
   Future<void> _stopCast() async {
     await ref.read(dlnaCastProvider.notifier).stopCast();
+    if (!mounted) return;
     showMusicFlowMessage(context, '已停止局域网投屏', kind: MusicFlowMessageKind.success);
   }
 

@@ -61,8 +61,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # 只有真正的 error 才让这一步失败，避免存量 warning/info 打红色注解
+      # 干扰「测试是否通过」的判断（与 test-suite.yml 的观察流水线同口径）。
       - name: Run dart analyze (lib)
-        run: dart analyze lib/
+        run: dart analyze lib/ --no-fatal-infos --no-fatal-warnings
         continue-on-error: true
 
       # 链路 B（局域网 DLNA 直投）的专属测试 + 其依赖的共用 Toast（此前有布局 bug，

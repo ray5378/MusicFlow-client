@@ -1,4 +1,5 @@
 /// DLNA 模块数据模型
+library;
 
 /// 投屏曲目（链路 B）—— 轻量模型，不依赖业务 Song 层
 class DlnaCastTrack {
