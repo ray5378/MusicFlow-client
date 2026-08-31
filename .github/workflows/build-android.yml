@@ -191,11 +191,20 @@ jobs:
         run: |
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip"
 
+      # 安装包版本(单文件):windows-latest 预装 Inno Setup 6。
+      # 安装向导支持勾选「开始菜单快捷方式 / 桌面快捷方式」(见 windows/installer.iss Tasks)。
+      - name: Build installer (Inno Setup single-file)
+        shell: powershell
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "windows\installer.iss" /DAppVersion="${{ needs.resolve-version.outputs.version }}" /DArtifactTag="${{ needs.resolve-version.outputs.artifact_tag }}" /O"${{ github.workspace }}"
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: musicflow-windows
-          path: MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
+          path: |
+            MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
+            MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe
           retention-days: 30
 
   publish-versioned:
@@ -240,7 +249,7 @@ jobs:
           提交: ${{ github.sha }}
 
           - **Android**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk`
-          - **Windows**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip` (解压即用)
+          - **Windows**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip` (绿色版,解压即用) / `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe` (安装版,安装时可勾选开始菜单/桌面快捷方式)
           EOF
 
       - name: Publish GitHub Release
@@ -252,6 +261,7 @@ jobs:
           files: |
             artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk
             artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
+            artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

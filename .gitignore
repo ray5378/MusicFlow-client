@@ -48,3 +48,5 @@ unlinked_spec.ds
 
 # Local preview artifacts (golden PNGs generated for manual review)
 /outputs/
+
+.workbuddy/
