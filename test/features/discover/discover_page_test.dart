@@ -10,6 +10,7 @@ import 'package:musicflow_client/data/models/recommend.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/discover/pages/discover_page.dart';
+import 'package:musicflow_client/features/discover/pages/search_page.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/music_provider.dart';
@@ -38,6 +39,26 @@ void main() {
     expect(find.byType(DiscoverSongTile), findsWidgets);
     expect(find.byType(DiscoverPlaylistCard), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home header search button opens the search page fullscreen', (
+    tester,
+  ) async {
+    await _pumpDiscover(tester);
+
+    // compact 标题行(MusicFlow 右侧)的搜索按钮存在。
+    final button = find.byKey(const ValueKey<String>('home-header-search'));
+    expect(button, findsOneWidget);
+
+    // 点击后打开全屏搜索页(与 Windows 搜索条同一入口/同一页面)。
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchPage), findsOneWidget);
+    // 原首页(含底部搜索条)已被全屏路由盖住。
+    expect(
+      find.byKey(const ValueKey<String>('home-search-entry')),
+      findsNothing,
+    );
   });
 
   testWidgets('discover survives 320dp and 200 percent text scaling', (

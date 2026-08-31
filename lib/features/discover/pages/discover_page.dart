@@ -171,6 +171,14 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   ),
                 ),
               ),
+              // 标题行右侧搜索入口：与下方搜索条同一功能（打开全屏搜索页），
+              // 移动端单手可达，点击标题行右侧按钮即可进入搜索。
+              MusicFlowIconButton(
+                key: const ValueKey<String>('home-header-search'),
+                icon: AppIcons.search,
+                label: '搜索',
+                onPressed: () => _openSearchPage(context),
+              ),
             ],
           ),
         ),
@@ -428,6 +436,17 @@ class _RenderSectionShift extends RenderProxyBox {
   }
 }
 
+/// 打开全屏搜索页。首页标题行搜索按钮与搜索条共用同一入口，
+/// 保证各端搜索功能/逻辑一致（所有输入都在搜索页完成）。
+void _openSearchPage(BuildContext context) {
+  Navigator.of(context).push<void>(
+    MusicFlowPageRoute<void>(
+      context: context,
+      builder: (context) => const SearchPage(),
+    ),
+  );
+}
+
 /// 首页顶部搜索入口:点击进入搜索页(自动聚焦并浮出搜索范围)。
 ///
 /// 只读入口,不持有输入状态:首页只负责跳转,所有输入都在搜索页完成,
@@ -452,14 +471,7 @@ class _HomeSearchEntry extends StatelessWidget {
       ),
       child: MusicFlowPressable(
         semanticLabel: '搜索',
-        onPressed: () {
-          Navigator.of(context).push<void>(
-            MusicFlowPageRoute<void>(
-              context: context,
-              builder: (context) => const SearchPage(),
-            ),
-          );
-        },
+        onPressed: () => _openSearchPage(context),
         borderRadius: context.musicFlowRadii.pill,
         child: Container(
           height: 48,
