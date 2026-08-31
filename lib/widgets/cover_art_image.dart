@@ -114,7 +114,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       return _buildPlaceholder(context, isLoading: true);
     }
 
-    return _buildNetworkImage(context, coverUrl);
+    return _buildNetworkImage(context, coverUrl, resolvedCoverSize);
   }
 
   int _resolveCoverSize(BuildContext context) {
@@ -132,6 +132,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   Widget _buildNetworkImage(
     BuildContext context,
     String imageUrl,
+    int cacheSize,
   ) {
     final loadedLabel = widget.semanticLabel ?? '专辑封面';
     return RepaintBoundary(
@@ -143,6 +144,10 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
         width: widget.size,
         height: widget.size,
         fit: widget.fit,
+        // 限制解码尺寸（物理像素）：避免按远超显示需求的原图尺寸解码/缓存，
+        // 降低内存占用与解码耗时；ResizeImage 等比缩放，不影响显示效果。
+        cacheWidth: cacheSize,
+        cacheHeight: cacheSize,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (frame == null) {
             return _buildPlaceholder(
