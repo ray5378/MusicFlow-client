@@ -2537,11 +2537,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (restoredPosition > Duration.zero) {
         await seek(restoredPosition);
       }
-      // 恢复即续播:只要关闭前在播,重开就接着从原进度播。旧逻辑写的是
-      // playSong(autoPlay:false) —— 它只装载源并不起播,且这里也不调用 play(),
-      // 导致即使命中续播分支也永远是暂停。现在命中就用 play() 真正起播;
-      // 未在播时仅当设置了「打开时自动播放」才起播,否则安全暂停。
-      final autoResume = wasPlaying || await LocalStorage.getAutoPlayOnLaunch();
+      // 恢复即续播:是否自动播放**只由设置「打开时自动播放」决定**(默认关闭)。
+      // 关闭时只恢复队列与进度、停在暂停态,不因关闭前在播就擅自起播;
+      // 开启时才在恢复后自动续播。旧逻辑 `wasPlaying || autoPlayOnLaunch`
+      // 会让关闭前在播的应用无论如何都自动续播,违背用户设置意图。
+      final autoResume = await LocalStorage.getAutoPlayOnLaunch();
       if (autoResume) {
         await play();
       } else {
