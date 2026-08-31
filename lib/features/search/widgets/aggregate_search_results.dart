@@ -125,9 +125,9 @@ class AggregateLocalBlock<T> extends StatelessWidget {
 
   final Future<({List<T> items, int total})> Function() fetcher;
 
-  /// 构建本地匹配项；[width] 为网格单元宽度（非网格布局时传 0，忽略）。
-  final Widget Function(BuildContext context, T item, double width)
-      itemBuilder;
+  /// 构建本地匹配项；[index] 为该匹配项在展示列表中的序号，
+  /// 调用方可据此做「点哪首播哪首」等行内操作。
+  final Widget Function(BuildContext context, T item, int index) itemBuilder;
   final String emptyText;
   final bool grid;
   final int limit;
@@ -164,7 +164,8 @@ class AggregateLocalBlock<T> extends StatelessWidget {
         if (!grid) {
           return Column(
             children: <Widget>[
-              for (final item in shown) itemBuilder(context, item, 0),
+              for (final (i, item) in shown.indexed)
+                itemBuilder(context, item, i),
             ],
           );
         }
@@ -189,7 +190,8 @@ class AggregateLocalBlock<T> extends StatelessWidget {
               childAspectRatio: 0.8,
             ),
             children: <Widget>[
-              for (final item in shown) itemBuilder(context, item, 0),
+              for (final (i, item) in shown.indexed)
+                itemBuilder(context, item, i),
             ],
           );
         }
@@ -202,7 +204,8 @@ class AggregateLocalBlock<T> extends StatelessWidget {
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           children: <Widget>[
-            for (final item in shown) itemBuilder(context, item, 0),
+            for (final (i, item) in shown.indexed)
+              itemBuilder(context, item, i),
           ],
         );
       },

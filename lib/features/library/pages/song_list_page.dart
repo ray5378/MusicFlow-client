@@ -146,7 +146,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             }
             return repository.getSongsPage(1, 12, query: _searchQuery);
           },
-          itemBuilder: (context, song, _) => _buildRow(0, song),
+          itemBuilder: (context, song, index) => _buildRow(index, song),
           emptyText: '本地库无匹配歌曲',
         ),
       );
@@ -192,6 +192,12 @@ class _SongListPageState extends ConsumerState<SongListPage> {
           context.musicFlowSpacing.xs,
         ),
         onTap: () async {
+          if (_searchQuery.isNotEmpty) {
+            // 搜索模式:队列用本地搜索结果(与展示列表一致,至多 12 首),
+            // startIndex 指向被点击的这首,保证「点哪首播哪首」。
+            await _playFromSearchResults(index, song);
+            return;
+          }
           // 播放队列需要完整顺序表:后台一次性拉全量构建队列(仅用户主动播放时),
           // 渲染层仍保持窗口化,不回退到全量渲染。
           try {
@@ -210,5 +216,34 @@ class _SongListPageState extends ConsumerState<SongListPage> {
         onLongPress: () => showSongOptionsSheet(context: context, song: song),
       ),
     );
+  }
+
+  /// 搜索模式下播放:以本地搜索结果构建队列(与搜索页展示的列表一致),
+  /// 从被点击的这首开始播。结果为空或拉取失败时退化为单曲播放。
+  Future<void> _playFromSearchResults(int index, Song song) async {
+    final repository = ref.read(musicRepositoryProvider);
+    if (repository == null) {
+      await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
+      return;
+    }
+    try {
+      final result = await repository.getSongsPage(
+        1,
+        12,
+        query: _searchQuery,
+      );
+      if (!mounted) return;
+      final searchSongs = result.items;
+      if (searchSongs.isEmpty) {
+        await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
+        return;
+      }
+      final start = index.clamp(0, searchSongs.length - 1);
+      await playEffectiveQueue(ref, searchSongs, startIndex: start);
+    } catch (_) {
+      if (mounted) {
+        await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
+      }
+    }
   }
 }
