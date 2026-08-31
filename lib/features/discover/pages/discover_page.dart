@@ -400,16 +400,16 @@ class _RenderSectionShift extends RenderProxyBox {
   }
 }
 
-/// 顶部分类导航条(可左右滑动):艺术家/专辑/歌曲/歌单/喜爱/风格
+/// 顶部分类导航条(可左右滑动):喜欢/歌单/歌曲/艺术家/专辑
 class CategoryNavBar extends StatelessWidget {
   const CategoryNavBar({super.key});
 
   static final List<(String, IconData, Widget)> _items = <(String, IconData, Widget)>[
+    ('喜欢', AppIcons.heart, const StarredPage()),
+    ('歌单', AppIcons.playlist, const PlaylistSearchPage()),
+    ('歌曲', AppIcons.music, const SongListPage()),
     ('艺术家', AppIcons.profile, const ArtistListPage()),
     ('专辑', AppIcons.album, const AlbumListPage()),
-    ('歌曲', AppIcons.music, const SongListPage()),
-    ('歌单', AppIcons.playlist, const PlaylistSearchPage()),
-    ('喜爱', AppIcons.heart, const StarredPage()),
   ];
 
   @override

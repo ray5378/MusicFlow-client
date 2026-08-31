@@ -173,7 +173,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
             _closeDrawerAndPushPage((context) => const PlaylistSearchPage()),
       ),
       _DrawerNavigationEntry(
-        title: '喜爱',
+        title: '喜欢',
         icon: AppIcons.heart,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const StarredPage()),
