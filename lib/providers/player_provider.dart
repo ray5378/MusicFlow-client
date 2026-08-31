@@ -3761,4 +3761,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _audioHandler?.stop(); // Ensure handler is stopped too
     super.dispose();
   }
+
+  /// 退出/关闭瞬间立即落盘播放状态(播放会话 + 音量),不等待防抖 Timer。
+  ///
+  /// Windows 托盘「退出」先回调本方法,落盘完成后再调 native quit 真正结束
+  /// 进程 —— 因为直接结束进程时 Dart 的 dispose 不执行,防抖 Timer 也来不及
+  /// 触发,最近一次进度/音量会丢失(shared_preferences 还可能被写坏)。
+  Future<void> persistPlaybackStateNow() async {
+    _playbackSessionPersistTimer?.cancel();
+    _playbackSessionPersistTimer = null;
+    _volumePersistTimer?.cancel();
+    _volumePersistTimer = null;
+    try {
+      await _persistPlaybackSession();
+    } catch (e) {
+      Logger.warnWithTag(
+        _playerLogTag,
+        'exit persist playback session failed',
+        e,
+      );
+    }
+    try {
+      await LocalStorage.setPlayerVolume(state.volume);
+    } catch (e) {
+      Logger.warnWithTag(_playerLogTag, 'exit persist volume failed', e);
+    }
+  }
 }

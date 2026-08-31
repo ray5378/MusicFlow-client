@@ -114,11 +114,11 @@ bool TrayHandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
         PostMessage(hwnd, WM_TRAY_COMMAND, cmd, 0);
         return true;
       case TRAY_QUIT:
-        TrayShutdown();
-        // SetQuitOnClose(false) 时 WM_DESTROY 不会自动 PostQuitMessage，
-        // 必须手动结束消息循环，否则进程残留。
-        DestroyWindow(hwnd);
-        PostQuitMessage(0);
+        // 不再直接退出:转发给 Flutter 端先执行「退出前保存」(播放进度/音量
+        // 立即落盘),Flutter 完成后再回调 native quit 真正结束进程。
+        // 直接 DestroyWindow+PostQuitMessage 会让 Dart 的防抖 Timer/dispose
+        // flush 来不及执行,导致最近一次播放状态丢失。
+        PostMessage(hwnd, WM_TRAY_COMMAND, cmd, 0);
         return true;
       default:
         return false;

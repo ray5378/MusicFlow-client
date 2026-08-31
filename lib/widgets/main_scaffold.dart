@@ -22,6 +22,7 @@ import '../providers/api_provider.dart';
 import '../providers/cast_peer_provider.dart';
 import '../providers/effective_playback_provider.dart';
 import '../providers/navigation_provider.dart';
+import '../providers/player_provider.dart';
 import '../providers/random_songs_push_provider.dart';
 import '../providers/status_lyrics_provider.dart';
 import 'app_drawer.dart';
@@ -181,6 +182,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         case 'toggle_status_lyrics':
           // 托盘菜单「显示桌面歌词」:与客户端设置页开关共用同一个入口。
           await ref.read(statusLyricsControllerProvider).toggle();
+          break;
+        case 'quit':
+          // 托盘「退出」:先立即落盘播放状态(进度/音量,不等防抖 Timer),
+          // 完成后再调 native quit 真正结束进程 —— 直接退出时 Dart 的
+          // dispose flush 不执行,最近一次状态会丢。
+          await ref.read(playerProvider.notifier).persistPlaybackStateNow();
+          await kWindowsWindowChannel.invokeMethod<void>('quit');
           break;
       }
       return '';

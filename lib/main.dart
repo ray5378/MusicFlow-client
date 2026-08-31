@@ -62,6 +62,12 @@ Future<void> main() async {
       };
 
       runApp(const ProviderScope(child: App()));
+
+      // 修复损坏的 SharedPreferences(备份 + 重建干净起点):进程被强杀时
+      // prefs 文件可能半写损坏,导致所有设置/播放状态读默认值(表现为
+      // 「关闭后全部清空」)。必须 runApp 之后异步执行——平台通道在 runner
+      // OnCreate 阶段才注册,runApp 前 await 会永久挂起。
+      unawaited(LocalStorage.repairCorruptPreferences());
     },
     (error, stackTrace) {
       Logger.errorWithTag('APP', 'Uncaught zone error', error, stackTrace);

@@ -1,5 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/utils/logger.dart';
 import '../models/server_config.dart';
 import '../models/audio_quality.dart';
@@ -416,5 +420,39 @@ class LocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyPlayerVolume, clamped);
     Logger.infoWithTag(_logTag, 'playerVolume saved: $clamped');
+  }
+
+  /// 修复损坏的 SharedPreferences 文件。
+  ///
+  /// 进程被强杀/崩溃时 shared_preferences.json 可能处于半写状态(全 NUL 或截断),
+  /// 之后 `getInstance()` 抛错 → 所有设置(服务器配置/播放进度/音量等)全部读
+  /// 默认值,表现为「关闭后全部清空」。这里把损坏文件备份为 `.corrupt-*` 后
+  /// 重建干净起点。必须在 runApp 之后调用(平台通道已注册,runApp 前 await
+  /// 会永久挂起)。
+  static Future<void> repairCorruptPreferences() async {
+    try {
+      await SharedPreferences.getInstance();
+      return; // 文件健康
+    } catch (e) {
+      Logger.warnWithTag(_logTag, 'preferences broken, repairing: $e');
+    }
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final file = File(p.join(dir.path, 'shared_preferences.json'));
+      if (file.existsSync()) {
+        final backup =
+            '${file.path}.corrupt-${DateTime.now().millisecondsSinceEpoch}';
+        await file.rename(backup);
+        Logger.warnWithTag(_logTag, 'corrupt preferences backed up: $backup');
+      }
+    } catch (e) {
+      Logger.warnWithTag(_logTag, 'failed to back up corrupt preferences', e);
+    }
+    // 删除损坏文件后重试一次:应能正常初始化空配置。
+    try {
+      await SharedPreferences.getInstance();
+    } catch (e) {
+      Logger.warnWithTag(_logTag, 'preferences still broken after repair', e);
+    }
   }
 }

@@ -166,6 +166,16 @@ void FlutterWindow::HandleWindowMethod(
     result->Success();
     return;
   }
+  if (method == "quit") {
+    // Flutter 端已完成退出前保存(播放进度/音量落盘),这里真正结束进程:
+    // 清理托盘图标 → 销毁主窗口 → 结束消息循环。SetQuitOnClose(false) 时
+    // WM_DESTROY 不会自动 PostQuitMessage,必须手动结束。
+    TrayShutdown();
+    DestroyWindow(hwnd);
+    PostQuitMessage(0);
+    result->Success();
+    return;
+  }
 
   result->NotImplemented();
 }
@@ -205,7 +215,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       }
       break;
 
-    case WM_TRAY_COMMAND: {
+      case WM_TRAY_COMMAND: {
       // Forward tray commands to Dart via platform channel
       std::string method;
       switch (wparam) {
@@ -213,6 +223,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         case TRAY_PREV: method = "previous"; break;
         case TRAY_NEXT: method = "next"; break;
         case TRAY_LYRICS: method = "toggle_status_lyrics"; break;
+        // 退出也先经 Dart:Flutter 完成退出前保存后回调 native quit。
+        case TRAY_QUIT: method = "quit"; break;
         default: return 0;
       }
       if (flutter_controller_ && flutter_controller_->engine()) {
