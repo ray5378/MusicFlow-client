@@ -438,7 +438,9 @@ class LocalStorage {
     }
     try {
       final dir = await getApplicationSupportDirectory();
-      final file = File(p.join(dir.path, 'shared_preferences.json'));
+      final file = File(
+        '${dir.path}${Platform.pathSeparator}shared_preferences.json',
+      );
       if (file.existsSync()) {
         final backup =
             '${file.path}.corrupt-${DateTime.now().millisecondsSinceEpoch}';
