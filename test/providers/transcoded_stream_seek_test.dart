@@ -79,6 +79,51 @@ void main() {
     );
   });
 
+  group('共享契约表（与服务器 decideTranscode 对齐）', () {
+    // 与 MusicFlow 服务器 tests/services/transcode.test.ts 的共享契约表完全一致：
+    // 同一输入下 should（客户端 shouldUseServerTimeOffsetSeek == 服务器 decideTranscode.should）
+    // 必须两边相同。客户端 CI（transcode-chain.yml）与服务器 CI 同时跑这套用例，
+    // 任一侧改动判定逻辑都会各自失败，防止链路漂移。
+    const vectors = <({
+      String? fmt,
+      int? br,
+      String? srcFmt,
+      int? srcBr,
+      bool expected,
+    })>[
+      (fmt: null, br: null, srcFmt: 'flac', srcBr: 1011, expected: false),
+      (fmt: 'raw', br: null, srcFmt: 'flac', srcBr: 1011, expected: false),
+      (fmt: 'mp3', br: 320, srcFmt: 'flac', srcBr: 1011, expected: true),
+      (fmt: 'mp3', br: 320, srcFmt: 'mp3', srcBr: 192, expected: false),
+      (fmt: 'mp3', br: null, srcFmt: 'mp3', srcBr: 320, expected: false),
+      (fmt: 'aac', br: null, srcFmt: 'flac', srcBr: 1011, expected: true),
+      (fmt: null, br: 192, srcFmt: 'flac', srcBr: 1011, expected: true),
+      (fmt: null, br: 192, srcFmt: 'mp3', srcBr: 128, expected: false),
+      (fmt: null, br: 1000, srcFmt: 'flac', srcBr: 900, expected: false),
+      (fmt: 'mp3', br: 128, srcFmt: 'mp3', srcBr: 320, expected: true),
+      (fmt: 'flac', br: null, srcFmt: 'flac', srcBr: 1011, expected: false),
+      (fmt: null, br: 192, srcFmt: 'mp3', srcBr: 320000, expected: true),
+      (fmt: 'aac', br: null, srcFmt: 'aac', srcBr: 256, expected: false),
+    ];
+
+    for (final v in vectors) {
+      test(
+        'fmt=${v.fmt} br=${v.br} src=${v.srcFmt} srcbr=${v.srcBr} → should=${v.expected}',
+        () {
+          expect(
+            shouldUseServerTimeOffsetSeek(
+              requestedFormat: v.fmt,
+              requestedMaxBitRate: v.br,
+              sourceFormat: v.srcFmt,
+              sourceBitRate: v.srcBr,
+            ),
+            v.expected,
+          );
+        },
+      );
+    }
+  });
+
   group('TranscodedStreamSeekTarget', () {
     test(
       'splits logical time into whole-second offset and source remainder',

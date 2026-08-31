@@ -1,0 +1,44 @@
+name: Transcode Chain Guard
+
+# 转码链路专用门禁（blocking），与 test-suite.yml 的全量非阻塞观察流水线解耦：
+#   · 客户端 shouldUseServerTimeOffsetSeek / TranscodedStreamSeekTarget 与
+#     MusicFlow-server decideTranscode 之间有一条共享契约表
+#     （test/providers/transcoded_stream_seek_test.dart ↔ 服务器
+#     tests/services/transcode.test.ts 的 13 组向量完全一致）。
+#   · 任何一侧改动判定逻辑，只要让任一契约向量不一致，本流水线就会红，
+#     从而把客户端 ↔ 服务器的转码链路（format/maxBitRate 是否触发实时转码、
+#     timeOffset seek 语义）钉死不被改坏。
+#   · 服务器侧由 MusicFlow-server 仓库 .github/workflows/ci.yml 的
+#     「全量测试（vitest run）」同步覆盖同一套契约。
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transcode-chain:
+    name: transcode chain guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run transcode chain tests
+        run: flutter test test/providers/transcoded_stream_seek_test.dart
