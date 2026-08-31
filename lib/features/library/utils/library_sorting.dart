@@ -54,14 +54,76 @@ extension SongSortOptionX on SongSortOption {
   bool get usesAlphabeticalIndexBar => this == SongSortOption.alphabeticalAsc;
 }
 
+/// 拼音解析器：整次排序内共享同一缓存，避免比较器反复触发 lpinyin 转换。
+typedef PinyinResolver = String Function(String text);
+
+/// 构造一个共享缓存的拼音解析器（供整次排序复用）。
+///
+/// 排序比较器会被调用 O(n log n) 次，若每次比较都现场重算拼音（字典查表），
+/// 大列表会卡顿；这里把拼音结果按原文缓存，将重复转换降为「不同文本数」次。
+PinyinResolver createSharedPinyinResolver() {
+  final cache = <String, String>{};
+  return (text) => cache.putIfAbsent(text, () => PinyinUtils.getPinyin(text));
+}
+
 List<Song> sortSongs(List<Song> songs, SongSortOption option) {
   if (songs.length < 2 || option == SongSortOption.defaultOrder) {
     return List<Song>.of(songs);
   }
 
   final sorted = List<Song>.of(songs);
-  sorted.sort((left, right) => compareSongsForSort(left, right, option));
+  final pinyinOf = createSharedPinyinResolver();
+  sorted.sort(
+    (left, right) => compareSongsForSortCached(left, right, option, pinyinOf),
+  );
   return sorted;
+}
+
+/// 带共享拼音缓存的歌曲比较器（与 [compareSongsForSort] 同序）。
+///
+/// [pinyinOf] 由调用方在整次排序内复用同一个缓存（见 [createSharedPinyinResolver]），
+/// 避免 O(n log n) 次比较里反复触发 lpinyin 字典转换。
+int compareSongsForSortCached(
+  Song left,
+  Song right,
+  SongSortOption option,
+  PinyinResolver pinyinOf,
+) {
+  switch (option) {
+    case SongSortOption.defaultOrder:
+      return 0;
+    case SongSortOption.alphabeticalAsc:
+      return _compareSongAlphabetically(left, right, pinyinOf);
+    case SongSortOption.alphabeticalDesc:
+      return _compareDescendingBy(
+        _compareSongAlphabetically(left, right, pinyinOf),
+        fallback: () => 0,
+      );
+    case SongSortOption.durationAsc:
+      return _compareAscending(
+        left.duration ?? -1,
+        right.duration ?? -1,
+        fallback: () => _compareSongAlphabetically(left, right, pinyinOf),
+      );
+    case SongSortOption.durationDesc:
+      return _compareDescending(
+        left.duration ?? -1,
+        right.duration ?? -1,
+        fallback: () => _compareSongAlphabetically(left, right, pinyinOf),
+      );
+    case SongSortOption.updatedAsc:
+      return _compareAscending(
+        left.created?.millisecondsSinceEpoch ?? -1,
+        right.created?.millisecondsSinceEpoch ?? -1,
+        fallback: () => _compareSongAlphabetically(left, right, pinyinOf),
+      );
+    case SongSortOption.updatedDesc:
+      return _compareDescending(
+        left.created?.millisecondsSinceEpoch ?? -1,
+        right.created?.millisecondsSinceEpoch ?? -1,
+        fallback: () => _compareSongAlphabetically(left, right, pinyinOf),
+      );
+  }
 }
 
 /// Compares two songs using the same ordering as [sortSongs].
@@ -69,41 +131,14 @@ List<Song> sortSongs(List<Song> songs, SongSortOption option) {
 /// Keeping the comparator public lets callers sort richer row models while
 /// retaining metadata such as a song's original position in a playlist.
 int compareSongsForSort(Song left, Song right, SongSortOption option) {
-  switch (option) {
-    case SongSortOption.defaultOrder:
-      return 0;
-    case SongSortOption.alphabeticalAsc:
-      return _compareSongAlphabetically(left, right);
-    case SongSortOption.alphabeticalDesc:
-      return _compareDescendingBy(
-        _compareSongAlphabetically(left, right),
-        fallback: () => 0,
-      );
-    case SongSortOption.durationAsc:
-      return _compareAscending(
-        left.duration ?? -1,
-        right.duration ?? -1,
-        fallback: () => _compareSongAlphabetically(left, right),
-      );
-    case SongSortOption.durationDesc:
-      return _compareDescending(
-        left.duration ?? -1,
-        right.duration ?? -1,
-        fallback: () => _compareSongAlphabetically(left, right),
-      );
-    case SongSortOption.updatedAsc:
-      return _compareAscending(
-        left.created?.millisecondsSinceEpoch ?? -1,
-        right.created?.millisecondsSinceEpoch ?? -1,
-        fallback: () => _compareSongAlphabetically(left, right),
-      );
-    case SongSortOption.updatedDesc:
-      return _compareDescending(
-        left.created?.millisecondsSinceEpoch ?? -1,
-        right.created?.millisecondsSinceEpoch ?? -1,
-        fallback: () => _compareSongAlphabetically(left, right),
-      );
-  }
+  // 单次比较使用独立缓存；整次排序请用 [compareSongsForSortCached] +
+  // [createSharedPinyinResolver] 共享缓存。
+  return compareSongsForSortCached(
+    left,
+    right,
+    option,
+    createSharedPinyinResolver(),
+  );
 }
 
 enum PlaylistSortOption {
@@ -156,69 +191,91 @@ List<Playlist> sortPlaylists(
   }
 
   final sorted = List<Playlist>.of(playlists);
-  sorted.sort((left, right) {
-    switch (option) {
-      case PlaylistSortOption.defaultOrder:
-        return 0;
-      case PlaylistSortOption.alphabeticalAsc:
-        return _comparePlaylistAlphabetically(left, right);
-      case PlaylistSortOption.alphabeticalDesc:
-        return _compareDescendingBy(
-          _comparePlaylistAlphabetically(left, right),
-          fallback: () => 0,
-        );
-      case PlaylistSortOption.durationAsc:
-        return _compareAscending(
-          left.duration,
-          right.duration,
-          fallback: () => _comparePlaylistAlphabetically(left, right),
-        );
-      case PlaylistSortOption.durationDesc:
-        return _compareDescending(
-          left.duration,
-          right.duration,
-          fallback: () => _comparePlaylistAlphabetically(left, right),
-        );
-      case PlaylistSortOption.updatedAsc:
-        return _compareAscending(
-          left.changed?.millisecondsSinceEpoch ??
-              left.created?.millisecondsSinceEpoch ??
-              -1,
-          right.changed?.millisecondsSinceEpoch ??
-              right.created?.millisecondsSinceEpoch ??
-              -1,
-          fallback: () => _comparePlaylistAlphabetically(left, right),
-        );
-      case PlaylistSortOption.updatedDesc:
-        return _compareDescending(
-          left.changed?.millisecondsSinceEpoch ??
-              left.created?.millisecondsSinceEpoch ??
-              -1,
-          right.changed?.millisecondsSinceEpoch ??
-              right.created?.millisecondsSinceEpoch ??
-              -1,
-          fallback: () => _comparePlaylistAlphabetically(left, right),
-        );
-    }
-  });
+  final pinyinOf = createSharedPinyinResolver();
+  sorted.sort(
+    (left, right) =>
+        comparePlaylistsForSortCached(left, right, option, pinyinOf),
+  );
   return sorted;
 }
 
-int _compareSongAlphabetically(Song left, Song right) {
+/// 带共享拼音缓存的歌单比较器（与 [sortPlaylists] 同序）。
+int comparePlaylistsForSortCached(
+  Playlist left,
+  Playlist right,
+  PlaylistSortOption option,
+  PinyinResolver pinyinOf,
+) {
+  switch (option) {
+    case PlaylistSortOption.defaultOrder:
+      return 0;
+    case PlaylistSortOption.alphabeticalAsc:
+      return _comparePlaylistAlphabetically(left, right, pinyinOf);
+    case PlaylistSortOption.alphabeticalDesc:
+      return _compareDescendingBy(
+        _comparePlaylistAlphabetically(left, right, pinyinOf),
+        fallback: () => 0,
+      );
+    case PlaylistSortOption.durationAsc:
+      return _compareAscending(
+        left.duration,
+        right.duration,
+        fallback: () => _comparePlaylistAlphabetically(left, right, pinyinOf),
+      );
+    case PlaylistSortOption.durationDesc:
+      return _compareDescending(
+        left.duration,
+        right.duration,
+        fallback: () => _comparePlaylistAlphabetically(left, right, pinyinOf),
+      );
+    case PlaylistSortOption.updatedAsc:
+      return _compareAscending(
+        left.changed?.millisecondsSinceEpoch ??
+            left.created?.millisecondsSinceEpoch ??
+            -1,
+        right.changed?.millisecondsSinceEpoch ??
+            right.created?.millisecondsSinceEpoch ??
+            -1,
+        fallback: () => _comparePlaylistAlphabetically(left, right, pinyinOf),
+      );
+    case PlaylistSortOption.updatedDesc:
+      return _compareDescending(
+        left.changed?.millisecondsSinceEpoch ??
+            left.created?.millisecondsSinceEpoch ??
+            -1,
+        right.changed?.millisecondsSinceEpoch ??
+            right.created?.millisecondsSinceEpoch ??
+            -1,
+        fallback: () => _comparePlaylistAlphabetically(left, right, pinyinOf),
+      );
+  }
+}
+
+int _compareSongAlphabetically(
+  Song left,
+  Song right,
+  PinyinResolver pinyinOf,
+) {
   return _compareAlphabetically(
     primaryLeft: left.title,
     primaryRight: right.title,
     secondaryLeft: left.artist,
     secondaryRight: right.artist,
+    pinyinOf: pinyinOf,
   );
 }
 
-int _comparePlaylistAlphabetically(Playlist left, Playlist right) {
+int _comparePlaylistAlphabetically(
+  Playlist left,
+  Playlist right,
+  PinyinResolver pinyinOf,
+) {
   return _compareAlphabetically(
     primaryLeft: left.name,
     primaryRight: right.name,
     secondaryLeft: left.owner,
     secondaryRight: right.owner,
+    pinyinOf: pinyinOf,
   );
 }
 
@@ -227,9 +284,10 @@ int _compareAlphabetically({
   required String primaryRight,
   String? secondaryLeft,
   String? secondaryRight,
+  required PinyinResolver pinyinOf,
 }) {
-  final leftPinyin = PinyinUtils.getPinyin(primaryLeft).toLowerCase();
-  final rightPinyin = PinyinUtils.getPinyin(primaryRight).toLowerCase();
+  final leftPinyin = pinyinOf(primaryLeft).toLowerCase();
+  final rightPinyin = pinyinOf(primaryRight).toLowerCase();
   final primaryResult = leftPinyin.compareTo(rightPinyin);
   if (primaryResult != 0) return primaryResult;
 

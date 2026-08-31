@@ -28,23 +28,29 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final player = ref.watch(playerProvider);
+    // 按需字段逐个 select 监听：避免整棵迷你条因播放进度等高频状态
+    // （约每 200~500ms 一次 position/buffering 更新）被反复重建。
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final queue = ref.watch(playerProvider.select((s) => s.queue));
+    final currentIndex = ref.watch(playerProvider.select((s) => s.currentIndex));
+    final shuffleEnabled = ref.watch(
+      playerProvider.select((s) => s.shuffleEnabled),
+    );
+    final loopMode = ref.watch(playerProvider.select((s) => s.loopMode));
     final cast = ref.watch(castPeerControllerProvider);
     final isCasting = cast.activePeer != null;
     final dlnaCast = ref.watch(dlnaCastProvider);
     final dlnaCasting = dlnaCast.isCasting;
 
-    final currentSong = player.currentSong;
-
     // 投屏(切换播放器)激活时,迷你条反映后端 peer 的实时状态:
     // 曲目经队列 currentIndex 回写同步,进度/播放态取自 /peers/:id/status。
     final playerState = PlayerState(
       currentSong: currentSong,
-      queue: player.queue,
-      currentIndex: player.currentIndex,
+      queue: queue,
+      currentIndex: currentIndex,
       isPlaying: ref.watch(effectiveIsPlayingProvider),
-      shuffleEnabled: player.shuffleEnabled,
-      loopMode: player.loopMode,
+      shuffleEnabled: shuffleEnabled,
+      loopMode: loopMode,
       position: ref.watch(effectivePositionProvider),
       duration: ref.watch(effectiveDurationProvider),
     );
@@ -57,9 +63,9 @@ class MiniPlayer extends ConsumerWidget {
         ? dlnaCast.playMode
         : (isCasting
               ? cast.playMode
-              : (player.shuffleEnabled
+              : (shuffleEnabled
                     ? 'shuffle'
-                    : (player.loopMode == LoopMode.one ? 'one' : 'all')));
+                    : (loopMode == LoopMode.one ? 'one' : 'all')));
 
     return MiniPlayerView(
       playerState: playerState,

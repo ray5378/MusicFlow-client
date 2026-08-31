@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../core/constants/api_constants.dart';
 import '../../core/utils/logger.dart';
 import '../models/song.dart';
@@ -6,6 +8,17 @@ import '../models/artist.dart';
 import '../sources/subsonic_api_client.dart';
 
 const _musicRepoLogTag = 'MUSIC_REPO';
+
+// 批量 JSON 反序列化放到后台 isolate（compute 要求顶层函数），避免大数据量
+// （如整库分页 200 条/页）解析阻塞 UI 线程导致滚动/交互卡顿。
+List<Song> _parseSongs(List<dynamic> items) =>
+    items.map((e) => Song.fromJson(e as Map<String, dynamic>)).toList();
+
+List<Album> _parseAlbums(List<dynamic> items) =>
+    items.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
+
+List<Artist> _parseArtists(List<dynamic> items) =>
+    items.map((e) => Artist.fromJson(e as Map<String, dynamic>)).toList();
 
 /// 音乐数据仓库
 class MusicRepository {
@@ -225,9 +238,7 @@ class MusicRepository {
 
         final items = data['items'] as List? ?? [];
         total = (data['total'] as num?)?.toInt() ?? 0;
-        all.addAll(
-          items.map((e) => Song.fromJson(e as Map<String, dynamic>)),
-        );
+        all.addAll(await compute(_parseSongs, items));
 
         // 空页或已取满则停止
         if (items.isEmpty || all.length >= total) break;
@@ -262,9 +273,7 @@ class MusicRepository {
 
         final items = data['items'] as List? ?? [];
         total = (data['total'] as num?)?.toInt() ?? 0;
-        all.addAll(
-          items.map((e) => Album.fromJson(e as Map<String, dynamic>)),
-        );
+        all.addAll(await compute(_parseAlbums, items));
 
         if (items.isEmpty || all.length >= total) break;
         page++;
@@ -297,9 +306,7 @@ class MusicRepository {
 
         final items = data['items'] as List? ?? [];
         total = (data['total'] as num?)?.toInt() ?? 0;
-        all.addAll(
-          items.map((e) => Artist.fromJson(e as Map<String, dynamic>)),
-        );
+        all.addAll(await compute(_parseArtists, items));
 
         if (items.isEmpty || all.length >= total) break;
         page++;
@@ -328,9 +335,7 @@ class MusicRepository {
         if (sort.isNotEmpty) 'sort': sort,
       },
     ) as Map<String, dynamic>;
-    final items = (data['items'] as List? ?? [])
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final items = await compute(_parseSongs, data['items'] as List? ?? []);
     final total = (data['total'] as num?)?.toInt() ?? 0;
     return (items: items, total: total);
   }
@@ -349,9 +354,7 @@ class MusicRepository {
         if (query.isNotEmpty) 'query': query,
       },
     ) as Map<String, dynamic>;
-    final items = (data['items'] as List? ?? [])
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final items = await compute(_parseAlbums, data['items'] as List? ?? []);
     final total = (data['total'] as num?)?.toInt() ?? 0;
     return (items: items, total: total);
   }
@@ -370,9 +373,7 @@ class MusicRepository {
         if (query.isNotEmpty) 'query': query,
       },
     ) as Map<String, dynamic>;
-    final items = (data['items'] as List? ?? [])
-        .map((e) => Artist.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final items = await compute(_parseArtists, data['items'] as List? ?? []);
     final total = (data['total'] as num?)?.toInt() ?? 0;
     return (items: items, total: total);
   }

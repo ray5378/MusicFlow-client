@@ -948,8 +948,10 @@ List<_PlaylistSongEntry> _sortPlaylistEntries(
     return entries;
   }
 
+  final pinyinOf = createSharedPinyinResolver();
   entries.sort((left, right) {
-    final comparison = compareSongsForSort(left.song, right.song, option);
+    final comparison =
+        compareSongsForSortCached(left.song, right.song, option, pinyinOf);
     return comparison == 0
         ? left.originalIndex.compareTo(right.originalIndex)
         : comparison;
