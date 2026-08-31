@@ -321,10 +321,12 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 - 搜索结果可直播：本机走 `/rest/stream-remote?provider&source&id&...`（代理流，带 `token` 参数）；**投屏到远端必须先入库拿真实 DB `songId`**（对齐主项目：`song-search/:pid/import` → 任务轮询 → 用 fingerprint 精确映射再 `queue/play`）。
 
-### 5.3 入库导入与任务轮询
+### 5.3 入库导入与任务轮询（v3.4.48 起修订：触发即返回，禁止阻塞 UI）
 
-- 导入：`POST /rest/api/v1/song-search/:pid/import`，body `{ songs:[{source,id,name,artist,album,duration,cover}] }` → 立即返回 `{ taskId }`（异步）。
-- 任务轮询：`GET /rest/api/v1/tasks/:id`（对齐主项目 `waitAsyncTask`，间隔 ~800ms）；完成返回 `{ result: { success, imported:[{fingerprint,id}], ids } }`。
+- 导入端点（均为触发即返回 `{ taskId }` 的异步任务）：`POST /rest/api/v1/{song|album|playlist}-search/:pid/import`。
+- **客户端交互契约（v3.4.48）**：入库 = 一次 POST 提交（秒回）→ 立即 Toast「已提交」→ **绝不弹任何阻塞遮罩/loading dialog**（v3.4.48 前歌单入库曾弹 `barrierDismissible: false` 全屏 loading 并同步轮询，大歌单直接卡死 UI，已修）。
+- 提交成功后 fire-and-forget 后台轮询 `GET /rest/api/v1/tasks/:id`（间隔 ~800ms，预算 5 分钟，`SearchRepository.waitTask`）；任务完成/失败经**全局 ToastNotifier**（根导航器 Overlay，不依赖页面 context）通知。
+- 后台轮询状态：`running` / `ok`（result 含 `playlistId` 或 `{ success, imported:[{fingerprint,id}], ids }`）/ `error`。
 
 ### 5.4 搜索交互契约：范围下拉浮层（方案 A）+ 热门/历史（v3.4.47）
 
