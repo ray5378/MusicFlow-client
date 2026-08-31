@@ -9,8 +9,7 @@ import '../../providers/effective_playback_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/search_provider.dart';
 import '../../core/design/components/music_flow_message.dart';
-import '../../core/design/components/music_flow_page_route.dart';
-import '../../features/library/pages/playlist_detail_page.dart';
+import '../../core/utils/toast_notifier.dart';
 
 void _toast(BuildContext context, String message, {bool error = false}) {
   if (!context.mounted) return;
@@ -18,6 +17,24 @@ void _toast(BuildContext context, String message, {bool error = false}) {
     context,
     message,
     kind: error ? MusicFlowMessageKind.error : MusicFlowMessageKind.info,
+  );
+}
+
+/// 后台监听入库任务:不阻塞任何 UI,完成后经全局 ToastNotifier 通知。
+///
+/// 提交成功后 fire-and-forget 调用;页面此时可能已被关闭/切换,
+/// 因此完成通知走根导航器 Overlay(ToastNotifier)而不是页面 context。
+void _watchImportTask(
+  SearchRepository repo,
+  String taskId,
+  String label,
+) {
+  unawaited(
+    repo.waitTask(taskId).then((result) {
+      ToastNotifier.show('《$label》入库完成，可在音乐库查看');
+    }).catchError((Object e) {
+      ToastNotifier.show('《$label》入库失败: $e', kind: MusicFlowMessageKind.error);
+    }),
   );
 }
 
@@ -69,7 +86,7 @@ Future<void> playRemoteSearchCollection(
   }
 }
 
-/// 把远程歌曲加入本地库(异步任务)
+/// 把远程歌曲加入本地库(触发即返回,后台监听完成)
 Future<void> importSearchSong(
   BuildContext context,
   WidgetRef ref,
@@ -78,14 +95,15 @@ Future<void> importSearchSong(
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   try {
-    await repo.importSong(song.providerId, [song]);
-    _toast(context, '已提交入库任务，稍候可在音乐库查看');
+    final taskId = await repo.importSong(song.providerId, [song]);
+    _toast(context, '已提交入库任务，完成后会通知你');
+    _watchImportTask(repo, taskId, song.name);
   } catch (e) {
     _toast(context, '入库失败: $e', error: true);
   }
 }
 
-/// 把远程专辑加入本地库(以专辑歌单形式)
+/// 把远程专辑加入本地库(以专辑歌单形式;触发即返回,后台监听完成)
 Future<void> importSearchAlbum(
   BuildContext context,
   WidgetRef ref,
@@ -94,14 +112,18 @@ Future<void> importSearchAlbum(
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   try {
-    await repo.importAlbum(album.providerId, album);
-    _toast(context, '已提交入库任务，稍候可在音乐库查看');
+    final taskId = await repo.importAlbum(album.providerId, album);
+    _toast(context, '已提交入库任务，完成后会通知你');
+    _watchImportTask(repo, taskId, album.name);
   } catch (e) {
     _toast(context, '入库失败: $e', error: true);
   }
 }
 
-/// 导入远程歌单到本地库,返回 library playlistId 后打开
+/// 把远程歌单加入本地库(**触发即返回,全程不阻塞 UI**)。
+///
+/// 只做一次 POST 提交(秒回),不弹任何等待遮罩;拉歌+入库由后端异步完成,
+/// 期间用户可继续任何操作,完成后经全局 Toast 通知成功/失败。
 Future<void> importSearchPlaylist(
   BuildContext context,
   WidgetRef ref,
@@ -113,31 +135,12 @@ Future<void> importSearchPlaylist(
     _toast(context, '未指定来源插件', error: true);
     return;
   }
-  final navigator = Navigator.of(context);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    ),
-  );
   try {
-    final playlistId = await repo.importPlaylist(pl.providerId, pl);
-    if (!context.mounted) return;
-    navigator.pop();
-    navigator.push<void>(
-      MusicFlowPageRoute<void>(
-        context: context,
-        builder: (context) => PlaylistDetailPage(playlistId: playlistId),
-      ),
-    );
+    final taskId = await repo.startPlaylistImport(pl.providerId, pl);
+    _toast(context, '《${pl.name}》入库任务已提交，完成后会通知你');
+    _watchImportTask(repo, taskId, pl.name);
   } catch (e) {
-    if (context.mounted) {
-      navigator.pop();
-      _toast(context, '导入失败: $e', error: true);
-    }
+    _toast(context, '入库失败: $e', error: true);
   }
 }
 

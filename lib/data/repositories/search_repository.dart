@@ -211,10 +211,10 @@ class SearchRepository {
     });
   }
 
-  /// 歌单导入:POST /v1/playlist-search/:providerId/import。
-  /// 该端点走异步任务(触发即返回 taskId),平台歌单在子进程里拉歌+入库后才生成
-  /// library playlistId,因此需要轮询 GET /v1/tasks/:taskId 拿到结果里的 playlistId。
-  Future<String> importPlaylist(
+  /// 歌单导入(触发即返回):POST /v1/playlist-search/:providerId/import。
+  /// 该端点走异步任务,POST 成功即返回 taskId;拉歌+入库在后台子进程跑,
+  /// 客户端**不等待**,完成通知由调用方经 [waitTask] 后台轮询后 Toast。
+  Future<String> startPlaylistImport(
     String providerId,
     SearchPlaylist pl,
   ) async {
@@ -233,18 +233,18 @@ class SearchRepository {
     if (data['success'] != true || data['taskId'] == null) {
       throw Exception(data['error']?.toString() ?? '导入歌单失败');
     }
-    final taskId = data['taskId'] as String;
-    final result = await _waitTask(taskId);
-    final playlistId = result['playlistId'] as String?;
-    if (playlistId == null) {
-      throw Exception(result['error']?.toString() ?? '导入歌单失败');
-    }
-    return playlistId;
+    return data['taskId'] as String;
   }
 
   /// 轮询异步任务直到完成,返回任务 result(含 playlistId)。
-  Future<Map<String, dynamic>> _waitTask(String taskId) async {
-    const maxAttempts = 40;
+  ///
+  /// 仅供后台监听使用(提交成功后 fire-and-forget 调用),默认预算 5 分钟
+  /// (大歌单拉歌+入库可能耗时数分钟,不应再用 32 秒同步等待)。
+  Future<Map<String, dynamic>> waitTask(
+    String taskId, {
+    int maxAttempts = 375,
+    Duration interval = const Duration(milliseconds: 800),
+  }) async {
     for (var i = 0; i < maxAttempts; i++) {
       final state = await _apiClient.getRaw(
         '/rest/api/v1/tasks/$taskId',
@@ -260,9 +260,9 @@ class SearchRepository {
       if (status == 'error') {
         throw Exception((state['error'] as String?) ?? '导入任务失败');
       }
-      await Future<void>.delayed(const Duration(milliseconds: 800));
+      await Future<void>.delayed(interval);
     }
-    throw Exception('导入歌单超时,请稍后在音乐库查看');
+    throw Exception('入库任务超时,请稍后在音乐库查看');
   }
 
   Future<String> _import(String path, Map<String, dynamic> body) async {

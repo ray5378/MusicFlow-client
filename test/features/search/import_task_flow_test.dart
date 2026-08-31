@@ -1,0 +1,131 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/repositories/search_repository.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/features/search/search_actions.dart';
+import 'package:musicflow_client/providers/search_provider.dart';
+
+import '../../helpers/mocks.dart';
+
+/// 入库触发即返回契约(§入库不阻塞):
+/// 提交 POST 秒回 → 立即 Toast,不弹任何阻塞遮罩;
+/// 后台轮询任务,完成后经全局 ToastNotifier 通知成功/失败。
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late MockSubsonicApiClient api;
+  late SearchRepository repo;
+  final playlist = SearchPlaylist(
+    id: 'p-1',
+    source: 'douyin',
+    name: '抖音热歌精选',
+    providerId: 'douyin',
+    trackCount: '100',
+  );
+
+  setUp(() {
+    api = MockSubsonicApiClient();
+    repo = SearchRepository(api);
+    registerFallbackValue(<String, dynamic>{});
+  });
+
+  Future<void> pumpHost(WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [searchRepositoryProvider.overrideWithValue(repo)],
+        child: MaterialApp(
+          navigatorKey: rootNavigatorKey,
+          home: Scaffold(
+            body: Center(
+              child: Consumer(
+                builder: (context, ref, _) => FilledButton(
+                  onPressed: () => importSearchPlaylist(context, ref, playlist),
+                  child: const Text('trigger-import'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void stubSubmit({Object? response}) {
+    when(
+      () => api.postRaw(
+        any(),
+        data: any(named: 'data'),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((_) async => response ?? {'success': true, 'taskId': 't-1'});
+  }
+
+  void stubTaskPoll(List<Map<String, dynamic>> states) {
+    var index = 0;
+    when(
+      () => api.getRaw(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((_) async {
+      if (index < states.length) return states[index++];
+      return states.last;
+    });
+  }
+
+  testWidgets('歌单入库:提交即返回,无阻塞遮罩,后台完成后 Toast 通知', (tester) async {
+    stubSubmit();
+    stubTaskPoll([
+      {'status': 'running'},
+      {'status': 'ok', 'result': {'playlistId': 'pl-1'}},
+    ]);
+    await pumpHost(tester);
+
+    await tester.tap(find.text('trigger-import'));
+    await tester.pump();
+
+    // 提交成功立即 Toast,且没有任何阻塞遮罩/加载弹窗
+    expect(find.textContaining('入库任务已提交'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+    // UI 未被锁死:按钮仍在树上,可继续交互
+    expect(find.text('trigger-import'), findsOneWidget);
+
+    // 推进后台轮询:第一次 running,第二次 ok
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(find.textContaining('入库完成'), findsOneWidget);
+  });
+
+  testWidgets('歌单入库:后台任务失败 → 错误 Toast 通知', (tester) async {
+    stubSubmit();
+    stubTaskPoll([
+      {'status': 'running'},
+      {'status': 'error', 'error': '子进程拉歌失败'},
+    ]);
+    await pumpHost(tester);
+
+    await tester.tap(find.text('trigger-import'));
+    await tester.pump();
+    expect(find.textContaining('入库任务已提交'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(find.textContaining('入库失败'), findsOneWidget);
+  });
+
+  testWidgets('歌单入库:提交被拒(任务进行中)→ 立即错误 Toast,不启动后台监听', (tester) async {
+    stubSubmit(response: {'success': false, 'error': '导入任务进行中'});
+    await pumpHost(tester);
+
+    await tester.tap(find.text('trigger-import'));
+    await tester.pump();
+
+    expect(find.textContaining('入库失败'), findsOneWidget);
+    expect(find.textContaining('入库任务已提交'), findsNothing);
+  });
+}
