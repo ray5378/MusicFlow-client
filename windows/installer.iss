@@ -29,7 +29,8 @@ OutputBaseFilename=MusicFlow-{#ArtifactTag}-windows-setup
 SetupIconFile=runner\resources\app_icon.ico
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 中文简体语言文件随仓库携带(Inno Setup 官方安装包不内置,CI 需用仓库内副本)
+Name: "chinesesimplified"; MessagesFile: "lang\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
