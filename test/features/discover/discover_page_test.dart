@@ -28,8 +28,8 @@ void main() {
   ) async {
     await _pumpDiscover(tester);
 
-    // 分类入口(五项)。
-    for (final label in <String>['艺术家', '专辑', '歌曲', '歌单', '喜爱']) {
+    // 分类入口(五项):喜欢/歌单/歌曲/艺术家/专辑。
+    for (final label in <String>['喜欢', '歌单', '歌曲', '艺术家', '专辑']) {
       expect(find.text(label), findsOneWidget);
     }
     // 区块标题按序出现。
