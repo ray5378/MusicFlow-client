@@ -147,15 +147,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
           padding: headerPadding,
           child: Row(
             children: <Widget>[
-              // 标题整体作为按钮：与 MusicFlowPageHeader 的 leading 对齐，
-              // 点击打开应用菜单（显示更多导航/设置）。
-              // 关键：必须 flex>0（参与弹性分配）子级才收到有界约束；
-              // flex:0 在 Flex 布局中按自然宽度给子级 unconstrained 约束，
-              // 窄屏(320dp)+大字体(200% 缩放)下超长标题会撑爆整行
-              // (RenderFlex overflow 165px)。loose fit 允许标题小于剩余
-              // 宽度时保持自然宽度，超过则单行省略。
-              Flexible(
-                flex: 1,
+              // 标题整体作为按钮：点击打开应用菜单（显示更多导航/设置）。
+              // Expanded(tight fit) 让标题占满按钮以外的全部剩余宽度：
+              // - 搜索按钮被推到行最右边缘（与「随机歌曲」的播放按钮同列）；
+              // - 子级收到有界约束，窄屏(320dp)+大字体(200%) 下超长标题
+              //   单行省略，不会撑爆整行(RenderFlex overflow)。
+              Expanded(
                 child: MusicFlowPressable(
                   semanticLabel: '打开应用菜单',
                   onPressed: openMusicFlowAppDrawer,
@@ -171,8 +168,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   ),
                 ),
               ),
-              // 标题行右侧搜索入口：与下方搜索条同一功能（打开全屏搜索页），
-              // 移动端单手可达，点击标题行右侧按钮即可进入搜索。
+              // 标题行右侧搜索入口（贴行右边缘、与标题文字垂直居中），
+              // 打开与搜索条同一个全屏搜索页。
               MusicFlowIconButton(
                 key: const ValueKey<String>('home-header-search'),
                 icon: AppIcons.search,
@@ -269,7 +266,11 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               // （点击标题打开应用菜单），不再单独放置菜单按钮；标题为空或
               // 宽屏布局（菜单已由侧边栏提供）时保持原样。
               _buildHomeHeader(context),
-              _HomeSearchEntry(),
+              // 搜索条只在宽屏(Windows 等)展示；compact 标题行右侧已有
+              // 搜索按钮(同一入口)，移动端不再重复放一条占位搜索框(v3.4.50)。
+              if (!(showCategoryNav &&
+                  resolveMusicFlowHomeTitle().isNotEmpty))
+                _HomeSearchEntry(),
               // 分类导航(喜欢/歌单/歌曲/艺术家/专辑)只在 compact 布局展示:
               // 宽屏/桌面端侧边抽屉已提供同样的入口,内容区不再重复一行,
               // 同时让「随机歌曲」标题能与侧边栏「主页」行对齐。

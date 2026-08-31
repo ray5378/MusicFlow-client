@@ -79,9 +79,17 @@ void main() {
 
   testWidgets('歌单入库:提交即返回,无阻塞遮罩,后台完成后 Toast 通知', (tester) async {
     stubSubmit();
+    // 真实后端响应结构:任务状态嵌套在 task 字段下
+    // (GET /v1/tasks/:id → { success, task: { status, result } })。
     stubTaskPoll([
-      {'status': 'running'},
-      {'status': 'ok', 'result': {'playlistId': 'pl-1'}},
+      {'success': true, 'task': {'status': 'running'}},
+      {
+        'success': true,
+        'task': {
+          'status': 'ok',
+          'result': {'playlistId': 'pl-1'},
+        },
+      },
     ]);
     await pumpHost(tester);
 
@@ -104,8 +112,11 @@ void main() {
   testWidgets('歌单入库:后台任务失败 → 错误 Toast 通知', (tester) async {
     stubSubmit();
     stubTaskPoll([
-      {'status': 'running'},
-      {'status': 'error', 'error': '子进程拉歌失败'},
+      {'success': true, 'task': {'status': 'running'}},
+      {
+        'success': true,
+        'task': {'status': 'error', 'error': '子进程拉歌失败'},
+      },
     ]);
     await pumpHost(tester);
 
@@ -127,5 +138,34 @@ void main() {
 
     expect(find.textContaining('入库失败'), findsOneWidget);
     expect(find.textContaining('入库任务已提交'), findsNothing);
+  });
+
+  testWidgets('歌单入库:同歌单任务已在运行 → 复用 taskId 继续监听,完成仍 Toast', (
+    tester,
+  ) async {
+    // 后端对同 sourceUrl 的去重响应:success=false 但带 taskId(已在跑)。
+    stubSubmit(response: {'success': false, 'alreadyRunning': true, 'taskId': 't-9'});
+    stubTaskPoll([
+      {'success': true, 'task': {'status': 'running'}},
+      {
+        'success': true,
+        'task': {
+          'status': 'ok',
+          'result': {'playlistId': 'pl-9'},
+        },
+      },
+    ]);
+    await pumpHost(tester);
+
+    await tester.tap(find.text('trigger-import'));
+    await tester.pump();
+
+    // 不报错,提示已提交(复用已有任务),继续后台监听
+    expect(find.textContaining('入库任务已提交'), findsOneWidget);
+    expect(find.textContaining('入库失败'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(find.textContaining('入库完成'), findsOneWidget);
   });
 }

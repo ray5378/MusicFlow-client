@@ -230,6 +230,11 @@ class SearchRepository {
         'link': pl.link,
       },
     ) as Map<String, dynamic>;
+    // 同歌单任务已在后台运行(路由按 sourceUrl 去重):复用已有 taskId,
+    // 继续监听其完成,而不是报错让用户以为失败。
+    if (data['alreadyRunning'] == true && data['taskId'] != null) {
+      return data['taskId'] as String;
+    }
     if (data['success'] != true || data['taskId'] == null) {
       throw Exception(data['error']?.toString() ?? '导入歌单失败');
     }
@@ -240,25 +245,32 @@ class SearchRepository {
   ///
   /// 仅供后台监听使用(提交成功后 fire-and-forget 调用),默认预算 5 分钟
   /// (大歌单拉歌+入库可能耗时数分钟,不应再用 32 秒同步等待)。
+  ///
+  /// 响应结构:GET /v1/tasks/:id 返回 `{ success, task: { status, result, error } }`,
+  /// 任务状态**嵌套在 `task` 字段下**(曾因读顶层导致永远等不到 ok/error,
+  /// 后端入库已完成却报「任务超时」);此处同时兼容历史顶层直出结构。
   Future<Map<String, dynamic>> waitTask(
     String taskId, {
     int maxAttempts = 375,
     Duration interval = const Duration(milliseconds: 800),
   }) async {
     for (var i = 0; i < maxAttempts; i++) {
-      final state = await _apiClient.getRaw(
+      final data = await _apiClient.getRaw(
         '/rest/api/v1/tasks/$taskId',
       ) as Map<String, dynamic>;
-      final status = state['status'] as String?;
+      final task = (data['task'] is Map)
+          ? Map<String, dynamic>.from(data['task'] as Map)
+          : data;
+      final status = task['status'] as String?;
       if (status == 'ok') {
-        final result = state['result'];
+        final result = task['result'];
         if (result is Map) {
           return Map<String, dynamic>.from(result);
         }
         return <String, dynamic>{};
       }
       if (status == 'error') {
-        throw Exception((state['error'] as String?) ?? '导入任务失败');
+        throw Exception((task['error'] as String?) ?? '导入任务失败');
       }
       await Future<void>.delayed(interval);
     }

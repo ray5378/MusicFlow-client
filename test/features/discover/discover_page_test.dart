@@ -50,15 +50,18 @@ void main() {
     final button = find.byKey(const ValueKey<String>('home-header-search'));
     expect(button, findsOneWidget);
 
-    // 点击后打开全屏搜索页(与 Windows 搜索条同一入口/同一页面)。
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    expect(find.byType(SearchPage), findsOneWidget);
-    // 原首页(含底部搜索条)已被全屏路由盖住。
+    // 移动端 compact 不再渲染整条搜索框,搜索入口只有标题行按钮(v3.4.50)。
     expect(
       find.byKey(const ValueKey<String>('home-search-entry')),
       findsNothing,
     );
+
+    // 点击后打开全屏搜索页(与 Windows 搜索条同一入口/同一页面)。
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchPage), findsOneWidget);
+    // 原首页(含标题行)已被全屏路由盖住。
+    expect(find.byType(DiscoverPage), findsNothing);
   });
 
   testWidgets('discover survives 320dp and 200 percent text scaling', (
