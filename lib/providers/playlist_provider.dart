@@ -22,6 +22,7 @@ final playlistRepositoryProvider = Provider<PlaylistRepository?>((ref) {
 });
 
 final playlistsLoadFailedProvider = StateProvider<bool>((ref) => false);
+final favoritePlaylistsLoadFailedProvider = StateProvider<bool>((ref) => false);
 final playlistDetailLoadFailedProvider = StateProvider.family<bool, String>(
   (ref, playlistId) => false,
 );
@@ -165,6 +166,45 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
     errorMessage: '网络异常，歌单加载失败',
     emptyValue: <Playlist>[],
   );
+});
+
+/// 当前用户收藏的歌单 Provider(「我喜欢 - 歌单」分区)。
+///
+/// 服务端无 OpenSubsonic 的「收藏歌单」标准接口,走自定义分页接口
+/// /rest/api/v1/playlists?favorite=1 逐页拉取全部收藏歌单,并保留 favorite 状态。
+/// autoDispose(对齐 starredProvider):每次打开收藏页都重新拉取,确保在其他页面
+/// 收藏/取消收藏歌单后回到这里是最新数据;取消收藏后由上层 invalidate 触发重拉。
+final favoritePlaylistsProvider = FutureProvider.autoDispose<List<Playlist>>((
+  ref,
+) async {
+  final repository = ref.watch(playlistRepositoryProvider);
+  if (repository == null) {
+    return <Playlist>[];
+  }
+  // 地址状态变化(探测完成/切线路)时重建重拉,与 recentPlaylistsProvider 一致。
+  ref.watch(activeAddressProvider);
+  await ref.read(ensureActiveAddressProvider.future);
+  try {
+    const pageSize = 100;
+    final playlists = <Playlist>[];
+    var page = 1;
+    while (true) {
+      final res = await repository.getPlaylistsPage(
+        page,
+        pageSize,
+        favoriteOnly: true,
+      );
+      playlists.addAll(res.items);
+      if (playlists.length >= res.total || res.items.isEmpty) break;
+      page++;
+    }
+    ref.read(favoritePlaylistsLoadFailedProvider.notifier).state = false;
+    return playlists;
+  } catch (e) {
+    Logger.warnWithTag(_playlistLogTag, 'favoritePlaylists failed', e);
+    ref.read(favoritePlaylistsLoadFailedProvider.notifier).state = true;
+    return <Playlist>[];
+  }
 });
 
 /// 歌单详情 Provider

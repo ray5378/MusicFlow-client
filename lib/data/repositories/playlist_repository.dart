@@ -12,10 +12,12 @@ class PlaylistRepository {
 
   /// 单页歌单(窗口化加载):对齐 Web 前端 useCardGrid 的 RangeFetcher,
   /// 走 /rest/api/v1/playlists 服务端分页(page/pageSize/query/local/favorite)。
+  /// [favoriteOnly] 为 true 时仅返回「当前用户已收藏」的歌单(我喜欢-歌单分区)。
   Future<({List<Playlist> items, int total})> getPlaylistsPage(
     int page,
     int pageSize, {
     String query = '',
+    bool favoriteOnly = false,
   }) async {
     final data = await _apiClient.getRaw(
       '/rest/api/v1/playlists',
@@ -23,11 +25,22 @@ class PlaylistRepository {
         'page': page.toString(),
         'pageSize': pageSize.toString(),
         if (query.isNotEmpty) 'query': query,
+        if (favoriteOnly) 'favorite': '1',
       },
     ) as Map<String, dynamic>;
     final items = _parsePlaylists((data['items'] ?? data['playlists']) as List? ?? []);
     final total = (data['total'] as num?)?.toInt() ?? items.length;
     return (items: items, total: total);
+  }
+
+  /// 收藏 / 取消收藏歌单:POST /rest/api/v1/playlists/:id/favorite。
+  /// 返回服务端处理结果,失败抛异常由上层统一提示。
+  Future<bool> setPlaylistFavorite(String playlistId, bool favorite) async {
+    final data = await _apiClient.postRaw(
+      '/rest/api/v1/playlists/$playlistId/favorite',
+      data: <String, dynamic>{'favorite': favorite},
+    ) as Map<String, dynamic>;
+    return data['success'] == true;
   }
 
   /// 单页歌单曲目(窗口化加载):走 /rest/api/v1/playlists/:id/tracks 分页。

@@ -14,6 +14,7 @@ class Playlist {
   final String? coverArt;
   final bool isImported; // 来自平台导入/插件同步(非本地自建)
   final String? sourcePlatform; // 来源平台,如 netease / qq / mixed
+  final bool favorite; // 当前用户是否收藏该歌单(服务端 /rest/api/v1/playlists 返回)
   final List<Song>? songs; // 歌单详情时才有
 
   Playlist({
@@ -29,6 +30,7 @@ class Playlist {
     this.coverArt,
     this.isImported = false,
     this.sourcePlatform,
+    this.favorite = false,
     this.songs,
   });
 
@@ -54,6 +56,7 @@ class Playlist {
       coverArt: json['coverArt'] as String?,
       isImported: json['isImported'] as bool? ?? false,
       sourcePlatform: json['sourcePlatform'] as String?,
+      favorite: json['favorite'] as bool? ?? false,
       songs: songsList,
     );
   }
@@ -72,6 +75,7 @@ class Playlist {
       'changed': changed?.toIso8601String(),
       'coverArt': coverArt,
       'isImported': isImported,
+      'favorite': favorite,
       if (sourcePlatform != null) 'sourcePlatform': sourcePlatform,
       if (songs != null) 'entry': songs!.map((s) => s.toJson()).toList(),
     };
