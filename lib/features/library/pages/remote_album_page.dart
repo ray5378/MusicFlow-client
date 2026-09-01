@@ -12,6 +12,7 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
+import '../../player/widgets/song_options_sheet.dart';
 import '../../search/search_actions.dart';
 
 /// 远程平台专辑预览页(对齐主项目前端 RemoteDetailDialog):
@@ -122,6 +123,10 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
                           ref,
                           songs,
                           startIndex: index,
+                        ),
+                        onLongPress: () => showSongOptionsSheet(
+                          context: context,
+                          song: song,
                         ),
                       );
                     },

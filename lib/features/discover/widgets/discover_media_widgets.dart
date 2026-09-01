@@ -1195,6 +1195,8 @@ class DiscoverPlaylistCard extends StatelessWidget {
     this.coverArtId,
     this.coverUrl,
     required this.onPressed,
+    this.onLongPress,
+    this.onPlay,
     this.loading = false,
     this.width = 160,
     this.isNowPlaying = false,
@@ -1205,6 +1207,12 @@ class DiscoverPlaylistCard extends StatelessWidget {
   final String? coverArtId;
   final String? coverUrl;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
+
+  /// 封面右下角半透明播放按钮：点击直接播放该歌单。
+  /// 移动端（compact）常驻显示，桌面端鼠标悬停封面时才显示。
+  final VoidCallback? onPlay;
+
   final bool loading;
   final double width;
 
@@ -1233,6 +1241,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
         label: semanticLabel,
         child: MusicFlowPressable(
           onPressed: onPressed,
+          onLongPress: onLongPress,
           minimumSize: Size(width, width),
           borderRadius: context.musicFlowRadii.surface,
           child: Column(
@@ -1274,6 +1283,12 @@ class DiscoverPlaylistCard extends StatelessWidget {
                       // 正在播放：封面右下角半透明遮罩 + 白色跳动竖条。
                       if (isNowPlaying)
                         NowPlayingCoverOverlay(size: width),
+                      // 封面右下角半透明播放按钮。
+                      if (onPlay != null)
+                        _PlaylistCoverPlayButton(
+                          coverSize: width,
+                          onPlay: onPlay!,
+                        ),
                     ],
                   ),
                 ),
@@ -1328,6 +1343,63 @@ class DiscoverPlaylistCardLoading extends StatelessWidget {
           SizedBox(height: context.musicFlowSpacing.xxs),
           MusicFlowSkeleton.line(width: width * 0.6, height: 12),
         ],
+      ),
+    );
+  }
+}
+
+/// 封面右下角半透明播放按钮：
+/// - 移动端（compact）常驻显示；
+/// - 桌面端平时隐藏，鼠标悬停封面时才显示。
+class _PlaylistCoverPlayButton extends StatefulWidget {
+  const _PlaylistCoverPlayButton({
+    required this.coverSize,
+    required this.onPlay,
+  });
+
+  final double coverSize;
+  final VoidCallback onPlay;
+
+  @override
+  State<_PlaylistCoverPlayButton> createState() =>
+      _PlaylistCoverPlayButtonState();
+}
+
+class _PlaylistCoverPlayButtonState extends State<_PlaylistCoverPlayButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact =
+        context.musicFlowWindowClass == MusicFlowWindowClass.compact;
+    // 移动端常驻；桌面端 hover 才显示。
+    final visible = compact || _hovered;
+
+    // 按钮直径随封面等比缩放（160 基准：44）。
+    final buttonSize = (widget.coverSize * 0.275).clamp(32.0, 64.0);
+    final iconSize = buttonSize * 0.5;
+
+    return Positioned(
+      right: widget.coverSize * 0.055,
+      bottom: widget.coverSize * 0.055,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: visible ? 1 : 0,
+          child: IgnorePointer(
+            ignoring: !visible,
+            child: MusicFlowIconButton(
+              label: '播放歌单',
+              onPressed: widget.onPlay,
+              icon: AppIcons.play,
+              iconSize: iconSize,
+              backgroundColor: Colors.black45,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
       ),
     );
   }

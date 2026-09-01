@@ -9,9 +9,11 @@ import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/api_provider.dart';
+import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
+import '../../../providers/queue_origin_provider.dart';
 
 Future<void> showAlbumOptionsSheet({
   required BuildContext context,
@@ -63,6 +65,11 @@ class _AlbumOptionsSheet extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            MusicFlowActionRow(
+              icon: AppIcons.play,
+              title: '播放专辑',
+              onPressed: () => _closeAndRun(context, _playAlbum),
+            ),
             MusicFlowActionRow(
               icon: album.starred ? AppIcons.heart : AppIcons.heartOutline,
               title: album.starred ? '取消收藏专辑' : '收藏专辑',
@@ -119,6 +126,17 @@ class _AlbumOptionsSheet extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _playAlbum() async {
+    final songs = await _loadAlbumSongs();
+    if (songs == null || songs.isEmpty) return;
+    await playEffectiveQueue(
+      hostRef,
+      songs,
+      startIndex: 0,
+      origin: QueueOrigin(QueueOriginKind.album, album.id),
     );
   }
 

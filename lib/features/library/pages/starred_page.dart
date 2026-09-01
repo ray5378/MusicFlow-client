@@ -16,6 +16,7 @@ import '../../discover/widgets/discover_media_widgets.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../widgets/album_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
+import '../widgets/playlist_options_sheet.dart';
 import 'album_detail_page.dart';
 import 'artist_detail_page.dart';
 import 'playlist_detail_page.dart';
@@ -140,7 +141,10 @@ class StarredPage extends ConsumerWidget {
                   return DiscoverPlaylistTile(
                     playlist: pl,
                     onPressed: () => _openPlaylist(context, ref, pl.id),
-                    onLongPress: () => _unfavoritePlaylist(context, ref, pl),
+                    onLongPress: () => showPlaylistOptionsSheet(
+                      context: context,
+                      playlist: pl,
+                    ),
                   );
                 },
               )
@@ -166,7 +170,10 @@ class StarredPage extends ConsumerWidget {
                   return _StarredPlaylistTile(
                     playlist: pl,
                     onPressed: () => _openPlaylist(context, ref, pl.id),
-                    onLongPress: () => _unfavoritePlaylist(context, ref, pl),
+                    onLongPress: () => showPlaylistOptionsSheet(
+                      context: context,
+                      playlist: pl,
+                    ),
                   );
                 },
               );
@@ -200,28 +207,6 @@ class StarredPage extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _unfavoritePlaylist(
-    BuildContext context,
-    WidgetRef ref,
-    Playlist playlist,
-  ) async {
-    final repository = ref.read(playlistRepositoryProvider);
-    if (repository == null) return;
-    try {
-      final ok = await repository.setPlaylistFavorite(playlist.id, false);
-      if (!context.mounted || !ok) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已取消收藏「${playlist.name}」')),
-      );
-      ref.invalidate(favoritePlaylistsProvider);
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('操作失败')),
-      );
-    }
   }
 
   Widget _buildSongsTab(BuildContext context, WidgetRef ref) {

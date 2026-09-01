@@ -9,8 +9,10 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/logger.dart';
+import '../../../core/utils/network_error_notifier.dart';
 import '../../../data/models/recommend.dart';
 import '../../../data/models/music_library.dart';
+import '../../../data/models/playlist.dart';
 import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/dlna_provider.dart';
@@ -31,6 +33,7 @@ import '../../library/pages/playlist_detail_page.dart';
 import '../../library/pages/playlist_search_page.dart';
 import '../../library/pages/song_list_page.dart';
 import '../../library/pages/starred_page.dart';
+import '../../library/widgets/playlist_options_sheet.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../../../widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
@@ -450,6 +453,31 @@ void _openSearchPage(BuildContext context) {
       builder: (context) => const SearchPage(),
     ),
   );
+}
+
+/// 播放本地歌单（供首页歌单卡封面播放按钮与长按菜单使用）。
+/// 加载歌单全部歌曲后整单播放，并记录队列来源为歌单（封面叠加跳动竖条）。
+Future<void> playLocalPlaylistById(WidgetRef ref, String playlistId) async {
+  final repository = ref.read(playlistRepositoryProvider);
+  if (repository == null) {
+    NetworkErrorNotifier.show('未选择音乐库');
+    return;
+  }
+  try {
+    final songs = await repository.getAllPlaylistSongs(playlistId);
+    if (songs.isEmpty) {
+      NetworkErrorNotifier.show('歌单暂无可用歌曲');
+      return;
+    }
+    await playEffectiveQueue(
+      ref,
+      songs,
+      startIndex: 0,
+      origin: QueueOrigin(QueueOriginKind.playlist, playlistId),
+    );
+  } catch (_) {
+    NetworkErrorNotifier.show('网络异常，无法播放歌单');
+  }
 }
 
 /// 首页顶部搜索入口:点击进入搜索页(自动聚焦并浮出搜索范围)。
@@ -1195,6 +1223,11 @@ class RecentPlaylistsSection extends ConsumerWidget {
                       coverArtId: pl.coverArt,
                       isNowPlaying: queueOrigin?.matchesPlaylist(pl.id) ??
                           false,
+                      onLongPress: () => showPlaylistOptionsSheet(
+                        context: context,
+                        playlist: pl,
+                      ),
+                      onPlay: () => playLocalPlaylistById(ref, pl.id),
                       onPressed: () {
                         Navigator.of(context).push<void>(
                           MusicFlowPageRoute<void>(
@@ -1313,6 +1346,18 @@ class FixedRecommendSection extends ConsumerWidget {
                       isNowPlaying:
                           queueOrigin?.matchesPlaylist(card.playlistId) ??
                           false,
+                      onLongPress: () => showPlaylistOptionsSheet(
+                        context: context,
+                        playlist: Playlist(
+                          id: card.playlistId,
+                          name: card.name,
+                          songCount: card.songCount,
+                          coverArt: card.coverArt,
+                          duration: 0,
+                        ),
+                      ),
+                      onPlay: () =>
+                          playLocalPlaylistById(ref, card.playlistId),
                       onPressed: () {
                         Navigator.of(context).push<void>(
                           MusicFlowPageRoute<void>(
@@ -1559,6 +1604,8 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final channelsAsync = ref.watch(localRecommendChannelsProvider);
     final loadFailed = ref.watch(localRecommendChannelsLoadFailedProvider);
+    // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1628,6 +1675,20 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                               title: pl.name,
                               subtitle: '${pl.songCount} 首',
                               coverArtId: pl.coverArt,
+                              isNowPlaying:
+                                  queueOrigin?.matchesPlaylist(pl.id) ??
+                                  false,
+                              onLongPress: () => showPlaylistOptionsSheet(
+                                context: context,
+                                playlist: Playlist(
+                                  id: pl.id,
+                                  name: pl.name,
+                                  songCount: pl.songCount,
+                                  coverArt: pl.coverArt,
+                                  duration: 0,
+                                ),
+                              ),
+                              onPlay: () => playLocalPlaylistById(ref, pl.id),
                               onPressed: () {
                                 Navigator.of(context).push<void>(
                                   MusicFlowPageRoute<void>(

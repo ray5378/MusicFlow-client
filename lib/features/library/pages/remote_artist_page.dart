@@ -12,6 +12,7 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
+import '../../player/widgets/song_options_sheet.dart';
 
 /// 远程平台艺术家预览页(对齐主项目前端 RemoteDetailDialog):
 /// 点击搜索结果**不直接入库**,而是先拉取该艺术家歌曲预览,可「播放全部」直接播。
@@ -116,6 +117,10 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
                           ref,
                           songs,
                           startIndex: index,
+                        ),
+                        onLongPress: () => showSongOptionsSheet(
+                          context: context,
+                          song: song,
                         ),
                       );
                     },

@@ -3,9 +3,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 /// 播放中封面指示器：半透明阴影遮罩 + 3 根白色随机跳动的竖直长方形
-/// （网易云「每日推荐」正在播放的视觉效果）。
+/// （网易云「每日推荐」正在播放的视觉效果——底部平整、跳动从底部往上）。
 ///
 /// 尺寸策略（自适应封面大小）：
+/// - 竖条组只占封面底部一小块（20%~34% 高度），类似音柱条；
+/// - 竖条底部贴齐（`CrossAxisAlignment.end`），高度变化只向上生长；
 /// - 竖条宽度/间距/圆角/遮罩内边距全部按 [size] 等比缩放；
 /// - [alignment] 为 [Alignment.bottomRight] 时（大封面/首页卡片）竖条组
 ///   落在封面右下角；[Alignment.center] 时（队列小封面）竖条组正中间；
@@ -40,9 +42,9 @@ class NowPlayingCoverOverlay extends StatelessWidget {
     final barWidth = 6.0 * k;
     final barGap = 4.5 * k;
     final barRadius = 2.0 * k;
-    // 竖条高度在 0.38~0.62 封面高之间随机跳动，保证始终在封面内。
-    final minBarHeight = size * 0.38;
-    final maxBarHeight = size * 0.62;
+    // 竖条高度只占封面底部一小块（20%~34%），跳动方向从底部往上。
+    final minBarHeight = size * 0.20;
+    final maxBarHeight = size * 0.34;
     // 遮罩内边距（竖条组四周）与竖条宽相当。
     final scrimPadding = 7.0 * k;
 
@@ -130,15 +132,20 @@ class _JumpingBarsState extends State<_JumpingBars>
               heightSpan: heightSpan,
             ),
         ];
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            for (var i = 0; i < bars.length; i++) ...<Widget>[
-              if (i > 0) SizedBox(width: widget.barGap),
-              bars[i],
+        // 容器固定为最大可能高度,竖条底部对齐(crossAxisAlignment: end),
+        // 跳动方向「从底部往上」。
+        return SizedBox(
+          height: widget.maxBarHeight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              for (var i = 0; i < bars.length; i++) ...<Widget>[
+                if (i > 0) SizedBox(width: widget.barGap),
+                bars[i],
+              ],
             ],
-          ],
+          ),
         );
       },
     );
