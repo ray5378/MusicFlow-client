@@ -175,20 +175,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   ),
                 ),
               ),
-              // 中间弹性留白：把搜索按钮锚定到行最右端（v3.4.50 用户截图
-              // 诉求「搜索按钮贴最右边」）。v3.4.51 曾为修「标题按钮区域太长」
-              // 把标题改 Flexible(loose)，代价是搜索按钮回到紧跟标题文字、
-              // 不再贴右缘——此处 Spacer 让两个诉求同时成立：
-              // 标题按钮区域只包文字，搜索按钮固定贴行右边缘。
-              const Spacer(),
-              // 标题行右侧搜索入口（48×48 触控目标,与标题按钮中心对齐），
-              // 打开与搜索条同一个全屏搜索页。
-              MusicFlowIconButton(
-                key: const ValueKey<String>('home-header-search'),
-                icon: AppIcons.search,
-                label: '搜索',
-                onPressed: () => _openSearchPage(context),
-              ),
+              // v3.4.51 曾为修「标题按钮区域太长」把标题改 Flexible(loose)。
+              // v3.4.62 搜索按钮已移入分类导航首位(「探索」)，标题行不再放按钮。
             ],
           ),
         ),
@@ -542,11 +530,14 @@ class _HomeSearchEntry extends StatelessWidget {
   }
 }
 
-/// 顶部分类导航条(可左右滑动):喜欢/歌单/歌曲/艺术家/专辑
+/// 顶部分类导航条(可左右滑动):探索/喜欢/歌单/歌曲/艺术家/专辑
 class CategoryNavBar extends StatelessWidget {
   const CategoryNavBar({super.key});
 
   static final List<(String, IconData, Widget)> _items = <(String, IconData, Widget)>[
+    // 探索：原首页标题行右侧搜索按钮移入库导航第一位(v3.4.62)，
+    // 样式与库按钮一致(accent 图标 + 下方文字标注)。
+    ('探索', AppIcons.search, const SearchPage()),
     ('喜欢', AppIcons.heart, const StarredPage()),
     ('歌单', AppIcons.playlist, const PlaylistSearchPage()),
     ('歌曲', AppIcons.music, const SongListPage()),

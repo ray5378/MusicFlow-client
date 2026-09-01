@@ -29,8 +29,8 @@ void main() {
   ) async {
     await _pumpDiscover(tester);
 
-    // 分类入口(五项):喜欢/歌单/歌曲/艺术家/专辑。
-    for (final label in <String>['喜欢', '歌单', '歌曲', '艺术家', '专辑']) {
+    // 分类入口(六项):探索/喜欢/歌单/歌曲/艺术家/专辑。
+    for (final label in <String>['探索', '喜欢', '歌单', '歌曲', '艺术家', '专辑']) {
       expect(find.text(label), findsOneWidget);
     }
     // 区块标题按序出现。
@@ -41,51 +41,48 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('home header search button opens the search page fullscreen', (
+  testWidgets('category nav explore opens the search page fullscreen', (
     tester,
   ) async {
     await _pumpDiscover(tester);
 
-    // compact 标题行(MusicFlow 右侧)的搜索按钮存在。
-    final button = find.byKey(const ValueKey<String>('home-header-search'));
-    expect(button, findsOneWidget);
+    // v3.4.62:搜索入口从首页标题行移入分类导航首位(「探索」)，
+    // 标题行不再渲染独立搜索按钮。
+    expect(
+      find.byKey(const ValueKey<String>('home-header-search')),
+      findsNothing,
+    );
 
-    // 移动端 compact 不再渲染整条搜索框,搜索入口只有标题行按钮(v3.4.50)。
+    // 移动端 compact 不再渲染整条搜索框,搜索入口只有分类导航「探索」(v3.4.50)。
     expect(
       find.byKey(const ValueKey<String>('home-search-entry')),
       findsNothing,
     );
 
-    // 点击后打开全屏搜索页(与 Windows 搜索条同一入口/同一页面)。
-    await tester.tap(button);
+    // 点击「探索」后打开全屏搜索页(与 Windows 搜索条同一入口/同一页面)。
+    await tester.tap(find.text('探索'));
     await tester.pumpAndSettle();
     expect(find.byType(SearchPage), findsOneWidget);
     // 原首页(含标题行)已被全屏路由盖住。
     expect(find.byType(DiscoverPage), findsNothing);
   });
 
-  testWidgets('home header search button is anchored to the row right edge', (
+  testWidgets('category nav explore is the first library entry', (
     tester,
   ) async {
-    // 回归：v3.4.51 把标题按钮从 Expanded 改 Flexible(loose) 修「按钮区域太长」,
-    // 代价是搜索按钮回到紧跟标题文字、不再贴右缘。正确布局 = 标题按钮
-    // Flexible(loose) + 中间 Spacer + 搜索按钮,两者互不干扰(v3.4.60)。
+    // 回归：搜索入口移入分类导航后必须排在第一位,样式与库按钮一致。
     await _pumpDiscover(tester);
 
-    final searchBtn = find.byKey(const ValueKey<String>('home-header-search'));
-    final titleBtn = find.bySemanticsLabel('打开应用菜单');
-    expect(searchBtn, findsOneWidget);
-    expect(titleBtn, findsOneWidget);
+    final explore = find.text('探索');
+    final favorite = find.text('喜欢');
+    expect(explore, findsOneWidget);
+    expect(favorite, findsOneWidget);
 
-    final windowWidth = tester.view.physicalSize.width;
-    // 标题按钮左缘距窗口左缘 = 页边距;搜索按钮右缘距窗口右缘 = 同一边距。
-    // 若搜索按钮未贴右缘(紧跟标题文字),此断言即失败。
-    final searchGap = windowWidth - tester.getRect(searchBtn).right;
-    final titleGap = tester.getRect(titleBtn).left;
+    // 探索必须位于喜欢左侧(同一行、x 坐标更小)。
     expect(
-      searchGap,
-      closeTo(titleGap, 0.001),
-      reason: '搜索按钮应锚定到标题行最右端,与标题按钮左缘对称(同为页边距)',
+      tester.getTopLeft(explore).dx,
+      lessThan(tester.getTopLeft(favorite).dx),
+      reason: '探索应排在分类导航第一位(喜欢之前)',
     );
   });
 

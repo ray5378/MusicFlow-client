@@ -30,8 +30,10 @@ enum MusicFlowPressableSemanticsMode {
 /// tap behavior.
 ///
 /// 统一交互反馈：按下时子组件按 [MusicFlowInteraction.pressedScale] 轻微缩小、
-/// 松开/取消时回弹，全平台(触屏/鼠标/触控板)一律生效；鼠标右键/中键不触发。
-/// 禁用时(a11y 关闭动画)自动退化为瞬时过渡，不产生缩放。
+/// 松开/取消时回弹，全平台(触屏/鼠标/触控板)一律生效；鼠标中键不触发。
+/// 鼠标右键按下时立即触发 [onLongPress]（桌面端「右键 = 长按菜单」语义，
+/// InkWell 的长按只响应主按钮，故右键在此处 raw 指针层补上），且不产生
+/// 按压缩放反馈；禁用时(a11y 关闭动画)自动退化为瞬时过渡，不产生缩放。
 class MusicFlowPressable extends StatefulWidget {
   const MusicFlowPressable({
     super.key,
@@ -235,7 +237,8 @@ class _MusicFlowPressableState extends State<MusicFlowPressable>
     // 按压反馈：用 raw 指针监听(透明、不参与手势竞技场,不吞事件、不干扰滚动/
     // 拖拽)追踪按下/松开,由 [_feedback] 控制器统一驱动「缩放 + 高亮闪现」。
     // 点按后经 [_pressOut] 渐淡回弹,因此快速点按与桌面端鼠标左键都能看清反馈;
-    // 鼠标右键/中键与 hover 不触发。
+    // 鼠标中键与 hover 不触发；鼠标右键单独在 [_handlePointerDown] 中
+    // 触发 [onLongPress]（菜单语义），同样不产生按压反馈。
     return Listener(
       onPointerDown: _handlePointerDown,
       onPointerUp: (_) => _handlePointerRelease(),
@@ -265,10 +268,16 @@ class _MusicFlowPressableState extends State<MusicFlowPressable>
 
   void _handlePointerDown(PointerDownEvent event) {
     if (!_interactive) return;
-    // 排除鼠标右键/中键：仅主键(触屏或鼠标左键)触发按压反馈。
-    if (event.buttons == kSecondaryButton || event.buttons == kMiddleMouseButton) {
+    // 鼠标右键：桌面端「右键 = 长按菜单」语义，按下立即触发 onLongPress，
+    // 不参与按压反馈（InkWell 的 onLongPress 只响应主按钮长按，右键不会
+    // 走那里——安卓长按正常、Windows 右键无反应的根因）。
+    if (event.buttons == kSecondaryButton) {
+      final longPress = widget.onLongPress;
+      if (longPress != null) _invoke(longPress);
       return;
     }
+    // 排除鼠标中键：仅主键(触屏或鼠标左键)触发按压反馈。
+    if (event.buttons == kMiddleMouseButton) return;
     _pressed = true;
     _feedback.animateTo(1.0, duration: _pressIn);
   }

@@ -1,5 +1,6 @@
 import 'dart:ui' show PointerDeviceKind, SemanticsAction, Tristate;
 
+import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -321,6 +322,70 @@ void main() {
       expect(focusNode.hasFocus, isTrue);
       expect(_focusBorderColor(tester, pressable), Colors.transparent);
       expect(FocusManager.instance.primaryFocus, isNot(focusNode));
+    });
+  });
+
+  group('MusicFlowPressable secondary-button (right-click)', () {
+    testWidgets('mouse right-click invokes onLongPress, not onPressed', (
+      tester,
+    ) async {
+      var longPresses = 0;
+      var presses = 0;
+
+      await tester.pumpWidget(
+        app(
+          MusicFlowPressable(
+            semanticLabel: '歌曲行',
+            onPressed: () => presses++,
+            onLongPress: () => longPresses++,
+            child: const Text('歌曲行'),
+          ),
+        ),
+      );
+
+      final target = find.byType(MusicFlowPressable);
+      expect(target, findsOneWidget);
+
+      // 鼠标右键按下：直接触发长按回调（桌面端右键=菜单语义）。
+      final gesture = await tester.startGesture(
+        tester.getCenter(target),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(longPresses, 1);
+      expect(presses, 0);
+    });
+
+    testWidgets('right-click without onLongPress does nothing', (
+      tester,
+    ) async {
+      var presses = 0;
+
+      await tester.pumpWidget(
+        app(
+          MusicFlowPressable(
+            semanticLabel: '仅点击行',
+            onPressed: () => presses++,
+            child: const Text('仅点击行'),
+          ),
+        ),
+      );
+
+      final target = find.byType(MusicFlowPressable);
+      final gesture = await tester.startGesture(
+        tester.getCenter(target),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(presses, 0);
     });
   });
 }
