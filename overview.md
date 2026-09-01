@@ -1,3 +1,32 @@
+# v3.4.63 清除全部 6 个历史测试失败：全量测试首次零失败 总览
+
+## v3.4.63（本轮）
+
+独立任务：把长期挂账的 6 个历史失败测试逐个排查修复（不涉及新功能，只清技术债）。**修复后全量 +475 -0，本项目第一次全量测试 0 失败。**
+
+### 一、player_backdrop ×2（`test/features/player/player_backdrop_test.dart` + `lib/features/player/widgets/player_backdrop.dart`）
+- **根因 1（断言过期）**：`c961f1f`（对齐箭头音乐 MINI 悬浮胶囊）把 mini 圆角 16→24 且新增胶囊阴影（`0x14000000` blur 12 offset(0,4)），测试仍断言 16 与 `boxShadow isEmpty`。
+- **根因 2（实现 bug）**：`_PlayerBackdropSpec.lerp` 在 progress=1.0 时 `BoxShadow.lerpList` 返回 `scale(0)` 的残影阴影（blur 0 但 alpha 仍在），落点 stage 语义应为无阴影 → 修复 lerp 边界（progress>=1 返回空列表）。
+- **修复**：测试 4 处圆角断言 16→24、4 处阴影断言对齐新语义；实现 lerp 边界修正。
+
+### 二、music_flow_app_shell ×2（`test/widgets/music_flow_app_shell/music_flow_app_shell_test.dart`）
+- **根因 1（断言过期）**：`c961f1f` 把 compact 分支（`includeBottomSafeArea=false`）MiniPlayer slot 底部 padding 从 `xxs(4)` 改为 `sm(12)`，测试仍断言间距 4 → 2 处改 12。
+- **根因 2（过期 key）**：`mini-player-progress` key 已随设计变更移除（底部进度条改为封面外圈进度环 + `mini-player-scrubber` 手势层），320dp 缩放测试引用过期 key → 改用 `mini-player-scrubber`（几何断言语义不变：左缘/底缘贴齐）。
+
+### 三、music_flow_network_status_bar ×1（`music_flow_network_status_bar.dart` + 测试）
+- **根因**：`1a5dce9`（DLNA 投屏方案）引入「启动后 30 秒静默恢复窗口」，用 `DateTime.now()`（真实时钟）判断；测试用 fake clock 推进时间、真实时钟才过几毫秒 → 永远处于静默窗口 → 网络恢复 toast 永不出现。
+- **修复**：静默窗口改为**可注入参数** `startupSilentRecoveryWindow`（生产默认 30s，测试传 `Duration.zero`），不改变生产行为。
+
+### 四、ssdp_discovery ×1（`test/core/dlna/ssdp_discovery_test.dart`，用户指示「用本地环境重做」）
+- **根因**：本机双网卡——以太网（Intel I219-V）= 192.168.10.188 + `et_6_55tp`（**EasyTier VPN 隧道**）= 192.168.100.188。隧道接管系统默认路由/默认多播出接口，测试发送端用 `anyIPv4` 发多播时从隧道出去，而生产监听端（`_skipInterface` 按 `et_` 前缀过滤后）只 join 物理以太网组 → 跨网段收不到 NOTIFY（历史 flaky 根因）。
+- **修复（测试侧，生产零改动）**：测试新增与生产 `_skipInterface` **完全一致**的过滤辅助函数（关键字表 + `et_`/`et-` 前缀 + 保留网段 IP），统一应用到 responder join / 显式注入地址 / NOTIFY 发送端三处；发送端显式绑定物理接口 IPv4 锁定出接口 + 4 轮重发容忍时序。**本机连跑 8/8 稳定通过**；CI（Linux 单网卡）链路本就固定，改动只是让测试模拟行为与生产规则对齐，无 CI 行为差异。
+
+### 验证
+- analyze 零 error；ssdp 本机连跑 8/8；**全量 +475 -0（首次全绿，6 个历史失败全部清零）**。
+- 发版：commit 2965153 + tag v3.4.63 → CI 三流水线（Build Client / Test Suite / UI Guard）→ Release 三产物 uploader 均 `github-actions[bot]`，合规闭环。
+
+---
+
 # v3.4.62 Windows 右键菜单修复 + 搜索入口移入「库」导航 总览
 
 ## v3.4.62（本轮）
