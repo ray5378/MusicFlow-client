@@ -221,11 +221,13 @@ class MusicFlowArtistRow extends StatelessWidget {
     super.key,
     required this.artist,
     required this.onPressed,
+    this.onLongPress,
     this.contentPadding,
   });
 
   final Artist artist;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
   final EdgeInsetsGeometry? contentPadding;
 
   @override
@@ -237,6 +239,7 @@ class MusicFlowArtistRow extends StatelessWidget {
         if (albumCount != null) '$albumCount 张专辑',
       ].join('，'),
       onPressed: onPressed,
+      onLongPress: onLongPress,
       minimumSize: Size(
         double.infinity,
         context.musicFlowInteraction.expandedSongRowHeight,

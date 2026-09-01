@@ -15,6 +15,7 @@ import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
+import '../widgets/artist_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
 import '../widgets/windowed_list_view.dart';
 import '../widgets/windowed_paginated_list.dart';
@@ -154,6 +155,11 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
                   context: context,
                   builder: (_) => ArtistDetailPage(artistId: artist.id),
                 ),
+              ),
+              onLongPress: () => showArtistOptionsSheet(
+                context: context,
+                ref: ref,
+                artist: artist,
               ),
             ),
           ),

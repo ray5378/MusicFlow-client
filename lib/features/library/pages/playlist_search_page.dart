@@ -18,6 +18,7 @@ import '../../../providers/library_stats_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../library/pages/playlist_detail_page.dart';
+import '../widgets/playlist_options_sheet.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 
 /// 歌单类目 —— 窗口化分页列表(本地歌单走 /v1/playlists 分页;
@@ -163,6 +164,10 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
                     initialCoverArt: playlist.coverArt,
                   ),
                 ),
+              ),
+              onLongPress: () => showPlaylistOptionsSheet(
+                context: context,
+                playlist: playlist,
               ),
             ),
           ),

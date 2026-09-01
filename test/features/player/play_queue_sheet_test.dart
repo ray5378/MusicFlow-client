@@ -188,4 +188,61 @@ void main() {
     expect(find.text('清空后续队列'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'long queue auto-centers the current row into the viewport middle',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // 随机/长队列:当前播放位于深位置(模拟 shuffle 后 index=100/120),
+      // 打开队列时必须自动滚动到视口中间,而不是停在顶部。
+      final longQueue = List<Song>.generate(
+        120,
+        (i) => Song(id: 's$i', title: 'Song $i', artist: 'Artist $i'),
+      );
+      const currentIndex = 100;
+
+      await tester.pumpWidget(
+        buildSubject(
+          state: PlayerState(
+            currentSong: longQueue[currentIndex],
+            queue: longQueue,
+            currentIndex: currentIndex,
+          ),
+          onSelect: (_) async {},
+          onClear: () async {},
+          onOpenSongActions: (context, index, song) async {},
+        ),
+      );
+      // 居中链:initState postFrame → 比例法粗估 jumpTo → refine → ensureVisible
+      // (disableAnimations 下动画归零但仍需多帧调度)。
+      // 当前行封面含无限循环跳动竖条动画,pumpAndSettle 永不稳定,用固定时长 pump。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 320));
+      await tester.pump(const Duration(milliseconds: 320));
+
+      // 当前行必须已实例化(滚动到可视区)。
+      final currentFinder = find.text('Song $currentIndex');
+      expect(currentFinder, findsOneWidget);
+
+      // 且位于列表视口中间附近(上、下方都还有内容)。
+      final listRect = tester.getRect(find.byType(ListView));
+      final rowTop = tester.getTopLeft(currentFinder).dy;
+      expect(
+        rowTop,
+        greaterThan(listRect.top + listRect.height * 0.2),
+        reason: '当前行应位于视口中间附近,而不是顶部',
+      );
+      expect(
+        rowTop,
+        lessThan(listRect.top + listRect.height * 0.8),
+        reason: '当前行应位于视口中间附近,而不是底部',
+      );
+    },
+  );
 }

@@ -614,8 +614,9 @@ class CastQueueSheetView extends StatelessWidget {
 }
 
 /// 投屏/遥控队列列表:自动把「当前播放」滚动到视口中间(对齐上层 _AutoCenterQueueList)。
-/// 复用同一套居中策略:行高不定,不依赖 itemExtent,用 Scrollable.ensureVisible
-/// (alignment:0.5) 精确居中;当前曲目下标变化后重新居中。仍保持 ReorderableListView
+/// 复用同一套居中策略:行高不定,不依赖 itemExtent,目标行未构建时用
+/// 比例法粗估(maxScrollExtent × index/last)+ 逐轮逼近,构建后
+/// Scrollable.ensureVisible(alignment: 0.5) 精确居中。仍保持 ReorderableListView
 /// 以支持拖拽排序。
 class _AutoCenterCastList extends StatefulWidget {
   const _AutoCenterCastList({
@@ -640,9 +641,8 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
   final ScrollController _controller = ScrollController();
   final GlobalKey _currentKey = GlobalKey();
 
-  // 行高不定但大体均匀;仅用于懒加载下「先跳到附近」的粗估,
-  // 最终由 ensureVisible 精确定位,不依赖精确 itemExtent。
-  static const double _kEstRowHeight = 56.0;
+  // 比例法粗估的最多逼近轮数:目标行未实例化时逐轮向队列尾部推进。
+  static const int _kMaxApproachRounds = 4;
 
   @override
   void initState() {
@@ -671,27 +671,40 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final ctx = _currentKey.currentContext;
-      if (ctx != null) {
-        _revealCentered(ctx);
-        return;
-      }
-      // 当前行尚未构建(懒加载):先用均高粗估跳到附近,下一帧再精确居中。
-      if (!_controller.hasClients || widget.queue.isEmpty) return;
-      final last = widget.queue.length - 1;
-      final index = (last <= 0 ? 0 : widget.currentIndex.clamp(0, last)).toInt();
-      final target = index * _kEstRowHeight;
-      final offset = target.clamp(
-        0.0,
-        _controller.position.maxScrollExtent,
-      ).toDouble();
-      _controller.jumpTo(offset);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final refined = _currentKey.currentContext;
-        if (refined == null) return;
+      _attemptCenter(round: 0);
+    });
+  }
+
+  /// 把「当前播放行」滚动到视口中间(与 _AutoCenterQueueListState 同策略):
+  /// 目标行未构建时用**比例法**粗估(maxScrollExtent × index/last),
+  /// 避免固定行高在长队列下误差累积导致目标行永不实例化;未命中则逐轮
+  /// 推进,命中后 Scrollable.ensureVisible(alignment: 0.5) 精确居中。
+  void _attemptCenter({required int round}) {
+    if (!mounted) return;
+    final ctx = _currentKey.currentContext;
+    if (ctx != null) {
+      _revealCentered(ctx);
+      return;
+    }
+    if (!_controller.hasClients || widget.queue.isEmpty) return;
+    final last = widget.queue.length - 1;
+    if (last <= 0) return;
+    final index = widget.currentIndex.clamp(0, last).toInt();
+    final maxExtent = _controller.position.maxScrollExtent;
+    var ratio = index / last;
+    if (round > 0) {
+      // 上一轮未命中(行高不均致粗估偏小):向队列尾部增量推进,最多数轮。
+      ratio = (ratio + 0.15 * round).clamp(0.0, 1.0);
+    }
+    _controller.jumpTo(maxExtent * ratio);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final refined = _currentKey.currentContext;
+      if (refined != null) {
         _revealCentered(refined);
-      });
+      } else if (round < _kMaxApproachRounds) {
+        _attemptCenter(round: round + 1);
+      }
     });
   }
 
@@ -755,8 +768,10 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
 }
 
 /// 桌面右下侧队列列表:自动把「当前播放」滚动到视口中间(对齐网易云客户端)。
-/// 行高不定(文本可换行),不依赖固定 itemExtent,用 Scrollable.ensureVisible
-/// (alignment:0.5) 精确居中;当前曲目变化后重新滚动到中间。
+/// 行高不定(文本可换行),不依赖固定 itemExtent:目标行未构建时用比例法
+/// 粗估(maxScrollExtent × index/last,不随 index 累积误差)+ 逐轮逼近,
+/// 构建后 Scrollable.ensureVisible(alignment: 0.5) 精确居中;当前曲目变化后
+/// 重新滚动到中间。
 class _AutoCenterQueueList extends StatefulWidget {
   const _AutoCenterQueueList({
     required this.queue,
@@ -786,9 +801,8 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
       widget.scrollController ?? ScrollController();
   final GlobalKey _currentKey = GlobalKey();
 
-  // 行高不定但大体均匀;仅用于懒加载下「先跳到附近」的粗估,
-  // 最终由 ensureVisible 精确定位,不依赖精确 itemExtent。
-  static const double _kEstRowHeight = 56.0;
+  // 比例法粗估的最多逼近轮数:目标行未实例化时逐轮向队列尾部推进。
+  static const int _kMaxApproachRounds = 4;
 
   @override
   void initState() {
@@ -818,29 +832,44 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final ctx = _currentKey.currentContext;
-      if (ctx != null) {
-        _revealCentered(ctx);
-        return;
-      }
-      // 当前行尚未构建(ListView 懒加载):先用均高粗估跳到附近,
-      // 下一帧当前行已实例化,再精确居中。
-      if (!_controller.hasClients || widget.queue.isEmpty) return;
-      final last = widget.queue.length - 1;
-      final index =
-          (last <= 0 ? 0 : widget.currentIndex.clamp(0, last)).toInt();
-      final target = index * _kEstRowHeight;
-      final offset = target.clamp(
-        0.0,
-        _controller.position.maxScrollExtent,
-      ).toDouble();
-      _controller.jumpTo(offset);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final refined = _currentKey.currentContext;
-        if (refined == null) return;
+      _attemptCenter(round: 0);
+    });
+  }
+
+  /// 把「当前播放行」滚动到视口中间。
+  ///
+  /// 目标行尚未构建时(ListView 懒加载)先用**比例法**粗估偏移——
+  /// 按当前行在队列中的位置比例乘以 maxScrollExtent,而非固定行高:
+  /// 固定行高在长队列(如随机模式 100+ 首)下误差随 index 线性累积,
+  /// 粗估位置偏出可视区后目标行始终不实例化,居中彻底失效。
+  /// 比例法误差仅来自行高不均,且每轮按比例推进兜底,直到目标行被构建,
+  /// 再由 Scrollable.ensureVisible(alignment: 0.5) 精确定位居中。
+  void _attemptCenter({required int round}) {
+    if (!mounted) return;
+    final ctx = _currentKey.currentContext;
+    if (ctx != null) {
+      _revealCentered(ctx);
+      return;
+    }
+    if (!_controller.hasClients || widget.queue.isEmpty) return;
+    final last = widget.queue.length - 1;
+    if (last <= 0) return;
+    final index = widget.currentIndex.clamp(0, last).toInt();
+    final maxExtent = _controller.position.maxScrollExtent;
+    var ratio = index / last;
+    if (round > 0) {
+      // 上一轮未命中(行高不均致粗估偏小):向队列尾部增量推进,最多数轮。
+      ratio = (ratio + 0.15 * round).clamp(0.0, 1.0);
+    }
+    _controller.jumpTo(maxExtent * ratio);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final refined = _currentKey.currentContext;
+      if (refined != null) {
         _revealCentered(refined);
-      });
+      } else if (round < _kMaxApproachRounds) {
+        _attemptCenter(round: round + 1);
+      }
     });
   }
 

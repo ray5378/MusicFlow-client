@@ -19,7 +19,10 @@ import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../library/pages/album_detail_page.dart';
 import '../../library/pages/artist_detail_page.dart';
 import '../../library/pages/playlist_detail_page.dart';
+import '../../library/widgets/album_options_sheet.dart';
+import '../../library/widgets/artist_options_sheet.dart';
 import '../../library/widgets/library_collection_components.dart';
+import '../../library/widgets/playlist_options_sheet.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../../../widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
@@ -632,6 +635,11 @@ class _LocalGroup extends ConsumerWidget {
                   builder: (context) => AlbumDetailPage(albumId: album.id),
                 ),
               ),
+              onLongPress: () => showAlbumOptionsSheet(
+                context: context,
+                ref: ref,
+                album: album,
+              ),
             ),
           ),
       ],
@@ -659,6 +667,11 @@ class _LocalGroup extends ConsumerWidget {
                   context: context,
                   builder: (context) => ArtistDetailPage(artistId: artist.id),
                 ),
+              ),
+              onLongPress: () => showArtistOptionsSheet(
+                context: context,
+                ref: ref,
+                artist: artist,
               ),
             ),
           ),
@@ -701,6 +714,10 @@ class _LocalGroup extends ConsumerWidget {
                         initialCoverArt: playlist.coverArt,
                       ),
                     ),
+                  ),
+                  onLongPress: () => showPlaylistOptionsSheet(
+                    context: context,
+                    playlist: playlist,
                   ),
                 ),
             ],

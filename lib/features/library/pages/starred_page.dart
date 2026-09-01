@@ -15,6 +15,7 @@ import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../discover/widgets/discover_media_widgets.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../widgets/album_options_sheet.dart';
+import '../widgets/artist_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
 import '../widgets/playlist_options_sheet.dart';
 import 'album_detail_page.dart';
@@ -420,6 +421,11 @@ class StarredPage extends ConsumerWidget {
                     context: context,
                     builder: (_) => ArtistDetailPage(artistId: artist.id),
                   ),
+                ),
+                onLongPress: () => showArtistOptionsSheet(
+                  context: context,
+                  ref: ref,
+                  artist: artist,
                 ),
               );
             },
