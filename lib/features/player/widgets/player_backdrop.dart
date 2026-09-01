@@ -190,11 +190,11 @@ class _PlayerBackdropSpec {
         progress,
       ),
       border: BoxBorder.lerp(from.border, to.border, progress),
-      boxShadow: BoxShadow.lerpList(
-        from.boxShadow,
-        to.boxShadow,
-        progress,
-      ),
+      // lerpList 在 progress=1 时仍产出 scale(0) 的残影阴影(blur 0 但 alpha
+      // 保留),落点语义应精确等于目标态,故终点直接采用 to.boxShadow。
+      boxShadow: progress < 1.0
+          ? BoxShadow.lerpList(from.boxShadow, to.boxShadow, progress)
+          : to.boxShadow,
     );
   }
 }

@@ -72,6 +72,9 @@ void main() {
       tester,
       status: status,
       recoveryDisplayDuration: const Duration(milliseconds: 600),
+      // 测试时钟无法推进 DateTime.now 的真实时间,关闭启动静默窗口以
+      // 验证「网络已恢复」toast 路径(生产默认 30 秒静默)。
+      startupSilentRecoveryWindow: Duration.zero,
     );
     expect(find.text('当前离线'), findsOneWidget);
 
@@ -100,6 +103,7 @@ Future<void> _pumpStatusBar(
   WidgetTester tester, {
   required ValueNotifier<MusicFlowNetworkStatus> status,
   Duration recoveryDisplayDuration = const Duration(seconds: 3),
+  Duration startupSilentRecoveryWindow = const Duration(seconds: 30),
   double textScale = 1,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -122,6 +126,7 @@ Future<void> _pumpStatusBar(
               return MusicFlowNetworkStatusBar(
                 status: value,
                 recoveryDisplayDuration: recoveryDisplayDuration,
+                startupSilentRecoveryWindow: startupSilentRecoveryWindow,
               );
             },
           ),

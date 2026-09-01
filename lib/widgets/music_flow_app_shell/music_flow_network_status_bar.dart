@@ -25,11 +25,16 @@ class MusicFlowNetworkStatusBar extends StatefulWidget {
     required this.status,
     this.recoveryDisplayDuration = const Duration(seconds: 3),
     this.includeBottomSafeArea = false,
+    this.startupSilentRecoveryWindow = const Duration(seconds: 30),
   });
 
   final MusicFlowNetworkStatus status;
   final Duration recoveryDisplayDuration;
   final bool includeBottomSafeArea;
+
+  /// 启动后该窗口内的「连接达到」视为冷启动连上,静默恢复不弹提示。
+  /// 可注入以便测试(测试时钟无法推进 DateTime.now 的真实时间)。
+  final Duration startupSilentRecoveryWindow;
 
   @override
   State<MusicFlowNetworkStatusBar> createState() => _MusicFlowNetworkStatusBarState();
@@ -39,8 +44,6 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   Timer? _recoveryTimer;
   late _MusicFlowNetworkBannerState _bannerState;
   late final DateTime _createdAt;
-  /// 启动后前 30 秒内的「连接达到」视为冷启动连上,静默恢复,不弹「网络已恢复」。
-  static const Duration _startupSilentRecoveryWindow = Duration(seconds: 30);
 
   @override
   void initState() {
@@ -92,7 +95,8 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
     });
     // 启动后前 30 秒内连接上的场景视为「冷启动连上」,静默恢复即可,
     // 不弹「网络已恢复」的成功 Toast(横幅已隐藏)。30 秒后再恢复则正常提示。
-    if (DateTime.now().difference(_createdAt) < _startupSilentRecoveryWindow) {
+    if (DateTime.now().difference(_createdAt) <
+        widget.startupSilentRecoveryWindow) {
       return;
     }
     // 网络恢复：释放内联横幅空间，改为右上角成功 Toast。didUpdateWidget 发生在

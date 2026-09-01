@@ -333,7 +333,8 @@ void main() {
           expect(playerRect.bottom, lessThanOrEqualTo(navigationRect.top));
           expect(playerRect.left, 12);
           expect(size.width - playerRect.right, 12);
-          expect(navigationRect.top - playerRect.bottom, 4);
+          // compact 分支底部 padding = spacing.sm(12),悬浮胶囊空隙(c961f1f)。
+          expect(navigationRect.top - playerRect.bottom, 12);
         } else {
           expect(contentRect.bottom, lessThanOrEqualTo(playerRect.top));
           expect(playerRect.bottom, lessThanOrEqualTo(size.height - 24));
@@ -384,12 +385,13 @@ void main() {
       final surfaceRect = tester.getRect(surface);
       final navigationRect = tester.getRect(_compactNavigation);
       final progressRect = tester.getRect(
-        find.byKey(const Key('mini-player-progress')),
+        find.byKey(const Key('mini-player-scrubber')),
       );
 
       expect(surfaceRect.width, 296);
       expect(surfaceRect.height, MiniPlayer.height);
-      expect(navigationRect.top - surfaceRect.bottom, 4);
+      // compact 分支底部 padding = spacing.sm(12),悬浮胶囊空隙(c961f1f)。
+      expect(navigationRect.top - surfaceRect.bottom, 12);
       expect(progressRect.left, surfaceRect.left);
       expect(progressRect.bottom, surfaceRect.bottom);
     });

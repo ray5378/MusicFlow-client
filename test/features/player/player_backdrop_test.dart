@@ -54,11 +54,13 @@ void main() {
     ]);
     expect(
       miniDecoration.borderRadius,
-      const BorderRadius.all(Radius.circular(16)),
+      const BorderRadius.all(Radius.circular(24)),
     );
     expect(miniDecoration.border, isA<Border>());
     expect((miniDecoration.border! as Border).top.color, visuals.controlAccent);
-    expect(miniDecoration.boxShadow, isEmpty);
+    // MINI 悬浮胶囊自带轻微阴影(v3.4.63 起断言与设计一致)。
+    expect(miniDecoration.boxShadow, isNotEmpty);
+    expect(miniDecoration.boxShadow!.single.blurRadius, closeTo(12, 0.001));
 
     final stageDecoration = _backdropDecoration(
       tester,
@@ -83,7 +85,7 @@ void main() {
       await tester.tap(find.byKey(const Key('open-player')));
       await tester.pump();
 
-      var previousRadius = 16.0;
+      var previousRadius = 24.0;
       for (var step = 1; step <= 3; step += 1) {
         await tester.pump(const Duration(milliseconds: 75));
         final decoration = _flightDecoration(tester);
@@ -91,7 +93,9 @@ void main() {
         final radius = _radiusOf(decoration);
         expect(radius, lessThan(previousRadius));
         expect(radius, greaterThan(0));
-        expect(decoration.boxShadow, isEmpty);
+        // 飞行中 mini 阴影随 progress 淡出,落点 stage 无阴影。
+        expect(decoration.boxShadow, isNotEmpty);
+        expect(decoration.boxShadow!.single.blurRadius, lessThan(12));
         previousRadius = radius;
 
         if (step == 2) {
@@ -104,6 +108,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 75));
       final landedStage = _flightDecoration(tester);
       _expectRadiusValue(landedStage, 0);
+      expect(landedStage.boxShadow, isEmpty);
       expect((landedStage.gradient! as LinearGradient).colors, <Color>[
         visuals.stageGlow,
         visuals.stageBase,
@@ -134,13 +139,15 @@ void main() {
         _expectContrastSafe(decoration, visuals);
         final radius = _radiusOf(decoration);
         expect(radius, greaterThan(previousRadius));
-        expect(radius, lessThan(16));
+        expect(radius, lessThan(24));
         previousRadius = radius;
       }
 
       await tester.pump(const Duration(milliseconds: 75));
       final landedMini = _flightDecoration(tester);
-      _expectRadiusValue(landedMini, 16);
+      _expectRadiusValue(landedMini, 24);
+      expect(landedMini.boxShadow, isNotEmpty);
+      expect(landedMini.boxShadow!.single.blurRadius, closeTo(12, 0.001));
       expect((landedMini.gradient! as LinearGradient).colors, <Color>[
         visuals.miniSurface,
         visuals.miniSurface,
