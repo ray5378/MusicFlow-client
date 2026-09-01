@@ -1,3 +1,25 @@
+# v3.4.62 Windows 右键菜单修复 + 搜索入口移入「库」导航 总览
+
+## v3.4.62（本轮）
+
+### 一、Windows 右键不弹菜单（用户反馈「安卓可长按,Windows 右键没弹窗」）
+- **根因**：`MusicFlowPressable.onLongPress` 由 `InkWell.onLongPress` 消费，而 InkWell 的长按手势（`LongPressGestureRecognizer`）**只跟踪主按钮**（触摸/鼠标左键按住），鼠标右键按下根本不进入该手势 → 安卓长按弹菜单正常、Windows 右键完全无反应。
+- **修复**（`lib/core/design/components/music_flow_pressable.dart`）：复用现有 raw `Listener.onPointerDown`，当 `event.buttons == kSecondaryButton` 时**按下立即触发 `onLongPress`**（桌面端「右键 = 长按菜单」语义），且不参与按压缩放反馈（与触屏长按视觉区分）。
+- **回归测试**（`music_flow_pressable_test.dart` +2 例）：①鼠标右键（`startGesture` + `kSecondaryButton`）触发 `onLongPress` 且不触发 `onPressed`；②无 `onLongPress` 时右键无副作用。
+
+### 二、搜索入口从首页右上角移入「库」分类导航第一位（用户要求）
+- 需求：右上角搜索按钮移到分类导航首位，样式/颜色与库按钮一致，标注「探索」；最终顺序 **探索 喜欢 歌单 歌曲 艺术家 专辑**。
+- **改动**（`lib/features/discover/pages/discover_page.dart`）：
+  1. `CategoryNavBar._items` 首位插入 `('探索', AppIcons.search, const SearchPage())`——复用 `_CategoryNavItem`（accent 图标 26px + 下方 metadata 文字标注），样式颜色与其余库按钮完全一致，点击打开与搜索条同一个全屏 `SearchPage`。
+  2. compact 标题行右侧 `home-header-search` 按钮与 `Spacer` 移除（搜索入口唯一化，避免重复）。
+- **回归测试**（`discover_page_test.dart` 更新+新增）：分类入口断言 5→6 项含「探索」；「探索」点击打开全屏搜索页；「探索」位于「喜欢」左侧（第一位）。
+
+### 验证
+- analyze 零 error；全量 +469 -6 = 5 历史基线 + ssdp flaky x1，零新回归（新增 2 例右键测试全过）。
+- 发版：commit 2ae4da7 + tag v3.4.62 → CI 三流水线全 success → Release 三产物（android.apk 46.6MB / windows-setup.exe 32.9MB / windows.zip 39.8MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
+
+---
+
 # v3.4.61 播放卡片：竖条压缩到 2/3 + 播放时自动隐藏按钮 总览
 
 ## v3.4.61（本轮）
