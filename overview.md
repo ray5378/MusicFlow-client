@@ -13,8 +13,8 @@
   3. `onPlay=null` 不论 `isNowPlaying` 都不渲染按钮。
 
 ### 验证
-- analyze 零 error；新回归测试 3/3 通过；discover/widgets/library/player 相关测试 +136 -5 = 5 历史基线，零新回归；全量 +X 见 commit。
-- 发版：commit <pending> + tag v3.4.60 → CI 三流水线验证。
+- analyze 零 error；新回归测试 3/3 通过；discover/widgets/library/player 相关测试 +136 -5 = 5 历史基线，零新回归；全量 +467 -6 = 5 历史基线 + ssdp flaky x1，零新回归。
+- 发版：commit eecfb6e + tag v3.4.61 → CI 三流水线全 success → Release 三产物（android.apk 44.4MB / windows-setup.exe 31.3MB / windows.zip 37.9MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
 
 ---
 
