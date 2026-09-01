@@ -8,6 +8,7 @@ import '../../../data/models/song.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../features/library/widgets/library_collection_components.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/player_provider.dart';
 import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
@@ -98,11 +99,18 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final song = songs[index];
+                      // 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
+                      final currentSongId = ref.watch(
+                        playerProvider.select(
+                          (state) => state.currentSong?.id,
+                        ),
+                      );
                       return SongListItem(
                         key: ValueKey<String>('remote-artist-song-${song.id}-$index'),
                         song: song,
                         index: index,
                         variant: SongListItemVariant.standard,
+                        isCurrent: song.id == currentSongId,
                         isPreview: song.isPreview,
                         onTap: () => playEffectiveQueue(
                           ref,

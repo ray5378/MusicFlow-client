@@ -21,6 +21,7 @@ import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
+import '../../../providers/queue_origin_provider.dart';
 import '../../../providers/recommend_provider.dart';
 import '../../../widgets/main_scaffold.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
@@ -886,6 +887,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
         (MediaQuery.sizeOf(context).width * 0.72).clamp(260.0, 360.0);
     if (songs.isEmpty) return const SizedBox.shrink();
 
+    // 当前播放歌曲 id:识别正在播放的歌曲行（封面叠加跳动竖条）。
+    final currentSongId = ref.watch(playerProvider.select((s) => s.currentSong?.id));
+
     final columnCount = (songs.length + 2) ~/ 3;
     // 每列最多 3 行。行高与封面等高(56):信息区 3 行(歌名/歌手/标签)
     // 正好塞进 56 高,行距 10px(参考稿,当前 5px 的 2 倍),再留少量余量兜底。
@@ -921,6 +925,10 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                             width: itemWidth,
                             child: DiscoverSongTile(
                               song: songs[firstRow + row],
+                              isCurrent:
+                                  currentSongId != null &&
+                                  currentSongId ==
+                                      songs[firstRow + row].id,
                               onPressed: () {
                                 playEffectiveQueue(
                                   ref,
@@ -1136,6 +1144,8 @@ class RecentPlaylistsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final playlistsAsync = ref.watch(recentPlaylistsProvider);
     final loadFailed = ref.watch(recentPlaylistsLoadFailedProvider);
+    // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1183,6 +1193,8 @@ class RecentPlaylistsSection extends ConsumerWidget {
                       title: pl.name,
                       subtitle: '${pl.songCount} 首',
                       coverArtId: pl.coverArt,
+                      isNowPlaying: queueOrigin?.matchesPlaylist(pl.id) ??
+                          false,
                       onPressed: () {
                         Navigator.of(context).push<void>(
                           MusicFlowPageRoute<void>(
@@ -1236,6 +1248,8 @@ class FixedRecommendSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sectionAsync = ref.watch(homeRecommendSectionProvider);
     final loadFailed = ref.watch(homeCardsLoadFailedProvider);
+    // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1296,6 +1310,9 @@ class FixedRecommendSection extends ConsumerWidget {
                       title: card.name,
                       subtitle: '${card.songCount} 首',
                       coverArtId: card.coverArt,
+                      isNowPlaying:
+                          queueOrigin?.matchesPlaylist(card.playlistId) ??
+                          false,
                       onPressed: () {
                         Navigator.of(context).push<void>(
                           MusicFlowPageRoute<void>(

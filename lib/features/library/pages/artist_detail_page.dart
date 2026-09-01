@@ -8,6 +8,7 @@ import '../../../data/models/song.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -25,6 +26,13 @@ class ArtistDetailPage extends ConsumerStatefulWidget {
 }
 
 class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
+
+  /// 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
+  String? get _currentSongId => ref.watch(
+    playerProvider.select((state) => state.currentSong?.id),
+  );
+
+  bool _isCurrentSong(String songId) => songId == _currentSongId;
   static const int _topSongsPreviewCount = 5;
 
   int _selectedSection = 0;
@@ -204,28 +212,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                   ),
                   SizedBox(height: context.musicFlowSpacing.xs),
                   for (var index = 0; index < visibleSongs.length; index++)
-                    SongListItem(
-                      song: visibleSongs[index],
-                      index: index,
-                      variant: SongListItemVariant.standard,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: context.musicFlowSpacing.xs,
-                      ),
-                      onTap: () {
-                        final queueIndex = topSongs.indexWhere(
-                          (song) => song.id == visibleSongs[index].id,
-                        );
-                        playEffectiveQueue(
-                          ref,
-                          topSongs,
-                          startIndex: queueIndex < 0 ? index : queueIndex,
-                        );
-                      },
-                      onLongPress: () => showSongOptionsSheet(
-                        context: context,
-                        song: visibleSongs[index],
-                      ),
-                    ),
+                    _buildTopSongRow(index, visibleSongs[index], topSongs),
                 ],
               ),
             );
@@ -280,23 +267,49 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
         SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
             final song = songs[index];
-            return SongListItem(
-              song: song,
-              index: index,
-              variant: SongListItemVariant.standard,
-              onTap: () => playEffectiveQueue(
-                ref,
-                songs,
-                startIndex: index,
-              ),
-              onLongPress: () =>
-                  showSongOptionsSheet(context: context, song: song),
-            );
+            return _buildSongRow(index, song, songs);
           }, childCount: songs.length),
         ),
       );
     }
     return slivers;
+  }
+
+  Widget _buildTopSongRow(int index, Song song, List<Song> topSongs) {
+    return SongListItem(
+      song: song,
+      index: index,
+      variant: SongListItemVariant.standard,
+      isCurrent: _isCurrentSong(song.id),
+      contentPadding: EdgeInsets.symmetric(
+        vertical: context.musicFlowSpacing.xs,
+      ),
+      onTap: () {
+        final queueIndex = topSongs.indexWhere((s) => s.id == song.id);
+        playEffectiveQueue(
+          ref,
+          topSongs,
+          startIndex: queueIndex < 0 ? index : queueIndex,
+        );
+      },
+      onLongPress: () => showSongOptionsSheet(context: context, song: song),
+    );
+  }
+
+  Widget _buildSongRow(int index, Song song, List<Song> songs) {
+    return SongListItem(
+      song: song,
+      index: index,
+      variant: SongListItemVariant.standard,
+      isCurrent: _isCurrentSong(song.id),
+      onTap: () => playEffectiveQueue(
+        ref,
+        songs,
+        startIndex: index,
+      ),
+      onLongPress: () =>
+          showSongOptionsSheet(context: context, song: song),
+    );
   }
 
   List<Widget> _buildAlbumSlivers(List<Album> albums) {

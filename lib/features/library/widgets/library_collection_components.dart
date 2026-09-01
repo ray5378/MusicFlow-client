@@ -6,6 +6,7 @@ import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/artist.dart';
 import '../../../widgets/cover_art_image.dart';
+import '../../../widgets/now_playing_bars.dart';
 
 class MusicFlowAlbumTile extends StatelessWidget {
   const MusicFlowAlbumTile({
@@ -14,12 +15,16 @@ class MusicFlowAlbumTile extends StatelessWidget {
     required this.onPressed,
     this.onLongPress,
     this.allowFullText = false,
+    this.isNowPlaying = false,
   });
 
   final Album album;
   final VoidCallback onPressed;
   final VoidCallback? onLongPress;
   final bool allowFullText;
+
+  /// 该专辑是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +82,14 @@ class MusicFlowAlbumTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ),
+                  // 正在播放：封面右下角半透明遮罩 + 白色跳动竖条。
+                  if (isNowPlaying)
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final coverSize = constraints.biggest.shortestSide;
+                        return NowPlayingCoverOverlay(size: coverSize);
+                      },
                     ),
                 ],
               ),

@@ -5,6 +5,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
 import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/now_playing_bars.dart';
 import 'package:musicflow_client/widgets/song_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,7 +90,8 @@ void main() {
     expect(find.byType(CoverArtImage), findsNWidgets(2));
     expect(find.bySemanticsLabel(RegExp('正在播放')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('试听')), findsOneWidget);
-    expect(find.byIcon(AppIcons.equalizer), findsOneWidget);
+    // 当前行封面内展示「跳动竖条」播放指示器（替代旧的角标 equalizer）。
+    expect(find.byType(NowPlayingCoverOverlay), findsOneWidget);
     expect(find.text('2'), findsNothing);
     final covers = tester.widgetList<CoverArtImage>(find.byType(CoverArtImage));
     expect(isTrustedCoverUrlRef(covers.last.coverArtId), isTrue);
@@ -123,7 +125,9 @@ void main() {
     expect(opened, <int>[1]);
 
     await tester.drag(find.byType(ListView), const Offset(0, 600));
-    await tester.pumpAndSettle();
+    // 当前行封面含无限循环的跳动竖条动画，pumpAndSettle 永不稳定，改用固定时长 pump。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.longPress(find.text(songs.first.title));
     await tester.pump();
     expect(selected, <int>[1]);

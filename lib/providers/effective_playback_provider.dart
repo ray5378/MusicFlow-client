@@ -4,6 +4,7 @@ import '../data/models/song.dart';
 import 'cast_peer_provider.dart';
 import 'dlna_provider.dart';
 import 'player_provider.dart';
+import 'queue_origin_provider.dart';
 
 /// 统一「本机 / 后端投流 peer / 局域网 DLNA 直投」的播放状态与控制入口。
 ///
@@ -99,11 +100,18 @@ Future<bool> previousEffectivePlayback(WidgetRef ref) async {
 /// **统一播放入口** —— 播放专辑/歌单/列表(对齐主项目前端 UI-routed playQueue):
 /// - 投屏(选中远端 peer):命令**后端**以该队列在设备播放(客户端是远程遥控器);
 /// - 本机:走 just_audio 本地播放。
+///
+/// [origin] 标记本次播放的来源（歌单/专辑/艺术家等），供封面「正在播放」
+/// 指示器识别；为 null 时视为其它来源（首页随机/搜索等），清空封面指示。
 Future<bool> playEffectiveQueue(
   WidgetRef ref,
   List<Song> songs, {
   int startIndex = 0,
+  QueueOrigin? origin,
 }) async {
+  // 每次发起播放都覆盖来源标记：null → other（首页随机/搜索等无来源场景）。
+  ref.read(queueOriginProvider.notifier).state =
+      origin ?? const QueueOrigin(QueueOriginKind.other);
   // 链路 B(局域网 DLNA 直投):复用本机中转会话直接切队列播放,本人保持遥控器态。
   if (ref.read(_dlnaCastingProvider)) {
     return ref

@@ -3,6 +3,7 @@ import 'dart:ui' show Tristate;
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/widgets/now_playing_bars.dart';
 import 'package:musicflow_client/widgets/song_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,7 +58,8 @@ void main() {
       final moreSize = tester.getSize(moreSemantics);
       expect(moreSize.width, greaterThanOrEqualTo(48));
       expect(moreSize.height, greaterThanOrEqualTo(48));
-      expect(find.byIcon(AppIcons.equalizer), findsOneWidget);
+      // 正在播放行：封面内展示「跳动竖条」播放指示器（替代旧的角标 equalizer）。
+      expect(find.byType(NowPlayingCoverOverlay), findsOneWidget);
       expect(find.byIcon(AppIcons.heart), findsOneWidget);
       expect(find.byIcon(AppIcons.cloud), findsOneWidget);
       expect(find.byIcon(AppIcons.more), findsOneWidget);

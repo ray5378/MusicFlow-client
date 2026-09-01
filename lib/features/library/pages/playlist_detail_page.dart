@@ -16,6 +16,7 @@ import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
+import '../../../providers/queue_origin_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -255,6 +256,10 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Widget _body(Playlist? displayMeta) {
+    // 当前播放来源：识别本歌单是否正在播放（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
+    final isNowPlaying = queueOrigin?.matchesPlaylist(widget.playlistId) ??
+        false;
     if (displayMeta == null) {
       if (_metaFailed) {
         return MusicFlowErrorState(
@@ -288,6 +293,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 child: _PlaylistIdentityHeader(
                   playlist: playlist,
                   songCount: currentSongCount,
+                  isNowPlaying: isNowPlaying,
                 ),
               ),
               if (_songList.hasError && currentSongCount == 0)
@@ -459,12 +465,17 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Widget _buildSongRow(BuildContext context, int index, Song song) {
+    // 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
+    final currentSongId = ref.watch(
+      playerProvider.select((state) => state.currentSong?.id),
+    );
     return KeyedSubtree(
       key: ValueKey<String>('playlist-song-$index'),
       child: SongListItem(
         song: song,
         index: index,
         variant: SongListItemVariant.standard,
+        isCurrent: song.id == currentSongId,
         selectionMode: _selectionMode,
         selected: _selectedSongIndexes.contains(index),
         onToggleSelected: () => _toggleSongSelection(index),
@@ -481,7 +492,12 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     try {
       final all = await repository.getAllPlaylistSongs(widget.playlistId);
       if (!mounted) return;
-      await playEffectiveQueue(ref, all, startIndex: 0);
+      await playEffectiveQueue(
+        ref,
+        all,
+        startIndex: 0,
+        origin: QueueOrigin(QueueOriginKind.playlist, widget.playlistId),
+      );
     } catch (_) {
       if (mounted) NetworkErrorNotifier.show('网络异常，无法播放歌单');
     }
@@ -497,6 +513,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         ref,
         all,
         startIndex: index.clamp(0, all.length - 1),
+        origin: QueueOrigin(QueueOriginKind.playlist, widget.playlistId),
       );
     } catch (_) {
       final song = _songList[index];
@@ -1038,10 +1055,14 @@ class _PlaylistIdentityHeader extends StatelessWidget {
   const _PlaylistIdentityHeader({
     required this.playlist,
     required this.songCount,
+    this.isNowPlaying = false,
   });
 
   final Playlist playlist;
   final int songCount;
+
+  /// 该歌单是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -1061,6 +1082,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                 semanticLabel: '${playlist.name} 封面',
                 heroTag: 'playlist-cover-${playlist.id}',
                 requestSize: 480,
+                isNowPlaying: isNowPlaying,
               ),
             );
             final information = Column(

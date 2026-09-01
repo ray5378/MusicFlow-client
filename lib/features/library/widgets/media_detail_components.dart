@@ -5,6 +5,7 @@ import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/album.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../widgets/cover_art_image.dart';
+import '../../../widgets/now_playing_bars.dart';
 import '../utils/library_sorting.dart';
 
 Future<SongSortOption?> showMediaSongSortSheet({
@@ -123,6 +124,7 @@ class MediaDetailArtwork extends StatelessWidget {
     this.heroTag,
     this.circular = false,
     this.requestSize = 720,
+    this.isNowPlaying = false,
   });
 
   final String? coverArtId;
@@ -130,6 +132,9 @@ class MediaDetailArtwork extends StatelessWidget {
   final Object? heroTag;
   final bool circular;
   final int requestSize;
+
+  /// 当前媒体是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +151,22 @@ class MediaDetailArtwork extends StatelessWidget {
     if (heroTag != null) {
       artwork = Hero(tag: heroTag!, child: artwork);
     }
-    return artwork;
+
+    if (!isNowPlaying) return artwork;
+
+    // 正在播放：封面右下角半透明遮罩 + 白色跳动竖条（尺寸随封面自适应）。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final coverSize = constraints.biggest.shortestSide;
+        return Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            artwork,
+            NowPlayingCoverOverlay(size: coverSize),
+          ],
+        );
+      },
+    );
   }
 }
 

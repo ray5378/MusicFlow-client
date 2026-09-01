@@ -74,14 +74,15 @@ void main() {
 
     await tester.tap(find.byKey(const Key('mini-player-track')));
     await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
+    // 全屏播放器队列当前行含无限循环的跳动竖条动画，pumpAndSettle 永不稳定。
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(FullPlayerPage), findsOneWidget);
     expect(find.bySemanticsLabel('收起播放器'), findsOneWidget);
     expect(find.bySemanticsLabel('播放队列'), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('播放队列'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 350));
 
     expect(find.byType(PlayQueueSheet), findsOneWidget);
     expect(find.text('2 首曲目'), findsOneWidget);
@@ -91,7 +92,7 @@ void main() {
     expect(queuedRow, findsOneWidget);
 
     await tester.tap(queuedRow);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 350));
 
     expect(find.byType(PlayQueueSheet), findsNothing);
     expect(notifier.skippedIndices, <int>[1]);

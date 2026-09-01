@@ -7,6 +7,8 @@ import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/playlist_provider.dart';
+import '../../../providers/queue_origin_provider.dart';
+import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
@@ -277,10 +279,15 @@ class StarredPage extends ConsumerWidget {
 
               final index = listIndex - 1;
               final song = songs[index];
+              // 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
+              final currentSongId = ref.watch(
+                playerProvider.select((state) => state.currentSong?.id),
+              );
               return SongListItem(
                 song: song,
                 index: index,
                 variant: SongListItemVariant.standard,
+                isCurrent: song.id == currentSongId,
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: context.musicFlowPageHorizontalPadding,
                   vertical: context.musicFlowSpacing.xs,
@@ -308,6 +315,8 @@ class StarredPage extends ConsumerWidget {
   }
 
   Widget _buildAlbumsTab(BuildContext context, WidgetRef ref) {
+    // 当前播放来源：识别正在播放的专辑（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
     final starredAsync = ref.watch(starredProvider);
     return starredAsync.when(
       data: (starred) {
@@ -366,6 +375,8 @@ class StarredPage extends ConsumerWidget {
                   final album = albums[index];
                   return MusicFlowAlbumTile(
                     album: album,
+                    isNowPlaying: queueOrigin?.matchesAlbum(album.id) ??
+                        false,
                     onPressed: () => _openAlbum(context, album.id),
                     onLongPress: () => showAlbumOptionsSheet(
                       context: context,

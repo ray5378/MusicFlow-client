@@ -15,6 +15,7 @@ import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 
@@ -179,12 +180,17 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   }
 
   Widget _buildRow(int index, Song song) {
+    // 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
+    final currentSongId = ref.watch(
+      playerProvider.select((state) => state.currentSong?.id),
+    );
     return KeyedSubtree(
       key: ValueKey('song-row-${song.id}'),
       child: SongListItem(
         song: song,
         index: index,
         variant: SongListItemVariant.standard,
+        isCurrent: song.id == currentSongId,
         contentPadding: EdgeInsetsDirectional.fromSTEB(
           context.musicFlowPageHorizontalPadding,
           context.musicFlowSpacing.xs,

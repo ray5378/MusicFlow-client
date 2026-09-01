@@ -6,6 +6,7 @@ import '../../../data/models/album.dart';
 import '../../../data/models/playlist.dart';
 import '../../../data/models/song.dart';
 import '../../../widgets/cover_art_image.dart';
+import '../../../widgets/now_playing_bars.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../library/widgets/library_collection_components.dart';
 
@@ -16,12 +17,16 @@ class DiscoverSongTile extends StatelessWidget {
     required this.onPressed,
     required this.onOpenActions,
     this.onLongPress,
+    this.isCurrent = false,
   });
 
   final Song song;
   final VoidCallback onPressed;
   final VoidCallback onOpenActions;
   final VoidCallback? onLongPress;
+
+  /// 该歌曲是否正在播放：封面中央叠加半透明遮罩 + 白色跳动竖条。
+  final bool isCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +45,7 @@ class DiscoverSongTile extends StatelessWidget {
         titleMaxLines: 1,
         // 信息区 3 行：歌名 / 歌手 / 刮削标签（音质·码率·格式·大小·时长）。
         richMetadata: true,
+        isCurrent: isCurrent,
       ),
     );
   }
@@ -52,12 +58,16 @@ class DiscoverAlbumTile extends StatelessWidget {
     required this.onPressed,
     required this.width,
     this.onLongPress,
+    this.isNowPlaying = false,
   });
 
   final Album album;
   final VoidCallback onPressed;
   final double width;
   final VoidCallback? onLongPress;
+
+  /// 该专辑是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +77,7 @@ class DiscoverAlbumTile extends StatelessWidget {
         album: album,
         onPressed: onPressed,
         onLongPress: onLongPress,
+        isNowPlaying: isNowPlaying,
       ),
     );
   }
@@ -159,6 +170,7 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
     required this.height,
     required this.onPressed,
     this.onLongPress,
+    this.isNowPlaying = false,
   });
 
   final Album album;
@@ -166,6 +178,9 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
   final double height;
   final VoidCallback onPressed;
   final VoidCallback? onLongPress;
+
+  /// 该专辑是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -199,18 +214,28 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
           ),
           child: Padding(
             padding: EdgeInsets.all(context.musicFlowSpacing.sm),
-            child: Row(
-              children: <Widget>[
-                ClipRRect(
-                  borderRadius: context.musicFlowRadii.surface,
-                  child: CoverArtImage(
-                    coverArtId: album.coverArt,
-                    size: artworkSize,
-                    requestSize: 320,
-                    fit: BoxFit.cover,
-                    semanticLabel: '${album.name} 封面',
+              child: Row(
+                children: <Widget>[
+                  Stack(
+                    children: <Widget>[
+                      ClipRRect(
+                        borderRadius: context.musicFlowRadii.surface,
+                        child: CoverArtImage(
+                          coverArtId: album.coverArt,
+                          size: artworkSize,
+                          requestSize: 320,
+                          fit: BoxFit.cover,
+                          semanticLabel: '${album.name} 封面',
+                        ),
+                      ),
+                      // 正在播放：封面右下角半透明遮罩 + 白色跳动竖条。
+                      if (isNowPlaying)
+                        SizedBox.square(
+                          dimension: artworkSize,
+                          child: NowPlayingCoverOverlay(size: artworkSize),
+                        ),
+                    ],
                   ),
-                ),
                 SizedBox(width: context.musicFlowSpacing.sm),
                 Expanded(
                   child: Column(
@@ -1172,6 +1197,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
     required this.onPressed,
     this.loading = false,
     this.width = 160,
+    this.isNowPlaying = false,
   });
 
   final String title;
@@ -1181,6 +1207,9 @@ class DiscoverPlaylistCard extends StatelessWidget {
   final VoidCallback onPressed;
   final bool loading;
   final double width;
+
+  /// 该歌单是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   String? get _effectiveCoverRef {
     if (coverArtId != null && coverArtId!.isNotEmpty) return coverArtId;
@@ -1242,6 +1271,9 @@ class DiscoverPlaylistCard extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 3),
                           ),
                         ),
+                      // 正在播放：封面右下角半透明遮罩 + 白色跳动竖条。
+                      if (isNowPlaying)
+                        NowPlayingCoverOverlay(size: width),
                     ],
                   ),
                 ),

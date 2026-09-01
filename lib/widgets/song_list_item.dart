@@ -5,6 +5,7 @@ import '../core/utils/song_quality.dart';
 import '../data/models/song.dart';
 import 'music_flow_artwork.dart';
 import 'music_flow_metadata_line.dart';
+import 'now_playing_bars.dart';
 
 enum MusicFlowSongRowVariant { albumTrack, standard, topRank }
 
@@ -264,13 +265,16 @@ class MusicFlowSongRow extends StatelessWidget {
                 borderRadius: context.musicFlowRadii.detail,
               ),
             ),
+            // 正在播放：封面中央叠加半透明遮罩 + 白色跳动竖条（网易云风格）。
+            // 队列等小封面直接正中间展示；大封面场景由上层组件另行处理。
             if (isCurrent)
-              PositionedDirectional(
-                end: -2,
-                bottom: -2,
-                child: _CurrentPlayingBadge(
-                  background: context.musicFlowColors.accent,
-                  foreground: context.musicFlowColors.onAccent,
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: context.musicFlowRadii.detail,
+                  child: NowPlayingCoverOverlay(
+                    size: coverSize,
+                    alignment: Alignment.center,
+                  ),
                 ),
               ),
           ],
@@ -337,31 +341,6 @@ class _NumberLeading extends StatelessWidget {
                           ],
                         ),
               ),
-      ),
-    );
-  }
-}
-
-class _CurrentPlayingBadge extends StatelessWidget {
-  const _CurrentPlayingBadge({
-    required this.background,
-    required this.foreground,
-  });
-
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: context.musicFlowRadii.pill,
-        border: Border.all(color: context.musicFlowColors.surface, width: 2),
-      ),
-      child: SizedBox.square(
-        dimension: 20,
-        child: Icon(AppIcons.equalizer, size: 12, color: foreground),
       ),
     );
   }

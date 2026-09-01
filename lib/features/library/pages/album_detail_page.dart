@@ -8,6 +8,7 @@ import '../../../data/models/song.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../providers/queue_origin_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
@@ -32,6 +33,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
     final detailAsync = ref.watch(albumDetailProvider(widget.albumId));
     final loadFailed = ref.watch(albumDetailLoadFailedProvider(widget.albumId));
     final currentAlbum = detailAsync.valueOrNull?.album;
+    // 当前播放来源：识别本专辑是否正在播放（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
+    final isNowPlaying = queueOrigin?.matchesAlbum(widget.albumId) ?? false;
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
@@ -93,9 +97,17 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                       child: _AlbumIdentityHeader(
                         album: album,
                         songs: songs,
+                        isNowPlaying: isNowPlaying,
                         onPlay: songs.isEmpty
                             ? null
-                            : () => playEffectiveQueue(ref, songs),
+                            : () => playEffectiveQueue(
+                                ref,
+                                songs,
+                                origin: QueueOrigin(
+                                  QueueOriginKind.album,
+                                  widget.albumId,
+                                ),
+                              ),
                         onToggleStarred: () => _toggleStarred(album),
                       ),
                     ),
@@ -151,6 +163,10 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                               ref,
                               songs,
                               startIndex: index,
+                              origin: QueueOrigin(
+                                QueueOriginKind.album,
+                                widget.albumId,
+                              ),
                             ),
                             onLongPress: () => showSongOptionsSheet(
                               context: context,
@@ -230,12 +246,16 @@ class _AlbumIdentityHeader extends StatelessWidget {
     required this.songs,
     required this.onPlay,
     required this.onToggleStarred,
+    this.isNowPlaying = false,
   });
 
   final Album album;
   final List<Song> songs;
   final VoidCallback? onPlay;
   final VoidCallback onToggleStarred;
+
+  /// 该专辑是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
+  final bool isNowPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +280,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
                 semanticLabel: '${album.name} 封面',
                 heroTag: 'album-cover-${album.id}',
                 requestSize: 480,
+                isNowPlaying: isNowPlaying,
               ),
             );
 
@@ -296,6 +317,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
                 coverArtId: album.coverArt,
                 semanticLabel: '${album.name} 封面',
                 heroTag: 'album-cover-${album.id}',
+                isNowPlaying: isNowPlaying,
               ),
             ),
           );

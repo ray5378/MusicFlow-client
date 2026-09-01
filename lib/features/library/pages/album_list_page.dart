@@ -15,6 +15,7 @@ import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../providers/queue_origin_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../widgets/album_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
@@ -55,7 +56,11 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
     final detail = await ref.read(albumDetailProvider(album.id).future);
     final songs = detail?.songs ?? const <Song>[];
     if (songs.isEmpty || !mounted) return;
-    await playEffectiveQueue(ref, songs);
+    await playEffectiveQueue(
+      ref,
+      songs,
+      origin: QueueOrigin(QueueOriginKind.album, album.id),
+    );
   }
 
   @override
@@ -166,9 +171,12 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
   }
 
   Widget _buildTile(int index, Album album) {
+    // 当前播放来源：识别正在播放的专辑（封面叠加跳动竖条）。
+    final queueOrigin = ref.watch(queueOriginProvider);
     return MusicFlowAlbumTile(
       key: ValueKey('album-tile-${album.id}'),
       album: album,
+      isNowPlaying: queueOrigin?.matchesAlbum(album.id) ?? false,
       onPressed: () {
         Navigator.of(context).push<void>(
           MusicFlowPageRoute<void>(
