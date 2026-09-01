@@ -1,3 +1,27 @@
+# v3.4.60 平台推荐播放按钮 + 搜索按钮贴右缘 + Windows 任务栏图标排查 总览
+
+## v3.4.60（本轮）
+
+### 一、平台推荐歌单封面播放按钮补齐（用户反馈）
+- **根因**：`PlatformRecommendSection`（平台推荐）的 `DiscoverPlaylistCard` 此前只有 `onPressed`（打开详情/导入），没传 `onPlay` → 封面右下角半透明播放按钮不渲染；`LocalPlatformRecommendSection`（本地随机）v3.4.58 已接，两区块不一致。
+- **修复**：新增 `_playRecommendPlaylist`（已入库直接反查本地 id 播放；未入库先经 `/v1/online/:providerId/recommend/import` 幂等导入再 `playLocalPlaylistById` 整单播放），卡片接 `onPlay`（loading 时不显示）。
+
+### 二、安卓首页搜索按钮位置（用户反馈「从源头查,一直没做好」）
+- **根因链**：v3.4.50 用户反馈「搜索按钮贴最右边」→ 用 `Expanded` 把标题按钮撑满实现贴右；v3.4.51 用户反馈「标题按钮区域太长（绿色高亮区占满）」→ 改 `Flexible(loose)` 修区域，**代价是搜索按钮回到紧跟标题文字、不再贴右缘** → 位置问题复发。
+- **修复**：标题按钮 `Flexible(loose)`（区域只包文字）+ **中间 `Spacer`** + 搜索按钮，两个诉求同时成立。
+- **回归测试**：断言搜索按钮右缘距窗口右缘 == 标题按钮左缘距窗口左缘（对称页边距），未贴右则失败。
+
+### 三、Windows 任务栏图标「还是旧图标」（排查结论：非代码问题）
+- 代码链路全查：`Runner.rc` → `resources/app_icon.ico`（HEAD 与工作区 sha1 一致，红圆白音符 7 尺寸）→ `win32_window.cpp` `LoadIcon(IDI_APP_ICON)` → CMake 编译进 exe，无 CI 图标覆盖步骤。
+- **产物级验证**：下载 v3.4.59 windows.zip，解析 exe PE 资源——内嵌 7 张 PNG 与仓库 `app_icon.ico` **sha1 全匹配**（MATCH: True）。产物图标是正确的。
+- **结论**：用户侧任务栏旧图标 = Windows 图标缓存/旧进程残留。处理：完全退出应用（托盘退出）→ 重启资源管理器或注销/重启；任务栏固定图标取消固定再重新固定。
+
+### 验证
+- analyze 零 error；discover 相关测试全过（新增 2 例回归：搜索按钮贴右缘 / 平台推荐播放按钮）；全量回归见下。
+- 发版：tag v3.4.60 → CI 三流水线验证。
+
+---
+
 # v3.4.59 随机模式队列居中修复 + 艺术家长按菜单 / v3.4.58 长按菜单+封面播放按钮 总览
 
 ## v3.4.59：随机模式长队列当前播放自动居中 + 艺术家长按菜单补齐（本轮）

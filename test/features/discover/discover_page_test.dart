@@ -64,6 +64,50 @@ void main() {
     expect(find.byType(DiscoverPage), findsNothing);
   });
 
+  testWidgets('home header search button is anchored to the row right edge', (
+    tester,
+  ) async {
+    // 回归：v3.4.51 把标题按钮从 Expanded 改 Flexible(loose) 修「按钮区域太长」,
+    // 代价是搜索按钮回到紧跟标题文字、不再贴右缘。正确布局 = 标题按钮
+    // Flexible(loose) + 中间 Spacer + 搜索按钮,两者互不干扰(v3.4.60)。
+    await _pumpDiscover(tester);
+
+    final searchBtn = find.byKey(const ValueKey<String>('home-header-search'));
+    final titleBtn = find.bySemanticsLabel('打开应用菜单');
+    expect(searchBtn, findsOneWidget);
+    expect(titleBtn, findsOneWidget);
+
+    final windowWidth = tester.view.physicalSize.width;
+    // 标题按钮左缘距窗口左缘 = 页边距;搜索按钮右缘距窗口右缘 = 同一边距。
+    // 若搜索按钮未贴右缘(紧跟标题文字),此断言即失败。
+    final searchGap = windowWidth - tester.getRect(searchBtn).right;
+    final titleGap = tester.getRect(titleBtn).left;
+    expect(
+      searchGap,
+      closeTo(titleGap, 0.001),
+      reason: '搜索按钮应锚定到标题行最右端,与标题按钮左缘对称(同为页边距)',
+    );
+  });
+
+  testWidgets('platform recommend playlist cards show a cover play button', (
+    tester,
+  ) async {
+    // 回归：平台推荐(PlatformRecommendSection)此前只有 onPressed 打开详情,
+    // 没有 onPlay → 封面右下角播放按钮缺失(v3.4.60 补齐)。
+    await _pumpDiscover(tester);
+
+    final card = find.widgetWithText(DiscoverPlaylistCard, '平台推荐歌单');
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.bySemanticsLabel('播放歌单'),
+      ),
+      findsOneWidget,
+      reason: '平台推荐歌单卡片应显示封面右下角半透明播放按钮',
+    );
+  });
+
   testWidgets('discover survives 320dp and 200 percent text scaling', (
     tester,
   ) async {

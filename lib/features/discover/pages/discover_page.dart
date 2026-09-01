@@ -175,6 +175,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   ),
                 ),
               ),
+              // 中间弹性留白：把搜索按钮锚定到行最右端（v3.4.50 用户截图
+              // 诉求「搜索按钮贴最右边」）。v3.4.51 曾为修「标题按钮区域太长」
+              // 把标题改 Flexible(loose)，代价是搜索按钮回到紧跟标题文字、
+              // 不再贴右缘——此处 Spacer 让两个诉求同时成立：
+              // 标题按钮区域只包文字，搜索按钮固定贴行右边缘。
+              const Spacer(),
               // 标题行右侧搜索入口（48×48 触控目标,与标题按钮中心对齐），
               // 打开与搜索条同一个全屏搜索页。
               MusicFlowIconButton(
@@ -1469,6 +1475,54 @@ Future<void> _openRecommendPlaylist(
   }
 }
 
+/// 播放平台推荐歌单（封面播放按钮）。
+/// - **已入库**：直接反查本地 playlistId 后整单播放，不再导入刷新；
+/// - **未入库**：先经 /v1/online/:providerId/recommend/import 幂等导入，
+///   拿到真实 library playlistId 再整单播放（与 _openRecommendPlaylist 同链路）。
+Future<void> _playRecommendPlaylist(
+  WidgetRef ref,
+  String? providerId,
+  RecommendPlaylist pl,
+) async {
+  if (providerId == null || providerId.isEmpty) {
+    NetworkErrorNotifier.show('推荐服务暂不可用，请检查平台推荐插件是否已启用');
+    return;
+  }
+  final repo = ref.read(recommendRepositoryProvider);
+  if (repo == null) {
+    NetworkErrorNotifier.show('未连接到音乐库');
+    return;
+  }
+  try {
+    String? localId;
+    if (pl.imported) {
+      try {
+        localId = await repo.findImportedPlaylistId(providerId, pl.id);
+      } catch (_) {
+        // 反查失败则回退到导入流程（幂等，无副作用）。
+      }
+    }
+    localId ??= await repo.importRecommendPlaylist(providerId, <String, dynamic>{
+      'source': pl.source,
+      'id': pl.id,
+      'name': pl.name,
+      'cover': pl.cover ?? '',
+      'creator': pl.creator,
+      'trackCount': pl.trackCount,
+      'link': pl.link,
+    });
+    if (localId.isEmpty) {
+      NetworkErrorNotifier.show('歌单导入后未返回有效 id');
+      return;
+    }
+    await playLocalPlaylistById(ref, localId);
+  } catch (e) {
+    final msg =
+        e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+    NetworkErrorNotifier.show('播放歌单失败：$msg');
+  }
+}
+
 /// 不同插件的平台推荐歌单:整体上下滚动不同平台,
 /// 同一平台内歌单横向滑动(与网页一致)。
 class PlatformRecommendSection extends ConsumerWidget {
@@ -1546,6 +1600,14 @@ class PlatformRecommendSection extends ConsumerWidget {
                                   ? () {}
                                   : () => _openRecommendPlaylist(
                                         context,
+                                        ref,
+                                        providerId,
+                                        pl,
+                                      ),
+                              // 封面右下角播放按钮：未入库先幂等导入再整单播放。
+                              onPlay: isImporting
+                                  ? null
+                                  : () => _playRecommendPlaylist(
                                         ref,
                                         providerId,
                                         pl,
