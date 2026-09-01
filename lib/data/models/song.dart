@@ -44,6 +44,10 @@ class Song {
   final bool starred;
   final int? discNumber;
   final String? type;
+  final String? groupId;
+  /// 同曲多源组内成员行(含自身;后端已按 local > webdav > web 排序)。
+  /// 为空表示无多源归组。仅主列表行携带,子行(成员)无嵌套 sources。
+  final List<Song>? sources;
   final bool isPreview;
   final String? previewSource;
   final String? previewTrackId;
@@ -80,6 +84,8 @@ class Song {
     this.starred = false,
     this.discNumber,
     this.type,
+    this.groupId,
+    this.sources,
     this.isPreview = false,
     this.previewSource,
     this.previewTrackId,
@@ -142,6 +148,8 @@ class Song {
     bool? starred,
     int? discNumber,
     String? type,
+    String? groupId,
+    List<Song>? sources,
     bool? isPreview,
     String? previewSource,
     String? previewTrackId,
@@ -178,6 +186,8 @@ class Song {
       starred: starred ?? this.starred,
       discNumber: discNumber ?? this.discNumber,
       type: type ?? this.type,
+      groupId: groupId ?? this.groupId,
+      sources: sources ?? this.sources,
       isPreview: isPreview ?? this.isPreview,
       previewSource: previewSource ?? this.previewSource,
       previewTrackId: previewTrackId ?? this.previewTrackId,
@@ -224,6 +234,11 @@ class Song {
       },
       discNumber: _toInt(json['discNumber']),
       type: json['type'] as String?,
+      groupId: json['groupId'] as String?,
+      sources: (json['sources'] as List?)
+          ?.whereType<Map<String, dynamic>>()
+          .map((m) => Song.fromJson(m))
+          .toList(),
       isPreview: json['isPreview'] as bool? ?? false,
       previewSource: json['previewSource'] as String?,
       previewTrackId: json['previewTrackId'] as String?,
@@ -268,6 +283,8 @@ class Song {
       'starred': starred,
       'discNumber': discNumber,
       'type': type,
+      'groupId': groupId,
+      'sources': sources?.map((s) => s.toJson()).toList(),
       'isPreview': isPreview,
       'previewSource': previewSource,
       'previewTrackId': previewTrackId,
@@ -286,5 +303,19 @@ class Song {
     final minutes = duration! ~/ 60;
     final seconds = duration! % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  /// 同曲多源组内播放优选源。
+  ///
+  /// 后端组内成员按 local > webdav > web 排序,`sources` 数组含自身且首项即
+  /// 核心曲库优先的源。有组且组内不止一个源时,取 `sources.first`(与 Web 前端
+  /// 主行一致);否则返回自身。列表合并行播放/入队一律经此取真实 songId,
+  /// 避免把 web 备选源当主源播放(Web 前端踩坑对照:主行即 sources[0])。
+  Song get playbackSource {
+    final list = sources;
+    if (list != null && list.isNotEmpty && list.length > 1) {
+      return list.first;
+    }
+    return this;
   }
 }
