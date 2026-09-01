@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/song_group_display.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
@@ -77,21 +76,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   List<_PlaylistSongEntry> _fullEntries = const <_PlaylistSongEntry>[];
   bool _fullLoading = false;
   bool _fullFailed = false;
-
-  /// 全量模式下同曲多源组「非首个成员」的 originalIndex 集合(折叠隐藏)。
-  final Set<int> _fullCollapsedSet = <int>{};
-
-  /// 全量模式下重算折叠集合:组内首个成员保留(渲染 playbackSource),
-  /// 其余成员行折叠为零高度。与分页模式的 isCollapsedGroupSlot 语义一致。
-  void _rebuildFullCollapsed() {
-    _fullCollapsedSet.clear();
-    final seen = <String>{};
-    for (final e in _fullEntries) {
-      final gid = songGroupIdOf(e.song);
-      if (gid == null) continue;
-      if (!seen.add(gid)) _fullCollapsedSet.add(e.originalIndex);
-    }
-  }
 
   // ---- 选择/移除 ----
   final Set<int> _selectedSongIndexes = <int>{};
@@ -481,13 +465,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Widget _buildSongRow(BuildContext context, int index, Song song) {
-    // 同曲多源组折叠:分页模式用稀疏数组扫描,全量模式用预计算的折叠集合。
-    // 组内非首个成员渲染零高度;首个成员(主行)用 playbackSource 显示。
-    final isCollapsed = _fullMode
-        ? _fullCollapsedSet.contains(index)
-        : isCollapsedGroupSlot(_songList.slots, index, groupKeyOf: songGroupIdOf);
-    if (isCollapsed) return const SizedBox.shrink();
-    final displaySong = song.playbackSource;
     // 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
     final currentSongId = ref.watch(
       playerProvider.select((state) => state.currentSong?.id),
@@ -495,11 +472,10 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     return KeyedSubtree(
       key: ValueKey<String>('playlist-song-$index'),
       child: SongListItem(
-        song: displaySong,
+        song: song,
         index: index,
         variant: SongListItemVariant.standard,
-        isCurrent: displaySong.id == currentSongId,
-        groupBadge: groupSourceBadge(displaySong),
+        isCurrent: song.id == currentSongId,
         selectionMode: _selectionMode,
         selected: _selectedSongIndexes.contains(index),
         onToggleSelected: () => _toggleSongSelection(index),
@@ -583,7 +559,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       if (!mounted) return;
       setState(() {
         _fullEntries = _sortPlaylistEntries(all, option);
-        _rebuildFullCollapsed();
         _fullLoading = false;
       });
     } catch (_) {

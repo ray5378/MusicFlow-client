@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/song_group_display.dart';
 import '../../../data/models/search.dart';
 import '../../../data/models/song.dart';
 import '../../../features/library/widgets/windowed_list_view.dart';
@@ -181,27 +180,17 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   }
 
   Widget _buildRow(int index, Song song) {
-    // 同曲多源组:组内非首个成员折叠为零高度(视觉合并为一行);首个成员
-    // 渲染合并主行(playbackSource = sources[0],local 优先,与 Web 前端一致)。
-    if (isCollapsedGroupSlot(
-      _list.slots,
-      index,
-      groupKeyOf: songGroupIdOf,
-    )) {
-      return const SizedBox.shrink();
-    }
-    final displaySong = song.playbackSource;
+    // 当前播放歌曲 id：识别正在播放的歌曲行（封面叠加跳动竖条）。
     final currentSongId = ref.watch(
       playerProvider.select((state) => state.currentSong?.id),
     );
     return KeyedSubtree(
       key: ValueKey('song-row-${song.id}'),
       child: SongListItem(
-        song: displaySong,
+        song: song,
         index: index,
         variant: SongListItemVariant.standard,
-        isCurrent: displaySong.id == currentSongId,
-        groupBadge: groupSourceBadge(displaySong),
+        isCurrent: song.id == currentSongId,
         contentPadding: EdgeInsetsDirectional.fromSTEB(
           context.musicFlowPageHorizontalPadding,
           context.musicFlowSpacing.xs,
@@ -216,8 +205,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             return;
           }
           // 播放队列需要完整顺序表:后台一次性拉全量构建队列(仅用户主动播放时),
-          // 渲染层仍保持窗口化,不回退到全量渲染。多源组播放优选在
-          // playEffectiveQueue 内统一替换为 playbackSource。
+          // 渲染层仍保持窗口化,不回退到全量渲染。
           try {
             final all =
                 await ref.read(musicRepositoryProvider)!.getAllSongs();
@@ -228,7 +216,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
               startIndex: index.clamp(0, all.length - 1),
             );
           } catch (_) {
-            await playEffectiveQueue(ref, <Song>[displaySong], startIndex: 0);
+            await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
           }
         },
         onLongPress: () => showSongOptionsSheet(context: context, song: song),

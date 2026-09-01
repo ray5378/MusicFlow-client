@@ -112,24 +112,21 @@ Future<bool> playEffectiveQueue(
   // 每次发起播放都覆盖来源标记：null → other（首页随机/搜索等无来源场景）。
   ref.read(queueOriginProvider.notifier).state =
       origin ?? const QueueOrigin(QueueOriginKind.other);
-  // 同曲多源组播放优选:每行替换为 playbackSource(sources 首项 = local 优先,
-  // 与 Web 前端主行一致)。列表长度不变,startIndex 语义不受影响。
-  final preferred = songs.map((s) => s.playbackSource).toList();
   // 链路 B(局域网 DLNA 直投):复用本机中转会话直接切队列播放,本人保持遥控器态。
   if (ref.read(_dlnaCastingProvider)) {
     return ref
         .read(dlnaCastProvider.notifier)
-        .playQueueOnDevice(preferred, startIndex: startIndex);
+        .playQueueOnDevice(songs, startIndex: startIndex);
   }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
     return ref
         .read(castPeerControllerProvider.notifier)
-        .playQueueOnPeer(preferred, startIndex: startIndex);
+        .playQueueOnPeer(songs, startIndex: startIndex);
   }
   await ref
       .read(playerProvider.notifier)
-      .playQueue(preferred, startIndex: startIndex);
+      .playQueue(songs, startIndex: startIndex);
   return true;
 }
 
@@ -143,22 +140,19 @@ Future<bool> playEffectiveSong(
   List<Song>? queue,
   int? index,
 }) async {
-  // 同曲多源组播放优选:单曲/上下文队列统一替换为 playbackSource(local 优先)。
-  final preferredSong = song.playbackSource;
-  final preferredQueue = queue?.map((s) => s.playbackSource).toList();
   if (ref.read(_dlnaCastingProvider)) {
     return ref
         .read(dlnaCastProvider.notifier)
-        .playSongOnDevice(preferredSong, queue: preferredQueue, index: index);
+        .playSongOnDevice(song, queue: queue, index: index);
   }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
     return ref
         .read(castPeerControllerProvider.notifier)
-        .playSongOnPeer(preferredSong, queue: preferredQueue, index: index);
+        .playSongOnPeer(song, queue: queue, index: index);
   }
   await ref
       .read(playerProvider.notifier)
-      .playSong(preferredSong, queue: preferredQueue, index: index);
+      .playSong(song, queue: queue, index: index);
   return true;
 }

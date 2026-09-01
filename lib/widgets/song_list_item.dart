@@ -34,7 +34,6 @@ class MusicFlowSongRow extends StatelessWidget {
     this.isPreview,
     this.showMoreButton = true,
     this.titleMaxLines = 2,
-    this.groupBadge,
     this.coverSize = 48,
     this.richMetadata = false,
   });
@@ -62,9 +61,6 @@ class MusicFlowSongRow extends StatelessWidget {
   /// 歌名最大行数。默认 2 行（常规列表）；首页随机歌曲传 1，
   /// 过长截断，保持行高与参考稿一致。
   final int titleMaxLines;
-
-  /// 同曲多源组徽标(如「本地 +2」)。显示在标题右侧,强调合并行的主源。
-  final String? groupBadge;
 
   /// 封面尺寸。默认 48；首页随机歌曲传 56 以匹配参考比例。
   final double coverSize;
@@ -195,63 +191,18 @@ class MusicFlowSongRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // 多源组徽标仅在有值时引入 Row 包裹(默认路径保持纯 Flexible(Text),
-        // 避免 200% 缩放/窄屏下 RenderFlex 溢出回归)。
-        if (groupBadge == null)
-          Flexible(
-            child: Text(
-              song.title,
-              maxLines: showFullText ? null : titleMaxLines,
-              overflow: showFullText
-                  ? TextOverflow.visible
-                  : TextOverflow.ellipsis,
-              style: context.musicFlowTypography.title.copyWith(
-                color: isCurrent
-                    ? context.musicFlowColors.accent
-                    : context.musicFlowColors.ink,
-              ),
+        Flexible(
+          child: Text(
+            song.title,
+            maxLines: showFullText ? null : titleMaxLines,
+            overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: context.musicFlowTypography.title.copyWith(
+              color: isCurrent
+                  ? context.musicFlowColors.accent
+                  : context.musicFlowColors.ink,
             ),
-          )
-        else
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Flexible(
-                child: Text(
-                  song.title,
-                  maxLines: showFullText ? null : titleMaxLines,
-                  overflow: showFullText
-                      ? TextOverflow.visible
-                      : TextOverflow.ellipsis,
-                  style: context.musicFlowTypography.title.copyWith(
-                    color: isCurrent
-                        ? context.musicFlowColors.accent
-                        : context.musicFlowColors.ink,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color:
-                        context.musicFlowColors.accent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    groupBadge!,
-                    style: context.musicFlowTypography.label.copyWith(
-                      color: context.musicFlowColors.accent,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ),
+        ),
         if (richMetadata) ...<Widget>[
           SizedBox(height: context.musicFlowSpacing.xxs),
           // 第 2 行：歌手（单行截断）。
@@ -443,7 +394,6 @@ class SongListItem extends StatelessWidget {
     this.isCurrent = false,
     this.isFavorite,
     this.isPreview,
-    this.groupBadge,
   });
 
   final Song song;
@@ -460,7 +410,6 @@ class SongListItem extends StatelessWidget {
   final bool isCurrent;
   final bool? isFavorite;
   final bool? isPreview;
-  final String? groupBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -482,7 +431,6 @@ class SongListItem extends StatelessWidget {
       isCurrent: isCurrent,
       isFavorite: isFavorite,
       isPreview: isPreview,
-      groupBadge: groupBadge,
     );
   }
 }
