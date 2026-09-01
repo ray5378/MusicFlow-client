@@ -11,7 +11,7 @@ import os
 import re
 import sys
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else None
 if not SRC or not os.path.isfile(SRC):
@@ -88,16 +88,47 @@ def make_black_master(crop, size=1024):
 
 
 def make_transparent_master(crop, size=1024):
-    """透明底母版：黑色背景 -> 透明（红圆+白音符自包含）。"""
-    img = crop.convert("RGBA")
+    """透明底母版：黑色背景 -> 透明（红圆+白音符自包含）。
+
+    关键：只用 r<40 的"纯黑"判定会产生灰边毛刺（红圆边缘的抗锯齿
+    过渡像素如 (60,50,45) 残留为灰色不透明）。改为按亮度 max(r,g,b)
+    插值 alpha：离黑越远越不透明，过渡带平滑渐变。
+    加 2x 超采样抠图，让边缘抗锯齿过渡带在小尺寸下仍保留 2-3px。
+    """
+    # 2x 超采样：先放大再抠图，边缘抗锯齿更细腻
+    img = crop.convert("RGB").resize((crop.width * 2, crop.height * 2), Image.LANCZOS)
     px = img.load()
     w, h = img.size
+    # 先归一化黑底到纯黑
     for y in range(h):
         for x in range(w):
-            r, g, b, a = px[x, y]
-            if r < 40 and g < 40 and b < 40:
-                px[x, y] = (0, 0, 0, 0)
-    return img.resize((size, size), Image.LANCZOS)
+            if is_blackish(px[x, y]):
+                px[x, y] = (0, 0, 0)
+    rgba = img.convert("RGBA")
+    apx = rgba.load()
+    LOW, HIGH = 20, 170
+    BRAND_RED = (230, 0, 18)
+    BRAND_WHITE = (255, 255, 255)
+    for y in range(h):
+        for x in range(w):
+            r, g, b, _ = apx[x, y]
+            lum = max(r, g, b)
+            sat = lum - min(r, g, b)
+            if lum < LOW:
+                apx[x, y] = (0, 0, 0, 0)
+            else:
+                # 归一 RGB：红色饱和像素 -> 品牌红，白色/低饱和 -> 品牌白
+                # 避免过渡像素的"粉色"在黑底上残留
+                if sat > 50:
+                    r2, g2, b2 = BRAND_RED
+                else:
+                    r2, g2, b2 = BRAND_WHITE
+                if lum >= HIGH:
+                    apx[x, y] = (r2, g2, b2, 255)
+                else:
+                    a = int((lum - LOW) / (HIGH - LOW) * 255)
+                    apx[x, y] = (r2, g2, b2, a)
+    return rgba.resize((size, size), Image.LANCZOS)
 
 
 def paste_centered(canvas, logo, content_ratio):
@@ -152,15 +183,11 @@ def main():
         canvas = Image.new("RGB", (px, px), (0, 0, 0))
         paste_centered(canvas, black, 0.82)
         save_png(canvas, os.path.join(ANDROID_RES, f"mipmap-{dpi}", "ic_launcher.png"))
-        # adaptive foreground：透明画布，内容 66%（108dp 画布换算）
+        # adaptive foreground：直接以目标尺寸画布一步缩放（减少中间 LANCZOS 累积）
         # 背景纯黑由 mipmap-anydpi-v26/ic_launcher.xml 提供，合成后同样黑底红圆
-        fg = px * 3  # 108dp * density 的近似（4x 采样画布）
-        fg_canvas = Image.new("RGBA", (fg, fg), (0, 0, 0, 0))
+        fg_canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
         paste_centered(fg_canvas, transp, 0.66)
-        save_png(
-            fg_canvas.resize((px, px), Image.LANCZOS),
-            os.path.join(ANDROID_RES, f"mipmap-{dpi}", "ic_launcher_foreground.png"),
-        )
+        save_png(fg_canvas, os.path.join(ANDROID_RES, f"mipmap-{dpi}", "ic_launcher_foreground.png"))
 
     print("== 4/4 iOS + Windows ==")
     # iOS AppIcon：黑底不透明，内容 82%（留圆角裁切安全边）
