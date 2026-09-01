@@ -146,13 +146,16 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
         child: Padding(
           padding: headerPadding,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               // 标题整体作为按钮：点击打开应用菜单（显示更多导航/设置）。
-              // Expanded(tight fit) 让标题占满按钮以外的全部剩余宽度：
-              // - 搜索按钮被推到行最右边缘（与「随机歌曲」的播放按钮同列）；
-              // - 子级收到有界约束，窄屏(320dp)+大字体(200%) 下超长标题
-              //   单行省略，不会撑爆整行(RenderFlex overflow)。
-              Expanded(
+              // 字号缩到 headline(19,原 display 26 视觉占位过大);Flexible loose
+              // 让按钮宽度按文字自然宽度收住,不再 Expanded 占满剩余——
+              // 解决「MusicFlow 按钮区域太长」;文字过长仍单行省略。
+              // 按钮 minimumSize 保留默认 48×48,与右侧 IconButton 同高,
+              // 两者中心均 = 24px → 视觉垂直居中对齐。
+              Flexible(
+                fit: FlexFit.loose,
                 child: MusicFlowPressable(
                   semanticLabel: '打开应用菜单',
                   onPressed: openMusicFlowAppDrawer,
@@ -161,14 +164,14 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                     namesRoute: true,
                     child: Text(
                       title,
-                      style: context.musicFlowTypography.display,
+                      style: context.musicFlowTypography.headline,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
               ),
-              // 标题行右侧搜索入口（贴行右边缘、与标题文字垂直居中），
+              // 标题行右侧搜索入口（48×48 触控目标,与标题按钮中心对齐），
               // 打开与搜索条同一个全屏搜索页。
               MusicFlowIconButton(
                 key: const ValueKey<String>('home-header-search'),
