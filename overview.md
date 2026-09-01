@@ -17,8 +17,8 @@
 - **结论**：用户侧任务栏旧图标 = Windows 图标缓存/旧进程残留。处理：完全退出应用（托盘退出）→ 重启资源管理器或注销/重启；任务栏固定图标取消固定再重新固定。
 
 ### 验证
-- analyze 零 error；discover 相关测试全过（新增 2 例回归：搜索按钮贴右缘 / 平台推荐播放按钮）；全量回归见下。
-- 发版：tag v3.4.60 → CI 三流水线验证。
+- analyze 零 error；discover 相关测试全过（新增 2 例回归：搜索按钮贴右缘 / 平台推荐播放按钮）；全量 +465 -5 = 5 历史基线，零新回归。
+- 发版：commit 64720fb + tag v3.4.60 → CI 三流水线全 success → Release 三产物（android.apk 44.4MB / windows-setup.exe 31.3MB / windows.zip 37.9MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
 
 ---
 
