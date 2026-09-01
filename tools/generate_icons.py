@@ -135,9 +135,10 @@ def main():
     print("  -> assets/icon/app_icon_black.png (黑底母版)")
 
     print("== 2/4 Web / PWA ==")
-    save_png(transp.resize((32, 32), Image.LANCZOS), os.path.join(WEB_DIR, "favicon.png"))
-    save_png(transp.resize((192, 192), Image.LANCZOS), os.path.join(WEB_DIR, "icons", "Icon-192.png"))
-    save_png(transp.resize((512, 512), Image.LANCZOS), os.path.join(WEB_DIR, "icons", "Icon-512.png"))
+    # 品牌规范：一律黑底版（与源图黑底一致），favicon/Icon 均保留黑色背景
+    save_png(black.resize((32, 32), Image.LANCZOS), os.path.join(WEB_DIR, "favicon.png"))
+    save_png(black.resize((192, 192), Image.LANCZOS), os.path.join(WEB_DIR, "icons", "Icon-192.png"))
+    save_png(black.resize((512, 512), Image.LANCZOS), os.path.join(WEB_DIR, "icons", "Icon-512.png"))
     # maskable：必须不透明满幅，内容留安全区
     for size in (192, 512):
         canvas = Image.new("RGB", (size, size), (0, 0, 0))
@@ -147,11 +148,12 @@ def main():
     print("== 3/4 Android ==")
     # adaptive foreground：108dp 画布（用 432px），内容 66% 安全区
     for dpi, px in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
-        # legacy 方形图标：透明底版，内容 82% 居中
-        canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-        paste_centered(canvas, transp, 0.82)
+        # legacy 方形图标：黑底版（内容 82% 居中），系统自行裁圆角
+        canvas = Image.new("RGB", (px, px), (0, 0, 0))
+        paste_centered(canvas, black, 0.82)
         save_png(canvas, os.path.join(ANDROID_RES, f"mipmap-{dpi}", "ic_launcher.png"))
         # adaptive foreground：透明画布，内容 66%（108dp 画布换算）
+        # 背景纯黑由 mipmap-anydpi-v26/ic_launcher.xml 提供，合成后同样黑底红圆
         fg = px * 3  # 108dp * density 的近似（4x 采样画布）
         fg_canvas = Image.new("RGBA", (fg, fg), (0, 0, 0, 0))
         paste_centered(fg_canvas, transp, 0.66)
@@ -180,25 +182,25 @@ def main():
         canvas = Image.new("RGB", (px, px), (0, 0, 0))
         paste_centered(canvas, black, 0.60)
         save_png(canvas, os.path.join(IOS_LAUNCH, name))
-    # Windows ico：透明底多尺寸
+    # Windows ico：黑底版多尺寸
     ico_path = os.path.join(WIN_RUNNER, "app_icon.ico")
     os.makedirs(WIN_RUNNER, exist_ok=True)
-    transp.resize((256, 256), Image.LANCZOS).save(
+    black.convert("RGBA").resize((256, 256), Image.LANCZOS).save(
         ico_path,
         format="ICO",
         sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
     print("  -> windows/runner/resources/app_icon.ico")
 
-    # 跨仓成品：180px apple-touch-icon（透明底）+ 1024 透明底（大图备用）
-    save_png(transp.resize((180, 180), Image.LANCZOS), os.path.join(ASSET_DIR, "apple-touch-icon.png"))
-    save_png(transp, os.path.join(ASSET_DIR, "app_icon_1024.png"))
+    # 跨仓成品：180px apple-touch-icon（黑底）+ 1024 黑底大图（复制到主项目/HA 集成）
+    save_png(black.resize((180, 180), Image.LANCZOS), os.path.join(ASSET_DIR, "apple-touch-icon.png"))
+    save_png(black, os.path.join(ASSET_DIR, "app_icon_1024.png"))
 
     print("== 完成 ==")
     print("跨仓成品（复制用）:")
-    print("  transparent 512:", os.path.join(ASSET_DIR, "app_icon.png"))
-    print("  transparent 180:", os.path.join(ASSET_DIR, "apple-touch-icon.png"))
     print("  black 512:", os.path.join(ASSET_DIR, "app_icon_black.png"))
+    print("  black 180:", os.path.join(ASSET_DIR, "apple-touch-icon.png"))
+    print("  transparent 512（备用，仅 assets 留存）:", os.path.join(ASSET_DIR, "app_icon.png"))
 
 
 if __name__ == "__main__":
