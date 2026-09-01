@@ -42,32 +42,35 @@ def is_blackish(px):
     return r < 40 and g < 40 and b < 40
 
 
-def find_red_bbox(im):
-    """求红色圆环的包围盒（步进采样）。"""
+def find_content_bbox(im):
+    """求红色圆环 ∪ 白色音符 的联合包围盒（音符头会伸出圆外，必须包含）。"""
     w, h = im.size
     minx, miny, maxx, maxy = w, h, 0, 0
-    step = 4
+    step = 2
     for y in range(0, h, step):
         for x in range(0, w, step):
-            if is_red(im.getpixel((x, y))):
+            r, g, b = im.getpixel((x, y))
+            if is_red((r, g, b)) or (r > 200 and g > 200 and b > 200):
                 minx = min(minx, x)
                 maxx = max(maxx, x)
                 miny = min(miny, y)
                 maxy = max(maxy, y)
     if maxx <= minx:
-        raise RuntimeError("red circle not found in source image")
+        raise RuntimeError("icon content not found in source image")
     return minx, miny, maxx, maxy
 
 
-def crop_master(im, bbox, padding_ratio=0.10):
-    """以红色内容中心裁出方形母版（含 padding），内容垂直水平居中。"""
+def crop_master(im, bbox, content_ratio=0.80):
+    """以全部内容中心裁出方形母版，内容占画布 content_ratio（每边留 (1-ratio)/2 边距）。"""
     minx, miny, maxx, maxy = bbox
     cx = (minx + maxx) // 2
     cy = (miny + maxy) // 2
-    d = max(maxx - minx, maxy - miny) * (1 + padding_ratio)
-    left = int(cx - d / 2)
-    top = int(cy - d / 2)
-    box = (max(0, left), max(0, top), min(im.size[0], left + int(d)), min(im.size[1], top + int(d)))
+    span = max(maxx - minx, maxy - miny)
+    d = int(span / content_ratio) + 1
+    half = d // 2
+    left = cx - half
+    top = cy - half
+    box = (max(0, left), max(0, top), min(im.size[0], left + d), min(im.size[1], top + d))
     return im.crop(box)
 
 
@@ -118,9 +121,9 @@ def save_png(img, path):
 def main():
     print("== 1/4 解析源图，生成母版 ==")
     src = Image.open(SRC).convert("RGB")
-    bbox = find_red_bbox(src)
-    print("red bbox:", bbox, "size:", bbox[2] - bbox[0], bbox[3] - bbox[1])
-    crop = crop_master(src, bbox, padding_ratio=0.10)
+    bbox = find_content_bbox(src)
+    print("content bbox:", bbox, "size:", bbox[2] - bbox[0], bbox[3] - bbox[1])
+    crop = crop_master(src, bbox, content_ratio=0.80)
 
     black = make_black_master(crop)
     transp = make_transparent_master(crop)
