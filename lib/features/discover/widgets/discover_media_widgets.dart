@@ -1284,7 +1284,10 @@ class DiscoverPlaylistCard extends StatelessWidget {
                       if (isNowPlaying)
                         NowPlayingCoverOverlay(size: width),
                       // 封面右下角半透明播放按钮。
-                      if (onPlay != null)
+                      // 正在播放时自动隐藏,避免与 NowPlayingCoverOverlay 重叠
+                      // (两者都锚定在右下角)。播放中已有跳动竖条指示,不需要再
+                      // 显示「播放」入口(v3.4.61)。
+                      if (onPlay != null && !isNowPlaying)
                         _PlaylistCoverPlayButton(
                           coverSize: width,
                           onPlay: onPlay!,

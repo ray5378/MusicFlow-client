@@ -1,3 +1,23 @@
+# v3.4.61 播放卡片：竖条压缩到 2/3 + 播放时自动隐藏按钮 总览
+
+## v3.4.61（本轮）
+
+### 一、首页歌单封面「播放时竖条与播放按钮重叠 + 竖条过高」（用户截图反馈）
+- **根因**：v3.4.58 引入 `_PlaylistCoverPlayButton` 与 v3.4.58 的 `NowPlayingCoverOverlay`（3 根跳动竖条）**都锚定封面右下角**：按钮用 `Positioned(right, bottom)`，竖条用 `Align(alignment: bottomRight)`，Android compact 屏按钮常驻 → 两控件完全重叠。同时竖条在 v3.4.58 改动后占封面高 20%~34%，比例仍偏厚。
+- **修复**：
+  1. `DiscoverPlaylistCard` 渲染逻辑加条件 `if (onPlay != null && !isNowPlaying)`：正在播放（`isNowPlaying=true`）时自动隐藏播放按钮 —— 已有竖条作为「正在播放」视觉指示，不需要叠按钮。
+  2. `NowPlayingCoverOverlay` 竖条高度：20%~34% → **13%~23%**（整体压缩到现在的 2/3）；顶 doc comment 同步更新，避免视觉过厚与下方按钮争抢空间。
+- **回归测试**（新文件 `test/features/discover/discover_playlist_card_test.dart`，3 例）：
+  1. 非播放态：`_PlaylistCoverPlayButton` 渲染、`NowPlayingCoverOverlay` 不渲染；
+  2. 播放态（核心修复）：`_PlaylistCoverPlayButton` **不渲染**、`NowPlayingCoverOverlay` 渲染；
+  3. `onPlay=null` 不论 `isNowPlaying` 都不渲染按钮。
+
+### 验证
+- analyze 零 error；新回归测试 3/3 通过；discover/widgets/library/player 相关测试 +136 -5 = 5 历史基线，零新回归；全量 +X 见 commit。
+- 发版：commit <pending> + tag v3.4.60 → CI 三流水线验证。
+
+---
+
 # v3.4.60 平台推荐播放按钮 + 搜索按钮贴右缘 + Windows 任务栏图标排查 总览
 
 ## v3.4.60（本轮）

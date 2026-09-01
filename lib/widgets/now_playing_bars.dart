@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 /// （网易云「每日推荐」正在播放的视觉效果——底部平整、跳动从底部往上）。
 ///
 /// 尺寸策略（自适应封面大小）：
-/// - 竖条组只占封面底部一小块（20%~34% 高度），类似音柱条；
+/// - 竖条组只占封面底部一小块（13%~23% 高度，约封面高的 1/3 不到）；
+///   v3.4.61 由 20%~34% 整体压缩至 2/3，避免与下方播放按钮重叠且减少与
+///   封面其它细节争抢视觉空间；
 /// - 竖条底部贴齐（`CrossAxisAlignment.end`），高度变化只向上生长；
 /// - 竖条宽度/间距/圆角/遮罩内边距全部按 [size] 等比缩放；
 /// - [alignment] 为 [Alignment.bottomRight] 时（大封面/首页卡片）竖条组
@@ -42,9 +44,10 @@ class NowPlayingCoverOverlay extends StatelessWidget {
     final barWidth = 6.0 * k;
     final barGap = 4.5 * k;
     final barRadius = 2.0 * k;
-    // 竖条高度只占封面底部一小块（20%~34%），跳动方向从底部往上。
-    final minBarHeight = size * 0.20;
-    final maxBarHeight = size * 0.34;
+    // 竖条高度只占封面底部一小块（约 13%~23%），跳动方向从底部往上。
+    // v3.4.61：从 20%~34%（v3.4.58）整体压缩到现在的 2/3，避免过厚。
+    final minBarHeight = size * 0.13;
+    final maxBarHeight = size * 0.23;
     // 遮罩内边距（竖条组四周）与竖条宽相当。
     final scrimPadding = 7.0 * k;
 
