@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/search.dart';
 import 'package:musicflow_client/data/repositories/search_repository.dart';
 import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 import 'package:musicflow_client/features/search/search_actions.dart';
+import 'package:musicflow_client/providers/playlist_provider.dart';
 import 'package:musicflow_client/providers/search_provider.dart';
 
 import '../../helpers/mocks.dart';
@@ -168,4 +170,77 @@ void main() {
     await tester.pump(const Duration(milliseconds: 800));
     expect(find.textContaining('入库完成'), findsOneWidget);
   });
+
+  testWidgets(
+    '歌单入库成功后自动刷新最近更新的歌单(invalidate recentPlaylistsProvider)',
+    (tester) async {
+      stubSubmit();
+      stubTaskPoll([
+        {'success': true, 'task': {'status': 'running'}},
+        {
+          'success': true,
+          'task': {
+            'status': 'ok',
+            'result': {'playlistId': 'pl-1'},
+          },
+        },
+      ]);
+
+      // 计数:第一次是 build 时初始加载,invalidate 后应再次加载。
+      var recentLoads = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            searchRepositoryProvider.overrideWithValue(repo),
+            recentPlaylistsProvider.overrideWith((ref) async {
+              recentLoads += 1;
+              return <Playlist>[
+                Playlist(
+                  id: 'pl-initial',
+                  name: '初始最近歌单',
+                  songCount: 0,
+                  duration: 0,
+                ),
+              ];
+            }),
+          ],
+          child: MaterialApp(
+            navigatorKey: rootNavigatorKey,
+            home: Scaffold(
+              body: Center(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    // watch 让 provider 进入活跃态:override 的 body 会被
+                    // 执行(invalidate 后自动重拉,计数器会递增)。
+                    ref.watch(recentPlaylistsProvider);
+                    return FilledButton(
+                      onPressed: () =>
+                          importSearchPlaylist(context, ref, playlist),
+                      child: const Text('trigger-import'),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      // 让初始 ProviderScope build 触发一次 recentPlaylistsProvider 加载。
+      await tester.pump();
+      expect(recentLoads, 1);
+
+      await tester.tap(find.text('trigger-import'));
+      await tester.pump();
+      // 提交完成,后台监听尚未 ok,recentPlaylistsProvider 不应被刷新。
+      expect(recentLoads, 1);
+
+      // 推进后台轮询:第一次 running,第二次 ok → 触发 onSuccess → invalidate。
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(find.textContaining('入库完成'), findsOneWidget);
+      expect(recentLoads, 2,
+          reason: '入库成功回调应 invalidate recentPlaylistsProvider,触发重拉');
+    },
+  );
 }

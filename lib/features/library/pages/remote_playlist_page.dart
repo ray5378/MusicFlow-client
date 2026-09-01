@@ -194,20 +194,48 @@ class _Header extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: <Widget>[
-                        MusicFlowButton.primary(
+                    // 与 MusicFlowMediaActions 同源的窄屏自适应:
+                    // 容器宽 < 340 或字号 ≥20 → 双按钮垂直堆叠;
+                    // 否则双按钮 Row 各 Expanded 一半,文字自动收缩显示全。
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final scaledLabelSize = MediaQuery.textScalerOf(
+                          context,
+                        ).scale(
+                          context.musicFlowTypography.label.fontSize ?? 13,
+                        );
+                        final stackActions = constraints.maxWidth < 340 ||
+                            scaledLabelSize >= 20;
+                        final playAll = MusicFlowButton.primary(
                           label: '播放全部',
                           leadingIcon: AppIcons.play,
+                          expand: true,
                           onPressed: onPlayAll,
-                        ),
-                        SizedBox(width: context.musicFlowSpacing.sm),
-                        MusicFlowButton.secondary(
+                        );
+                        final addToLib = MusicFlowButton.secondary(
                           label: '加入库',
                           leadingIcon: AppIcons.playlistAdd,
+                          expand: true,
                           onPressed: onAddToLibrary,
-                        ),
-                      ],
+                        );
+                        if (stackActions) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              playAll,
+                              SizedBox(height: context.musicFlowSpacing.xs),
+                              addToLib,
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: <Widget>[
+                              Expanded(child: playAll),
+                              SizedBox(width: context.musicFlowSpacing.sm),
+                              Expanded(child: addToLib),
+                            ],
+                        );
+                      },
                     ),
                   ],
                 ),

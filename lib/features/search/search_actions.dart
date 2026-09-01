@@ -7,6 +7,7 @@ import '../../data/models/search.dart';
 import '../../data/repositories/search_repository.dart';
 import '../../providers/effective_playback_provider.dart';
 import '../../providers/player_provider.dart';
+import '../../providers/playlist_provider.dart';
 import '../../providers/search_provider.dart';
 import '../../core/design/components/music_flow_message.dart';
 import '../../core/utils/toast_notifier.dart';
@@ -24,14 +25,19 @@ void _toast(BuildContext context, String message, {bool error = false}) {
 ///
 /// 提交成功后 fire-and-forget 调用;页面此时可能已被关闭/切换,
 /// 因此完成通知走根导航器 Overlay(ToastNotifier)而不是页面 context。
+///
+/// 成功完成时可由 [onSuccess] 回调执行后续动作(例如刷新「最近更新的歌单」),
+/// 回调通过参数传入以避免本页直接持有具体 WidgetRef。
 void _watchImportTask(
   SearchRepository repo,
   String taskId,
-  String label,
-) {
+  String label, {
+  void Function(Map<String, dynamic> result)? onSuccess,
+}) {
   unawaited(
     repo.waitTask(taskId).then((result) {
       ToastNotifier.show('《$label》入库完成，可在音乐库查看');
+      onSuccess?.call(result);
     }).catchError((Object e) {
       ToastNotifier.show('《$label》入库失败: $e', kind: MusicFlowMessageKind.error);
     }),
@@ -124,6 +130,9 @@ Future<void> importSearchAlbum(
 ///
 /// 只做一次 POST 提交(秒回),不弹任何等待遮罩;拉歌+入库由后端异步完成,
 /// 期间用户可继续任何操作,完成后经全局 Toast 通知成功/失败。
+///
+/// 成功后**自动刷新「最近更新的歌单」**——入库完成的歌单在本地音乐库可用了,
+/// 应当立即出现在首页最近更新列表,避免用户切回首页还看不到自己刚入库的内容。
 Future<void> importSearchPlaylist(
   BuildContext context,
   WidgetRef ref,
@@ -138,7 +147,21 @@ Future<void> importSearchPlaylist(
   try {
     final taskId = await repo.startPlaylistImport(pl.providerId, pl);
     _toast(context, '《${pl.name}》入库任务已提交，完成后会通知你');
-    _watchImportTask(repo, taskId, pl.name);
+    _watchImportTask(
+      repo,
+      taskId,
+      pl.name,
+      // 后台回调:拿到一个独立 ref(ProviderContainer 不会随页面销毁而失效),
+      // 让最近更新歌单下一次被读时重新加载,把刚入库的歌单带回来。
+      onSuccess: (_) {
+        try {
+          // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+          ref.invalidate(recentPlaylistsProvider);
+        } catch (_) {
+          // ref 在极端情况下(如整个 app 退出)已失效,吞掉避免破坏后台流程
+        }
+      },
+    );
   } catch (e) {
     _toast(context, '入库失败: $e', error: true);
   }
