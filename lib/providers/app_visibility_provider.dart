@@ -70,7 +70,9 @@ class _AppVisibilityScopeState extends ConsumerState<AppVisibilityScope>
     _windowVisibleChannel.setMessageHandler((message) async {
       final visible = message == 'true';
       ref.read(windowOccludedProvider.notifier).state = visible;
-      return null;
+      // 原生层为单向 Send(不等待 reply)；返回空串占位,避免 BasicMessageChannel
+      // 的 handler 要求 Future<String> 却返回 null 导致编译失败(CI 全部 load error)。
+      return '';
     });
   }
 

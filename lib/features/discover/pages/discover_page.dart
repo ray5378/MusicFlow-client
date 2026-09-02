@@ -496,33 +496,39 @@ class _HomeSearchEntry extends StatelessWidget {
         context.musicFlowPageHorizontalPadding - 5 + rightInset,
         spacing.sm,
       ),
-      child: MusicFlowPressable(
-        semanticLabel: '搜索',
-        onPressed: () => _openSearchPage(context),
-        borderRadius: context.musicFlowRadii.pill,
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: context.musicFlowRadii.pill,
-            border: Border.all(color: colors.controlBoundary, width: 0.5),
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(AppIcons.search, size: 20, color: colors.muted),
-              SizedBox(width: spacing.sm),
-              Expanded(
-                child: Text(
-                  '搜索歌曲、歌单、艺术家、专辑',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.musicFlowTypography.body.copyWith(
-                    color: colors.muted,
+      // 首页大搜索框占满整行过于臃肿,收窄为可用宽度的一半并左对齐,
+      // 保留原左侧位置(入口仅 Windows 等宽屏渲染)。
+      child: FractionallySizedBox(
+        widthFactor: 0.5,
+        alignment: Alignment.centerLeft,
+        child: MusicFlowPressable(
+          semanticLabel: '搜索',
+          onPressed: () => _openSearchPage(context),
+          borderRadius: context.musicFlowRadii.pill,
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: context.musicFlowRadii.pill,
+              border: Border.all(color: colors.controlBoundary, width: 0.5),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(AppIcons.search, size: 20, color: colors.muted),
+                SizedBox(width: spacing.sm),
+                Expanded(
+                  child: Text(
+                    '搜索歌曲、歌单、艺术家、专辑',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.musicFlowTypography.body.copyWith(
+                      color: colors.muted,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
