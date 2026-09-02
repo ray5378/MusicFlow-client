@@ -213,17 +213,17 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                             // 或够宽,也保持触屏友好的竖版布局;只有桌面(键鼠/指针)
                             // 平台才启用「封面+右侧常驻歌词」的分栏大屏布局,
                             // 避免单纯按尺寸一刀切。
-                            final isTouchLike =
-                                switch (Theme.of(context).platform) {
-                                  TargetPlatform.android ||
-                                  TargetPlatform.iOS => true,
-                                  _ => false,
-                                };
+                            final isTouchLike = switch (Theme.of(
+                              context,
+                            ).platform) {
+                              TargetPlatform.android ||
+                              TargetPlatform.iOS => true,
+                              _ => false,
+                            };
                             final wideAvailable =
-                                constraints.maxWidth >
-                                        constraints.maxHeight ||
-                                    constraints.maxWidth >=
-                                        context.musicFlowBreakpoints.expanded;
+                                constraints.maxWidth > constraints.maxHeight ||
+                                constraints.maxWidth >=
+                                    context.musicFlowBreakpoints.expanded;
                             final useWideLayout = !isTouchLike && wideAvailable;
                             return useWideLayout
                                 ? _buildWidePlayerLayout(
@@ -292,7 +292,8 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   Widget _buildWidePlayerLayout(Song song, {required String subtitle}) {
     final spacing = context.musicFlowSpacing;
-    final horizontalPadding = context.musicFlowWindowClass == MusicFlowWindowClass.compact
+    final horizontalPadding =
+        context.musicFlowWindowClass == MusicFlowWindowClass.compact
         ? spacing.md
         : context.musicFlowPageHorizontalPadding;
 
@@ -320,8 +321,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   final leftRightGap = spacing.xl;
                   final availableWidth =
                       constraints.maxWidth - columnGap - leftRightGap;
-                  final rightPaneWidth =
-                      (availableWidth * 0.44).clamp(320.0, 540.0).toDouble();
+                  final rightPaneWidth = (availableWidth * 0.44)
+                      .clamp(320.0, 540.0)
+                      .toDouble();
                   final leftPaneWidth = availableWidth - rightPaneWidth;
 
                   // crossAxisAlignment.stretch 让左右两栏都有界高,
@@ -405,7 +407,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                         child: Padding(
                           padding: EdgeInsets.only(left: columnGap),
                           child: Align(
-                            key: const ValueKey<String>('full_player_details_pane'),
+                            key: const ValueKey<String>(
+                              'full_player_details_pane',
+                            ),
                             alignment: Alignment.topCenter,
                             child: const _PlayerLyricsPane(),
                           ),
@@ -448,13 +452,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
             ? maxCoverByWidth
             : maxCoverByHeight;
 
-        return Center(
-          child: _buildCoverHero(
-            song,
-            coverSize,
-            opacity: 1.0,
-          ),
-        );
+        return Center(child: _buildCoverHero(song, coverSize, opacity: 1.0));
       },
     );
   }
@@ -565,8 +563,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                 song: song,
                 size: size,
                 showVinylEffect: true,
-                // 大屏前台门控参数化：本页即大屏，显式开启旋转。
-                fullPlayerActive: true,
               ),
             );
           },
@@ -658,7 +654,8 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
     if (compact) return content;
 
-    final horizontalPadding = context.musicFlowWindowClass == MusicFlowWindowClass.compact
+    final horizontalPadding =
+        context.musicFlowWindowClass == MusicFlowWindowClass.compact
         ? spacing.md
         : spacing.xl;
 
@@ -782,9 +779,7 @@ class _PageDots extends StatelessWidget {
 }
 
 class _PlayerLyricsPane extends ConsumerWidget {
-  const _PlayerLyricsPane({
-    this.activeColor,
-  });
+  const _PlayerLyricsPane({this.activeColor});
 
   final Color? activeColor;
 
@@ -796,40 +791,40 @@ class _PlayerLyricsPane extends ConsumerWidget {
     // RepaintBoundary：歌词列表即便发生重建/滚动，也只重绘本窗格，不扩散整页。
     return RepaintBoundary(
       child: lyricsAsync.when(
-      data: (lyrics) {
-        if (lyrics == null || lyrics.isEmpty) {
-          return const _PlayerLyricsMessage(
-            icon: AppIcons.lyrics,
-            title: '暂无歌词',
-            description: '当前曲目没有可用的歌词内容。',
+        data: (lyrics) {
+          if (lyrics == null || lyrics.isEmpty) {
+            return const _PlayerLyricsMessage(
+              icon: AppIcons.lyrics,
+              title: '暂无歌词',
+              description: '当前曲目没有可用的歌词内容。',
+            );
+          }
+          final bestLyrics = lyrics.getBest();
+          if (bestLyrics == null) {
+            return const _PlayerLyricsMessage(
+              icon: AppIcons.lyrics,
+              title: '暂无歌词',
+              description: '当前曲目没有可用的歌词内容。',
+            );
+          }
+          return SyncedLyricsView(
+            lyrics: bestLyrics,
+            // 大屏前台门控参数化：本页即大屏，显式开启歌词渲染。
+            fullPlayerActive: true,
+            activePrimaryColor: lyricActiveColor,
+            activeSecondaryColor: lyricActiveColor,
+            inactivePrimaryColor: context.musicFlowColors.muted,
+            inactiveSecondaryColor: context.musicFlowColors.muted,
           );
-        }
-        final bestLyrics = lyrics.getBest();
-        if (bestLyrics == null) {
-          return const _PlayerLyricsMessage(
-            icon: AppIcons.lyrics,
-            title: '暂无歌词',
-            description: '当前曲目没有可用的歌词内容。',
-          );
-        }
-        return SyncedLyricsView(
-          lyrics: bestLyrics,
-          // 大屏前台门控参数化：本页即大屏，显式开启歌词渲染。
-          fullPlayerActive: true,
-          activePrimaryColor: lyricActiveColor,
-          activeSecondaryColor: lyricActiveColor,
-          inactivePrimaryColor: context.musicFlowColors.muted,
-          inactiveSecondaryColor: context.musicFlowColors.muted,
-        );
-      },
-      loading: () => const _PlayerLyricsLoading(),
-      error: (error, stackTrace) => _PlayerLyricsMessage(
-        icon: AppIcons.error,
-        title: '歌词加载失败',
-        description: '播放不受影响，可以立即重试。',
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(currentLyricsProvider),
-      ),
+        },
+        loading: () => const _PlayerLyricsLoading(),
+        error: (error, stackTrace) => _PlayerLyricsMessage(
+          icon: AppIcons.error,
+          title: '歌词加载失败',
+          description: '播放不受影响，可以立即重试。',
+          actionLabel: '重试',
+          onAction: () => ref.invalidate(currentLyricsProvider),
+        ),
       ),
     );
   }
@@ -849,61 +844,58 @@ class _CurrentLyricLine extends ConsumerWidget {
     // 不连带整页（含黑胶/背景）重绘。
     return RepaintBoundary(
       child: lyricsAsync.when(
-      data: (lyrics) {
-        if (lyrics == null || lyrics.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final best = lyrics.getBest();
-        if (best == null || !best.synced || best.lines.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final index = syncedLyricIndexFor(best, position);
-        final (primary, secondary) = lyricLineParts(best.lines[index].value);
-        if (primary.isEmpty && (secondary?.isEmpty ?? true)) {
-          return const SizedBox.shrink();
-        }
-        final muted = context.musicFlowColors.muted;
-        final typography = context.musicFlowTypography;
-        final duration = context.musicFlowMotion.resolve(
-          context,
-          context.musicFlowMotion.state,
-        );
-        return AnimatedSwitcher(
-          duration: duration,
-          child: Column(
-            key: ValueKey<int>(index),
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              if (primary.isNotEmpty)
-                Text(
-                  primary,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.body.copyWith(
-                    fontSize: 15,
-                    color: muted,
+        data: (lyrics) {
+          if (lyrics == null || lyrics.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          final best = lyrics.getBest();
+          if (best == null || !best.synced || best.lines.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          final index = syncedLyricIndexFor(best, position);
+          final (primary, secondary) = lyricLineParts(best.lines[index].value);
+          if (primary.isEmpty && (secondary?.isEmpty ?? true)) {
+            return const SizedBox.shrink();
+          }
+          final muted = context.musicFlowColors.muted;
+          final typography = context.musicFlowTypography;
+          final duration = context.musicFlowMotion.resolve(
+            context,
+            context.musicFlowMotion.state,
+          );
+          return AnimatedSwitcher(
+            duration: duration,
+            child: Column(
+              key: ValueKey<int>(index),
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (primary.isNotEmpty)
+                  Text(
+                    primary,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.body.copyWith(fontSize: 15, color: muted),
                   ),
-                ),
-              if (secondary != null && secondary.isNotEmpty) ...<Widget>[
-                SizedBox(height: context.musicFlowSpacing.xxs),
-                Text(
-                  secondary,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.body.copyWith(
-                    fontSize: 13,
-                    color: muted.withValues(alpha: 0.7),
+                if (secondary != null && secondary.isNotEmpty) ...<Widget>[
+                  SizedBox(height: context.musicFlowSpacing.xxs),
+                  Text(
+                    secondary,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.body.copyWith(
+                      fontSize: 13,
+                      color: muted.withValues(alpha: 0.7),
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
-          ),
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (Object error, StackTrace stackTrace) => const SizedBox.shrink(),
+            ),
+          );
+        },
+        loading: () => const SizedBox.shrink(),
+        error: (Object error, StackTrace stackTrace) => const SizedBox.shrink(),
       ),
     );
   }
@@ -962,7 +954,10 @@ class _PlayerLyricsMessage extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...<Widget>[
               SizedBox(height: context.musicFlowSpacing.lg),
-              MusicFlowButton.secondary(label: actionLabel!, onPressed: onAction),
+              MusicFlowButton.secondary(
+                label: actionLabel!,
+                onPressed: onAction,
+              ),
             ],
           ],
         ),
@@ -1207,7 +1202,9 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
           ),
           ExcludeSemantics(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.sm),
+              padding: EdgeInsets.symmetric(
+                horizontal: context.musicFlowSpacing.sm,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
@@ -1291,8 +1288,10 @@ class PlaybackControls extends ConsumerWidget {
         final maxPlay = compact ? 56.0 : 64.0;
         // 可用宽度 - 4 个 48px 侧按钮 = 主播放按钮可分配宽度。
         final available = constraints.maxWidth;
-        final playDimension =
-            (available - sideButton * 4).clamp(minPlay, maxPlay);
+        final playDimension = (available - sideButton * 4).clamp(
+          minPlay,
+          maxPlay,
+        );
         final playIconSize = (playDimension - 24).clamp(26.0, 32.0);
         return Center(
           child: ConstrainedBox(

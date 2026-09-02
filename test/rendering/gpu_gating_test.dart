@@ -7,8 +7,6 @@
 //   2) 播放状态门控：暂停不跳（跳动竖条冻结、黑胶停转）；
 //   3) 大屏前台门控：黑胶只在 fullPlayerActive 时旋转、大屏歌词非大屏不渲染；
 //   4) 冻结进度/歌词：窗口完全不可见时 UI 不再随播放推进重建，恢复可见立即对齐。
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -248,23 +246,10 @@ void main() {
     });
   });
 
-  group('跳动竖条: 播放状态门控（暂停不跳）', () {
-    testWidgets('播放中跳、暂停冻结、恢复续跳', (tester) async {
-      // StateProvider 中转（setState 同步通知），绕开裸容器 invalidate 的
-      // Future(task) 异步调度。
-      final playingProvider = StateProvider<bool>((ref) => true);
-      final container = ProviderContainer(
-        overrides: [
-          effectiveIsPlayingProvider.overrideWith(
-            (ref) => ref.watch(playingProvider),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
+  group('封面播放指示: 静态竖条标志(不跳,零动画开销)', () {
+    testWidgets('静态三根竖条恒定,无持续动画', (tester) async {
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
+        ProviderScope(
           child: MaterialApp(
             theme: AppTheme.dark(),
             home: const Scaffold(
@@ -273,100 +258,34 @@ void main() {
           ),
         ),
       );
-      await tester.pump(); // didChangeDependencies → repeat
-      await tester.pump(const Duration(milliseconds: 300));
-      final heightsPlaying = _barHeights(tester);
-      expect(heightsPlaying.length, 3);
-
-      // 暂停 → 冻结在当前高度。
-      container.read(playingProvider.notifier).state = false;
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      final heightsPaused1 = _barHeights(tester);
-      await tester.pump(const Duration(milliseconds: 300));
-      final heightsPaused2 = _barHeights(tester);
-      expect(heightsPaused1, heightsPaused2);
+      final h1 = _barHeights(tester);
+      expect(h1.length, 3);
+      expect(h1, everyElement(isNonNegative));
 
-      // 恢复播放 → 重新跳动（高度至少一根变化）。
-      container.read(playingProvider.notifier).state = true;
-      await tester.pump();
+      // 静态标志：时间流逝后高度完全不变,且无任何持续动画(running animation)。
       await tester.pump(const Duration(milliseconds: 300));
-      final heightsResumed = _barHeights(tester);
-      expect(heightsPaused1, isNot(equals(heightsResumed)));
+      final h2 = _barHeights(tester);
+      expect(h1, h2, reason: '静态标志高度恒定,不随时间变化');
+      expect(tester.hasRunningAnimations, isFalse, reason: '静态标志零动画开销');
     });
   });
 
-  group('黑胶旋转: 大屏前台 + 播放中才转', () {
+  group('黑胶封面: 静态不旋转(已彻底移除旋转开销)', () {
     // Song 无 const 构造（仅 id/title 必填，其余可选）。
     final song = Song(id: 'x', title: '测试曲');
 
-    double rotationOf(WidgetTester tester) {
-      final transform = tester.widget<Transform>(find.byType(Transform).first);
-      final m = transform.transform;
-      return math.atan2(m.entry(1, 0), m.entry(0, 0));
-    }
-
-    testWidgets('暂停时停转、播放时旋转', (tester) async {
-      final playingProvider = StateProvider<bool>((ref) => true);
-      final container = ProviderContainer(
-        overrides: [
-          effectiveIsPlayingProvider.overrideWith(
-            (ref) => ref.watch(playingProvider),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            theme: AppTheme.dark(),
-            home: Scaffold(
-              body: Center(
-                child: VinylRecordCover(
-                  song: song,
-                  size: 200,
-                  fullPlayerActive: true,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      final r1 = rotationOf(tester);
-
-      // 暂停 → 冻结角度。
-      container.read(playingProvider.notifier).state = false;
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      final r2 = rotationOf(tester);
-      await tester.pump(const Duration(milliseconds: 500));
-      final r3 = rotationOf(tester);
-      expect(r2, r3);
-      expect(r2, closeTo(r1, 0.001)); // 停转瞬间角度不突变（已冻结）
-
-      // 恢复播放 → 继续旋转。
-      container.read(playingProvider.notifier).state = true;
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(rotationOf(tester), isNot(closeTo(r3, 0.01)));
-    });
-
-    testWidgets('非大屏前台(fullPlayerActive=false)不旋转', (tester) async {
+    testWidgets('无论播放与否均为静态,无持续动画', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          VinylRecordCover(song: song, size: 200, fullPlayerActive: false),
+          VinylRecordCover(song: song, size: 200),
           overrides: [effectiveIsPlayingProvider.overrideWith((ref) => true)],
         ),
       );
-      await tester.pump();
-      final r1 = rotationOf(tester);
-      await tester.pump(const Duration(milliseconds: 500));
-      final r2 = rotationOf(tester);
-      expect(r1, r2);
+      // 静态封面没有持续动画：帧立刻能 settle（无 Ticker/Timer 持续调度）。
+      // 若黑胶仍残留持续旋转，这里会因持续动画而 pumpAndSettle 超时失败。
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse, reason: '静态封面零持续动画');
     });
   });
 
