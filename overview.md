@@ -1,3 +1,20 @@
+# v3.4.67 GPU 门控修复：watch 不触发 didChangeDependencies + 大屏开关参数化 总览
+
+## v3.4.67（本轮）
+
+修复 v3.4.66 发布后暴露的两条 CI 红线（GPU Render Guard gpu-gating-tests 7 passed 3 failed；Build Client DLNA Feature Tests 87 passed 1 failed）。本机装好 Flutter SDK（国内镜像）后全量复现定位，三层根因：
+
+### 根因与修复
+1. **实现 bug（真实）**：Riverpod 2.6 `ref.watch` 变化回调 = `markNeedsBuild()`——只触发 rebuild，**不触发 didChangeDependencies**。跳动竖条 / 黑胶 / 骨架屏 shimmer 三处门控此前放在 `didChangeDependencies`，暂停/失焦/退出大屏的停转分支从未真正生效（7 个测试碰巧靠 TickerMode 兜底误通过）。→ 门控统一移入 `build` 开头。
+2. **架构死结**：`fullPlayerActiveProvider`（StateProvider）由 FullPlayerPage 在 initState/dispose 写入——Riverpod 禁止构建期/unmount 期改 provider（`_debugCanModifyProviders` 断言），dispose 后 `ref` 失效，post-frame/microtask 延迟又在测试 FakeAsync 撞「container already disposed」。→ **参数化**：VinylRecordCover / SyncedLyricsView 均只被 FullPlayerPage 各用一次，改构造参数 `fullPlayerActive`（默认 false，页面传 true），删除 provider 文件（`lib/providers/full_player_active_provider.dart`）与全部生命周期写入。
+3. **测试写法**：裸变量 + `container.invalidate` 走 ProviderScheduler 的 `Future(task)` 异步调度，`tester.pump()` 不等事件队列。→ 改 `StateProvider` 中转 + `container.read(p.notifier).state = x`（setState 同步通知）。
+
+### 验证与发版
+- 本地：gpu_gating_test + full_player_page_test 22/22；全量 `flutter test` **+485 -0**；`gpu_guard_scan` 结构扫描通过（3 个 `.repeat()` 文件全部门控 + RepaintBoundary）。
+- commit `9cecc80`（+191/-103，10 文件）→ push main → **GPU Render Guard / Test Suite / UI Guard / Transcode Chain Guard 四条 workflow 全 success** → tag `v3.4.67` → **Build Client 全 job success（含 DLNA Feature Tests 转绿）** → Release 三产物（android.apk + windows-setup.exe + windows.zip）uploader 均 `github-actions[bot]`。
+
+---
+
 # v3.4.66 GPU 智能按需渲染：大屏门控 / 窗口不可见停帧 / 暂停停跳 / RepaintBoundary 隔离 总览
 
 ## v3.4.66（本轮）
