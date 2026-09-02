@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
@@ -37,24 +38,39 @@ class VinylRecordCover extends ConsumerStatefulWidget {
 
 class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _rotationController;
-  late final Animation<double> _rotationAnimation;
+  // 60fps 限流：用 Ticker 手动 gate 到每 16ms 才更新一次旋转角,替代
+  // AnimationController.repeat() 每 vsync(144Hz 屏≈144次/秒)都 markNeedsBuild。
+  // 关键收益：组件每帧向 DWM 提交「新帧」的频率从 144→60,大屏模式下
+  // System/DWM 无需每一帧都做整窗合成——这才是把 System GPU 拉回 2% 量级的根因
+  // (transform layer 只解决了单帧成本,不限频则 DWM 仍按显示器刷新率全窗合成)。
+  static const Duration _frameInterval = Duration(milliseconds: 16);
+  static const int _cycleMicros = 20000000; // 20s/圈,与原 AnimationController 一致
+
+  late final Ticker _rotationTicker;
+
+  /// 暂停/停转后恢复用：保留当前角位,续转不跳变。
+  double _baseAngle = 0;
+  double _angle = 0;
+  Duration _lastTick = Duration.zero;
 
   @override
   void initState() {
     super.initState();
-    _rotationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 20),
-    );
-    _rotationAnimation = Tween<double>(begin: 0, end: 2 * math.pi).animate(
-      CurvedAnimation(parent: _rotationController, curve: Curves.linear),
-    );
+    _rotationTicker = createTicker(_onTick);
+  }
+
+  void _onTick(Duration elapsed) {
+    final delta = elapsed - _lastTick;
+    if (delta < _frameInterval) return;
+    _lastTick = elapsed;
+    _angle = _baseAngle + 2 * math.pi * (elapsed.inMicroseconds / _cycleMicros);
+    // 直接 setState 触发 rebuild,把层树更新频率严格锁在 30fps。
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _rotationController.dispose();
+    _rotationTicker.dispose();
     super.dispose();
   }
 
@@ -72,9 +88,13 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
       appVisible: appVisible,
     );
     if (shouldSpin) {
-      if (!_rotationController.isAnimating) _rotationController.repeat();
-    } else if (_rotationController.isAnimating) {
-      _rotationController.stop();
+      if (!_rotationTicker.isActive) {
+        _baseAngle = _angle; // 恢复续转不跳变
+        _lastTick = Duration.zero;
+        _rotationTicker.start();
+      }
+    } else if (_rotationTicker.isActive) {
+      _rotationTicker.stop();
     }
   }
 
@@ -98,80 +118,72 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
     final isWindows =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
-    return AnimatedBuilder(
-      animation: _rotationAnimation,
-      builder: (context, child) {
-        // RepaintBoundary 放在 Transform 内层：把黑胶缓存为一帧静态贴图(纹理 layer),
-        // 旋转只做「矩阵变换合成」(transform layer),不再每帧重光栅化渐变圆+阴影——
-        // 与网易云大屏旋转成本一致;若放在外层则每帧整棵子树重画,GPU 飙高。
-        return Transform.rotate(
-          angle: _rotationAnimation.value,
-          child: RepaintBoundary(
-            child: SizedBox(
-              width: widget.size,
-              height: widget.size,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // 黑胶唱片背景
-                  if (widget.showVinylEffect)
-                    Container(
-                      width: widget.size,
-                      height: widget.size,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.black87,
-                            Colors.black,
-                            Colors.black87,
-                            Colors.black,
-                            Colors.black87,
+    return Transform.rotate(
+      angle: _angle,
+      child: RepaintBoundary(
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // 黑胶唱片背景
+              if (widget.showVinylEffect)
+                Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.black87,
+                        Colors.black,
+                        Colors.black87,
+                        Colors.black,
+                        Colors.black87,
+                      ],
+                      stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+                    ),
+                    boxShadow: isWindows
+                        ? const <BoxShadow>[
+                            BoxShadow(
+                              color: Color(0x40000000),
+                              blurRadius: 6,
+                              spreadRadius: 0,
+                            ),
+                          ]
+                        : const <BoxShadow>[
+                            BoxShadow(
+                              color: Color(0x80000000),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
                           ],
-                          stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
-                        ),
-                        boxShadow: isWindows
-                            ? const <BoxShadow>[
-                                BoxShadow(
-                                  color: Color(0x40000000),
-                                  blurRadius: 6,
-                                  spreadRadius: 0,
-                                ),
-                              ]
-                            : const <BoxShadow>[
-                                BoxShadow(
-                                  color: Color(0x80000000),
-                                  blurRadius: 20,
-                                  spreadRadius: 5,
-                                ),
-                              ],
-                      ),
-                    ),
-                  // 专辑封面 (圆形裁剪)
-                  ClipOval(
-                    child: SizedBox(
-                      width: coverRadius * 2,
-                      height: coverRadius * 2,
-                      child: _buildCoverImage(),
-                    ),
                   ),
-                  // 中心小孔
-                  if (widget.showVinylEffect)
-                    Container(
-                      width: centerHoleRadius * 2,
-                      height: centerHoleRadius * 2,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.grey[800],
-                        border: Border.all(color: Colors.grey[600]!, width: 2),
-                      ),
-                    ),
-                ],
+                ),
+              // 专辑封面 (圆形裁剪)
+              ClipOval(
+                child: SizedBox(
+                  width: coverRadius * 2,
+                  height: coverRadius * 2,
+                  child: _buildCoverImage(),
+                ),
               ),
-            ),
+              // 中心小孔
+              if (widget.showVinylEffect)
+                Container(
+                  width: centerHoleRadius * 2,
+                  height: centerHoleRadius * 2,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.grey[800],
+                    border: Border.all(color: Colors.grey[600]!, width: 2),
+                  ),
+                ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

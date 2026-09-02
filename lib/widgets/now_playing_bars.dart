@@ -113,10 +113,10 @@ class _JumpingBars extends ConsumerStatefulWidget {
 
 class _JumpingBarsState extends ConsumerState<_JumpingBars>
     with SingleTickerProviderStateMixin {
-  // 方案 B：Ticker 手动限流到 ~30fps(每 33ms 才重绘一次)。相比每 vsync
-  // (如 144Hz 显示器=144 帧/秒)rebuild,重绘频率直接砍到 1/4 以上,显著降低
+  // 方案 B：Ticker 手动限流到 ~60fps(每 16ms 才重绘一次)。相比每 vsync
+  // (如 144Hz 显示器=144 帧/秒)rebuild,重绘频率减半以上,显著降低
   // 播放中常驻的 GPU/DWM 合成开销。窗口不可见时 TickerMode 自动静音。
-  static const Duration _frameInterval = Duration(milliseconds: 33);
+  static const Duration _frameInterval = Duration(milliseconds: 16);
   // 跳动一圈 900ms(与原 AnimationController duration 一致),速度观感不变。
   static const int _cycleMicros = 900000;
 
