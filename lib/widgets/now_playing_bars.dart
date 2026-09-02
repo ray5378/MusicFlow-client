@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/effective_playback_provider.dart';
@@ -112,19 +113,39 @@ class _JumpingBars extends ConsumerStatefulWidget {
 
 class _JumpingBarsState extends ConsumerState<_JumpingBars>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  );
+  // 方案 B：Ticker 手动限流到 ~30fps(每 33ms 才重绘一次)。相比每 vsync
+  // (如 144Hz 显示器=144 帧/秒)rebuild,重绘频率直接砍到 1/4 以上,显著降低
+  // 播放中常驻的 GPU/DWM 合成开销。窗口不可见时 TickerMode 自动静音。
+  static const Duration _frameInterval = Duration(milliseconds: 33);
+  // 跳动一圈 900ms(与原 AnimationController duration 一致),速度观感不变。
+  static const int _cycleMicros = 900000;
 
-  // 每根竖条独立相位/速度/幅度，形成「随机跳动」观感。
-  static const List<double> _phases = [0.0, 1.7, 3.6];
-  static const List<double> _speeds = [1.0, 1.35, 0.82];
-  static const List<double> _amplitudes = [1.0, 0.72, 0.88];
+  late final Ticker _ticker;
+
+  /// 暂停后恢复用：保留冻结相位,续跳不跳变。
+  double _baseT = 0;
+  Duration _lastRender = Duration.zero;
+
+  /// 当前驱动相位 0~1。
+  double _t = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_onTick);
+  }
+
+  void _onTick(Duration elapsed) {
+    final delta = elapsed - _lastRender;
+    if (delta < _frameInterval) return;
+    _lastRender = elapsed;
+    final raw = _baseT + elapsed.inMicroseconds / _cycleMicros;
+    setState(() => _t = raw - raw.floorToDouble());
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
@@ -136,65 +157,103 @@ class _JumpingBarsState extends ConsumerState<_JumpingBars>
     // 不会触发 didChangeDependencies。
     final playing = ref.watch(effectiveIsPlayingProvider);
     if (playing) {
-      if (!_controller.isAnimating) _controller.repeat();
-    } else if (_controller.isAnimating) {
-      _controller.stop();
+      if (!_ticker.isActive) {
+        _baseT = _t; // 停/shut 后重启不跳变
+        _lastRender = Duration.zero;
+        _ticker.start();
+      }
+    } else if (_ticker.isActive) {
+      _ticker.stop();
     }
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value;
-        final heightSpan = widget.maxBarHeight - widget.minBarHeight;
-        final bars = <Widget>[
-          for (var i = 0; i < 3; i++)
-            _buildBar(
-              t,
-              phase: _phases[i],
-              speed: _speeds[i],
-              amplitude: _amplitudes[i],
-              heightSpan: heightSpan,
-            ),
-        ];
-        // 容器固定为最大可能高度,竖条底部对齐(crossAxisAlignment: end),
-        // 跳动方向「从底部往上」。
-        return SizedBox(
-          height: widget.maxBarHeight,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              for (var i = 0; i < bars.length; i++) ...<Widget>[
-                if (i > 0) SizedBox(width: widget.barGap),
-                bars[i],
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildBar(
-    double t, {
-    required double phase,
-    required double speed,
-    required double amplitude,
-    required double heightSpan,
-  }) {
-    // 多条正弦叠加形成「不规则跳动」：主波 + 高频次波。
-    final wave = sin(2 * pi * (t * speed + phase)) * 0.7 +
-        sin(2 * pi * (t * speed * 2.7 + phase * 1.3)) * 0.3;
-    // 归一化到 0~1，再按幅度系数分配高度范围，保证三根互不相同。
-    final normalized = (wave + 1) / 2;
-    final height = widget.minBarHeight +
-        heightSpan * (0.35 + 0.65 * normalized) * amplitude;
-    return Container(
-      width: widget.barWidth,
-      height: height,
-      decoration: BoxDecoration(
-        color: widget.color,
-        borderRadius: BorderRadius.circular(widget.barRadius),
+    final totalWidth = widget.barWidth * 3 + widget.barGap * 2;
+    return SizedBox(
+      width: totalWidth,
+      height: widget.maxBarHeight,
+      child: CustomPaint(
+        size: Size(totalWidth, widget.maxBarHeight),
+        painter: JumpingBarsPainter(
+          t: _t,
+          barWidth: widget.barWidth,
+          barGap: widget.barGap,
+          radius: widget.barRadius,
+          minHeight: widget.minBarHeight,
+          maxHeight: widget.maxBarHeight,
+          color: widget.color,
+        ),
       ),
     );
   }
+}
+
+/// 3 根跳动竖条的合帧绘制器：单 CustomPainter 一次 drawRRect×3,
+/// 替代原「Row + 3×Container」每帧例化多个 RenderObject + 布局 + 3 次绘制。
+class JumpingBarsPainter extends CustomPainter {
+  JumpingBarsPainter({
+    required this.t,
+    required this.barWidth,
+    required this.barGap,
+    required this.radius,
+    required this.minHeight,
+    required this.maxHeight,
+    required this.color,
+  });
+
+  final double t;
+  final double barWidth;
+  final double barGap;
+  final double radius;
+  final double minHeight;
+  final double maxHeight;
+  final Color color;
+
+  // 每根竖条独立相位/速度/幅度，形成「随机跳动」观感。
+  static const List<double> _phases = [0.0, 1.7, 3.6];
+  static const List<double> _speeds = [1.0, 1.35, 0.82];
+  static const List<double> _amplitudes = [1.0, 0.72, 0.88];
+
+  double _heightAt(int index) {
+    final speed = _speeds[index];
+    final phase = _phases[index];
+    // 多条正弦叠加形成「不规则跳动」：主波 + 高频次波。
+    final wave =
+        sin(2 * pi * (t * speed + phase)) * 0.7 +
+        sin(2 * pi * (t * speed * 2.7 + phase * 1.3)) * 0.3;
+    // 归一化到 0~1，再按幅度系数分配高度范围，保证三根互不相同。
+    final normalized = (wave + 1) / 2;
+    return minHeight +
+        (maxHeight - minHeight) *
+            (0.35 + 0.65 * normalized) *
+            _amplitudes[index];
+  }
+
+  /// 当前 3 根竖条的高度（自底向上生长，便于测试 / 合计绘制复用）。
+  List<double> barHeights() => [_heightAt(0), _heightAt(1), _heightAt(2)];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final heights = barHeights();
+    for (var i = 0; i < 3; i++) {
+      final x = i * (barWidth + barGap);
+      final h = heights[i];
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, size.height - h, barWidth, h),
+          Radius.circular(radius),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(JumpingBarsPainter oldDelegate) =>
+      oldDelegate.t != t ||
+      oldDelegate.color != color ||
+      oldDelegate.barWidth != barWidth ||
+      oldDelegate.barGap != barGap ||
+      oldDelegate.radius != radius ||
+      oldDelegate.minHeight != minHeight ||
+      oldDelegate.maxHeight != maxHeight;
 }

@@ -70,22 +70,15 @@ Widget _wrap(Widget child, {List<Override> overrides = const []}) {
   );
 }
 
-/// 读取跳动竖条当前高度（3 根白条）。
+/// 读取跳动竖条当前高度（3 根白条）。改为读取合帧 CustomPainter 的当前相位高度。
 List<double> _barHeights(WidgetTester tester) {
-  final bars = find.descendant(
-    of: find.byType(NowPlayingCoverOverlay),
-    matching: find.byWidgetPredicate(
-      (w) =>
-          w is Container &&
-          w.decoration is BoxDecoration &&
-          ((w.decoration as BoxDecoration).color == Colors.white),
+  final painter = tester.widget<CustomPaint>(
+    find.descendant(
+      of: find.byType(NowPlayingCoverOverlay),
+      matching: find.byType(CustomPaint),
     ),
   );
-  final heights = <double>[];
-  for (var i = 0; i < bars.evaluate().length; i++) {
-    heights.add(tester.getSize(bars.at(i)).height);
-  }
-  return heights;
+  return (painter.painter! as JumpingBarsPainter).barHeights();
 }
 
 void main() {
@@ -125,9 +118,7 @@ void main() {
     testWidgets('appVisibilityProvider 随生命周期翻转', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          child: AppVisibilityScope(
-            child: MaterialApp(home: const SizedBox()),
-          ),
+          child: AppVisibilityScope(child: MaterialApp(home: const SizedBox())),
         ),
       );
       await tester.pump();
@@ -142,16 +133,28 @@ void main() {
       //（用户确认：失焦只是不在最前端，不是不可见）。
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
-      expect(container.read(appVisibilityProvider), isTrue, reason: 'inactive 失焦仍可见');
+      expect(
+        container.read(appVisibilityProvider),
+        isTrue,
+        reason: 'inactive 失焦仍可见',
+      );
 
       // 最小化(paused)：窗口从屏幕消失 → 不可见、冻结。
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
-      expect(container.read(appVisibilityProvider), isFalse, reason: 'paused 最小化不可见');
+      expect(
+        container.read(appVisibilityProvider),
+        isFalse,
+        reason: 'paused 最小化不可见',
+      );
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      expect(container.read(appVisibilityProvider), isTrue, reason: 'resumed 恢复可见');
+      expect(
+        container.read(appVisibilityProvider),
+        isTrue,
+        reason: 'resumed 恢复可见',
+      );
     });
   });
 
@@ -176,9 +179,8 @@ void main() {
           container: container,
           child: MaterialApp(
             home: Consumer(
-              builder: (context, ref, child) => Text(
-                ref.watch(frozenPositionProvider).inSeconds.toString(),
-              ),
+              builder: (context, ref, child) =>
+                  Text(ref.watch(frozenPositionProvider).inSeconds.toString()),
             ),
           ),
         ),
@@ -299,9 +301,7 @@ void main() {
     final song = Song(id: 'x', title: '测试曲');
 
     double rotationOf(WidgetTester tester) {
-      final transform = tester.widget<Transform>(
-        find.byType(Transform).first,
-      );
+      final transform = tester.widget<Transform>(find.byType(Transform).first);
       final m = transform.transform;
       return math.atan2(m.entry(1, 0), m.entry(0, 0));
     }
@@ -358,14 +358,8 @@ void main() {
     testWidgets('非大屏前台(fullPlayerActive=false)不旋转', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          VinylRecordCover(
-            song: song,
-            size: 200,
-            fullPlayerActive: false,
-          ),
-          overrides: [
-            effectiveIsPlayingProvider.overrideWith((ref) => true),
-          ],
+          VinylRecordCover(song: song, size: 200, fullPlayerActive: false),
+          overrides: [effectiveIsPlayingProvider.overrideWith((ref) => true)],
         ),
       );
       await tester.pump();
@@ -424,9 +418,7 @@ void main() {
           child: AppVisibilityScope(
             child: MaterialApp(
               theme: AppTheme.dark(),
-              home: const Scaffold(
-                body: MusicFlowSkeleton(height: 20),
-              ),
+              home: const Scaffold(body: MusicFlowSkeleton(height: 20)),
             ),
           ),
         ),
