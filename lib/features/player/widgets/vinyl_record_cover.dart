@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart'
@@ -36,41 +37,26 @@ class VinylRecordCover extends ConsumerStatefulWidget {
   ConsumerState<VinylRecordCover> createState() => _VinylRecordCoverState();
 }
 
-class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
-    with SingleTickerProviderStateMixin {
-  // 60fps 限流：用 Ticker 手动 gate 到每 16ms 才更新一次旋转角,替代
-  // AnimationController.repeat() 每 vsync(144Hz 屏≈144次/秒)都 markNeedsBuild。
-  // 关键收益：组件每帧向 DWM 提交「新帧」的频率从 144→60,大屏模式下
-  // System/DWM 无需每一帧都做整窗合成——这才是把 System GPU 拉回 2% 量级的根因
-  // (transform layer 只解决了单帧成本,不限频则 DWM 仍按显示器刷新率全窗合成)。
-  static const Duration _frameInterval = Duration(milliseconds: 16);
-  static const int _cycleMicros = 20000000; // 20s/圈,与原 AnimationController 一致
+class _VinylRecordCoverState extends ConsumerState<VinylRecordCover> {
+  // 关键帧旋转：用 Timer.periodic 低频驱动,而非 Ticker/AnimationController.
+  // 为什么要摆脱 Ticker：Ticker active 会持续驱动 SchedulerBinding 的帧调度,
+  // 即使 setState 被限流到低帧率,引擎仍每 vsync 跑一帧并 present → DWM/System
+  // 每帧被拉去合成这个大黑胶区域,这是「限速 60fps 后 System GPU 依旧 40-70%」的
+  // 真正机理。改用 Timer.periodic 后,只有每个触发点才 setState 排一帧,非触发
+  // 的毫秒窗口引擎完全 idle、不再向 DWM 提交新帧——和网易云「转但 System 低」
+  // 一致:人眼对匀速慢转(20s/圈)的 ~30fps 关键帧几乎无感知,却砍掉持续合成。
+  static const Duration _frameInterval = Duration(
+    milliseconds: 33,
+  ); // ~30fps 关键帧
+  // 每个触发点的角步进 = 2π × (33ms / 20s)。匀速累积,视觉连续、测试可预测。
+  static const double _angleStep = 2 * math.pi * 33 / 20000;
 
-  late final Ticker _rotationTicker;
-
-  /// 暂停/停转后恢复用：保留当前角位,续转不跳变。
-  double _baseAngle = 0;
+  Timer? _rotationTimer;
   double _angle = 0;
-  Duration _lastTick = Duration.zero;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotationTicker = createTicker(_onTick);
-  }
-
-  void _onTick(Duration elapsed) {
-    final delta = elapsed - _lastTick;
-    if (delta < _frameInterval) return;
-    _lastTick = elapsed;
-    _angle = _baseAngle + 2 * math.pi * (elapsed.inMicroseconds / _cycleMicros);
-    // 直接 setState 触发 rebuild,把层树更新频率严格锁在 30fps。
-    setState(() {});
-  }
 
   @override
   void dispose() {
-    _rotationTicker.dispose();
+    _rotationTimer?.cancel();
     super.dispose();
   }
 
@@ -88,13 +74,18 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
       appVisible: appVisible,
     );
     if (shouldSpin) {
-      if (!_rotationTicker.isActive) {
-        _baseAngle = _angle; // 恢复续转不跳变
-        _lastTick = Duration.zero;
-        _rotationTicker.start();
+      if (_rotationTimer == null) {
+        // 从当前角位续转,暂停/停转间不跳变。
+        _rotationTimer = Timer.periodic(
+          _frameInterval,
+          (_) => setState(() {
+            _angle = (_angle + _angleStep) % (2 * math.pi);
+          }),
+        );
       }
-    } else if (_rotationTicker.isActive) {
-      _rotationTicker.stop();
+    } else if (_rotationTimer != null) {
+      _rotationTimer!.cancel();
+      _rotationTimer = null;
     }
   }
 
