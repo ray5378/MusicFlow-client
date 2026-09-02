@@ -192,11 +192,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _loggedDurationUnavailableForSong = false;
   Timer? _fadeTimer;
   Completer<void>? _fadeCompleter;
-  static const Duration _playbackSessionPersistInterval = Duration(seconds: 2);
+  // 播放会话落盘节流：仅当序列本质上变化时才重新序列化整张队列，避免每次
+  // position tick 都全量 toJson + jsonEncode（大队列会在大屏旋转封面时周期卡顿）。
+  // 由 2s 放宽到 5s：降频 2.5 倍，崩溃续播最多损失 ~5s 进度，与主流播放器一致。
+  static const Duration _playbackSessionPersistInterval = Duration(seconds: 5);
   Timer? _playbackSessionPersistTimer;
   Timer? _volumePersistTimer;
   bool _isPersistingPlaybackSession = false;
   bool _isRestoringPlaybackSession = false;
+  // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
+  List<Object?> _cachedQueueIds = const [];
+  List<Map<String, dynamic>> _cachedQueuePayload = const [];
   NetworkType _lastObservedNetworkType = NetworkType.none;
   bool _retryCurrentPlaybackOnReconnect = false;
   bool _retryingCurrentPlayback = false;
@@ -2418,6 +2424,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     });
   }
 
+  /// 序列化队列，队列未变化时复用上次结果（避免每次落盘都全量 toJson 整队，
+  /// 那是大屏旋转封面"定时卡顿"的周期性主线程分配源）。
+  List<Map<String, dynamic>> _serializedQueuePayload(List<Song> queue) {
+    final ids = queue.map((song) => song.id).toList(growable: false);
+    final cached = _cachedQueueIds;
+    var unchanged = cached.length == ids.length;
+    if (unchanged) {
+      for (var i = 0; i < ids.length; i++) {
+        if (cached[i] != ids[i]) {
+          unchanged = false;
+          break;
+        }
+      }
+    }
+    if (unchanged) return _cachedQueuePayload;
+    _cachedQueueIds = ids;
+    _cachedQueuePayload =
+        queue.map((song) => song.toJson()).toList(growable: false);
+    return _cachedQueuePayload;
+  }
+
   Map<String, dynamic>? _buildPlaybackSessionPayload() {
     final queue = state.queue;
     if (queue.isEmpty) return null;
@@ -2441,7 +2468,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final normalizedPosition = _normalizeSeekPosition(state.position);
     return {
       'version': 1,
-      'queue': queue.map((song) => song.toJson()).toList(growable: false),
+      'queue': _serializedQueuePayload(queue),
       'currentIndex': currentIndex,
       'currentSongId': queue[currentIndex].id,
       'positionMs': normalizedPosition.inMilliseconds,
@@ -2465,7 +2492,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         await LocalStorage.clearPlaybackSession();
         return;
       }
-      Logger.infoWithTag(
+      Logger.debugWithTag(
         _playerLogTag,
         'persist session currentSongId=${payload['currentSongId']} '
         'index=${payload['currentIndex']} '

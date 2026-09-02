@@ -20,7 +20,7 @@ class FrozenPositionNotifier extends Notifier<Duration> {
 
   @override
   Duration build() {
-    final visible = ref.watch(appVisibilityProvider);
+    final visible = ref.watch(isRenderingActiveProvider);
     final position = ref.watch(effectivePositionProvider);
     if (visible) _last = position;
     // 不可见时返回缓存值：Riverpod 按 == 去重，UI 不会收到通知、零重建。
@@ -39,7 +39,7 @@ class FrozenLyricLineNotifier extends Notifier<String?> {
 
   @override
   String? build() {
-    final visible = ref.watch(appVisibilityProvider);
+    final visible = ref.watch(isRenderingActiveProvider);
     final line = ref.watch(currentLyricLineProvider);
     if (visible) _last = line;
     return _last;

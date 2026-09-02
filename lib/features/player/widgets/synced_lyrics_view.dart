@@ -58,6 +58,21 @@ int syncedLyricIndexFor(StructuredLyrics lyrics, Duration position) {
   return result;
 }
 
+/// 把「稳定行下标」映射回到该行的起点时刻。
+///
+/// [SyncedLyricsView] 用 select 仅在行下标变化时才重建，因此无法直接把实时
+/// 进度透传。这里用行起点(+offset)构造一个"只在换行时变化"的 position 传给
+/// [SyncedLyricsSurface]；其内部 _findCurrentLineIndex 用同样的
+/// `syncedLyricIndexFor` 反推，必然得到一致的 [index]，保证滚动对齐不变。
+Duration _positionForIndex(StructuredLyrics lyrics, int index) {
+  final lines = lyrics.lines;
+  if (!lyrics.synced || lines.isEmpty) return Duration.zero;
+  final safe = index.clamp(0, lines.length - 1);
+  return Duration(
+    milliseconds: (lines[safe].startMs ?? 0) + lyrics.offsetMs,
+  );
+}
+
 /// Splits one raw lyric line into its (primary, secondary) halves.
 ///
 /// Bilingual lines (Latin + CJK in either order) split at the language
@@ -119,8 +134,17 @@ class SyncedLyricsView extends ConsumerWidget {
     // （智能按需渲染，用户确认需求③）。同时用冻结进度：窗口不可见时
     // 歌词不再随播放推进而滚动/重建，恢复可见立即对齐。
     if (!fullPlayerActive) return const SizedBox.shrink();
-    final position = ref.watch(frozenPositionProvider);
     final dwellSeconds = ref.watch(lyricsScrollDwellProvider);
+    // 关键点：不直接 watch 冻结进度（约每 200~500ms 更新一次），否则每次跳动
+    // 都会整棵重建歌词列表 + 触发滚动，造成大屏封面“定时卡顿”与大量 GPU 重绘。
+    // 改为「下拉到当前行下标」，仅当所在行切换时才重建/滚动；同一行内的进度
+    // 推进不触发任何重建（Riverpod select 按 == 去重，行下标不变 → 零更新）。
+    final activeIndex = ref.watch(
+      frozenPositionProvider.select((p) => syncedLyricIndexFor(lyrics, p)),
+    );
+    // 把“稳定行下标”映射回报到歌词行起点：传给 Surface 的 position 只在换行时
+    // 变化，Surface 内 _findCurrentLineIndex 仍能一致地推出 activeIndex。
+    final position = _positionForIndex(lyrics, activeIndex);
     return SyncedLyricsSurface(
       lyrics: lyrics,
       position: position,

@@ -91,6 +91,8 @@ bool TrayHandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
       // 从托盘恢复：窗口可能在托盘中隐藏(SW_HIDE)或最小化，统一 SW_RESTORE。
       if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) {
         ShowWindow(hwnd, SW_RESTORE);
+        // 恢复可见 → 通知 Flutter 恢复渲染（解除窗口不可见冻结）。
+        NotifyWindowVisible(true);
       }
       SetForegroundWindow(hwnd);
     } else if (lParam == WM_RBUTTONUP) {
@@ -104,6 +106,8 @@ bool TrayHandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (cmd) {
       case TRAY_SHOW:
         ShowWindow(hwnd, SW_RESTORE);
+        // 从托盘「显示窗口」恢复 → 通知 Flutter 恢复渲染。
+        NotifyWindowVisible(true);
         SetForegroundWindow(hwnd);
         return true;
       case TRAY_PLAY_PAUSE:

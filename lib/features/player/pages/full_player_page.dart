@@ -197,9 +197,11 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                         tag: playerBackgroundHeroTag,
                         flightShuttleBuilder:
                             playerBackgroundFlightShuttleBuilder,
-                        child: MusicFlowPlayerBackdrop(
-                          visuals: visuals,
-                          mode: MusicFlowPlayerBackdropMode.stage,
+                        child: RepaintBoundary(
+                          child: MusicFlowPlayerBackdrop(
+                            visuals: visuals,
+                            mode: MusicFlowPlayerBackdropMode.stage,
+                          ),
                         ),
                       ),
                     ),
@@ -791,7 +793,9 @@ class _PlayerLyricsPane extends ConsumerWidget {
     final lyricsAsync = ref.watch(currentLyricsProvider);
     // 高亮颜色跟随当前主题强调色；未显式指定时不再使用硬编码黄色。
     final lyricActiveColor = activeColor ?? context.musicFlowColors.accent;
-    return lyricsAsync.when(
+    // RepaintBoundary：歌词列表即便发生重建/滚动，也只重绘本窗格，不扩散整页。
+    return RepaintBoundary(
+      child: lyricsAsync.when(
       data: (lyrics) {
         if (lyrics == null || lyrics.isEmpty) {
           return const _PlayerLyricsMessage(
@@ -826,6 +830,7 @@ class _PlayerLyricsPane extends ConsumerWidget {
         actionLabel: '重试',
         onAction: () => ref.invalidate(currentLyricsProvider),
       ),
+      ),
     );
   }
 }
@@ -840,7 +845,10 @@ class _CurrentLyricLine extends ConsumerWidget {
     final lyricsAsync = ref.watch(currentLyricsProvider);
     // 用冻结进度：窗口不可见时当前歌词行不再随播放推进而重建。
     final position = ref.watch(frozenPositionProvider);
-    return lyricsAsync.when(
+    // RepaintBoundary：首屏歌词行虽随进度 200~500ms 重建，但重绘隔离在本行内，
+    // 不连带整页（含黑胶/背景）重绘。
+    return RepaintBoundary(
+      child: lyricsAsync.when(
       data: (lyrics) {
         if (lyrics == null || lyrics.isEmpty) {
           return const SizedBox.shrink();
@@ -896,6 +904,7 @@ class _CurrentLyricLine extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (Object error, StackTrace stackTrace) => const SizedBox.shrink(),
+      ),
     );
   }
 }

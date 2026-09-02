@@ -42,4 +42,9 @@ class FlutterWindow : public Win32Window {
       window_channel_;
 };
 
+// 通知 Dart 端主窗口可见性（隐藏到托盘 / 从托盘恢复）的一次性门控信号。
+// 隐藏(SW_HIDE)时发 false 让 Flutter 冻结渲染（停 Ticker + 冻结数据驱动 UI），
+// 从托盘恢复(SW_RESTORE)时发 true 恢复渲染——否则窗口不可见仍占用 GPU。
+void NotifyWindowVisible(bool visible);
+
 #endif  // RUNNER_FLUTTER_WINDOW_H_

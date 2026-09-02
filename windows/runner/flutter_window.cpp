@@ -24,7 +24,24 @@ std::wstring Utf8ToUtf16(const std::string& utf8) {
   return result;
 }
 
+// 全局 messenger 指针：OnCreate 时从 Flutter 引擎取到，供 NotifyWindowVisible
+// 在窗口消息路径（WM_CLOSE/SC_MINIMIZE）与托盘恢复路径（main.cpp）发送可见性。
+static flutter::BinaryMessenger* g_window_messenger = nullptr;
+
 }  // namespace
+
+void NotifyWindowVisible(bool visible) {
+  if (!g_window_messenger) {
+    return;
+  }
+  // 与 Dart 端 BasicMessageChannel<String>(StringCodec) 对应的原生发送：
+  // 直接以 UTF-8 原始字节下发 "true"/"false"。仅当可见性真正翻转时再由
+  // Dart 端 setMessageHandler 收到，未注册时会以 empty reply 安全返回。
+  const std::string msg = visible ? "true" : "false";
+  std::vector<uint8_t> data(msg.begin(), msg.end());
+  g_window_messenger->Send("com.musicflow.app/window-visible", data.data(),
+                           data.size());
+}
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -45,6 +62,7 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  g_window_messenger = flutter_controller_->engine()->messenger();
 
   // 窗口控制通道:客户端自绘标题栏(关闭/最小化/最大化/拖拽)与
   // 托盘「状态栏歌词」tooltip 均通过该通道与原生层交互。
@@ -68,6 +86,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  g_window_messenger = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -85,6 +104,8 @@ void FlutterWindow::HandleWindowMethod(
     // 自绘标题栏的「缩小」按钮:缩到任务栏(不经过 WM_SYSCOMMAND SC_MINIMIZE,
     // 那里被拦截为隐藏到托盘)。
     ShowWindow(hwnd, SW_MINIMIZE);
+    // 最小化到任务栏：窗口从屏幕消失，通知 Flutter 冻结渲染省 GPU。
+    NotifyWindowVisible(false);
     result->Success();
     return;
   }
@@ -203,6 +224,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_CLOSE:
       ShowWindow(hwnd, SW_HIDE);
+      // 关闭按钮/WM_CLOSE：隐藏到托盘但进程继续后台播放。窗口已从屏幕消失，
+      // 必须通知 Flutter 冻结渲染（停 Ticker + 冻结数据驱动），否则后台仍占 GPU。
+      NotifyWindowVisible(false);
       return 0;
 
     case WM_SYSCOMMAND:
@@ -211,6 +235,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       // 用户感知为「托盘缩小完全无法使用」。
       if ((wparam & 0xFFF0) == SC_MINIMIZE) {
         ShowWindow(hwnd, SW_HIDE);
+        NotifyWindowVisible(false);
         return 0;
       }
       break;

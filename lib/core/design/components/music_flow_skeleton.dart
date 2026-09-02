@@ -60,7 +60,7 @@ class _MusicFlowSkeletonState extends ConsumerState<MusicFlowSkeleton>
     // 只触发 rebuild（ConsumerStatefulElement.watch → markNeedsBuild），
     // 不会触发 didChangeDependencies。
     final disabled = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final appVisible = ref.watch(appVisibilityProvider);
+    final appVisible = ref.watch(isRenderingActiveProvider);
     final shouldAnimate = !disabled && appVisible;
     if (shouldAnimate) {
       _animationsDisabled = false;

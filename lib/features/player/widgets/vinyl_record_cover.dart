@@ -95,7 +95,7 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
     // 触发 rebuild（ConsumerStatefulElement.watch → markNeedsBuild），
     // 不会触发 didChangeDependencies——暂停/失焦/退出大屏必须能即时停转。
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
-    final appVisible = ref.watch(appVisibilityProvider);
+    final appVisible = ref.watch(isRenderingActiveProvider);
     _syncRotation(isPlaying: isPlaying, appVisible: appVisible);
 
     final coverRadius = widget.size * 0.35;
