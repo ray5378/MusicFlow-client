@@ -10,7 +10,6 @@ import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/structured_lyrics.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/frozen_playback_provider.dart';
-import '../../../providers/full_player_active_provider.dart';
 import '../../../providers/lyrics_dwell_provider.dart';
 
 class _LyricsRenderParts {
@@ -94,6 +93,7 @@ class SyncedLyricsView extends ConsumerWidget {
   const SyncedLyricsView({
     super.key,
     required this.lyrics,
+    this.fullPlayerActive = false,
     this.activePrimaryColor,
     this.activeSecondaryColor,
     this.inactivePrimaryColor,
@@ -101,6 +101,13 @@ class SyncedLyricsView extends ConsumerWidget {
   });
 
   final StructuredLyrics lyrics;
+
+  /// 是否处于「大屏播放页前台」：false（默认）时整体不渲染，零绘制开销。
+  ///
+  /// 参数化而非全局 provider：本组件仅被 FullPlayerPage 使用一次，由页面显式
+  /// 传入 true；默认 false 保证任何未来复用点不显式开启就不会渲染歌词。
+  final bool fullPlayerActive;
+
   final Color? activePrimaryColor;
   final Color? activeSecondaryColor;
   final Color? inactivePrimaryColor;
@@ -111,7 +118,7 @@ class SyncedLyricsView extends ConsumerWidget {
     // 大屏歌词只在「大屏播放页前台」渲染：非大屏模式自动关闭渲染
     // （智能按需渲染，用户确认需求③）。同时用冻结进度：窗口不可见时
     // 歌词不再随播放推进而滚动/重建，恢复可见立即对齐。
-    if (!ref.watch(fullPlayerActiveProvider)) return const SizedBox.shrink();
+    if (!fullPlayerActive) return const SizedBox.shrink();
     final position = ref.watch(frozenPositionProvider);
     final dwellSeconds = ref.watch(lyricsScrollDwellProvider);
     return SyncedLyricsSurface(

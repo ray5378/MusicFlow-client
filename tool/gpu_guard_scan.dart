@@ -12,7 +12,6 @@ import 'dart:io';
 const List<String> gateMarkers = [
   'appVisibilityProvider',
   'effectiveIsPlayingProvider',
-  'fullPlayerActiveProvider',
   'frozenPositionProvider',
   'frozenLyricLineProvider',
   'TickerMode',

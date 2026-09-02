@@ -1,3 +1,48 @@
+# v3.4.66 GPU 智能按需渲染：大屏门控 / 窗口不可见停帧 / 暂停停跳 / RepaintBoundary 隔离 总览
+
+## v3.4.66（本轮）
+
+独立任务：消除 Windows/Android 全部可显示区域的无效 GPU 调度。用户确认的四项需求 + 迷你条歌词/进度环方案（保持样式不变，只做性能隔离）+ 双平台 CI 防线。
+
+### 一、用户确认的需求（v3.4.66 落地方案）
+1. **黑胶只在「大屏播放页前台」旋转**（迷你条/封面卡黑胶静止，样式不变）；
+2. **「关闭主窗口」= 最小化/失焦/切走等窗口不可见场景** → 全局停帧：不可见期间所有动画不再产生帧、数据驱动 UI（进度环/歌词行/进度条）冻结在最后可见值，恢复可见立即跳回真实进度；
+3. **播放状态门控**：暂停不跳——跳动竖条冻结当前高度、黑胶停转、恢复播放从当前值续跳；
+4. **RepaintBoundary 隔离**：3 根小白条（多处复用）、黑胶、骨架屏 shimmer、迷你条进度环/歌词行各自隔离重绘，绝不连带父级/整行列表；
+5. **CI 防线**：新增 `gpu-render-guard.yml`（两道阻塞性检查，Android/Windows 共享同一套 Dart 逻辑，用 AppLifecycleState 模拟双平台生命周期）。
+
+### 二、实现
+| 文件 | 改动 |
+|------|------|
+| `lib/providers/app_visibility_provider.dart`（新增） | `appVisibilityProvider`（StateProvider<bool>，默认可见）+ `AppVisibilityScope`（挂在 `App` 外层：`WidgetsBindingObserver` 监听生命周期，非 `resumed` 一律不可见；`TickerMode(enabled:)` 全局静音/恢复所有子级动画） |
+| `lib/providers/frozen_playback_provider.dart`（新增） | `frozenPositionProvider` / `frozenLyricLineProvider`（`NotifierProvider`）：不可见时返回缓存最后可见值（Riverpod `==` 去重 → UI 零重建），恢复可见立即对齐真实进度/歌词行 |
+| `lib/main.dart` | `runApp(ProviderScope(child: AppVisibilityScope(child: App())))` |
+| `lib/widgets/now_playing_bars.dart` | `_JumpingBars` 改 Consumer：`effectiveIsPlayingProvider` 播放状态门控（暂停 stop/恢复续跳）；竖条组外层 RepaintBoundary |
+| `lib/features/player/widgets/vinyl_record_cover.dart` | 旋转门控：播放中 且 大屏前台 且 窗口可见 + 系统减少动效；旋转动画包 RepaintBoundary。**大屏前台用构造参数 `fullPlayerActive`（默认 false，由 FullPlayerPage 传 true）而非全局 provider**——本组件仅被 FullPlayerPage 使用一次，参数化消除 widget 生命周期写 provider 的 Riverpod 断言死结，且默认 false 让任何未来复用点不显式开启就不会转 |
+| `lib/features/player/pages/full_player_page.dart` | 不再接线任何「大屏前台开关」（删 `fullPlayerActiveProvider` 全部 initState/dispose 写入）；`_CurrentLyricLine`/`_ProgressBar` 改用冻结进度；向 VinylRecordCover / SyncedLyricsView 传 `fullPlayerActive: true` |
+| `lib/features/player/widgets/synced_lyrics_view.dart` | 非大屏前台（`fullPlayerActive` 参数默认 false）直接 `SizedBox.shrink()`（自动关闭渲染）；position 用冻结进度 |
+| `lib/features/player/widgets/mini_player.dart` | 进度环/歌词行各自 RepaintBoundary；position/歌词改用冻结 provider（数据源下沉到独立 Consumer 层） |
+| `lib/core/design/components/music_flow_skeleton.dart` | shimmer 改 Consumer：窗口不可见或系统减少动效 → stop + 静态块；RepaintBoundary |
+| `lib/providers/full_player_active_provider.dart`（已删除） | 大屏前台开关改由组件参数承载（见 vinyl_record_cover / synced_lyrics_view 行） |
+| `tool/gpu_guard_scan.dart`（新增） | 结构扫描：`lib/` 下任何 `.repeat()` 连续动画必须引用门控标记（播放状态/窗口可见/冻结进度/TickerMode）且用 RepaintBoundary，否则 CI 拦截 |
+| `.github/workflows/gpu-render-guard.yml`（新增） | 两道阻塞 job：`gpu-gating-tests`（新门控测试 + 本次波及的现有组件测试）、`animation-gating-scan`（结构扫描） |
+
+### 三、验证
+- 新增 `test/rendering/gpu_gating_test.dart`（10 个测试）：TickerMode 全局静音（`_InfiniteSpinner` 哨兵）、`appVisibilityProvider` 生命周期翻转（inactive/paused/resumed）、冻结进度/歌词 provider 冻结与恢复、跳动竖条播放状态门控、黑胶门控（暂停停转/非大屏不转）、大屏歌词非大屏不渲染、骨架屏窗口不可见停帧。
+- **实现 bug 修复（门控从 didChangeDependencies 移到 build）**：Riverpod 的 `ref.watch` 变化只触发 rebuild（`ConsumerStatefulElement.watch → markNeedsBuild`），**不会触发 didChangeDependencies**——暂停/失焦/退出大屏的停转分支此前从未真正生效（只有依赖 TickerMode 兜底的场景碰巧工作）。跳动竖条/黑胶/骨架屏 shimmer 三处门控统一移入 `build` 开头。
+- **生命周期写 provider 死结消除（参数化）**：`fullPlayerActiveProvider` 原是 StateProvider，由 FullPlayerPage 在 initState/dispose 写入；Riverpod 禁止 widget 构建期/unmount 期改 provider（`_debugCanModifyProviders` 断言），dispose 后 `ref` 失效，post-frame/microtask 延迟写入又在测试的 FakeAsync 里撞「container already disposed」——改由组件构造参数承载后彻底消除。
+- 组件改造波及现有测试修复（2 个）：`music_flow_skeleton_test.dart` 包 ProviderScope（组件改 Consumer）；`discover_playlist_card_test.dart` 包 ProviderScope + override `effectiveIsPlayingProvider`（绕开真实 dlna 链条）。
+- 审查确认不受影响：`mini_player_test`（测纯组件 `MiniPlayerView`）、`full_player_page_test`（已 override `playerProvider`，冻结链条安全）、`synced_lyrics_view_test`（测未门控的内部 `SyncedLyricsSurface`）。
+- 全量测试标准：0 失败（本地全量 `flutter test` **+485 -0**）。
+
+### 发版
+- commit `ca29967` + tag `v3.4.66`：Build Client / Test Suite / UI Guard / GPU Render Guard 四条 workflow 中，**GPU Render Guard 的 gpu-gating-tests（7 passed 3 failed）与 Build Client 的 DLNA Feature Tests（87 passed 1 failed）实为红**（上表「全 success」为发布时误记）。
+  - DLNA 1 failed = `local_dlna_cast_sheet_test.dart` 全屏用例：FullPlayerPage 生命周期写 provider 撞 Riverpod 断言 → 参数化后修复；
+  - GPU 3 failed = 冻结/跳动竖条/黑胶三个门控测试 → 测试写法（invalidate 异步）与实现 bug（门控在 didChangeDependencies）双重根因，修复后 10/10。
+- 修复提交：`ddc9e02`（防线自身编译错误）+ 本轮参数化/门控修复 → 本地全量 485 全绿，push main 后 CI 复验全绿即收尾。
+
+---
+
 # v3.4.63 清除全部 6 个历史测试失败：全量测试首次零失败 总览
 
 ## v3.4.63（本轮）

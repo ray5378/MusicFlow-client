@@ -1,6 +1,7 @@
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -308,12 +309,16 @@ void main() {
     testWidgets('skeleton becomes static when animations are disabled', (
       tester,
     ) async {
+      // 组件已改 Consumer：裸 pump 无 ProviderScope 必挂（ref.watch 抛
+      // No ProviderScope found），包一层默认可见容器。
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.dark(),
-          home: const MediaQuery(
-            data: MediaQueryData(disableAnimations: true),
-            child: MusicFlowSkeleton(width: 120, height: 16),
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const MediaQuery(
+              data: MediaQueryData(disableAnimations: true),
+              child: MusicFlowSkeleton(width: 120, height: 16),
+            ),
           ),
         ),
       );

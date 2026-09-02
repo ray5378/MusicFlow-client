@@ -46,11 +46,19 @@ class _MusicFlowSkeletonState extends ConsumerState<MusicFlowSkeleton>
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // 门控：系统减少动效 或 窗口不可见(失焦/最小化/切走) → 停止 shimmer，
     // 避免不可见区域持续空转重绘（智能按需渲染；窗口不可见同时被根
     // TickerMode 全局静音，这里再显式兜一层保证组件自洽可测）。
+    // 放在 build 而非 didChangeDependencies：Riverpod 的 ref.watch 变化
+    // 只触发 rebuild（ConsumerStatefulElement.watch → markNeedsBuild），
+    // 不会触发 didChangeDependencies。
     final disabled = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final appVisible = ref.watch(appVisibilityProvider);
     final shouldAnimate = !disabled && appVisible;
@@ -63,16 +71,7 @@ class _MusicFlowSkeletonState extends ConsumerState<MusicFlowSkeleton>
         ..stop()
         ..value = 0.35;
     }
-  }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
     final radius = widget.borderRadius ?? context.musicFlowRadii.detail;
     final base = colors.raised;

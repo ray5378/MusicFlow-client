@@ -11,7 +11,6 @@ import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/frozen_playback_provider.dart';
-import '../../../providers/full_player_active_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -48,9 +47,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 1);
-    // 大屏播放页前台开关：黑胶旋转 / 大屏歌词渲染的门控依据
-    // （智能按需渲染：非大屏模式自动关闭）。
-    ref.read(fullPlayerActiveProvider.notifier).state = true;
   }
 
   @override
@@ -79,9 +75,10 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   @override
   void dispose() {
-    // 离开大屏播放页：关闭大屏前台开关（黑胶停止旋转、大屏歌词停止渲染）。
-    // dispose 时 ref 仍可读（ProviderContainer 生命周期长于 widget）。
-    ref.read(fullPlayerActiveProvider.notifier).state = false;
+    // 大屏前台门控（黑胶旋转 / 大屏歌词渲染）已参数化：由页面显式传给
+    // VinylRecordCover / SyncedLyricsView，页面卸载即组件销毁、动画控制器
+    // dispose 自然停转——无需（也不能）在 dispose 写 provider
+    // （Riverpod 禁止 unmount 期间同步改 provider）。
     _routeForegroundCurvedAnimation?.dispose();
     _pageController.dispose();
     super.dispose();
@@ -566,6 +563,8 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                 song: song,
                 size: size,
                 showVinylEffect: true,
+                // 大屏前台门控参数化：本页即大屏，显式开启旋转。
+                fullPlayerActive: true,
               ),
             );
           },
@@ -811,6 +810,8 @@ class _PlayerLyricsPane extends ConsumerWidget {
         }
         return SyncedLyricsView(
           lyrics: bestLyrics,
+          // 大屏前台门控参数化：本页即大屏，显式开启歌词渲染。
+          fullPlayerActive: true,
           activePrimaryColor: lyricActiveColor,
           activeSecondaryColor: lyricActiveColor,
           inactivePrimaryColor: context.musicFlowColors.muted,

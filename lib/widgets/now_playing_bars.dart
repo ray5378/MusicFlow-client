@@ -123,18 +123,6 @@ class _JumpingBarsState extends ConsumerState<_JumpingBars>
   static const List<double> _amplitudes = [1.0, 0.72, 0.88];
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 播放状态门控：暂停不跳（冻结在当前高度），恢复播放从当前值续跳。
-    final playing = ref.watch(effectiveIsPlayingProvider);
-    if (playing) {
-      if (!_controller.isAnimating) _controller.repeat();
-    } else if (_controller.isAnimating) {
-      _controller.stop();
-    }
-  }
-
-  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -142,6 +130,16 @@ class _JumpingBarsState extends ConsumerState<_JumpingBars>
 
   @override
   Widget build(BuildContext context) {
+    // 播放状态门控：暂停不跳（冻结在当前高度），恢复播放从当前值续跳。
+    // 放在 build 而非 didChangeDependencies：Riverpod 的 ref.watch 变化
+    // 只触发 rebuild（ConsumerStatefulElement.watch → markNeedsBuild），
+    // 不会触发 didChangeDependencies。
+    final playing = ref.watch(effectiveIsPlayingProvider);
+    if (playing) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else if (_controller.isAnimating) {
+      _controller.stop();
+    }
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {

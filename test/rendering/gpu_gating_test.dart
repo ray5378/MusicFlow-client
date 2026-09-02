@@ -23,7 +23,6 @@ import 'package:musicflow_client/features/player/widgets/vinyl_record_cover.dart
 import 'package:musicflow_client/providers/app_visibility_provider.dart';
 import 'package:musicflow_client/providers/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/frozen_playback_provider.dart';
-import 'package:musicflow_client/providers/full_player_active_provider.dart';
 import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
 import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
@@ -146,10 +145,16 @@ void main() {
 
   group('冻结进度/歌词 provider: 窗口不可见时 UI 冻结, 恢复立即对齐', () {
     testWidgets('frozenPositionProvider 冻结与恢复', (tester) async {
-      var position = const Duration(seconds: 1);
+      // StateProvider 中转：setState 同步通知，避免裸容器 invalidate 走
+      // ProviderScheduler 的 Future(task) 异步调度（pump 不等事件队列）。
+      final positionProvider = StateProvider<Duration>(
+        (ref) => const Duration(seconds: 1),
+      );
       final container = ProviderContainer(
         overrides: [
-          effectivePositionProvider.overrideWith((ref) => position),
+          effectivePositionProvider.overrideWith(
+            (ref) => ref.watch(positionProvider),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -170,16 +175,18 @@ void main() {
       expect(find.text('1'), findsOneWidget);
 
       // 可见：进度推进 → UI 跟随。
-      position = const Duration(seconds: 2);
-      container.invalidate(effectivePositionProvider);
+      container.read(positionProvider.notifier).state = const Duration(
+        seconds: 2,
+      );
       await tester.pump();
       expect(find.text('2'), findsOneWidget);
 
       // 窗口不可见：进度推进 → UI 冻结在 2s。
       container.read(appVisibilityProvider.notifier).state = false;
       await tester.pump();
-      position = const Duration(seconds: 3);
-      container.invalidate(effectivePositionProvider);
+      container.read(positionProvider.notifier).state = const Duration(
+        seconds: 3,
+      );
       await tester.pump();
       expect(find.text('2'), findsOneWidget);
 
@@ -190,9 +197,13 @@ void main() {
     });
 
     testWidgets('frozenLyricLineProvider 冻结最后一行', (tester) async {
-      var line = '第一句';
+      final lyricProvider = StateProvider<String?>((ref) => '第一句');
       final container = ProviderContainer(
-        overrides: [currentLyricLineProvider.overrideWith((ref) => line)],
+        overrides: [
+          currentLyricLineProvider.overrideWith(
+            (ref) => ref.watch(lyricProvider),
+          ),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -212,8 +223,7 @@ void main() {
 
       container.read(appVisibilityProvider.notifier).state = false;
       await tester.pump();
-      line = '第二句';
-      container.invalidate(currentLyricLineProvider);
+      container.read(lyricProvider.notifier).state = '第二句';
       await tester.pump();
       // 不可见期间歌词行冻结在「第一句」，不随播放推进。
       expect(find.text('第一句'), findsOneWidget);
@@ -226,11 +236,27 @@ void main() {
 
   group('跳动竖条: 播放状态门控（暂停不跳）', () {
     testWidgets('播放中跳、暂停冻结、恢复续跳', (tester) async {
-      var playing = true;
+      // StateProvider 中转（setState 同步通知），绕开裸容器 invalidate 的
+      // Future(task) 异步调度。
+      final playingProvider = StateProvider<bool>((ref) => true);
+      final container = ProviderContainer(
+        overrides: [
+          effectiveIsPlayingProvider.overrideWith(
+            (ref) => ref.watch(playingProvider),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
       await tester.pumpWidget(
-        _wrap(
-          const NowPlayingCoverOverlay(size: 160),
-          overrides: [effectiveIsPlayingProvider.overrideWith((ref) => playing)],
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const Scaffold(
+              body: Center(child: NowPlayingCoverOverlay(size: 160)),
+            ),
+          ),
         ),
       );
       await tester.pump(); // didChangeDependencies → repeat
@@ -239,7 +265,7 @@ void main() {
       expect(heightsPlaying.length, 3);
 
       // 暂停 → 冻结在当前高度。
-      playing = false;
+      container.read(playingProvider.notifier).state = false;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       final heightsPaused1 = _barHeights(tester);
@@ -248,7 +274,7 @@ void main() {
       expect(heightsPaused1, heightsPaused2);
 
       // 恢复播放 → 重新跳动（高度至少一根变化）。
-      playing = true;
+      container.read(playingProvider.notifier).state = true;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       final heightsResumed = _barHeights(tester);
@@ -269,14 +295,31 @@ void main() {
     }
 
     testWidgets('暂停时停转、播放时旋转', (tester) async {
-      var playing = true;
+      final playingProvider = StateProvider<bool>((ref) => true);
+      final container = ProviderContainer(
+        overrides: [
+          effectiveIsPlayingProvider.overrideWith(
+            (ref) => ref.watch(playingProvider),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
       await tester.pumpWidget(
-        _wrap(
-          VinylRecordCover(song: song, size: 200),
-          overrides: [
-            effectiveIsPlayingProvider.overrideWith((ref) => playing),
-            fullPlayerActiveProvider.overrideWith((ref) => true),
-          ],
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: Scaffold(
+              body: Center(
+                child: VinylRecordCover(
+                  song: song,
+                  size: 200,
+                  fullPlayerActive: true,
+                ),
+              ),
+            ),
+          ),
         ),
       );
       await tester.pump();
@@ -284,7 +327,7 @@ void main() {
       final r1 = rotationOf(tester);
 
       // 暂停 → 冻结角度。
-      playing = false;
+      container.read(playingProvider.notifier).state = false;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       final r2 = rotationOf(tester);
@@ -294,7 +337,7 @@ void main() {
       expect(r2, closeTo(r1, 0.001)); // 停转瞬间角度不突变（已冻结）
 
       // 恢复播放 → 继续旋转。
-      playing = true;
+      container.read(playingProvider.notifier).state = true;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(rotationOf(tester), isNot(closeTo(r3, 0.01)));
@@ -303,10 +346,13 @@ void main() {
     testWidgets('非大屏前台(fullPlayerActive=false)不旋转', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          VinylRecordCover(song: song, size: 200),
+          VinylRecordCover(
+            song: song,
+            size: 200,
+            fullPlayerActive: false,
+          ),
           overrides: [
             effectiveIsPlayingProvider.overrideWith((ref) => true),
-            fullPlayerActiveProvider.overrideWith((ref) => false),
           ],
         ),
       );
@@ -331,9 +377,8 @@ void main() {
     testWidgets('fullPlayerActive=false 不渲染歌词列表', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          SyncedLyricsView(lyrics: lyrics()),
+          SyncedLyricsView(lyrics: lyrics(), fullPlayerActive: false),
           overrides: [
-            fullPlayerActiveProvider.overrideWith((ref) => false),
             effectivePositionProvider.overrideWith(
               (ref) => const Duration(seconds: 1),
             ),
@@ -347,9 +392,8 @@ void main() {
     testWidgets('fullPlayerActive=true 正常渲染', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          SyncedLyricsView(lyrics: lyrics()),
+          SyncedLyricsView(lyrics: lyrics(), fullPlayerActive: true),
           overrides: [
-            fullPlayerActiveProvider.overrideWith((ref) => true),
             effectivePositionProvider.overrideWith(
               (ref) => const Duration(seconds: 1),
             ),
