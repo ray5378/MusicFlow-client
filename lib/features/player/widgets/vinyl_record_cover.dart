@@ -59,20 +59,14 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
   }
 
   /// 是否应旋转：播放中 且 未开启系统减少动效 且 大屏前台 且 窗口可见。
-  bool _shouldSpin({
-    required bool isPlaying,
-    required bool appVisible,
-  }) {
+  bool _shouldSpin({required bool isPlaying, required bool appVisible}) {
     return isPlaying &&
         !MediaQuery.disableAnimationsOf(context) &&
         widget.fullPlayerActive &&
         appVisible;
   }
 
-  void _syncRotation({
-    required bool isPlaying,
-    required bool appVisible,
-  }) {
+  void _syncRotation({required bool isPlaying, required bool appVisible}) {
     final shouldSpin = _shouldSpin(
       isPlaying: isPlaying,
       appVisible: appVisible,
@@ -107,9 +101,12 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
     return AnimatedBuilder(
       animation: _rotationAnimation,
       builder: (context, child) {
-        return RepaintBoundary(
-          child: Transform.rotate(
-            angle: _rotationAnimation.value,
+        // RepaintBoundary 放在 Transform 内层：把黑胶缓存为一帧静态贴图(纹理 layer),
+        // 旋转只做「矩阵变换合成」(transform layer),不再每帧重光栅化渐变圆+阴影——
+        // 与网易云大屏旋转成本一致;若放在外层则每帧整棵子树重画,GPU 飙高。
+        return Transform.rotate(
+          angle: _rotationAnimation.value,
+          child: RepaintBoundary(
             child: SizedBox(
               width: widget.size,
               height: widget.size,
