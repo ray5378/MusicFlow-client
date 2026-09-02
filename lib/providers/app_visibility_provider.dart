@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 应用/窗口是否处于「可见且可交互」状态。
+/// 应用/窗口是否处于「可见」状态。
 ///
-/// 覆盖用户确认的「关闭主窗口」语义：最小化 / 失焦 / 切走 / 后台等窗口
-/// 不可见场景一律视为不可见，仅 `resumed`（前台可见可交互）视为可见。
+/// 可见性 = 「窗口是否真的看不见」，而非「是否最前端」：
+/// - `resumed`（前台激活）与 `inactive`（失焦——窗口仍在屏幕上，只是不在
+///   最前端，用户仍能看见内容）→ **可见**，按实际可视区域动态渲染；
+/// - `paused` / `hidden`（最小化、完全从屏幕消失）与 `detached`（销毁）→
+///   **不可见**，冻结全部渲染。
 /// Windows 与 Android 共享同一套 Dart 逻辑。
 ///
 /// 双通道门控：
@@ -16,8 +19,8 @@ final appVisibilityProvider = StateProvider<bool>((ref) => true);
 /// 挂在 [App] 外层：监听 AppLifecycleState 把可见性写入
 /// [appVisibilityProvider]，并用 [TickerMode] 全局静音/恢复所有子级动画。
 ///
-/// 失焦(inactive)、最小化(hidden/paused)、销毁(detached) → 不可见；
-/// 恢复前台(resumed) → 可见。
+/// 失焦(inactive)窗口仍显示 → 保持可见、继续渲染（仅性能隔离，不整体停帧）；
+/// 最小化(hidden/paused)、销毁(detached) → 冻结；恢复前台(resumed) → 可见。
 class AppVisibilityScope extends ConsumerStatefulWidget {
   const AppVisibilityScope({super.key, required this.child});
 
@@ -37,8 +40,11 @@ class _AppVisibilityScopeState extends ConsumerState<AppVisibilityScope>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 失焦(inactive)≠不可见：窗口仍在屏幕上、用户仍能看到内容，应继续按
+    // 实际可视窗口动态渲染（性能靠组件层 RepaintBoundary 隔离，不整体停帧）。
+    // 仅最小化/完全隐藏(paused、hidden)与销毁(detached)视为不可见并冻结。
     ref.read(appVisibilityProvider.notifier).state =
-        state == AppLifecycleState.resumed;
+        state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
   }
 
   @override

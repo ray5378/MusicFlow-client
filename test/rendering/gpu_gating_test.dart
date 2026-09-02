@@ -1,11 +1,12 @@
 // GPU 智能按需渲染 · 门控行为测试（Windows 与 Android 共享同一套 Dart 逻辑）。
 //
 // 覆盖用户确认的四类门控：
-//   1) 窗口不可见（最小化/失焦/切走，AppLifecycleState 非 resumed）→
+//   1) 窗口完全不可见（最小化/隐藏 paused|hidden、销毁 detached）→
 //      TickerMode 全局静音 + appVisibilityProvider 冻结数据驱动 UI；
+//      失焦(inactive)≠不可见——窗口仍在屏幕上、内容仍可见，保持渲染（仅隔离）；
 //   2) 播放状态门控：暂停不跳（跳动竖条冻结、黑胶停转）；
 //   3) 大屏前台门控：黑胶只在 fullPlayerActive 时旋转、大屏歌词非大屏不渲染；
-//   4) 冻结进度/歌词：窗口不可见时 UI 不再随播放推进重建，恢复可见立即对齐。
+//   4) 冻结进度/歌词：窗口完全不可见时 UI 不再随播放推进重建，恢复可见立即对齐。
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -102,6 +103,12 @@ void main() {
       await tester.pump();
       expect(tester.hasRunningAnimations, isTrue);
 
+      // 失焦(inactive)：窗口仍可见 → ticker 保持运行，动画不静音。
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.hasRunningAnimations, isTrue);
+
       // 最小化(paused) → 全部 ticker 静音，不再调度帧。
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
@@ -119,27 +126,32 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           child: AppVisibilityScope(
-            child: MaterialApp(
-              home: Consumer(
-                builder: (context, ref, child) => Text(
-                  ref.watch(appVisibilityProvider) ? 'visible' : 'hidden',
-                ),
-              ),
-            ),
+            child: MaterialApp(home: const SizedBox()),
           ),
         ),
       );
       await tester.pump();
-      expect(find.text('visible'), findsOneWidget);
+      // 直接读 provider 值断言：paused 会禁帧(scheduler _setFramesEnabledState(false)),
+      // markNeedsBuild→scheduleFrame 被吞 → tester.pump 不画帧 → 无法用 find.text 验证
+      // widget 重建(禁帧正是不可见态预期行为)。provider 值才是门控真源。
+      final ctx = tester.element(find.byType(AppVisibilityScope));
+      final container = ProviderScope.containerOf(ctx);
+      expect(container.read(appVisibilityProvider), isTrue, reason: '初始可见');
 
-      // 失焦(inactive) → 不可见（用户确认「关闭主窗口=失焦/切走」）。
+      // 失焦(inactive)：窗口仍在屏幕上、内容仍可见 → 保持可见、继续渲染
+      //（用户确认：失焦只是不在最前端，不是不可见）。
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
-      expect(find.text('hidden'), findsOneWidget);
+      expect(container.read(appVisibilityProvider), isTrue, reason: 'inactive 失焦仍可见');
+
+      // 最小化(paused)：窗口从屏幕消失 → 不可见、冻结。
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(container.read(appVisibilityProvider), isFalse, reason: 'paused 最小化不可见');
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      expect(find.text('visible'), findsOneWidget);
+      expect(container.read(appVisibilityProvider), isTrue, reason: 'resumed 恢复可见');
     });
   });
 
