@@ -1,15 +1,20 @@
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Widget app(Widget child, {bool disableAnimations = false}) {
-    return MaterialApp(
-      theme: AppTheme.dark(),
-      home: MediaQuery(
-        data: MediaQueryData(disableAnimations: disableAnimations),
-        child: Scaffold(body: Center(child: child)),
+    // v3.4.66:MusicFlowSkeleton 改为 ConsumerStatefulWidget(窗口可见性门控),
+    // 测试须包 ProviderScope(appVisibilityProvider 默认可见,行为与改造前一致)。
+    return ProviderScope(
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: disableAnimations),
+          child: Scaffold(body: Center(child: child)),
+        ),
       ),
     );
   }

@@ -1,6 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../providers/effective_playback_provider.dart';
 
 /// 播放中封面指示器：半透明阴影遮罩 + 3 根白色随机跳动的竖直长方形
 /// （网易云「每日推荐」正在播放的视觉效果——底部平整、跳动从底部往上）。
@@ -63,13 +66,17 @@ class NowPlayingCoverOverlay extends StatelessWidget {
           ),
           child: Padding(
             padding: EdgeInsets.all(scrimPadding),
-            child: _JumpingBars(
-              barWidth: barWidth,
-              barGap: barGap,
-              barRadius: barRadius,
-              minBarHeight: minBarHeight,
-              maxBarHeight: maxBarHeight,
-              color: barColor,
+            // RepaintBoundary:跳动竖条的每帧重绘隔离在竖条组内,
+            // 绝不连带封面/整行列表重绘(智能按需渲染 §GPU 门控)。
+            child: RepaintBoundary(
+              child: _JumpingBars(
+                barWidth: barWidth,
+                barGap: barGap,
+                barRadius: barRadius,
+                minBarHeight: minBarHeight,
+                maxBarHeight: maxBarHeight,
+                color: barColor,
+              ),
             ),
           ),
         ),
@@ -79,7 +86,10 @@ class NowPlayingCoverOverlay extends StatelessWidget {
 }
 
 /// 3 根独立相位随机跳动的竖条。
-class _JumpingBars extends StatefulWidget {
+///
+/// 播放状态门控：仅「有效播放中」才跳（暂停即冻结在当前高度），
+/// 窗口不可见时由全局 TickerMode 静音（不再产生任何帧）。
+class _JumpingBars extends ConsumerStatefulWidget {
   const _JumpingBars({
     required this.barWidth,
     required this.barGap,
@@ -97,20 +107,32 @@ class _JumpingBars extends StatefulWidget {
   final Color color;
 
   @override
-  State<_JumpingBars> createState() => _JumpingBarsState();
+  ConsumerState<_JumpingBars> createState() => _JumpingBarsState();
 }
 
-class _JumpingBarsState extends State<_JumpingBars>
+class _JumpingBarsState extends ConsumerState<_JumpingBars>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
-  )..repeat();
+  );
 
   // 每根竖条独立相位/速度/幅度，形成「随机跳动」观感。
   static const List<double> _phases = [0.0, 1.7, 3.6];
   static const List<double> _speeds = [1.0, 1.35, 0.82];
   static const List<double> _amplitudes = [1.0, 0.72, 0.88];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 播放状态门控：暂停不跳（冻结在当前高度），恢复播放从当前值续跳。
+    final playing = ref.watch(effectiveIsPlayingProvider);
+    if (playing) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else if (_controller.isAnimating) {
+      _controller.stop();
+    }
+  }
 
   @override
   void dispose() {

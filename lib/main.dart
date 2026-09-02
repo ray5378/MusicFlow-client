@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'app.dart';
 import 'data/sources/local_storage.dart';
+import 'providers/app_visibility_provider.dart';
 
 Future<void> main() async {
   runZonedGuarded(
@@ -61,7 +62,13 @@ Future<void> main() async {
         return true;
       };
 
-      runApp(const ProviderScope(child: App()));
+      // 窗口可见性门控挂在 App 外层：最小化/失焦/切走时停止所有不可见
+      // 渲染（TickerMode 全局静音 + appVisibilityProvider 冻结数据驱动 UI）。
+      runApp(
+        const ProviderScope(
+          child: AppVisibilityScope(child: App()),
+        ),
+      );
 
       // 修复损坏的 SharedPreferences(备份 + 重建干净起点):进程被强杀时
       // prefs 文件可能半写损坏,导致所有设置/播放状态读默认值(表现为

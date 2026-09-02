@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/song.dart';
+import '../../../providers/app_visibility_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/full_player_active_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 
 /// 黑胶唱片封面组件 - 参考箭头音乐风格
@@ -28,7 +30,7 @@ class VinylRecordCover extends ConsumerStatefulWidget {
 }
 
 class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _rotationController;
   late final Animation<double> _rotationAnimation;
 
@@ -42,57 +44,57 @@ class _VinylRecordCoverState extends ConsumerState<VinylRecordCover>
     _rotationAnimation = Tween<double>(begin: 0, end: 2 * math.pi).animate(
       CurvedAnimation(parent: _rotationController, curve: Curves.linear),
     );
-    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 使用「有效播放状态」:投屏时设备在播,黑胶同样旋转(对齐主项目行为)。
+    // 三层门控（智能按需渲染）：
+    //   1. 播放中（有效播放状态：投屏时设备在播同样旋转，对齐主项目行为）；
+    //   2. 仅大屏播放页前台（非大屏模式不渲染旋转——用户确认需求①）；
+    //   3. 窗口可见（失焦/最小化/切走时由全局 TickerMode 静音，这里再显式
+    //      兜一层，保证组件自洽可测）。
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
-    _syncRotation(isPlaying);
+    final fullPlayerActive = ref.watch(fullPlayerActiveProvider);
+    final appVisible = ref.watch(appVisibilityProvider);
+    _syncRotation(
+      isPlaying: isPlaying,
+      fullPlayerActive: fullPlayerActive,
+      appVisible: appVisible,
+    );
   }
 
-  /// 是否应旋转:播放中 且 未开启系统减少动效 且 窗口处于前台。
-  bool _shouldSpin({required bool isPlaying, bool? foreground}) {
-    final active = foreground ?? _appForeground;
-    return isPlaying && !MediaQuery.disableAnimationsOf(context) && active;
+  /// 是否应旋转：播放中 且 未开启系统减少动效 且 大屏前台 且 窗口可见。
+  bool _shouldSpin({
+    required bool isPlaying,
+    required bool fullPlayerActive,
+    required bool appVisible,
+  }) {
+    return isPlaying &&
+        !MediaQuery.disableAnimationsOf(context) &&
+        fullPlayerActive &&
+        appVisible;
   }
 
-  void _syncRotation(bool isPlaying, {bool? foreground}) {
+  void _syncRotation({
+    required bool isPlaying,
+    required bool fullPlayerActive,
+    required bool appVisible,
+  }) {
     final shouldSpin = _shouldSpin(
       isPlaying: isPlaying,
-      foreground: foreground,
+      fullPlayerActive: fullPlayerActive,
+      appVisible: appVisible,
     );
     if (shouldSpin) {
-      _rotationController.repeat();
-    } else {
-      _rotationController.stop(canceled: true);
+      if (!_rotationController.isAnimating) _rotationController.repeat();
+    } else if (_rotationController.isAnimating) {
+      _rotationController.stop();
     }
-  }
-
-  // 窗口失焦/最小化时暂停旋转,避免后台持续重绘(SEC §8.1)。
-  bool _appForeground = true;
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final playing = ref.read(effectiveIsPlayingProvider);
-    // Windows/macOS 桌面只要窗口「失焦」(AppLifecycleState.inactive)就会收到
-    // 通知。若把「仅 resumed 才旋转」一刀切,用户一切到别的窗口黑胶就停转,
-    // 观感上像「播放器不在大屏/前台就停止」。因此只在窗口真正隐藏/最小化
-    // (paused)或销毁(detached)时才暂停,普通的 inactive(仍处于前台可见)
-    // 照常旋转——歌曲还在播,封面就不该停。
-    final trulyHidden = switch (state) {
-      AppLifecycleState.paused || AppLifecycleState.detached => true,
-      _ => false,
-    };
-    _appForeground = !trulyHidden;
-    _syncRotation(playing);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _rotationController.dispose();
     super.dispose();
   }

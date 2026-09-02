@@ -10,6 +10,8 @@ import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/frozen_playback_provider.dart';
+import '../../../providers/full_player_active_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -46,6 +48,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 1);
+    // 大屏播放页前台开关：黑胶旋转 / 大屏歌词渲染的门控依据
+    // （智能按需渲染：非大屏模式自动关闭）。
+    ref.read(fullPlayerActiveProvider.notifier).state = true;
   }
 
   @override
@@ -74,6 +79,9 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   @override
   void dispose() {
+    // 离开大屏播放页：关闭大屏前台开关（黑胶停止旋转、大屏歌词停止渲染）。
+    // dispose 时 ref 仍可读（ProviderContainer 生命周期长于 widget）。
+    ref.read(fullPlayerActiveProvider.notifier).state = false;
     _routeForegroundCurvedAnimation?.dispose();
     _pageController.dispose();
     super.dispose();
@@ -829,7 +837,8 @@ class _CurrentLyricLine extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
-    final position = ref.watch(effectivePositionProvider);
+    // 用冻结进度：窗口不可见时当前歌词行不再随播放推进而重建。
+    final position = ref.watch(frozenPositionProvider);
     return lyricsAsync.when(
       data: (lyrics) {
         if (lyrics == null || lyrics.isEmpty) {
@@ -1073,7 +1082,9 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
         ),
       ),
     );
-    final effectivePosition = ref.watch(effectivePositionProvider);
+    // 冻结进度：窗口不可见时进度条不再随播放推进而重建（省掉 200~500ms
+    // 一次的高频重建与重绘）；可见时与真实进度完全一致。
+    final effectivePosition = ref.watch(frozenPositionProvider);
     final effectiveDuration = ref.watch(effectiveDurationProvider);
     final state = (
       songId: songAndBuffer.songId,

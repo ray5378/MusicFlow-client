@@ -1,0 +1,71 @@
+name: GPU Render Guard
+
+# GPU 智能按需渲染防线（用户确认需求，v3.4.66 引入）。
+# Windows 与 Android 共享同一套 Dart widget 逻辑：测试用 AppLifecycleState
+# 模拟两个平台的失焦(inactive)/后台(paused)/恢复(resumed)生命周期，验证
+# 所有可显示区域的 GPU 调度——窗口不可见停帧、暂停停跳、大屏前台门控、
+# 冻结进度/歌词、RepaintBoundary 隔离。
+#
+# 两道防线均为**阻塞性**（区别于观察流水线）：
+#   1. gpu-gating-tests：门控行为 widget 测试 + 本次改动波及的现有组件测试；
+#   2. animation-gating-scan：结构扫描——任何新增 .repeat() 连续动画若未
+#      引用门控或未 RepaintBoundary 隔离，直接拦截。
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  gpu-gating-tests:
+    name: GPU gating widget tests (Windows/Android lifecycle)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run GPU gating tests
+        run: flutter test test/rendering/gpu_gating_test.dart
+
+      # 防回归：本次改动波及的现有组件测试一并纳入门禁。
+      - name: Run affected component tests
+        run: >-
+          flutter test
+          test/features/player/mini_player_test.dart
+          test/features/player/full_player_page_test.dart
+          test/features/player/synced_lyrics_view_test.dart
+          test/core/design/music_flow_skeleton_test.dart
+          test/features/discover/discover_playlist_card_test.dart
+          test/widgets/music_flow_song_row_test.dart
+
+  animation-gating-scan:
+    name: Animation gating structural scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Scan continuous animations for gating + RepaintBoundary
+        run: dart run tool/gpu_guard_scan.dart

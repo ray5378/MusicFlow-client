@@ -11,6 +11,7 @@ import '../../../data/models/song.dart';
 import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/frozen_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
@@ -51,11 +52,11 @@ class MiniPlayer extends ConsumerWidget {
       isPlaying: ref.watch(effectiveIsPlayingProvider),
       shuffleEnabled: shuffleEnabled,
       loopMode: loopMode,
-      position: ref.watch(effectivePositionProvider),
+      position: ref.watch(frozenPositionProvider),
       duration: ref.watch(effectiveDurationProvider),
     );
     final visuals = ref.watch(resolvedCurrentSongMediaVisualsProvider);
-    final lyricLine = ref.watch(currentLyricLineProvider);
+    final lyricLine = ref.watch(frozenLyricLineProvider);
     // 播放模式(对齐主项目前端 playMode:order|one|all|shuffle)。
     // 链路 B(DLNA 直投)投屏态:以 dlnaCast.playMode 为准;链路 A 投屏态以后端
     // playMode 为准;本机以本地 shuffleEnabled + loopMode 推导。
@@ -589,7 +590,8 @@ class _ProviderMiniPlayerProgress extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(effectivePositionProvider);
+    // 冻结进度：窗口不可见时拖拽手势层的 position 不再高频重建。
+    final position = ref.watch(frozenPositionProvider);
     final duration = ref.watch(effectiveDurationProvider);
     return _MiniPlayerProgressSurface(
       position: position,
@@ -794,10 +796,14 @@ class _MiniPlayerTrack extends StatelessWidget {
             child: coverInner,
           )
         : coverInner;
-    final cover = _MiniPlayerProgressRing(
-      progress: coverRingProgress,
-      color: coverRingColor,
-      child: coverHero,
+    // RepaintBoundary:进度环 200~500ms 重绘隔离在 46px 环内,不连带
+    // 封面/歌名/歌词/背景等整条迷你条重绘(智能按需渲染 §GPU 门控)。
+    final cover = RepaintBoundary(
+      child: _MiniPlayerProgressRing(
+        progress: coverRingProgress,
+        color: coverRingColor,
+        child: coverHero,
+      ),
     );
     final title = _MiniPlayerTitle(
       song: song,
@@ -824,8 +830,11 @@ class _MiniPlayerTrack extends StatelessWidget {
               else
                 title,
               // 当前歌词行：暖黄高亮，取色与大屏歌词页一致（随封面自适应）。
+              // RepaintBoundary:歌词行切换的重绘只影响本行文本区域。
               if (lyric != null)
-                _MiniPlayerLyric(text: lyric, color: lyricAccent),
+                RepaintBoundary(
+                  child: _MiniPlayerLyric(text: lyric, color: lyricAccent),
+                ),
             ],
           ),
         ),

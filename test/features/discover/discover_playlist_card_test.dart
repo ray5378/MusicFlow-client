@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
+import 'package:musicflow_client/providers/effective_playback_provider.dart';
 import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
 void main() {
@@ -22,18 +24,26 @@ void main() {
       // hover 才显。默认测试表面是 800×600(medium) 导致按钮被收起,无法验。
       await tester.binding.setSurfaceSize(const Size(390, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
+      // v3.4.66:NowPlayingCoverOverlay 的跳动竖条改为播放状态门控
+      // (ConsumerStatefulWidget),测试须包 ProviderScope 并 override 播放状态,
+      // 绕开真实 dlna/player provider 链条;isNowPlaying 正好映射门控语义。
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: Center(
-              child: DiscoverPlaylistCard(
-                title: '正在播放的歌单',
-                // 不指定 coverArtId/coverUrl → 占位图标分支,不触发网络封面,
-                // 让 widget 测试独立于 CoverArtImage 的副作用。
-                onPressed: () {},
-                onPlay: onPlay,
-                isNowPlaying: isNowPlaying,
+        ProviderScope(
+          overrides: [
+            effectiveIsPlayingProvider.overrideWith((ref) => isNowPlaying),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: Center(
+                child: DiscoverPlaylistCard(
+                  title: '正在播放的歌单',
+                  // 不指定 coverArtId/coverUrl → 占位图标分支,不触发网络封面,
+                  // 让 widget 测试独立于 CoverArtImage 的副作用。
+                  onPressed: () {},
+                  onPlay: onPlay,
+                  isNowPlaying: isNowPlaying,
+                ),
               ),
             ),
           ),

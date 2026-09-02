@@ -9,6 +9,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/structured_lyrics.dart';
 import '../../../providers/effective_playback_provider.dart';
+import '../../../providers/frozen_playback_provider.dart';
+import '../../../providers/full_player_active_provider.dart';
 import '../../../providers/lyrics_dwell_provider.dart';
 
 class _LyricsRenderParts {
@@ -106,7 +108,11 @@ class SyncedLyricsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(effectivePositionProvider);
+    // 大屏歌词只在「大屏播放页前台」渲染：非大屏模式自动关闭渲染
+    // （智能按需渲染，用户确认需求③）。同时用冻结进度：窗口不可见时
+    // 歌词不再随播放推进而滚动/重建，恢复可见立即对齐。
+    if (!ref.watch(fullPlayerActiveProvider)) return const SizedBox.shrink();
+    final position = ref.watch(frozenPositionProvider);
     final dwellSeconds = ref.watch(lyricsScrollDwellProvider);
     return SyncedLyricsSurface(
       lyrics: lyrics,

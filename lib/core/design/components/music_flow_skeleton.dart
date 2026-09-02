@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../providers/app_visibility_provider.dart';
 import '../music_flow_context.dart';
 
-class MusicFlowSkeleton extends StatefulWidget {
+class MusicFlowSkeleton extends ConsumerStatefulWidget {
   const MusicFlowSkeleton({
     super.key,
     this.width = double.infinity,
@@ -26,10 +28,10 @@ class MusicFlowSkeleton extends StatefulWidget {
   final BorderRadiusGeometry? borderRadius;
 
   @override
-  State<MusicFlowSkeleton> createState() => _MusicFlowSkeletonState();
+  ConsumerState<MusicFlowSkeleton> createState() => _MusicFlowSkeletonState();
 }
 
-class _MusicFlowSkeletonState extends State<MusicFlowSkeleton>
+class _MusicFlowSkeletonState extends ConsumerState<MusicFlowSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool _animationsDisabled = false;
@@ -46,18 +48,20 @@ class _MusicFlowSkeletonState extends State<MusicFlowSkeleton>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // 门控：系统减少动效 或 窗口不可见(失焦/最小化/切走) → 停止 shimmer，
+    // 避免不可见区域持续空转重绘（智能按需渲染；窗口不可见同时被根
+    // TickerMode 全局静音，这里再显式兜一层保证组件自洽可测）。
     final disabled = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (disabled == _animationsDisabled &&
-        (disabled || _controller.isAnimating)) {
-      return;
-    }
-    _animationsDisabled = disabled;
-    if (disabled) {
+    final appVisible = ref.watch(appVisibilityProvider);
+    final shouldAnimate = !disabled && appVisible;
+    if (shouldAnimate) {
+      _animationsDisabled = false;
+      if (!_controller.isAnimating) _controller.repeat();
+    } else {
+      _animationsDisabled = true;
       _controller
         ..stop()
         ..value = 0.35;
-    } else {
-      _controller.repeat();
     }
   }
 
