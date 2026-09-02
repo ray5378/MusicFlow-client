@@ -11,9 +11,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_skeleton.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/data/models/lyrics_line.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/models/structured_lyrics.dart';
 import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart';
@@ -255,7 +257,8 @@ void main() {
   });
 
   group('黑胶旋转: 大屏前台 + 播放中才转', () {
-    const song = Song(id: 'x', title: '测试曲');
+    // Song 无 const 构造（仅 id/title 必填，其余可选）。
+    final song = Song(id: 'x', title: '测试曲');
 
     double rotationOf(WidgetTester tester) {
       final transform = tester.widget<Transform>(
@@ -269,7 +272,7 @@ void main() {
       var playing = true;
       await tester.pumpWidget(
         _wrap(
-          const VinylRecordCover(song: song, size: 200),
+          VinylRecordCover(song: song, size: 200),
           overrides: [
             effectiveIsPlayingProvider.overrideWith((ref) => playing),
             fullPlayerActiveProvider.overrideWith((ref) => true),
@@ -300,7 +303,7 @@ void main() {
     testWidgets('非大屏前台(fullPlayerActive=false)不旋转', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          const VinylRecordCover(song: song, size: 200),
+          VinylRecordCover(song: song, size: 200),
           overrides: [
             effectiveIsPlayingProvider.overrideWith((ref) => true),
             fullPlayerActiveProvider.overrideWith((ref) => false),
@@ -316,11 +319,12 @@ void main() {
   });
 
   group('大屏歌词: 非大屏模式自动关闭渲染', () {
+    // StructuredLyrics / LyricsLine 均无 const 构造。
     StructuredLyrics lyrics() => StructuredLyrics(
       synced: true,
-      lines: const [
-        StructuredLyricsLine(startMs: 0, value: '第一句'),
-        StructuredLyricsLine(startMs: 5000, value: '第二句'),
+      lines: [
+        LyricsLine(startMs: 0, value: '第一句'),
+        LyricsLine(startMs: 5000, value: '第二句'),
       ],
     );
 

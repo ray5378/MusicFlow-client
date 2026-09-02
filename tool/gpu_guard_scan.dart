@@ -31,7 +31,7 @@ void main(List<String> args) {
     for (final entry in d.listSync(followLinks: false)) {
       if (entry is Directory) {
         walk(entry);
-      } else if (entry.path.endsWith('.dart')) {
+      } else if (entry is File && entry.path.endsWith('.dart')) {
         files.add(entry);
       }
     }
