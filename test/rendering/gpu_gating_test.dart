@@ -19,6 +19,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/models/structured_lyrics.dart';
 import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart';
 import 'package:musicflow_client/features/player/widgets/vinyl_record_cover.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/app_visibility_provider.dart';
 import 'package:musicflow_client/providers/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/frozen_playback_provider.dart';
@@ -63,6 +64,9 @@ Widget _wrap(Widget child, {List<Override> overrides = const []}) {
     overrides: overrides,
     child: MaterialApp(
       theme: AppTheme.dark(),
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: Scaffold(body: Center(child: child)),
     ),
   );
