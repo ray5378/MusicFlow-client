@@ -4,6 +4,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/pages/full_player_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
 import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
 import 'package:musicflow_client/features/player/widgets/player_scrubber.dart';
@@ -99,6 +100,9 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.dark(),
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         builder: (context, child) {
           final media = MediaQuery.of(context);
           return MediaQuery(

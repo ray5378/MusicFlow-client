@@ -2,6 +2,7 @@ import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
 import 'package:musicflow_client/providers/palette_provider.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
@@ -39,6 +40,9 @@ void main() {
     return ProviderScope(
       child: MaterialApp(
         theme: AppTheme.dark(),
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         builder: (context, appChild) {
           final media = MediaQuery.of(context);
           return MediaQuery(

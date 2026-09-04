@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/effective_playback_provider.dart';
 import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
@@ -34,6 +35,9 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.light(),
+            locale: const Locale('zh', 'CN'),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: Scaffold(
               body: Center(
                 child: DiscoverPlaylistCard(

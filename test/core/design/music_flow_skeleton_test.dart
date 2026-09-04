@@ -1,5 +1,6 @@
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,9 @@ void main() {
     return ProviderScope(
       child: MaterialApp(
         theme: AppTheme.dark(),
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: disableAnimations),
           child: Scaffold(body: Center(child: child)),
