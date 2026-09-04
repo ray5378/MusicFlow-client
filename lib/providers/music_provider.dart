@@ -5,15 +5,13 @@ import '../data/models/album.dart';
 import '../data/models/artist.dart';
 import '../data/models/song.dart';
 import '../data/repositories/music_repository.dart';
-import '../core/constants/api_constants.dart';
-import '../core/utils/network_error_notifier.dart';
 import '../core/utils/logger.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 
 import 'api_provider.dart';
 import 'fetch_with_cache_fallback.dart';
 import 'metadata_cache_provider.dart';
-import 'playlist_provider.dart';
 
 const _musicLogTag = 'MUSIC';
 
@@ -92,7 +90,7 @@ final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
     cacheWrite: (songs) => cache.cacheRandomSongs(libraryId, songs),
     cacheRead: () => cache.getRandomSongs(libraryId),
     failedProvider: randomSongsLoadFailedProvider,
-    errorMessage: '网络异常',
+    errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: [],
   );
 });
@@ -111,7 +109,7 @@ final recentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
     cacheWrite: (albums) => cache.cacheRecentAlbums(libraryId, albums),
     cacheRead: () => cache.getRecentAlbums(libraryId),
     failedProvider: recentAlbumsLoadFailedProvider,
-    errorMessage: '网络异常',
+    errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: [],
   );
 });
@@ -130,7 +128,7 @@ final frequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
     cacheWrite: (albums) => cache.cacheFrequentAlbums(libraryId, albums),
     cacheRead: () => cache.getFrequentAlbums(libraryId),
     failedProvider: frequentAlbumsLoadFailedProvider,
-    errorMessage: '网络异常',
+    errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: [],
   );
 });
@@ -149,7 +147,7 @@ final newestAlbumsProvider = FutureProvider<List<Album>>((ref) async {
     cacheWrite: (albums) => cache.cacheNewestAlbums(libraryId, albums),
     cacheRead: () => cache.getNewestAlbums(libraryId),
     failedProvider: newestAlbumsLoadFailedProvider,
-    errorMessage: '网络异常',
+    errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: [],
   );
 });
@@ -168,7 +166,7 @@ final allAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
     cacheWrite: (albums) => cache.cacheAllAlbums(libraryId, albums),
     cacheRead: () => cache.getAllAlbums(libraryId),
     failedProvider: allAlbumsLoadFailedProvider,
-    errorMessage: '网络异常，专辑加载失败',
+    errorMessage: l10nNowCurrent().provider_network_error_album,
     emptyValue: [],
   );
 });
@@ -192,7 +190,7 @@ final albumDetailProvider = FutureProvider.autoDispose
         },
         cacheRead: () => cache.getAlbumDetail(libraryId, albumId),
         failedProvider: albumDetailLoadFailedProvider(albumId),
-        errorMessage: '网络异常，专辑加载失败',
+        errorMessage: l10nNowCurrent().provider_network_error_album,
         emptyValue: null,
       );
     });
@@ -211,7 +209,7 @@ final allSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
     cacheWrite: (songs) => cache.cacheAllSongs(libraryId, songs),
     cacheRead: () => cache.getAllSongs(libraryId),
     failedProvider: allSongsLoadFailedProvider,
-    errorMessage: '网络异常，歌曲加载失败',
+    errorMessage: l10nNowCurrent().provider_network_error_song,
     emptyValue: [],
   );
 });
@@ -232,7 +230,7 @@ final allArtistsProvider = FutureProvider.autoDispose<List<Artist>>((
     cacheWrite: (artists) => cache.cacheAllArtists(libraryId, artists),
     cacheRead: () => cache.getAllArtists(libraryId),
     failedProvider: allArtistsLoadFailedProvider,
-    errorMessage: '网络异常，歌手列表加载失败',
+    errorMessage: l10nNowCurrent().provider_network_error_artist,
     emptyValue: [],
   );
 });
@@ -271,7 +269,7 @@ final artistDetailProvider = FutureProvider.autoDispose
           );
         },
         failedProvider: artistDetailLoadFailedProvider(artistId),
-        errorMessage: '网络异常，歌手详情加载失败',
+        errorMessage: l10nNowCurrent().provider_network_error_artist_detail,
         emptyValue: null,
       );
     });
@@ -369,7 +367,7 @@ final starredProvider = FutureProvider.autoDispose<StarredResult>((ref) async {
       );
     },
     failedProvider: starredLoadFailedProvider,
-    errorMessage: '网络异常，收藏加载失败',
+    errorMessage: l10nNowCurrent().provider_network_error_favorites,
     emptyValue: StarredResult(artists: [], albums: [], songs: []),
   );
 });

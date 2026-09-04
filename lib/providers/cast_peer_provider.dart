@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import '../core/utils/logger.dart';
@@ -97,7 +98,7 @@ class CastPeerState {
   /// 设备是否真的在播(后端 state 判定)。
   bool get devicePlaying => status.active;
 
-  String get targetName => activePeer?.name ?? '本机';
+  String get targetName => activePeer?.name ?? l10nNowCurrent().peer_self;
 
   CastPeerState copyWith({
     PeerInfo? activePeer,

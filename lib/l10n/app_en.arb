@@ -2631,7 +2631,9 @@
   "@song_option_song_count": {
     "description": "song_option_song_count",
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "login_connect_server": "Connect to server",
@@ -2672,8 +2674,12 @@
   "@login_step_semantics": {
     "description": "login_step_semantics",
     "placeholders": {
-      "step": {"type": "String"},
-      "total": {"type": "String"}
+      "step": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
     }
   },
   "login_step_server": "Server",
@@ -2682,33 +2688,60 @@
   "search_entity_no_playable": "No playable songs here yet ({kind})",
   "@search_entity_no_playable": {
     "description": "search_entity_no_playable",
-    "placeholders": {"kind": {"type": "String"}}
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
   },
   "search_play_failed": "Playback failed: {error}",
   "@search_play_failed": {
     "description": "search_play_failed",
-    "placeholders": {"error": {"type": "String"}}
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "search_import_submitted": "Import task submitted; you will be notified.",
   "search_import_failed": "Import failed: {error}",
   "@search_import_failed": {
     "description": "search_import_failed",
-    "placeholders": {"error": {"type": "String"}}
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "search_import_done": "Import finished: {name}; check the music library",
   "@search_import_done": {
     "description": "search_import_done",
-    "placeholders": {"name": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "search_import_entry_failed": "Import failed for {name}: {error}",
   "@search_import_entry_failed": {
     "description": "search_import_entry_failed",
-    "placeholders": {"name": {"type": "String"}, "error": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "search_playlist_import_submitted": "Import task for {name} submitted; you will be notified.",
   "@search_playlist_import_submitted": {
     "description": "search_playlist_import_submitted",
-    "placeholders": {"name": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "search_scope_all": "All",
   "search_scope_all_desc": "All content",
@@ -2721,7 +2754,7 @@
   "search_bar_clear": "Clear search query",
   "search_add_to_library": "Add to library",
   "search_scope_title": "Search scope",
-    "search_scope_select_title": "Select a search scope",
+  "search_scope_select_title": "Select a search scope",
   "core_back": "Back",
   "@core_back": {
     "description": "core_back"
@@ -2746,7 +2779,9 @@
   "@core_field_error": {
     "description": "core_field_error",
     "placeholders": {
-      "message": {"type": "String"}
+      "message": {
+        "type": "String"
+      }
     }
   },
   "core_network_error": "Network error",
@@ -2757,7 +2792,9 @@
   "@core_network_switched_notice": {
     "description": "core_network_switched_notice",
     "placeholders": {
-      "name": {"type": "String"}
+      "name": {
+        "type": "String"
+      }
     }
   },
   "core_pull_to_refresh": "Pull to refresh",
@@ -2928,5 +2965,121 @@
         "type": "String"
       }
     }
+  },
+  "provider_cast_notify_permission": "Notification permission not granted; background service may be limited, background continuation may be unreliable",
+  "@provider_cast_notify_permission": {
+    "description": "provider_cast_notify_permission"
+  },
+  "provider_artists_count": "{count} artists",
+  "@provider_artists_count": {
+    "description": "provider_artists_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_albums_count": "{count} albums",
+  "@provider_albums_count": {
+    "description": "provider_albums_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_songs_count": "{count} songs",
+  "@provider_songs_count": {
+    "description": "provider_songs_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_playlists_count": "{count} playlists",
+  "@provider_playlists_count": {
+    "description": "provider_playlists_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_artists_total": "Total {count} artists",
+  "@provider_artists_total": {
+    "description": "provider_artists_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_albums_total": "Total {count} albums",
+  "@provider_albums_total": {
+    "description": "provider_albums_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_songs_total": "Total {count} songs",
+  "@provider_songs_total": {
+    "description": "provider_songs_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_playlists_total": "Total {count} playlists",
+  "@provider_playlists_total": {
+    "description": "provider_playlists_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_network_error_album": "Network error, failed to load albums",
+  "@provider_network_error_album": {
+    "description": "provider_network_error_album"
+  },
+  "provider_network_error_song": "Network error, failed to load songs",
+  "@provider_network_error_song": {
+    "description": "provider_network_error_song"
+  },
+  "provider_network_error_artist": "Network error, failed to load artist list",
+  "@provider_network_error_artist": {
+    "description": "provider_network_error_artist"
+  },
+  "provider_network_error_artist_detail": "Network error, failed to load artist details",
+  "@provider_network_error_artist_detail": {
+    "description": "provider_network_error_artist_detail"
+  },
+  "provider_network_error_favorites": "Network error, failed to load favorites",
+  "@provider_network_error_favorites": {
+    "description": "provider_network_error_favorites"
+  },
+  "provider_network_error_playlist": "Network error, failed to load playlists",
+  "@provider_network_error_playlist": {
+    "description": "provider_network_error_playlist"
+  },
+  "provider_network_error_no_route": "Network error, no available routes",
+  "@provider_network_error_no_route": {
+    "description": "provider_network_error_no_route"
+  },
+  "provider_preview_link_parse_failed": "Failed to parse preview link",
+  "@provider_preview_link_parse_failed": {
+    "description": "provider_preview_link_parse_failed"
+  },
+  "provider_preview_play_no_route": "Preview playback failed, no available routes",
+  "@provider_preview_play_no_route": {
+    "description": "provider_preview_play_no_route"
+  },
+  "provider_playback_all_unavailable": "All songs in the current playlist are unplayable, please check the server connection and audio sources",
+  "@provider_playback_all_unavailable": {
+    "description": "provider_playback_all_unavailable"
   }
 }

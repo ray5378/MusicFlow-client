@@ -4995,6 +4995,120 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'无法解析试听链接: {error}'**
   String unable_to_parse_preview_link_error(String error);
+
+  /// provider_cast_notify_permission
+  ///
+  /// In zh, this message translates to:
+  /// **'通知权限未授予，前台服务常驻可能受限 → 后台续播不可靠'**
+  String get provider_cast_notify_permission;
+
+  /// provider_artists_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 位艺术家'**
+  String provider_artists_count(int count);
+
+  /// provider_albums_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 张专辑'**
+  String provider_albums_count(int count);
+
+  /// provider_songs_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首歌曲'**
+  String provider_songs_count(int count);
+
+  /// provider_playlists_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个歌单'**
+  String provider_playlists_count(int count);
+
+  /// provider_artists_total
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 名艺人'**
+  String provider_artists_total(int count);
+
+  /// provider_albums_total
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 张专辑'**
+  String provider_albums_total(int count);
+
+  /// provider_songs_total
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 首歌曲'**
+  String provider_songs_total(int count);
+
+  /// provider_playlists_total
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 个歌单'**
+  String provider_playlists_total(int count);
+
+  /// provider_network_error_album
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，专辑加载失败'**
+  String get provider_network_error_album;
+
+  /// provider_network_error_song
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，歌曲加载失败'**
+  String get provider_network_error_song;
+
+  /// provider_network_error_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，歌手列表加载失败'**
+  String get provider_network_error_artist;
+
+  /// provider_network_error_artist_detail
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，歌手详情加载失败'**
+  String get provider_network_error_artist_detail;
+
+  /// provider_network_error_favorites
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，收藏加载失败'**
+  String get provider_network_error_favorites;
+
+  /// provider_network_error_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，歌单加载失败'**
+  String get provider_network_error_playlist;
+
+  /// provider_network_error_no_route
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，当前无可用线路'**
+  String get provider_network_error_no_route;
+
+  /// provider_preview_link_parse_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'试听链接解析失败'**
+  String get provider_preview_link_parse_failed;
+
+  /// provider_preview_play_no_route
+  ///
+  /// In zh, this message translates to:
+  /// **'试听播放失败，当前无可用线路'**
+  String get provider_preview_play_no_route;
+
+  /// provider_playback_all_unavailable
+  ///
+  /// In zh, this message translates to:
+  /// **'当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用'**
+  String get provider_playback_all_unavailable;
 }
 
 class _AppLocalizationsDelegate

@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import '../data/models/song.dart';
 import '../data/models/peer.dart';
@@ -662,7 +663,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (_deadSongs.contains(song.id) && playQueue.length > 1) {
       Logger.warnWithTag(
         _playerLogTag,
-        '跳过已确认不可播的歌曲: ${song.title} (${song.id})',
+        'skip confirmed-unplayable song: ${song.title} (${song.id})',
       );
       // 尝试下一首
       final nextIdx = playIndex + 1;
@@ -788,7 +789,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isPreview: false,
           autoPlay: autoPlay,
         );
-        NetworkErrorNotifier.show('网络异常，当前无可用线路');
+        NetworkErrorNotifier.show(l10nNowCurrent().provider_network_error_no_route);
         return;
       }
 
@@ -920,7 +921,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isPreview: false,
           autoPlay: autoPlay,
         );
-        NetworkErrorNotifier.show('网络异常，当前无可用线路');
+        NetworkErrorNotifier.show(l10nNowCurrent().provider_network_error_no_route);
         return;
       }
 
@@ -1084,7 +1085,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isPreview: false,
           autoPlay: autoPlay,
         );
-        NetworkErrorNotifier.show('网络异常，当前无可用线路');
+        NetworkErrorNotifier.show(l10nNowCurrent().provider_network_error_no_route);
         return;
       }
       // 有可用线路但转码仍失败 → 自动跳到下一首，避免"卡在第一首"。
@@ -1411,23 +1412,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
     Logger.warnWithTag(
       _playerLogTag,
-      '播放失败(${_failStreak}/$_maxFailStreak) songId=$songId, 自动跳过',
+      'play fail (${_failStreak}/$_maxFailStreak) songId=$songId, auto-skip',
     );
     // 整队都已确认不可播：停止并提示，避免整队坏源时无限跳过。
     final queue = state.queue;
     if (queue.isNotEmpty && queue.every((s) => _deadSongs.contains(s.id))) {
-      Logger.warnWithTag(_playerLogTag, '整队不可播,停止自动跳过');
+      Logger.warnWithTag(_playerLogTag, 'whole queue unplayable, stop auto-skip');
       _failStreak = 0;
       state = state.copyWith(isPlaying: false);
       // 给用户可见反馈，避免"点了播放没反应"的假象（Windows 排查关键）。
       NetworkErrorNotifier.show(
-        '当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用',
+        l10nNowCurrent().provider_playback_all_unavailable,
       );
       return;
     }
     if (_failStreak >= _maxFailStreak) {
       // 连续失败过多：重置计数并继续向前跳过（长段坏源时不再中途停住）。
-      Logger.warnWithTag(_playerLogTag, '连续失败过多,继续向前跳过找可播歌曲');
+      Logger.warnWithTag(_playerLogTag, 'too many consecutive failures, continue skipping forward');
       _failStreak = 0;
     }
     next();
@@ -1513,7 +1514,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _deadSongs.add(songId);
           Logger.warnWithTag(
             _playerLogTag,
-            '预探测不可播,提前跳过: $songId (${r['reason'] ?? '无可用音源'})',
+            'pre-probe unplayable, skip ahead: $songId (${r['reason'] ?? 'no usable audio source'})',
           );
         } else {
           _deadSongs.remove(songId);
@@ -1521,7 +1522,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
     } catch (e) {
       // 探测失败不阻塞播放：交给播放时的失败兜底
-      Logger.debugWithTag(_playerLogTag, '预探测失败: $e');
+      Logger.debugWithTag(_playerLogTag, 'pre-probe failed: $e');
     } finally {
       _probing = false;
     }
@@ -1690,7 +1691,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             autoPlay: autoPlay,
           );
         } else {
-          NetworkErrorNotifier.show('试听链接解析失败');
+          NetworkErrorNotifier.show(l10nNowCurrent().provider_preview_link_parse_failed);
         }
       }
       return;
@@ -1809,7 +1810,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isPreview: true,
           autoPlay: autoPlay,
         );
-        NetworkErrorNotifier.show('试听播放失败，当前无可用线路');
+        NetworkErrorNotifier.show(l10nNowCurrent().provider_preview_play_no_route);
         return;
       }
       // 有可用线路但试听仍失败 → 自动跳到下一首，避免"卡在试听首曲"。
@@ -1838,7 +1839,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return song;
     }
     if (source.isEmpty || trackId.isEmpty) {
-      throw StateError('试听歌曲缺少 source/trackId');
+      throw StateError('preview song missing source/trackId');
     }
 
     final client = _ref.read(gdMusicApiClientProvider);
@@ -3329,13 +3330,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     return sourcePosition < Duration.zero ? Duration.zero : sourcePosition;
   }
 
-  String _withoutTimeOffset(String url) {
-    final uri = Uri.parse(url);
-    final query = Map<String, String>.from(uri.queryParameters)
-      ..remove('timeOffset');
-    return uri.replace(queryParameters: query).toString();
-  }
-
   bool _isPlaybackContextCurrent({
     required int session,
     required String songId,
@@ -3578,7 +3572,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _playDbg(
             'startup_stuck_watchdog GIVE_UP reload_streak=$_startupReloadStreak '
             'song=$stuckSongId ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
-            'processing=${processing.name} — 判不可播,跳下一首',
+            'processing=${processing.name} — judged unplayable, skip to next',
           );
           _startupStuckSongId = null;
           _startupReloadStreak = 0;

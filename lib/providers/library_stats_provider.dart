@@ -1,3 +1,4 @@
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/album.dart';
@@ -34,21 +35,21 @@ class LibraryCounts {
   /// `8 位艺术家 · 30 张专辑 · 2105 首歌曲 · 12 个歌单`
   String format() {
     return <String>[
-      if (artistCount != null) '$artistCount 位艺术家',
-      if (albumCount != null) '$albumCount 张专辑',
-      if (songCount != null) '$songCount 首歌曲',
-      if (playlistCount != null) '$playlistCount 个歌单',
+      if (artistCount != null) l10nNowCurrent().provider_artists_count(artistCount!),
+      if (albumCount != null) l10nNowCurrent().provider_albums_count(albumCount!),
+      if (songCount != null) l10nNowCurrent().provider_songs_count(songCount!),
+      if (playlistCount != null) l10nNowCurrent().provider_playlists_count(playlistCount!),
     ].join(' · ');
   }
 
   /// 单维度标签：库页面只显示本页对应类型的计数（null 表示该维度缺失）。
   String? get artistsLabel =>
-      artistCount == null ? null : '共 $artistCount 名艺人';
+      artistCount == null ? null : l10nNowCurrent().provider_artists_total(artistCount!);
   String? get albumsLabel =>
-      albumCount == null ? null : '共 $albumCount 张专辑';
-  String? get songsLabel => songCount == null ? null : '共 $songCount 首歌曲';
+      albumCount == null ? null : l10nNowCurrent().provider_albums_total(albumCount!);
+  String? get songsLabel => songCount == null ? null : l10nNowCurrent().provider_songs_total(songCount!);
   String? get playlistsLabel =>
-      playlistCount == null ? null : '共 $playlistCount 个歌单';
+      playlistCount == null ? null : l10nNowCurrent().provider_playlists_total(playlistCount!);
 }
 
 /// 库总览计数。非 autoDispose：五个库页面共用一份结果，切库时自动重算。

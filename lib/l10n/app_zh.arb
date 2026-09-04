@@ -2631,7 +2631,9 @@
   "@song_option_song_count": {
     "description": "song_option_song_count",
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "login_connect_server": "连接到服务器",
@@ -2672,8 +2674,12 @@
   "@login_step_semantics": {
     "description": "login_step_semantics",
     "placeholders": {
-      "step": {"type": "String"},
-      "total": {"type": "String"}
+      "step": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
     }
   },
   "login_step_server": "服务器",
@@ -2682,33 +2688,60 @@
   "search_entity_no_playable": "该{kind}暂无可播放歌曲",
   "@search_entity_no_playable": {
     "description": "search_entity_no_playable",
-    "placeholders": {"kind": {"type": "String"}}
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
   },
   "search_play_failed": "播放失败: {error}",
   "@search_play_failed": {
     "description": "search_play_failed",
-    "placeholders": {"error": {"type": "String"}}
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "search_import_submitted": "已提交入库任务，完成后会通知你",
   "search_import_failed": "入库失败: {error}",
   "@search_import_failed": {
     "description": "search_import_failed",
-    "placeholders": {"error": {"type": "String"}}
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "search_import_done": "《{name}》入库完成，可在音乐库查看",
   "@search_import_done": {
     "description": "search_import_done",
-    "placeholders": {"name": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "search_import_entry_failed": "《{name}》入库失败: {error}",
   "@search_import_entry_failed": {
     "description": "search_import_entry_failed",
-    "placeholders": {"name": {"type": "String"}, "error": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "search_playlist_import_submitted": "《{name}》入库任务已提交，完成后会通知你",
   "@search_playlist_import_submitted": {
     "description": "search_playlist_import_submitted",
-    "placeholders": {"name": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "search_scope_all": "所有",
   "search_scope_all_desc": "全部内容",
@@ -2721,7 +2754,7 @@
   "search_bar_clear": "清空搜索词",
   "search_add_to_library": "加入库",
   "search_scope_title": "搜索范围",
-    "search_scope_select_title": "选择搜索范围",
+  "search_scope_select_title": "选择搜索范围",
   "core_back": "返回",
   "@core_back": {
     "description": "core_back"
@@ -2746,7 +2779,9 @@
   "@core_field_error": {
     "description": "core_field_error",
     "placeholders": {
-      "message": {"type": "String"}
+      "message": {
+        "type": "String"
+      }
     }
   },
   "core_network_error": "网络异常",
@@ -2757,7 +2792,9 @@
   "@core_network_switched_notice": {
     "description": "core_network_switched_notice",
     "placeholders": {
-      "name": {"type": "String"}
+      "name": {
+        "type": "String"
+      }
     }
   },
   "core_pull_to_refresh": "下拉刷新",
@@ -2928,5 +2965,121 @@
         "type": "String"
       }
     }
+  },
+  "provider_cast_notify_permission": "通知权限未授予，前台服务常驻可能受限 → 后台续播不可靠",
+  "@provider_cast_notify_permission": {
+    "description": "provider_cast_notify_permission"
+  },
+  "provider_artists_count": "{count} 位艺术家",
+  "@provider_artists_count": {
+    "description": "provider_artists_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_albums_count": "{count} 张专辑",
+  "@provider_albums_count": {
+    "description": "provider_albums_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_songs_count": "{count} 首歌曲",
+  "@provider_songs_count": {
+    "description": "provider_songs_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_playlists_count": "{count} 个歌单",
+  "@provider_playlists_count": {
+    "description": "provider_playlists_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_artists_total": "共 {count} 名艺人",
+  "@provider_artists_total": {
+    "description": "provider_artists_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_albums_total": "共 {count} 张专辑",
+  "@provider_albums_total": {
+    "description": "provider_albums_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_songs_total": "共 {count} 首歌曲",
+  "@provider_songs_total": {
+    "description": "provider_songs_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_playlists_total": "共 {count} 个歌单",
+  "@provider_playlists_total": {
+    "description": "provider_playlists_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "provider_network_error_album": "网络异常，专辑加载失败",
+  "@provider_network_error_album": {
+    "description": "provider_network_error_album"
+  },
+  "provider_network_error_song": "网络异常，歌曲加载失败",
+  "@provider_network_error_song": {
+    "description": "provider_network_error_song"
+  },
+  "provider_network_error_artist": "网络异常，歌手列表加载失败",
+  "@provider_network_error_artist": {
+    "description": "provider_network_error_artist"
+  },
+  "provider_network_error_artist_detail": "网络异常，歌手详情加载失败",
+  "@provider_network_error_artist_detail": {
+    "description": "provider_network_error_artist_detail"
+  },
+  "provider_network_error_favorites": "网络异常，收藏加载失败",
+  "@provider_network_error_favorites": {
+    "description": "provider_network_error_favorites"
+  },
+  "provider_network_error_playlist": "网络异常，歌单加载失败",
+  "@provider_network_error_playlist": {
+    "description": "provider_network_error_playlist"
+  },
+  "provider_network_error_no_route": "网络异常，当前无可用线路",
+  "@provider_network_error_no_route": {
+    "description": "provider_network_error_no_route"
+  },
+  "provider_preview_link_parse_failed": "试听链接解析失败",
+  "@provider_preview_link_parse_failed": {
+    "description": "provider_preview_link_parse_failed"
+  },
+  "provider_preview_play_no_route": "试听播放失败，当前无可用线路",
+  "@provider_preview_play_no_route": {
+    "description": "provider_preview_play_no_route"
+  },
+  "provider_playback_all_unavailable": "当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用",
+  "@provider_playback_all_unavailable": {
+    "description": "provider_playback_all_unavailable"
   }
 }

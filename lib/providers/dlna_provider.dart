@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../core/dlna/cast_http.dart';
 import '../core/dlna/dlna_keepalive.dart';
@@ -94,7 +95,7 @@ Future<void> _requestBackgroundCastPerms() async {
     if (!status.isGranted) {
       Logger.infoWithTag(
         'DLNA-KEEPALIVE',
-        '通知权限未授予，前台服务常驻可能受限 → 后台续播不可靠',
+        l10nNowCurrent().provider_cast_notify_permission,
       );
     }
   } catch (_) {}
@@ -410,7 +411,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     _endTimer?.cancel();
     _endTimer = null;
     _lastHeartbeatTrigger = 0;
-    Logger.debugWithTag('DLNA-HB', '取消心跳(本地 Dart Timer)');
+    Logger.debugWithTag('DLNA-HB', 'cancel heartbeat (local Dart timer)');
   }
 
   /// 按当前曲目剩余时长预约「曲末提醒」——客户端本地 Dart Timer：
@@ -420,7 +421,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     if (!state.isCasting || status.state != 'PLAYING') {
       Logger.debugWithTag(
         'DLNA-HB',
-        'arm 跳过: isCasting=${state.isCasting} state=${status.state}',
+        'arm skip: isCasting=${state.isCasting} state=${status.state}',
       );
       _cancelHeartbeat();
       return;
@@ -433,7 +434,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       if (remaining <= 0) {
         Logger.infoWithTag(
           'DLNA-HB',
-          'arm 跳过: 已到曲末 duration=${durationSec}s position=${status.position}s remaining=${remaining}s',
+          'arm skip: reached end of track duration=${durationSec}s position=${status.position}s remaining=${remaining}s',
         );
         _cancelHeartbeat();
         return;
@@ -443,7 +444,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       trigger = now + ((remaining - lead) * 1000).toInt();
       Logger.debugWithTag(
         'DLNA-HB',
-        'arm 计算: duration=${durationSec}s position=${status.position}s '
+        'arm calc: duration=${durationSec}s position=${status.position}s '
             'remaining=${remaining.toStringAsFixed(1)}s lead=${lead}s '
             'trigger=${DateTime.fromMillisecondsSinceEpoch(trigger).toIso8601String()}',
       );
@@ -452,7 +453,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       trigger = now + 45 * 1000;
       Logger.debugWithTag(
         'DLNA-HB',
-        'arm 兜底: 设备时长未知, 固定 45s 心跳 trigger=${DateTime.fromMillisecondsSinceEpoch(trigger)}',
+        'arm fallback: device duration unknown, fixed 45s heartbeat trigger=${DateTime.fromMillisecondsSinceEpoch(trigger)}',
       );
     }
     final delayMs = (trigger - now).clamp(1000, 24 * 60 * 60 * 1000);
@@ -461,8 +462,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         _endTimer!.isActive) {
       Logger.debugWithTag(
         'DLNA-HB',
-        'arm 去抖跳过: trigger=$trigger last=$_lastHeartbeatTrigger '
-            'Δ=${trigger - _lastHeartbeatTrigger}ms 保持既有预约',
+        'arm debounce skip: trigger=$trigger last=$_lastHeartbeatTrigger '
+            'Δ=${trigger - _lastHeartbeatTrigger}ms keep existing reservation',
       );
       return;
     }
@@ -475,7 +476,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       _endTimer = null;
       Logger.infoWithTag(
         'DLNA-HB',
-        '本地 Dart Timer 到点(进程存活) trigger=$trigger',
+        'local Dart timer fired (process alive) trigger=$trigger',
       );
     });
   }

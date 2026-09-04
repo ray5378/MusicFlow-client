@@ -2742,4 +2742,77 @@ class AppLocalizationsZh extends AppLocalizations {
   String unable_to_parse_preview_link_error(String error) {
     return '无法解析试听链接: $error';
   }
+
+  @override
+  String get provider_cast_notify_permission => '通知权限未授予，前台服务常驻可能受限 → 后台续播不可靠';
+
+  @override
+  String provider_artists_count(int count) {
+    return '$count 位艺术家';
+  }
+
+  @override
+  String provider_albums_count(int count) {
+    return '$count 张专辑';
+  }
+
+  @override
+  String provider_songs_count(int count) {
+    return '$count 首歌曲';
+  }
+
+  @override
+  String provider_playlists_count(int count) {
+    return '$count 个歌单';
+  }
+
+  @override
+  String provider_artists_total(int count) {
+    return '共 $count 名艺人';
+  }
+
+  @override
+  String provider_albums_total(int count) {
+    return '共 $count 张专辑';
+  }
+
+  @override
+  String provider_songs_total(int count) {
+    return '共 $count 首歌曲';
+  }
+
+  @override
+  String provider_playlists_total(int count) {
+    return '共 $count 个歌单';
+  }
+
+  @override
+  String get provider_network_error_album => '网络异常，专辑加载失败';
+
+  @override
+  String get provider_network_error_song => '网络异常，歌曲加载失败';
+
+  @override
+  String get provider_network_error_artist => '网络异常，歌手列表加载失败';
+
+  @override
+  String get provider_network_error_artist_detail => '网络异常，歌手详情加载失败';
+
+  @override
+  String get provider_network_error_favorites => '网络异常，收藏加载失败';
+
+  @override
+  String get provider_network_error_playlist => '网络异常，歌单加载失败';
+
+  @override
+  String get provider_network_error_no_route => '网络异常，当前无可用线路';
+
+  @override
+  String get provider_preview_link_parse_failed => '试听链接解析失败';
+
+  @override
+  String get provider_preview_play_no_route => '试听播放失败，当前无可用线路';
+
+  @override
+  String get provider_playback_all_unavailable => '当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用';
 }

@@ -142,7 +142,7 @@ final homeRecommendSectionProvider =
       Logger.warnWithTag('RECOMMEND', 'home cards load failed', e);
     }
   }
-  final fixedCards = fixed.where((c) => (c.songCount ?? 0) > 30).toList();
+  final fixedCards = fixed.where((c) => c.songCount > 30).toList();
 
   // 2) 首页张数（默认 8，每日推荐插件配置）
   var homeCount = 8;
@@ -170,7 +170,7 @@ final homeRecommendSectionProvider =
     for (final p in pool) {
       if (random.length >= needed) break;
       if (fixedIds.contains(p.id)) continue;
-      if ((p.songCount ?? 0) < 30) continue;
+      if (p.songCount < 30) continue;
       random.add(p);
     }
   }

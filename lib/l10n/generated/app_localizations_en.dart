@@ -2881,4 +2881,88 @@ class AppLocalizationsEn extends AppLocalizations {
   String unable_to_parse_preview_link_error(String error) {
     return 'Unable to parse preview link: $error';
   }
+
+  @override
+  String get provider_cast_notify_permission =>
+      'Notification permission not granted; background service may be limited, background continuation may be unreliable';
+
+  @override
+  String provider_artists_count(int count) {
+    return '$count artists';
+  }
+
+  @override
+  String provider_albums_count(int count) {
+    return '$count albums';
+  }
+
+  @override
+  String provider_songs_count(int count) {
+    return '$count songs';
+  }
+
+  @override
+  String provider_playlists_count(int count) {
+    return '$count playlists';
+  }
+
+  @override
+  String provider_artists_total(int count) {
+    return 'Total $count artists';
+  }
+
+  @override
+  String provider_albums_total(int count) {
+    return 'Total $count albums';
+  }
+
+  @override
+  String provider_songs_total(int count) {
+    return 'Total $count songs';
+  }
+
+  @override
+  String provider_playlists_total(int count) {
+    return 'Total $count playlists';
+  }
+
+  @override
+  String get provider_network_error_album =>
+      'Network error, failed to load albums';
+
+  @override
+  String get provider_network_error_song =>
+      'Network error, failed to load songs';
+
+  @override
+  String get provider_network_error_artist =>
+      'Network error, failed to load artist list';
+
+  @override
+  String get provider_network_error_artist_detail =>
+      'Network error, failed to load artist details';
+
+  @override
+  String get provider_network_error_favorites =>
+      'Network error, failed to load favorites';
+
+  @override
+  String get provider_network_error_playlist =>
+      'Network error, failed to load playlists';
+
+  @override
+  String get provider_network_error_no_route =>
+      'Network error, no available routes';
+
+  @override
+  String get provider_preview_link_parse_failed =>
+      'Failed to parse preview link';
+
+  @override
+  String get provider_preview_play_no_route =>
+      'Preview playback failed, no available routes';
+
+  @override
+  String get provider_playback_all_unavailable =>
+      'All songs in the current playlist are unplayable, please check the server connection and audio sources';
 }

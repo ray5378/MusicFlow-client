@@ -5,6 +5,7 @@ import '../data/models/playlist.dart';
 import '../data/repositories/metadata_cache_repository.dart';
 import '../data/repositories/playlist_repository.dart';
 
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 
 import 'api_provider.dart';
@@ -120,7 +121,7 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
     cacheWrite: (list) => cache.cachePlaylists(resolvedLibraryId, list),
     cacheRead: () => _recentPlaylistsFromCache(cache, resolvedLibraryId),
     failedProvider: recentPlaylistsLoadFailedProvider,
-    errorMessage: '网络异常，歌单加载失败',
+    errorMessage: l10nNowCurrent().provider_network_error_playlist,
     emptyValue: <Playlist>[],
   );
   return _sortRecentPlaylists(all);
@@ -163,7 +164,7 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
     cacheWrite: (list) => cache.cachePlaylists(resolvedLibraryId, list),
     cacheRead: () => cache.getPlaylists(resolvedLibraryId),
     failedProvider: playlistsLoadFailedProvider,
-    errorMessage: '网络异常，歌单加载失败',
+    errorMessage: l10nNowCurrent().provider_network_error_playlist,
     emptyValue: <Playlist>[],
   );
 });
@@ -264,7 +265,7 @@ final playlistDetailProvider = FutureProvider.autoDispose.family<Playlist?, Stri
       return cached;
     }
     // 远程失败且无缓存，才提示网络异常。
-    NetworkErrorNotifier.show('网络异常，歌单加载失败');
+    NetworkErrorNotifier.show(l10nNowCurrent().provider_network_error_playlist);
     ref.read(playlistDetailLoadFailedProvider(playlistId).notifier).state =
         true;
     Logger.warnWithTag(
