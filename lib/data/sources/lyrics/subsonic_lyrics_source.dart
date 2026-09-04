@@ -3,6 +3,7 @@ import '../../../core/utils/lrc_parser.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/structured_lyrics_parser.dart';
 import '../../models/lyrics.dart';
+import '../../../core/l10n/localizations.dart';
 import '../subsonic_api_client.dart';
 import 'lyrics_source.dart';
 
@@ -18,7 +19,7 @@ class SubsonicLyricsSource implements LyricsSource {
   String get id => 'subsonic';
 
   @override
-  String get displayName => '服务端';
+  String get displayName => l10nNowCurrent().source_server;
 
   @override
   bool get requiresConfig => false;

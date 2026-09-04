@@ -2786,4 +2786,99 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get core_unknown_device => 'Unknown device';
+
+  @override
+  String get audio_quality_original => 'Original lossless';
+
+  @override
+  String get audio_quality_high => 'High quality (320kbps)';
+
+  @override
+  String get audio_quality_standard => 'Standard (192kbps)';
+
+  @override
+  String get audio_quality_data_saver => 'Data saver (128kbps)';
+
+  @override
+  String get peer_self => 'This device';
+
+  @override
+  String get peer_group => 'Group';
+
+  @override
+  String peer_queue_total_playing(int count) {
+    return '$count tracks · playing';
+  }
+
+  @override
+  String peer_queue_total(int count) {
+    return '$count tracks';
+  }
+
+  @override
+  String get peer_unknown => 'Unknown';
+
+  @override
+  String duration_hours_minutes(int hours, int minutes) {
+    return '${hours}h ${minutes}m';
+  }
+
+  @override
+  String duration_hours(int hours) {
+    return '${hours}h';
+  }
+
+  @override
+  String duration_minutes(int minutes) {
+    return '${minutes}m';
+  }
+
+  @override
+  String get import_recommend_playlist_failed =>
+      'Failed to import recommend playlist';
+
+  @override
+  String get import_playlist_failed => 'Failed to import playlist';
+
+  @override
+  String get import_task_failed => 'Import task failed';
+
+  @override
+  String get import_task_timeout =>
+      'Import task timed out; check the library later';
+
+  @override
+  String get import_failed => 'Import failed';
+
+  @override
+  String get import_task_running => 'Import in progress, please wait';
+
+  @override
+  String get import_no_task_returned => 'Import returned no task';
+
+  @override
+  String get source_custom => 'Custom';
+
+  @override
+  String get source_server => 'Server';
+
+  @override
+  String get source_netease => 'NetEase Music';
+
+  @override
+  String get unknown_audio_quality => 'Unknown quality';
+
+  @override
+  String get unknown_song => 'Unknown song';
+
+  @override
+  String get unknown_artist => 'Unknown artist';
+
+  @override
+  String get unable_to_parse_preview_link => 'Unable to parse preview link';
+
+  @override
+  String unable_to_parse_preview_link_error(String error) {
+    return 'Unable to parse preview link: $error';
+  }
 }

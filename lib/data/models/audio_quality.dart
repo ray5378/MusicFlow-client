@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../core/l10n/localizations.dart';
+
 /// 音质级别枚举
 enum AudioQualityLevel {
   original, // 原始直连（不传 maxBitRate 和 format）
@@ -19,10 +21,10 @@ extension AudioQualityLevelExt on AudioQualityLevel {
   };
 
   String get displayName => switch (this) {
-    AudioQualityLevel.original => '原始无损',
-    AudioQualityLevel.high => '高品质 (320kbps)',
-    AudioQualityLevel.standard => '标准 (192kbps)',
-    AudioQualityLevel.dataSaver => '流量节省 (128kbps)',
+    AudioQualityLevel.original => l10nNowCurrent().audio_quality_original,
+    AudioQualityLevel.high => l10nNowCurrent().audio_quality_high,
+    AudioQualityLevel.standard => l10nNowCurrent().audio_quality_standard,
+    AudioQualityLevel.dataSaver => l10nNowCurrent().audio_quality_data_saver,
   };
 
   /// 从字符串解析

@@ -2787,5 +2787,146 @@
   "core_unknown_device": "未知设备",
   "@core_unknown_device": {
     "description": "core_unknown_device"
+  },
+  "audio_quality_original": "原始无损",
+  "@audio_quality_original": {
+    "description": "audio_quality_original"
+  },
+  "audio_quality_high": "高品质 (320kbps)",
+  "@audio_quality_high": {
+    "description": "audio_quality_high"
+  },
+  "audio_quality_standard": "标准 (192kbps)",
+  "@audio_quality_standard": {
+    "description": "audio_quality_standard"
+  },
+  "audio_quality_data_saver": "流量节省 (128kbps)",
+  "@audio_quality_data_saver": {
+    "description": "audio_quality_data_saver"
+  },
+  "peer_self": "本机",
+  "@peer_self": {
+    "description": "peer_self"
+  },
+  "peer_group": "群组",
+  "@peer_group": {
+    "description": "peer_group"
+  },
+  "peer_queue_total_playing": "{count} 首 · 播放中",
+  "@peer_queue_total_playing": {
+    "description": "peer_queue_total_playing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "peer_queue_total": "{count} 首",
+  "@peer_queue_total": {
+    "description": "peer_queue_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "peer_unknown": "未知",
+  "@peer_unknown": {
+    "description": "peer_unknown"
+  },
+  "duration_hours_minutes": "{hours}时{minutes}分",
+  "@duration_hours_minutes": {
+    "description": "duration_hours_minutes",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "duration_hours": "{hours}时",
+  "@duration_hours": {
+    "description": "duration_hours",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "duration_minutes": "{minutes}分",
+  "@duration_minutes": {
+    "description": "duration_minutes",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "import_recommend_playlist_failed": "导入推荐歌单失败",
+  "@import_recommend_playlist_failed": {
+    "description": "import_recommend_playlist_failed"
+  },
+  "import_playlist_failed": "导入歌单失败",
+  "@import_playlist_failed": {
+    "description": "import_playlist_failed"
+  },
+  "import_task_failed": "导入任务失败",
+  "@import_task_failed": {
+    "description": "import_task_failed"
+  },
+  "import_task_timeout": "入库任务超时,请稍后在音乐库查看",
+  "@import_task_timeout": {
+    "description": "import_task_timeout"
+  },
+  "import_failed": "导入失败",
+  "@import_failed": {
+    "description": "import_failed"
+  },
+  "import_task_running": "导入任务进行中，请稍候",
+  "@import_task_running": {
+    "description": "import_task_running"
+  },
+  "import_no_task_returned": "导入未返回任务",
+  "@import_no_task_returned": {
+    "description": "import_no_task_returned"
+  },
+  "source_custom": "自定义源",
+  "@source_custom": {
+    "description": "source_custom"
+  },
+  "source_server": "服务端",
+  "@source_server": {
+    "description": "source_server"
+  },
+  "source_netease": "网易云音乐",
+  "@source_netease": {
+    "description": "source_netease"
+  },
+  "unknown_audio_quality": "未知音质",
+  "@unknown_audio_quality": {
+    "description": "unknown_audio_quality"
+  },
+  "unknown_song": "未知歌曲",
+  "@unknown_song": {
+    "description": "unknown_song"
+  },
+  "unknown_artist": "未知歌手",
+  "@unknown_artist": {
+    "description": "unknown_artist"
+  },
+  "unable_to_parse_preview_link": "无法解析试听链接",
+  "@unable_to_parse_preview_link": {
+    "description": "unable_to_parse_preview_link"
+  },
+  "unable_to_parse_preview_link_error": "无法解析试听链接: {error}",
+  "@unable_to_parse_preview_link_error": {
+    "description": "unable_to_parse_preview_link_error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }

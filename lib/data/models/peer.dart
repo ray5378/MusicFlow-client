@@ -2,6 +2,8 @@
 library;
 
 import 'song.dart';
+import '../../core/l10n/localizations.dart';
+
 class PeerInfo {
   const PeerInfo({
     required this.peerId,
@@ -36,16 +38,18 @@ class PeerInfo {
   bool get isLocal => kind == 'local';
 
   String get kindLabel => switch (kind) {
-        'local' => '本机',
+        'local' => l10nNowCurrent().peer_self,
         'airplay' => 'AirPlay',
-        'group' => '群组',
+        'group' => l10nNowCurrent().peer_group,
         _ => 'DLNA',
       };
 
   /// 队列摘要:`21 首 · 播放中`;空队列返回空串。
   String get queueLabel => queueTotal <= 0
       ? ''
-      : '$queueTotal 首${queueActive ? ' · 播放中' : ''}';
+      : queueActive
+      ? l10nNowCurrent().peer_queue_total_playing(queueTotal)
+      : l10nNowCurrent().peer_queue_total(queueTotal);
 }
 
 /// 设备实时状态（GET /v1/peers/:id/status，dlna 为 SOAP 实时值）。
@@ -102,7 +106,7 @@ class PeerStatus {
 /// 队列条目：投递给后端 queue/play 的形状（对齐前端 songToQueueItem）。
 Map<String, dynamic> songToQueueItem(dynamic song) => <String, dynamic>{
       'songId': song.id as String?,
-      'title': (song.title as String?) ?? '未知',
+      'title': (song.title as String?) ?? l10nNowCurrent().peer_unknown,
       'artist': song.artist as String?,
       'album': song.album as String?,
       'albumId': song.albumId as String?,
@@ -131,7 +135,7 @@ Song castQueueItemToSong(Map<String, dynamic> it) {
   final albumId = it['albumId'] as String?;
   return Song(
     id: songId,
-    title: (it['title'] as String?) ?? '未知',
+    title: (it['title'] as String?) ?? l10nNowCurrent().peer_unknown,
     artist: it['artist'] as String?,
     album: it['album'] as String?,
     albumId: albumId,

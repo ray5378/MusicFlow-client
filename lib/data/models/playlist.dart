@@ -1,4 +1,5 @@
 import 'song.dart';
+import '../../core/l10n/localizations.dart';
 
 /// 歌单模型
 class Playlist {
@@ -85,9 +86,11 @@ class Playlist {
   String get durationString {
     final hours = duration ~/ 3600;
     final minutes = (duration % 3600) ~/ 60;
-    if (hours > 0 && minutes > 0) return '$hours时$minutes分';
-    if (hours > 0) return '$hours时';
-    return '$minutes分';
+    if (hours > 0 && minutes > 0) {
+      return l10nNowCurrent().duration_hours_minutes(hours, minutes);
+    }
+    if (hours > 0) return l10nNowCurrent().duration_hours(hours);
+    return l10nNowCurrent().duration_minutes(minutes);
   }
 }
 

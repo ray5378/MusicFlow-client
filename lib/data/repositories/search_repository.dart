@@ -1,4 +1,5 @@
 import '../../core/utils/logger.dart';
+import '../../core/l10n/localizations.dart';
 import '../models/search.dart';
 import '../models/song.dart';
 import '../sources/subsonic_api_client.dart';
@@ -236,7 +237,7 @@ class SearchRepository {
       return data['taskId'] as String;
     }
     if (data['success'] != true || data['taskId'] == null) {
-      throw Exception(data['error']?.toString() ?? '导入歌单失败');
+      throw Exception(data['error']?.toString() ?? l10nNowCurrent().import_playlist_failed);
     }
     return data['taskId'] as String;
   }
@@ -270,24 +271,24 @@ class SearchRepository {
         return <String, dynamic>{};
       }
       if (status == 'error') {
-        throw Exception((task['error'] as String?) ?? '导入任务失败');
+        throw Exception((task['error'] as String?) ?? l10nNowCurrent().import_task_failed);
       }
       await Future<void>.delayed(interval);
     }
-    throw Exception('入库任务超时,请稍后在音乐库查看');
+    throw Exception(l10nNowCurrent().import_task_timeout);
   }
 
   Future<String> _import(String path, Map<String, dynamic> body) async {
     final data = await _apiClient.postRaw(path, data: body)
         as Map<String, dynamic>;
     if (data['success'] != true) {
-      throw Exception(data['error']?.toString() ?? '导入失败');
+      throw Exception(data['error']?.toString() ?? l10nNowCurrent().import_failed);
     }
     if (data['alreadyRunning'] == true) {
-      throw Exception('导入任务进行中，请稍候');
+      throw Exception(l10nNowCurrent().import_task_running);
     }
     if (data['taskId'] == null) {
-      throw Exception('导入未返回任务');
+      throw Exception(l10nNowCurrent().import_no_task_returned);
     }
     return data['taskId'] as String;
   }

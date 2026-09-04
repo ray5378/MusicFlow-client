@@ -1,4 +1,5 @@
 import '../subsonic_api_client.dart';
+import '../../../core/l10n/localizations.dart';
 import 'cover_source.dart';
 
 /// 服务端封面源（Subsonic getCoverArt）
@@ -11,7 +12,7 @@ class SubsonicCoverSource implements CoverSource {
   String get id => 'subsonic';
 
   @override
-  String get displayName => '服务端';
+  String get displayName => l10nNowCurrent().source_server;
 
   @override
   bool get requiresConfig => false;

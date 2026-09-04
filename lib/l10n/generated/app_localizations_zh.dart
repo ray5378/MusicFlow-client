@@ -2649,4 +2649,97 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get core_unknown_device => '未知设备';
+
+  @override
+  String get audio_quality_original => '原始无损';
+
+  @override
+  String get audio_quality_high => '高品质 (320kbps)';
+
+  @override
+  String get audio_quality_standard => '标准 (192kbps)';
+
+  @override
+  String get audio_quality_data_saver => '流量节省 (128kbps)';
+
+  @override
+  String get peer_self => '本机';
+
+  @override
+  String get peer_group => '群组';
+
+  @override
+  String peer_queue_total_playing(int count) {
+    return '$count 首 · 播放中';
+  }
+
+  @override
+  String peer_queue_total(int count) {
+    return '$count 首';
+  }
+
+  @override
+  String get peer_unknown => '未知';
+
+  @override
+  String duration_hours_minutes(int hours, int minutes) {
+    return '$hours时$minutes分';
+  }
+
+  @override
+  String duration_hours(int hours) {
+    return '$hours时';
+  }
+
+  @override
+  String duration_minutes(int minutes) {
+    return '$minutes分';
+  }
+
+  @override
+  String get import_recommend_playlist_failed => '导入推荐歌单失败';
+
+  @override
+  String get import_playlist_failed => '导入歌单失败';
+
+  @override
+  String get import_task_failed => '导入任务失败';
+
+  @override
+  String get import_task_timeout => '入库任务超时,请稍后在音乐库查看';
+
+  @override
+  String get import_failed => '导入失败';
+
+  @override
+  String get import_task_running => '导入任务进行中，请稍候';
+
+  @override
+  String get import_no_task_returned => '导入未返回任务';
+
+  @override
+  String get source_custom => '自定义源';
+
+  @override
+  String get source_server => '服务端';
+
+  @override
+  String get source_netease => '网易云音乐';
+
+  @override
+  String get unknown_audio_quality => '未知音质';
+
+  @override
+  String get unknown_song => '未知歌曲';
+
+  @override
+  String get unknown_artist => '未知歌手';
+
+  @override
+  String get unable_to_parse_preview_link => '无法解析试听链接';
+
+  @override
+  String unable_to_parse_preview_link_error(String error) {
+    return '无法解析试听链接: $error';
+  }
 }

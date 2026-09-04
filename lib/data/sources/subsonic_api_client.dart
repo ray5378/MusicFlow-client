@@ -270,12 +270,12 @@ class SubsonicApiClient {
       ) as Map<String, dynamic>;
       final path = data['streamUrl'] as String?;
       if (path == null || path.isEmpty) {
-        throw StateError('服务端未返回 streamUrl');
+        throw StateError('server returned no streamUrl');
       }
       final uri = Uri.parse(joinServerUrl(baseUrl, path));
       return uri.toString();
     } catch (e) {
-      Logger.warn('DLNA 无鉴权流获取失败，回退带鉴权流', e);
+      Logger.warn('DLNA unauthenticated stream fetch failed, falling back to authenticated stream', e);
       return getStreamUrl(songId, maxBitRate: maxBitRate);
     }
   }
@@ -296,7 +296,7 @@ class SubsonicApiClient {
     final response = await _dio.get<Uint8List>(url, options: options);
     final data = response.data;
     if (data == null) {
-      throw StateError('服务端返回空流: $url');
+      throw StateError('server returned empty stream: $url');
     }
     return data;
   }

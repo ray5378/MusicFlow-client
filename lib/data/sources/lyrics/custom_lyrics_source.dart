@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../../core/utils/lrc_parser.dart';
 import '../../../core/utils/logger.dart';
+import '../../../core/l10n/localizations.dart';
 import '../../models/lyrics.dart';
 import 'lyrics_source.dart';
 
@@ -24,7 +25,7 @@ class CustomLyricsSource implements LyricsSource {
   String get id => 'custom';
 
   @override
-  String get displayName => '自定义源';
+  String get displayName => l10nNowCurrent().source_custom;
 
   @override
   bool get requiresConfig => true;

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../../core/utils/logger.dart';
+import '../../../core/l10n/localizations.dart';
 import '../../models/song.dart';
 
 class GdSongUrlResult {
@@ -21,7 +22,7 @@ class GdSongUrlResult {
   });
 
   String get qualityLabel {
-    if (bitRateKbps == null || bitRateKbps! <= 0) return '未知音质';
+    if (bitRateKbps == null || bitRateKbps! <= 0) return l10nNowCurrent().unknown_audio_quality;
     return '${bitRateKbps}kbps';
   }
 }
@@ -104,7 +105,7 @@ class GdMusicApiClient {
 
           return Song(
             id: 'gd_${normalizedSource}_$trackId',
-            title: title.isEmpty ? '未知歌曲' : title,
+            title: title.isEmpty ? l10nNowCurrent().unknown_song : title,
             artist: artist,
             album: album.isEmpty ? null : album,
             isPreview: true,
@@ -142,7 +143,7 @@ class GdMusicApiClient {
           (song) =>
               (song.previewTrackId ?? '').trim().isNotEmpty &&
               song.title.trim().isNotEmpty &&
-              song.title != '未知歌曲',
+              song.title != l10nNowCurrent().unknown_song,
         )
         .take(limit)
         .toList(growable: false);
@@ -199,7 +200,7 @@ class GdMusicApiClient {
 
           return Song(
             id: 'gd_netease_$trackId',
-            title: title.isEmpty ? '未知歌曲' : title,
+            title: title.isEmpty ? l10nNowCurrent().unknown_song : title,
             artist: artist,
             album: album.isEmpty ? null : album,
             isPreview: true,
@@ -279,9 +280,9 @@ class GdMusicApiClient {
     }
 
     if (lastError != null) {
-      throw Exception('无法解析试听链接: $lastError');
+      throw Exception(l10nNowCurrent().unable_to_parse_preview_link_error('$lastError'));
     }
-    throw Exception('无法解析试听链接');
+    throw Exception(l10nNowCurrent().unable_to_parse_preview_link);
   }
 
   Future<String?> resolveCoverUrl({
@@ -402,14 +403,14 @@ class GdMusicApiClient {
           })
           .where((e) => e.isNotEmpty);
       final merged = names.join(' / ');
-      return merged.isEmpty ? '未知歌手' : merged;
+      return merged.isEmpty ? l10nNowCurrent().unknown_artist : merged;
     }
     if (raw is Map) {
       final name = (raw['name'] ?? raw['artistName'] ?? '').toString().trim();
-      return name.isEmpty ? '未知歌手' : name;
+      return name.isEmpty ? l10nNowCurrent().unknown_artist : name;
     }
     final text = (raw ?? '').toString().trim();
-    return text.isEmpty ? '未知歌手' : text;
+    return text.isEmpty ? l10nNowCurrent().unknown_artist : text;
   }
 
   String _parseAlbum(dynamic raw) {

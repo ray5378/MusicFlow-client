@@ -2787,5 +2787,146 @@
   "core_unknown_device": "Unknown device",
   "@core_unknown_device": {
     "description": "core_unknown_device"
+  },
+  "audio_quality_original": "Original lossless",
+  "@audio_quality_original": {
+    "description": "audio_quality_original"
+  },
+  "audio_quality_high": "High quality (320kbps)",
+  "@audio_quality_high": {
+    "description": "audio_quality_high"
+  },
+  "audio_quality_standard": "Standard (192kbps)",
+  "@audio_quality_standard": {
+    "description": "audio_quality_standard"
+  },
+  "audio_quality_data_saver": "Data saver (128kbps)",
+  "@audio_quality_data_saver": {
+    "description": "audio_quality_data_saver"
+  },
+  "peer_self": "This device",
+  "@peer_self": {
+    "description": "peer_self"
+  },
+  "peer_group": "Group",
+  "@peer_group": {
+    "description": "peer_group"
+  },
+  "peer_queue_total_playing": "{count} tracks · playing",
+  "@peer_queue_total_playing": {
+    "description": "peer_queue_total_playing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "peer_queue_total": "{count} tracks",
+  "@peer_queue_total": {
+    "description": "peer_queue_total",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "peer_unknown": "Unknown",
+  "@peer_unknown": {
+    "description": "peer_unknown"
+  },
+  "duration_hours_minutes": "{hours}h {minutes}m",
+  "@duration_hours_minutes": {
+    "description": "duration_hours_minutes",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "duration_hours": "{hours}h",
+  "@duration_hours": {
+    "description": "duration_hours",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "duration_minutes": "{minutes}m",
+  "@duration_minutes": {
+    "description": "duration_minutes",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "import_recommend_playlist_failed": "Failed to import recommend playlist",
+  "@import_recommend_playlist_failed": {
+    "description": "import_recommend_playlist_failed"
+  },
+  "import_playlist_failed": "Failed to import playlist",
+  "@import_playlist_failed": {
+    "description": "import_playlist_failed"
+  },
+  "import_task_failed": "Import task failed",
+  "@import_task_failed": {
+    "description": "import_task_failed"
+  },
+  "import_task_timeout": "Import task timed out; check the library later",
+  "@import_task_timeout": {
+    "description": "import_task_timeout"
+  },
+  "import_failed": "Import failed",
+  "@import_failed": {
+    "description": "import_failed"
+  },
+  "import_task_running": "Import in progress, please wait",
+  "@import_task_running": {
+    "description": "import_task_running"
+  },
+  "import_no_task_returned": "Import returned no task",
+  "@import_no_task_returned": {
+    "description": "import_no_task_returned"
+  },
+  "source_custom": "Custom",
+  "@source_custom": {
+    "description": "source_custom"
+  },
+  "source_server": "Server",
+  "@source_server": {
+    "description": "source_server"
+  },
+  "source_netease": "NetEase Music",
+  "@source_netease": {
+    "description": "source_netease"
+  },
+  "unknown_audio_quality": "Unknown quality",
+  "@unknown_audio_quality": {
+    "description": "unknown_audio_quality"
+  },
+  "unknown_song": "Unknown song",
+  "@unknown_song": {
+    "description": "unknown_song"
+  },
+  "unknown_artist": "Unknown artist",
+  "@unknown_artist": {
+    "description": "unknown_artist"
+  },
+  "unable_to_parse_preview_link": "Unable to parse preview link",
+  "@unable_to_parse_preview_link": {
+    "description": "unable_to_parse_preview_link"
+  },
+  "unable_to_parse_preview_link_error": "Unable to parse preview link: {error}",
+  "@unable_to_parse_preview_link_error": {
+    "description": "unable_to_parse_preview_link_error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }

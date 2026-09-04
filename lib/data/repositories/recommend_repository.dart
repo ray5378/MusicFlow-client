@@ -1,4 +1,5 @@
 import '../../core/utils/logger.dart';
+import '../../core/l10n/localizations.dart';
 import '../models/recommend.dart';
 import '../sources/subsonic_api_client.dart';
 
@@ -107,7 +108,7 @@ class RecommendRepository {
         data: info,
       ) as Map<String, dynamic>;
       if (data['success'] != true || data['playlistId'] == null) {
-        throw Exception(data['error']?.toString() ?? '导入推荐歌单失败');
+        throw Exception(data['error']?.toString() ?? l10nNowCurrent().import_recommend_playlist_failed);
       }
       return data['playlistId'] as String;
     } catch (e) {

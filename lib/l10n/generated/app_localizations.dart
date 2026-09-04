@@ -4833,6 +4833,168 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未知设备'**
   String get core_unknown_device;
+
+  /// audio_quality_original
+  ///
+  /// In zh, this message translates to:
+  /// **'原始无损'**
+  String get audio_quality_original;
+
+  /// audio_quality_high
+  ///
+  /// In zh, this message translates to:
+  /// **'高品质 (320kbps)'**
+  String get audio_quality_high;
+
+  /// audio_quality_standard
+  ///
+  /// In zh, this message translates to:
+  /// **'标准 (192kbps)'**
+  String get audio_quality_standard;
+
+  /// audio_quality_data_saver
+  ///
+  /// In zh, this message translates to:
+  /// **'流量节省 (128kbps)'**
+  String get audio_quality_data_saver;
+
+  /// peer_self
+  ///
+  /// In zh, this message translates to:
+  /// **'本机'**
+  String get peer_self;
+
+  /// peer_group
+  ///
+  /// In zh, this message translates to:
+  /// **'群组'**
+  String get peer_group;
+
+  /// peer_queue_total_playing
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首 · 播放中'**
+  String peer_queue_total_playing(int count);
+
+  /// peer_queue_total
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首'**
+  String peer_queue_total(int count);
+
+  /// peer_unknown
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get peer_unknown;
+
+  /// duration_hours_minutes
+  ///
+  /// In zh, this message translates to:
+  /// **'{hours}时{minutes}分'**
+  String duration_hours_minutes(int hours, int minutes);
+
+  /// duration_hours
+  ///
+  /// In zh, this message translates to:
+  /// **'{hours}时'**
+  String duration_hours(int hours);
+
+  /// duration_minutes
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes}分'**
+  String duration_minutes(int minutes);
+
+  /// import_recommend_playlist_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'导入推荐歌单失败'**
+  String get import_recommend_playlist_failed;
+
+  /// import_playlist_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'导入歌单失败'**
+  String get import_playlist_failed;
+
+  /// import_task_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'导入任务失败'**
+  String get import_task_failed;
+
+  /// import_task_timeout
+  ///
+  /// In zh, this message translates to:
+  /// **'入库任务超时,请稍后在音乐库查看'**
+  String get import_task_timeout;
+
+  /// import_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'导入失败'**
+  String get import_failed;
+
+  /// import_task_running
+  ///
+  /// In zh, this message translates to:
+  /// **'导入任务进行中，请稍候'**
+  String get import_task_running;
+
+  /// import_no_task_returned
+  ///
+  /// In zh, this message translates to:
+  /// **'导入未返回任务'**
+  String get import_no_task_returned;
+
+  /// source_custom
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义源'**
+  String get source_custom;
+
+  /// source_server
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端'**
+  String get source_server;
+
+  /// source_netease
+  ///
+  /// In zh, this message translates to:
+  /// **'网易云音乐'**
+  String get source_netease;
+
+  /// unknown_audio_quality
+  ///
+  /// In zh, this message translates to:
+  /// **'未知音质'**
+  String get unknown_audio_quality;
+
+  /// unknown_song
+  ///
+  /// In zh, this message translates to:
+  /// **'未知歌曲'**
+  String get unknown_song;
+
+  /// unknown_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'未知歌手'**
+  String get unknown_artist;
+
+  /// unable_to_parse_preview_link
+  ///
+  /// In zh, this message translates to:
+  /// **'无法解析试听链接'**
+  String get unable_to_parse_preview_link;
+
+  /// unable_to_parse_preview_link_error
+  ///
+  /// In zh, this message translates to:
+  /// **'无法解析试听链接: {error}'**
+  String unable_to_parse_preview_link_error(String error);
 }
 
 class _AppLocalizationsDelegate
