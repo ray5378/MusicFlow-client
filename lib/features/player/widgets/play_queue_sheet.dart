@@ -12,6 +12,7 @@ import '../../../providers/dlna_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import 'song_options_sheet.dart';
 
 /// 桌面端右侧队列面板是否已打开(防止重复叠加)。
@@ -148,6 +149,7 @@ class PlayQueueSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cast = ref.watch(castPeerControllerProvider);
+    final loc = AppLocalizations.of(context);
     // 投屏态:队列权威在后端,展示投屏队列快照并把操作路由到后端。
     if (cast.activePeer != null) {
       final castQueue = cast.castQueue.map(castQueueItemToSong).toList();
@@ -187,7 +189,7 @@ class PlayQueueSheet extends ConsumerWidget {
       return CastQueueSheetView(
         queue: dQueue,
         currentIndex: dlnaCast.currentIndex,
-        deviceName: dlnaCast.currentDevice?.name ?? '局域网设备',
+        deviceName: dlnaCast.currentDevice?.name ?? loc.queue_device_local,
         offline: false,
         panel: panel,
         onClose: () => _close(context),
@@ -248,7 +250,7 @@ class PlayQueueSheet extends ConsumerWidget {
           extraActions: <SongOptionsExtraAction>[
             SongOptionsExtraAction(
               icon: AppIcons.removeCircle,
-              title: '从队列移除',
+              title: loc.queue_remove,
               isDestructive: true,
               onPressed: () {
                 ref.read(playerProvider.notifier).removeFromQueue(index);
@@ -296,6 +298,7 @@ class PlayQueueSheetView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final queue = playerState.queue;
     final currentIndex = playerState.currentIndex;
     final visuals =
@@ -327,7 +330,7 @@ class PlayQueueSheetView extends StatelessWidget {
             scopesRoute: true,
             namesRoute: true,
             explicitChildNodes: true,
-            label: '播放队列',
+            label: loc.queue_title,
             child: MusicFlowSurface(
               level: MusicFlowSurfaceLevel.modal,
               color: scopedColors.surface,
@@ -369,13 +372,13 @@ class PlayQueueSheetView extends StatelessWidget {
                                 Semantics(
                                   header: true,
                                   child: Text(
-                                    '播放队列',
+                                    loc.queue_title,
                                     style: scopedTypography.headline,
                                   ),
                                 ),
                                 SizedBox(height: scopedSpacing.xxs),
                                 Text(
-                                  '${queue.length} 首曲目',
+                                  loc.queue_count(queue.length),
                                   style: scopedTypography.metadata,
                                 ),
                               ],
@@ -384,7 +387,7 @@ class PlayQueueSheetView extends StatelessWidget {
                           SizedBox(width: scopedSpacing.sm),
                           MusicFlowIconButton(
                             icon: AppIcons.close,
-                            label: '关闭播放队列',
+                            label: loc.queue_close,
                             onPressed: () {
                               if (onClose != null) {
                                 onClose!();
@@ -399,9 +402,9 @@ class PlayQueueSheetView extends StatelessWidget {
                     const MusicFlowDivider(),
                     Expanded(
                       child: queue.isEmpty
-                          ? const MusicFlowEmptyState(
-                              title: '队列为空',
-                              description: '开始播放一首歌曲后，接下来的曲目会出现在这里。',
+                          ? MusicFlowEmptyState(
+                              title: loc.queue_empty,
+                              description: loc.queue_empty_desc,
                               icon: AppIcons.queue,
                             )
                           : _AutoCenterQueueList(
@@ -426,8 +429,8 @@ class PlayQueueSheetView extends StatelessWidget {
                       child: Align(
                         alignment: AlignmentDirectional.centerStart,
                         child: MusicFlowButton.ghost(
-                          label: '清空后续队列',
-                          semanticLabel: '清空后续播放队列，保留当前曲目',
+                          label: loc.queue_clear_after,
+                          semanticLabel: loc.queue_clear_after_semantic,
                           leadingIcon: AppIcons.clearAll,
                           onPressed: queue.isEmpty
                               ? null
@@ -496,6 +499,7 @@ class CastQueueSheetView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final borderRadius = panel
         ? BorderRadius.horizontal(left: context.musicFlowRadii.scene.topLeft)
         : BorderRadius.only(
@@ -544,14 +548,14 @@ class CastQueueSheetView extends StatelessWidget {
                         Semantics(
                           header: true,
                           child: Text(
-                            '投屏队列',
+                            loc.queue_cast_title,
                             style: context.musicFlowTypography.headline,
                           ),
                         ),
                         SizedBox(height: context.musicFlowSpacing.xxs),
                         Text(
-                          '${queue.length} 首曲目 · 正在投屏到「$deviceName」'
-                          '${offline ? ' · 设备离线' : ''}',
+                          loc.queue_cast_count(queue.length, deviceName) +
+                          '${offline ? loc.queue_cast_offline_suffix : ''}',
                           style: context.musicFlowTypography.metadata,
                         ),
                       ],
@@ -560,7 +564,7 @@ class CastQueueSheetView extends StatelessWidget {
                   SizedBox(width: context.musicFlowSpacing.sm),
                   MusicFlowIconButton(
                     icon: AppIcons.close,
-                    label: '关闭投屏队列',
+                    label: loc.queue_cast_close,
                     onPressed: () {
                       if (onClose != null) {
                         onClose!();
@@ -575,9 +579,9 @@ class CastQueueSheetView extends StatelessWidget {
             const MusicFlowDivider(),
             Expanded(
               child: queue.isEmpty
-                  ? const MusicFlowEmptyState(
-                      title: '投屏队列为空',
-                      description: '后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。',
+                  ? MusicFlowEmptyState(
+                      title: loc.queue_cast_empty,
+                      description: loc.queue_cast_empty_desc,
                       icon: AppIcons.queue,
                     )
                   : _AutoCenterCastList(
@@ -599,8 +603,8 @@ class CastQueueSheetView extends StatelessWidget {
               child: Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: MusicFlowButton.ghost(
-                  label: '清空并停止投屏',
-                  semanticLabel: '清空投屏队列并停止投屏',
+                  label: loc.queue_cast_clear,
+                  semanticLabel: loc.queue_cast_clear_semantic,
                   leadingIcon: AppIcons.clearAll,
                   onPressed: queue.isEmpty ? null : () => unawaited(onClear()),
                 ),
@@ -719,6 +723,7 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final current = widget.currentIndex;
     return ReorderableListView.builder(
       scrollController: _controller,
@@ -755,7 +760,7 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
               ),
               onPressed: () => unawaited(widget.onSelect(index)),
               onMorePressed: () => widget.onRemove(index),
-              moreSemanticLabel: '${song.title}，从投屏队列移除',
+              moreSemanticLabel: loc.queue_remove_more_semantic(song.title),
               showMoreButton: false,
             ),
           ),
@@ -884,6 +889,7 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final current = widget.currentIndex;
     return ListView.separated(
       controller: _controller,
@@ -912,7 +918,7 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
           onMorePressed: () => unawaited(
             widget.onOpenSongActions(context, i, song),
           ),
-          moreSemanticLabel: '${song.title}，更多操作',
+          moreSemanticLabel: loc.queue_more_actions_semantic(song.title),
           showMoreButton: false,
         );
         // 只在当前行挂 GlobalKey,供 ensureVisible 精确定位居中。

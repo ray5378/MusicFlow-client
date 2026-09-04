@@ -16,6 +16,7 @@ import '../../../providers/playlist_provider.dart';
 import '../../../widgets/music_flow_artwork.dart';
 import '../../library/pages/album_detail_page.dart';
 import '../../library/pages/artist_detail_page.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class SongOptionsExtraAction {
   const SongOptionsExtraAction({
@@ -80,6 +81,7 @@ class _SongOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final currentSongId = ref.watch(
       playerProvider.select((state) => state.currentSong?.id),
     );
@@ -95,10 +97,10 @@ class _SongOptionsSheet extends ConsumerWidget {
     final enqueued = isCasting || isDlnaCasting;
     final artistName = song.artist?.trim().isNotEmpty == true
         ? song.artist!.trim()
-        : '未知歌手';
+        : loc.song_option_unknown_artist;
     final albumName = song.album?.trim().isNotEmpty == true
         ? song.album!.trim()
-        : '未知专辑';
+        : loc.song_option_unknown_album;
     final canOpenArtist = song.artistId?.trim().isNotEmpty == true;
     final canOpenAlbum = song.albumId?.trim().isNotEmpty == true;
 
@@ -108,7 +110,7 @@ class _SongOptionsSheet extends ConsumerWidget {
         if (!isCurrentSong)
           _SongOptionRow(
             icon: AppIcons.queueAdd,
-            title: enqueued ? '加入投屏队列' : '下一曲播放',
+            title: enqueued ? loc.song_option_enqueue : loc.song_option_play_next,
             onPressed: () => unawaited(
               _closeAndRun(context, () async {
                 if (isCasting) {
@@ -119,7 +121,7 @@ class _SongOptionsSheet extends ConsumerWidget {
                   await ref
                       .read(dlnaCastProvider.notifier)
                       .enqueueSongs(<Song>[song]);
-                  _showMessage('已加入投屏队列');
+                  _showMessage(loc.song_option_enqueued);
                 } else {
                   await ref.read(playerProvider.notifier).playNext(song);
                 }
@@ -131,7 +133,7 @@ class _SongOptionsSheet extends ConsumerWidget {
       actions.addAll(<Widget>[
         _SongOptionRow(
           icon: song.starred ? AppIcons.heart : AppIcons.heartOutline,
-          title: song.starred ? '取消红心' : '红心',
+          title: song.starred ? loc.player_unfavorite : loc.player_favorite,
           selected: song.starred,
           onPressed: () => unawaited(
             _closeAndRun(context, () async {
@@ -139,16 +141,16 @@ class _SongOptionsSheet extends ConsumerWidget {
                   .read(playerProvider.notifier)
                   .toggleSongFavorite(song);
               if (newStarred == null) {
-                NetworkErrorNotifier.show('操作失败');
+                NetworkErrorNotifier.show(loc.song_option_operation_failed);
                 return;
               }
-              _showMessage(newStarred ? '已添加红心' : '已取消红心');
+              _showMessage(newStarred ? loc.song_option_favorite_added : loc.song_option_favorite_removed);
             }),
           ),
         ),
         _SongOptionRow(
           icon: AppIcons.playlistAdd,
-          title: '添加到歌单',
+          title: loc.library_add_to_playlist,
           onPressed: () => unawaited(
             _closeAndRun(context, () async {
               if (!hostContext.mounted) return;
@@ -165,29 +167,29 @@ class _SongOptionsSheet extends ConsumerWidget {
         if (!isCurrentSong)
           _SongOptionRow(
             icon: AppIcons.queueAdd,
-            title: enqueued ? '加入投屏队列' : '下一曲播放',
+            title: enqueued ? loc.song_option_enqueue : loc.song_option_play_next,
             onPressed: () => unawaited(
               _closeAndRun(context, () async {
                 if (isCasting) {
                   await ref
                       .read(castPeerControllerProvider.notifier)
                       .enqueueSongs(<Song>[song]);
-                  _showMessage('已加入投屏队列');
+                  _showMessage(loc.song_option_enqueued);
                 } else if (isDlnaCasting) {
                   await ref
                       .read(dlnaCastProvider.notifier)
                       .enqueueSongs(<Song>[song]);
-                  _showMessage('已加入投屏队列');
+                  _showMessage(loc.song_option_enqueued);
                 } else {
                   await ref.read(playerProvider.notifier).playNext(song);
-                  _showMessage('已添加到下一曲');
+                  _showMessage(loc.song_option_play_next_added);
                 }
               }),
             ),
           ),
         _SongOptionRow(
           icon: AppIcons.profile,
-          title: '歌手：$artistName',
+          title: loc.song_option_artist(artistName),
           onPressed: !canOpenArtist
               ? null
               : () => unawaited(
@@ -203,12 +205,12 @@ class _SongOptionsSheet extends ConsumerWidget {
                 ),
           onLongPress: () {
             Clipboard.setData(ClipboardData(text: artistName));
-            ToastNotifier.show('已复制歌手: $artistName');
+            ToastNotifier.show(loc.song_option_artist_copied(artistName));
           },
         ),
         _SongOptionRow(
           icon: AppIcons.albumOutline,
-          title: '专辑：$albumName',
+          title: loc.song_option_album(albumName),
           onPressed: !canOpenAlbum
               ? null
               : () => unawaited(
@@ -223,7 +225,7 @@ class _SongOptionsSheet extends ConsumerWidget {
                 ),
           onLongPress: () {
             Clipboard.setData(ClipboardData(text: albumName));
-            ToastNotifier.show('已复制专辑: $albumName');
+            ToastNotifier.show(loc.song_option_album_copied(albumName));
           },
         ),
       ]);
@@ -251,7 +253,7 @@ class _SongOptionsSheet extends ConsumerWidget {
     }
 
     return MusicFlowBottomSheet(
-      title: song.isPreview ? '试听歌曲操作' : '歌曲操作',
+      title: song.isPreview ? loc.song_option_title_preview : loc.song_option_title,
       showDragHandle: compactSheet,
       sceneRadius: !compactSheet,
       padding: EdgeInsets.fromLTRB(
@@ -274,7 +276,7 @@ class _SongOptionsSheet extends ConsumerWidget {
                 albumName: albumName,
                 onCopyTitle: () {
                   Clipboard.setData(ClipboardData(text: song.title));
-                  ToastNotifier.show('已复制歌曲名: ${song.title}');
+                  ToastNotifier.show(loc.song_option_copied_title(song.title));
                 },
               ),
               Padding(
@@ -320,8 +322,9 @@ class _SongSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
-      semanticLabel: '${song.title}，$artistName，$albumName，长按复制歌曲名',
+      semanticLabel: loc.song_option_summary_semantic(song.title, artistName, albumName),
       onLongPress: onCopyTitle,
       minimumSize: Size(
         double.infinity,
@@ -336,7 +339,7 @@ class _SongSummary extends StatelessWidget {
               dimension: context.musicFlowInteraction.minimumTouchTarget,
               child: MusicFlowArtwork(
                 coverArtId: song.artworkReference,
-                semanticLabel: '${song.title} 封面',
+                semanticLabel: loc.song_cover_semantic(song.title),
                 size: context.musicFlowInteraction.minimumTouchTarget,
                 requestSize: 192,
                 borderRadius: context.musicFlowRadii.detail,
@@ -390,6 +393,7 @@ class _SongOptionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final enabled = onPressed != null || onLongPress != null;
     final accent = destructive ? colors.error : colors.accent;
@@ -402,8 +406,8 @@ class _SongOptionRow extends StatelessWidget {
     return MusicFlowPressable(
       semanticLabel: <String>[
         title,
-        if (selected) '已选中',
-        if (!enabled) '不可用',
+        if (selected) loc.song_option_selected,
+        if (!enabled) loc.song_option_not_available,
       ].join('，'),
       selected: selected,
       onPressed: onPressed,
@@ -462,11 +466,12 @@ class _AddToPlaylistSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final playlistsAsync = ref.watch(playlistsProvider);
     final loadFailed = ref.watch(playlistsLoadFailedProvider);
 
     return MusicFlowBottomSheet(
-      title: '添加到歌单',
+      title: loc.library_add_to_playlist,
       subtitle: song.title,
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -476,12 +481,12 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           data: (playlists) {
             if (playlists.isEmpty) {
               return MusicFlowEmptyState(
-                title: loadFailed ? '歌单加载失败' : '暂无歌单',
+                title: loadFailed ? loc.song_option_playlist_load_failed : loc.song_option_no_playlists,
                 description: loadFailed
-                    ? '请检查网络或服务器状态后重试。'
-                    : '创建歌单后，即可将这首歌曲加入收藏。',
+                    ? loc.song_option_load_failed_desc
+                    : loc.song_option_create_playlist_hint,
                 icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
-                actionLabel: loadFailed ? '重试' : null,
+                actionLabel: loadFailed ? loc.widgets_retry : null,
                 onAction: loadFailed
                     ? () => ref.invalidate(playlistsProvider)
                     : null,
@@ -506,7 +511,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                     Navigator.of(context).pop();
                     final repository = ref.read(playlistRepositoryProvider);
                     if (repository == null) {
-                      NetworkErrorNotifier.show('未选择音乐库');
+                      NetworkErrorNotifier.show(loc.discover_no_library_selected);
                       return;
                     }
 
@@ -521,11 +526,11 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       if (hostContext.mounted) {
                         showMusicFlowMessage(
                           hostContext,
-                          '已添加到歌单「${playlist.name}」',
+                          loc.song_option_added_to_playlist(playlist.name),
                         );
                       }
                     } catch (_) {
-                      NetworkErrorNotifier.show('网络异常，添加失败');
+                      NetworkErrorNotifier.show(loc.song_option_network_error);
                     }
                   },
                 );
@@ -534,9 +539,9 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           },
           loading: () => const _PlaylistLoading(),
           error: (error, stackTrace) => MusicFlowErrorState(
-            title: '歌单加载失败',
-            description: '请检查网络或服务器状态后重试。',
-            actionLabel: '重试',
+            title: loc.song_option_playlist_load_failed,
+            description: loc.song_option_load_failed_desc,
+            actionLabel: loc.widgets_retry,
             onAction: () => ref.invalidate(playlistsProvider),
             padding: EdgeInsets.all(context.musicFlowSpacing.lg),
           ),
@@ -559,8 +564,9 @@ class _PlaylistRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
-      semanticLabel: '$name，$songCount 首歌曲',
+      semanticLabel: loc.song_option_playlist_row_semantic(name, songCount),
       onPressed: () => unawaited(onPressed()),
       minimumSize: Size(
         double.infinity,
@@ -593,7 +599,7 @@ class _PlaylistRow extends StatelessWidget {
                     style: context.musicFlowTypography.title,
                   ),
                   SizedBox(height: context.musicFlowSpacing.xxs),
-                  Text('$songCount 首', style: context.musicFlowTypography.metadata),
+                  Text(loc.song_option_song_count(songCount), style: context.musicFlowTypography.metadata),
                 ],
               ),
             ),

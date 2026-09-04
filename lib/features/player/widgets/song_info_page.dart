@@ -6,6 +6,7 @@ import '../../../data/models/song.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
 import 'song_options_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 歌曲信息页：全屏播放页三页结构中的左滑页。
 ///
@@ -19,6 +20,7 @@ class SongInfoPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     final colors = context.musicFlowColors;
     final typography = context.musicFlowTypography;
@@ -68,45 +70,45 @@ class SongInfoPage extends ConsumerWidget {
           SizedBox(height: spacing.lg),
           _InfoGroup(
             icon: AppIcons.music,
-            title: '歌曲信息',
+            title: loc.song_info_title,
             rows: <Widget?>[
               _buildRow(
-                '时长',
+                loc.song_info_duration,
                 song.duration == null ? null : song.durationString,
               ),
-              _buildRow('按流派', _nonEmpty(song.genre)),
-              _buildRow('唱片号', _optionalInt(song.discNumber)),
+              _buildRow(loc.song_info_genre, _nonEmpty(song.genre)),
+              _buildRow(loc.song_info_disc, _optionalInt(song.discNumber)),
             ],
           ),
           SizedBox(height: spacing.lg),
           _InfoGroup(
             icon: AppIcons.equalizer,
-            title: '音频信息',
+            title: loc.song_info_audio_title,
             rows: <Widget?>[
-              _buildRow('文件类型', _fileTypeLabel(song)),
-              _buildRow('码率', _bitRateLabel(song, bitRateKbps)),
-              _buildRow('采样率', _samplingRateLabel(song.samplingRate)),
-              _buildRow('位深', _bitDepthLabel(song.bitDepth)),
-              _buildRow('声道', _channelLabel(song.channelCount)),
+              _buildRow(loc.song_info_file_type, _fileTypeLabel(song)),
+              _buildRow(loc.song_info_bit_rate, _bitRateLabel(song, bitRateKbps)),
+              _buildRow(loc.song_info_sample_rate, _samplingRateLabel(song.samplingRate)),
+              _buildRow(loc.song_info_bit_depth, _bitDepthLabel(song.bitDepth)),
+              _buildRow(loc.song_info_channels, _channelLabel(song.channelCount, loc)),
             ],
           ),
           SizedBox(height: spacing.lg),
           _InfoGroup(
             icon: AppIcons.fileText,
-            title: '文件信息',
+            title: loc.song_info_file_title,
             rows: <Widget?>[
-              _buildRow('文件大小', _fileSizeLabel(song.size)),
-              _buildRow('歌曲路径', _nonEmpty(song.path)),
+              _buildRow(loc.song_info_file_size, _fileSizeLabel(song.size)),
+              _buildRow(loc.song_info_path, _nonEmpty(song.path)),
             ],
           ),
           SizedBox(height: spacing.lg),
           _InfoGroup(
             icon: AppIcons.more,
-            title: '操作',
+            title: loc.song_info_actions_title,
             rows: <Widget?>[
               _SongActionRow(
-                label: '歌曲操作',
-                description: '下一曲播放、添加到歌单、查看歌手与专辑',
+                label: loc.song_info_song_actions,
+                description: loc.song_info_song_actions_desc,
                 onPressed: () => _openSongActions(context, ref),
               ),
             ],
@@ -161,12 +163,12 @@ class SongInfoPage extends ConsumerWidget {
     return '$depth bit';
   }
 
-  String? _channelLabel(int? channels) {
+  String? _channelLabel(int? channels, AppLocalizations loc) {
     if (channels == null || channels <= 0) return null;
     return switch (channels) {
-      1 => '单声道',
-      2 => '立体声',
-      _ => '$channels 声道',
+      1 => loc.song_info_mono,
+      2 => loc.song_info_stereo,
+      _ => loc.song_info_channels_count(channels),
     };
   }
 
@@ -284,9 +286,10 @@ class _SongActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     return MusicFlowPressable(
-      semanticLabel: '$label，$description',
+      semanticLabel: loc.song_info_action_row(label, description),
       onPressed: onPressed,
       minimumSize: Size(
         double.infinity,

@@ -2058,4 +2058,488 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get state_enabled => 'On';
+
+  @override
+  String get player_close => 'Close player';
+
+  @override
+  String get player_empty_title => 'Nothing playing';
+
+  @override
+  String get player_empty_desc =>
+      'Choose a song from the feed, search, or library to start playing.';
+
+  @override
+  String get player_collapse => 'Collapse player';
+
+  @override
+  String player_page_dots(int page, int total) {
+    return 'Player page, page $page of $total';
+  }
+
+  @override
+  String get player_no_lyrics_title => 'No lyrics yet';
+
+  @override
+  String get player_no_lyrics_desc =>
+      'No lyrics are available for the current track.';
+
+  @override
+  String get player_lyrics_load_failed_title => 'Failed to load lyrics';
+
+  @override
+  String get player_lyrics_load_failed_desc =>
+      'Playback is unaffected; you can retry now.';
+
+  @override
+  String get player_lyrics_loading => 'Loading lyrics';
+
+  @override
+  String get player_lyrics_synced_label => 'Synced lyrics';
+
+  @override
+  String get player_lyrics_label => 'Lyrics';
+
+  @override
+  String get player_lyrics_current => 'Current line';
+
+  @override
+  String player_lyrics_seek(String time) {
+    return 'Jump to $time';
+  }
+
+  @override
+  String get player_mode_shuffle => 'Shuffle; tap to switch to order';
+
+  @override
+  String get player_mode_loop_one => 'Repeat one; tap to switch to list loop';
+
+  @override
+  String get player_mode_order => 'Order; tap to switch to repeat one';
+
+  @override
+  String get player_mode_list => 'List loop; tap to switch to shuffle';
+
+  @override
+  String get player_previous => 'Previous';
+
+  @override
+  String get player_pause => 'Pause';
+
+  @override
+  String get player_next => 'Next';
+
+  @override
+  String get player_queue => 'Play queue';
+
+  @override
+  String get player_dlna_local => 'LAN DLNA cast';
+
+  @override
+  String player_dlna_local_casting(String device) {
+    return 'LAN DLNA cast, streaming to “$device”';
+  }
+
+  @override
+  String get player_unfavorite => 'Unlike';
+
+  @override
+  String get player_favorite => 'Like';
+
+  @override
+  String player_switch_current(String name) {
+    return 'Switch player, current: $name';
+  }
+
+  @override
+  String player_casting_to(String name) {
+    return 'Streaming to “$name”';
+  }
+
+  @override
+  String get player_switched_local => 'Switched to local playback';
+
+  @override
+  String get player_dlna_dialog_subtitle =>
+      'The client discovers LAN devices and pushes streams locally, independent of “Switch player” (server-side casting).';
+
+  @override
+  String get player_progress => 'Playback progress';
+
+  @override
+  String player_progress_percent(int percent) {
+    return 'Playback progress $percent%';
+  }
+
+  @override
+  String get player_playlist_label => 'Current play queue';
+
+  @override
+  String get player_playing_state => 'Playing';
+
+  @override
+  String get player_paused_state => 'Paused';
+
+  @override
+  String get player_not_playing => 'Not playing';
+
+  @override
+  String player_mini_semantic(String title, String subtitle) {
+    return 'Mini player, $title$subtitle';
+  }
+
+  @override
+  String get player_seek_forward => 'Seek forward 10s';
+
+  @override
+  String get player_seek_backward => 'Seek backward 10s';
+
+  @override
+  String get player_choose_song_prompt => 'Choose a song to start playing';
+
+  @override
+  String get player_volume_inc => 'Increase volume';
+
+  @override
+  String get player_volume_dec => 'Decrease volume';
+
+  @override
+  String player_volume_percent(int percent) {
+    return 'Volume $percent%';
+  }
+
+  @override
+  String get player_select_source_title => 'Select player';
+
+  @override
+  String get player_select_source_subtitle =>
+      'Switching player only changes the control target and won\'t stop other players.';
+
+  @override
+  String get player_source_local_title => 'Play on this device';
+
+  @override
+  String get player_source_local_desc => 'Use this device\'s speakers';
+
+  @override
+  String get player_source_casting => 'Currently casting';
+
+  @override
+  String get player_source_offline => 'Device offline, polling paused';
+
+  @override
+  String get player_stop_cast => 'Stop casting';
+
+  @override
+  String player_stop_cast_subtitle(String name) {
+    return 'Stop “$name” playback and clear control';
+  }
+
+  @override
+  String player_cast_failed(String name) {
+    return 'Failed to switch to “$name”; check if the device is online';
+  }
+
+  @override
+  String get player_loading_peers => 'Fetching available players…';
+
+  @override
+  String get player_no_other_players => 'No other players found.';
+
+  @override
+  String get player_refresh_players => 'Refresh player list';
+
+  @override
+  String get player_stopped_cast => 'Stopped casting';
+
+  @override
+  String player_remote_control(String name) {
+    return 'Remotely controlling “$name”';
+  }
+
+  @override
+  String song_cover_semantic(String title) {
+    return '$title cover';
+  }
+
+  @override
+  String get dlna_no_queue_to_cast => 'No play queue available to cast';
+
+  @override
+  String dlna_cast_success(String device) {
+    return 'Now streaming to “$device”';
+  }
+
+  @override
+  String dlna_cast_failed(String device) {
+    return 'Failed to stream to “$device”; check if the device is online';
+  }
+
+  @override
+  String get dlna_cast_stopped => 'Stopped LAN casting';
+
+  @override
+  String get dlna_queue_ended => 'Queue ended';
+
+  @override
+  String get dlna_stop => 'Stop LAN casting';
+
+  @override
+  String get dlna_stop_subtitle =>
+      'Stop device playback and release the local cast queue';
+
+  @override
+  String get dlna_scan_devices => 'Scan for LAN DLNA devices';
+
+  @override
+  String get dlna_device_subtitle => 'Found on this LAN · direct cast';
+
+  @override
+  String get dlna_searching => 'Searching for DLNA devices on the LAN…';
+
+  @override
+  String get dlna_no_device =>
+      'No DLNA devices found. Make sure your speaker/TV is on the same network, then scan again.';
+
+  @override
+  String get dlna_background_hint =>
+      'To keep casting in the background and auto-advance to the next track: in system settings, set MusicFlow\'s “Battery optimization” to “Unrestricted” and “App launch management” to “Manual”, then allow everything (auto-launch / associated launch / background activity) so playback isn\'t frozen at the end of a track.';
+
+  @override
+  String get queue_title => 'Play queue';
+
+  @override
+  String queue_count(int count) {
+    return '$count tracks';
+  }
+
+  @override
+  String get queue_close => 'Close play queue';
+
+  @override
+  String get queue_empty => 'Queue is empty';
+
+  @override
+  String get queue_empty_desc => 'Songs you play next will appear here.';
+
+  @override
+  String get queue_clear_after => 'Clear following queue';
+
+  @override
+  String get queue_clear_after_semantic =>
+      'Clear the following queue, keeping the current track';
+
+  @override
+  String get queue_remove => 'Remove from queue';
+
+  @override
+  String queue_remove_more_semantic(String song) {
+    return '$song, remove from cast queue';
+  }
+
+  @override
+  String queue_more_actions_semantic(String song) {
+    return '$song, more actions';
+  }
+
+  @override
+  String get queue_cast_title => 'Cast queue';
+
+  @override
+  String queue_cast_count(int count, String device) {
+    return '$count tracks · streaming to “$device”';
+  }
+
+  @override
+  String get queue_cast_offline_suffix => ' · offline';
+
+  @override
+  String get queue_cast_close => 'Close cast queue';
+
+  @override
+  String get queue_cast_empty => 'Cast queue is empty';
+
+  @override
+  String get queue_cast_empty_desc =>
+      'The server cast queue is empty; add songs via the song menu.';
+
+  @override
+  String get queue_cast_clear => 'Clear and stop casting';
+
+  @override
+  String get queue_cast_clear_semantic =>
+      'Clear the cast queue and stop casting';
+
+  @override
+  String get queue_device_local => 'LAN device';
+
+  @override
+  String get song_info_title => 'Song info';
+
+  @override
+  String get song_info_duration => 'Duration';
+
+  @override
+  String get song_info_genre => 'Genre';
+
+  @override
+  String get song_info_disc => 'Disc';
+
+  @override
+  String get song_info_audio_title => 'Audio info';
+
+  @override
+  String get song_info_file_type => 'File type';
+
+  @override
+  String get song_info_bit_rate => 'Bit rate';
+
+  @override
+  String get song_info_sample_rate => 'Sample rate';
+
+  @override
+  String get song_info_bit_depth => 'Bit depth';
+
+  @override
+  String get song_info_channels => 'Channels';
+
+  @override
+  String get song_info_file_title => 'File info';
+
+  @override
+  String get song_info_file_size => 'File size';
+
+  @override
+  String get song_info_path => 'Song path';
+
+  @override
+  String get song_info_actions_title => 'Actions';
+
+  @override
+  String get song_info_song_actions => 'Song actions';
+
+  @override
+  String get song_info_song_actions_desc =>
+      'Play next, add to playlist, show artist and album';
+
+  @override
+  String song_info_action_row(String label, String description) {
+    return '$label, $description';
+  }
+
+  @override
+  String get song_info_mono => 'Mono';
+
+  @override
+  String get song_info_stereo => 'Stereo';
+
+  @override
+  String song_info_channels_count(int count) {
+    return '$count channels';
+  }
+
+  @override
+  String get song_option_unknown_artist => 'Unknown artist';
+
+  @override
+  String get song_option_unknown_album => 'Unknown album';
+
+  @override
+  String get song_option_enqueue => 'Add to cast queue';
+
+  @override
+  String get song_option_enqueued => 'Added to cast queue';
+
+  @override
+  String get song_option_play_next => 'Play next';
+
+  @override
+  String get song_option_play_next_added => 'Added to play next';
+
+  @override
+  String get song_option_favorite_added => 'Liked';
+
+  @override
+  String get song_option_favorite_removed => 'Unliked';
+
+  @override
+  String get song_option_operation_failed => 'Operation failed';
+
+  @override
+  String song_option_artist(String name) {
+    return 'Artist: $name';
+  }
+
+  @override
+  String song_option_album(String name) {
+    return 'Album: $name';
+  }
+
+  @override
+  String song_option_artist_copied(String name) {
+    return 'Copied artist: $name';
+  }
+
+  @override
+  String song_option_album_copied(String name) {
+    return 'Copied album: $name';
+  }
+
+  @override
+  String get song_option_title_preview => 'Preview song actions';
+
+  @override
+  String get song_option_title => 'Song actions';
+
+  @override
+  String song_option_copied_title(String title) {
+    return 'Copied song title: $title';
+  }
+
+  @override
+  String song_option_summary_semantic(
+    String title,
+    String artist,
+    String album,
+  ) {
+    return '$title, $artist, $album, long-press to copy the title';
+  }
+
+  @override
+  String get song_option_selected => 'Selected';
+
+  @override
+  String get song_option_not_available => 'Not available';
+
+  @override
+  String get song_option_playlist_load_failed => 'Failed to load playlists';
+
+  @override
+  String get song_option_no_playlists => 'No playlists yet';
+
+  @override
+  String get song_option_load_failed_desc =>
+      'Please check your network or server status and try again.';
+
+  @override
+  String get song_option_create_playlist_hint =>
+      'Create a playlist and you can add this song to it.';
+
+  @override
+  String song_option_added_to_playlist(String name) {
+    return 'Added to playlist “$name”';
+  }
+
+  @override
+  String get song_option_network_error => 'Network error, failed to add';
+
+  @override
+  String song_option_playlist_row_semantic(String name, int count) {
+    return '$name, $count songs';
+  }
+
+  @override
+  String song_option_song_count(int count) {
+    return '$count songs';
+  }
 }

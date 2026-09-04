@@ -1925,5 +1925,715 @@
   "state_enabled": "On",
   "@state_enabled": {
     "description": "state_enabled"
+  },
+  "player_close": "Close player",
+  "@player_close": {
+    "description": "player_close"
+  },
+  "player_empty_title": "Nothing playing",
+  "@player_empty_title": {
+    "description": "player_empty_title"
+  },
+  "player_empty_desc": "Choose a song from the feed, search, or library to start playing.",
+  "@player_empty_desc": {
+    "description": "player_empty_desc"
+  },
+  "player_collapse": "Collapse player",
+  "@player_collapse": {
+    "description": "player_collapse"
+  },
+  "player_page_dots": "Player page, page {page} of {total}",
+  "@player_page_dots": {
+    "description": "player_page_dots",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "player_no_lyrics_title": "No lyrics yet",
+  "@player_no_lyrics_title": {
+    "description": "player_no_lyrics_title"
+  },
+  "player_no_lyrics_desc": "No lyrics are available for the current track.",
+  "@player_no_lyrics_desc": {
+    "description": "player_no_lyrics_desc"
+  },
+  "player_lyrics_load_failed_title": "Failed to load lyrics",
+  "@player_lyrics_load_failed_title": {
+    "description": "player_lyrics_load_failed_title"
+  },
+  "player_lyrics_load_failed_desc": "Playback is unaffected; you can retry now.",
+  "@player_lyrics_load_failed_desc": {
+    "description": "player_lyrics_load_failed_desc"
+  },
+  "player_lyrics_loading": "Loading lyrics",
+  "@player_lyrics_loading": {
+    "description": "player_lyrics_loading"
+  },
+  "player_lyrics_synced_label": "Synced lyrics",
+  "@player_lyrics_synced_label": {
+    "description": "player_lyrics_synced_label"
+  },
+  "player_lyrics_label": "Lyrics",
+  "@player_lyrics_label": {
+    "description": "player_lyrics_label"
+  },
+  "player_lyrics_current": "Current line",
+  "@player_lyrics_current": {
+    "description": "player_lyrics_current"
+  },
+  "player_lyrics_seek": "Jump to {time}",
+  "@player_lyrics_seek": {
+    "description": "player_lyrics_seek",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "player_mode_shuffle": "Shuffle; tap to switch to order",
+  "@player_mode_shuffle": {
+    "description": "player_mode_shuffle"
+  },
+  "player_mode_loop_one": "Repeat one; tap to switch to list loop",
+  "@player_mode_loop_one": {
+    "description": "player_mode_loop_one"
+  },
+  "player_mode_order": "Order; tap to switch to repeat one",
+  "@player_mode_order": {
+    "description": "player_mode_order"
+  },
+  "player_mode_list": "List loop; tap to switch to shuffle",
+  "@player_mode_list": {
+    "description": "player_mode_list"
+  },
+  "player_previous": "Previous",
+  "@player_previous": {
+    "description": "player_previous"
+  },
+  "player_pause": "Pause",
+  "@player_pause": {
+    "description": "player_pause"
+  },
+  "player_next": "Next",
+  "@player_next": {
+    "description": "player_next"
+  },
+  "player_queue": "Play queue",
+  "@player_queue": {
+    "description": "player_queue"
+  },
+  "player_dlna_local": "LAN DLNA cast",
+  "@player_dlna_local": {
+    "description": "player_dlna_local"
+  },
+  "player_dlna_local_casting": "LAN DLNA cast, streaming to “{device}”",
+  "@player_dlna_local_casting": {
+    "description": "player_dlna_local_casting",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "player_unfavorite": "Unlike",
+  "@player_unfavorite": {
+    "description": "player_unfavorite"
+  },
+  "player_favorite": "Like",
+  "@player_favorite": {
+    "description": "player_favorite"
+  },
+  "player_switch_current": "Switch player, current: {name}",
+  "@player_switch_current": {
+    "description": "player_switch_current",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_casting_to": "Streaming to “{name}”",
+  "@player_casting_to": {
+    "description": "player_casting_to",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_switched_local": "Switched to local playback",
+  "@player_switched_local": {
+    "description": "player_switched_local"
+  },
+  "player_dlna_dialog_subtitle": "The client discovers LAN devices and pushes streams locally, independent of “Switch player” (server-side casting).",
+  "@player_dlna_dialog_subtitle": {
+    "description": "player_dlna_dialog_subtitle"
+  },
+  "player_progress": "Playback progress",
+  "@player_progress": {
+    "description": "player_progress"
+  },
+  "player_progress_percent": "Playback progress {percent}%",
+  "@player_progress_percent": {
+    "description": "player_progress_percent",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "player_playlist_label": "Current play queue",
+  "@player_playlist_label": {
+    "description": "player_playlist_label"
+  },
+  "player_playing_state": "Playing",
+  "@player_playing_state": {
+    "description": "player_playing_state"
+  },
+  "player_paused_state": "Paused",
+  "@player_paused_state": {
+    "description": "player_paused_state"
+  },
+  "player_not_playing": "Not playing",
+  "@player_not_playing": {
+    "description": "player_not_playing"
+  },
+  "player_mini_semantic": "Mini player, {title}{subtitle}",
+  "@player_mini_semantic": {
+    "description": "player_mini_semantic",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "subtitle": {
+        "type": "String"
+      }
+    }
+  },
+  "player_seek_forward": "Seek forward 10s",
+  "@player_seek_forward": {
+    "description": "player_seek_forward"
+  },
+  "player_seek_backward": "Seek backward 10s",
+  "@player_seek_backward": {
+    "description": "player_seek_backward"
+  },
+  "player_choose_song_prompt": "Choose a song to start playing",
+  "@player_choose_song_prompt": {
+    "description": "player_choose_song_prompt"
+  },
+  "player_volume_inc": "Increase volume",
+  "@player_volume_inc": {
+    "description": "player_volume_inc"
+  },
+  "player_volume_dec": "Decrease volume",
+  "@player_volume_dec": {
+    "description": "player_volume_dec"
+  },
+  "player_volume_percent": "Volume {percent}%",
+  "@player_volume_percent": {
+    "description": "player_volume_percent",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "player_select_source_title": "Select player",
+  "@player_select_source_title": {
+    "description": "player_select_source_title"
+  },
+  "player_select_source_subtitle": "Switching player only changes the control target and won't stop other players.",
+  "@player_select_source_subtitle": {
+    "description": "player_select_source_subtitle"
+  },
+  "player_source_local_title": "Play on this device",
+  "@player_source_local_title": {
+    "description": "player_source_local_title"
+  },
+  "player_source_local_desc": "Use this device's speakers",
+  "@player_source_local_desc": {
+    "description": "player_source_local_desc"
+  },
+  "player_source_casting": "Currently casting",
+  "@player_source_casting": {
+    "description": "player_source_casting"
+  },
+  "player_source_offline": "Device offline, polling paused",
+  "@player_source_offline": {
+    "description": "player_source_offline"
+  },
+  "player_stop_cast": "Stop casting",
+  "@player_stop_cast": {
+    "description": "player_stop_cast"
+  },
+  "player_stop_cast_subtitle": "Stop “{name}” playback and clear control",
+  "@player_stop_cast_subtitle": {
+    "description": "player_stop_cast_subtitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_cast_failed": "Failed to switch to “{name}”; check if the device is online",
+  "@player_cast_failed": {
+    "description": "player_cast_failed",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_loading_peers": "Fetching available players…",
+  "@player_loading_peers": {
+    "description": "player_loading_peers"
+  },
+  "player_no_other_players": "No other players found.",
+  "@player_no_other_players": {
+    "description": "player_no_other_players"
+  },
+  "player_refresh_players": "Refresh player list",
+  "@player_refresh_players": {
+    "description": "player_refresh_players"
+  },
+  "player_stopped_cast": "Stopped casting",
+  "@player_stopped_cast": {
+    "description": "player_stopped_cast"
+  },
+  "player_remote_control": "Remotely controlling “{name}”",
+  "@player_remote_control": {
+    "description": "player_remote_control",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_cover_semantic": "{title} cover",
+  "@song_cover_semantic": {
+    "description": "song_cover_semantic",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "dlna_no_queue_to_cast": "No play queue available to cast",
+  "@dlna_no_queue_to_cast": {
+    "description": "dlna_no_queue_to_cast"
+  },
+  "dlna_cast_success": "Now streaming to “{device}”",
+  "@dlna_cast_success": {
+    "description": "dlna_cast_success",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "dlna_cast_failed": "Failed to stream to “{device}”; check if the device is online",
+  "@dlna_cast_failed": {
+    "description": "dlna_cast_failed",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "dlna_cast_stopped": "Stopped LAN casting",
+  "@dlna_cast_stopped": {
+    "description": "dlna_cast_stopped"
+  },
+  "dlna_queue_ended": "Queue ended",
+  "@dlna_queue_ended": {
+    "description": "dlna_queue_ended"
+  },
+  "dlna_stop": "Stop LAN casting",
+  "@dlna_stop": {
+    "description": "dlna_stop"
+  },
+  "dlna_stop_subtitle": "Stop device playback and release the local cast queue",
+  "@dlna_stop_subtitle": {
+    "description": "dlna_stop_subtitle"
+  },
+  "dlna_scan_devices": "Scan for LAN DLNA devices",
+  "@dlna_scan_devices": {
+    "description": "dlna_scan_devices"
+  },
+  "dlna_device_subtitle": "Found on this LAN · direct cast",
+  "@dlna_device_subtitle": {
+    "description": "dlna_device_subtitle"
+  },
+  "dlna_searching": "Searching for DLNA devices on the LAN…",
+  "@dlna_searching": {
+    "description": "dlna_searching"
+  },
+  "dlna_no_device": "No DLNA devices found. Make sure your speaker/TV is on the same network, then scan again.",
+  "@dlna_no_device": {
+    "description": "dlna_no_device"
+  },
+  "dlna_background_hint": "To keep casting in the background and auto-advance to the next track: in system settings, set MusicFlow's “Battery optimization” to “Unrestricted” and “App launch management” to “Manual”, then allow everything (auto-launch / associated launch / background activity) so playback isn't frozen at the end of a track.",
+  "@dlna_background_hint": {
+    "description": "dlna_background_hint"
+  },
+  "queue_title": "Play queue",
+  "@queue_title": {
+    "description": "queue_title"
+  },
+  "queue_count": "{count} tracks",
+  "@queue_count": {
+    "description": "queue_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queue_close": "Close play queue",
+  "@queue_close": {
+    "description": "queue_close"
+  },
+  "queue_empty": "Queue is empty",
+  "@queue_empty": {
+    "description": "queue_empty"
+  },
+  "queue_empty_desc": "Songs you play next will appear here.",
+  "@queue_empty_desc": {
+    "description": "queue_empty_desc"
+  },
+  "queue_clear_after": "Clear following queue",
+  "@queue_clear_after": {
+    "description": "queue_clear_after"
+  },
+  "queue_clear_after_semantic": "Clear the following queue, keeping the current track",
+  "@queue_clear_after_semantic": {
+    "description": "queue_clear_after_semantic"
+  },
+  "queue_remove": "Remove from queue",
+  "@queue_remove": {
+    "description": "queue_remove"
+  },
+  "queue_remove_more_semantic": "{song}, remove from cast queue",
+  "@queue_remove_more_semantic": {
+    "description": "queue_remove_more_semantic",
+    "placeholders": {
+      "song": {
+        "type": "String"
+      }
+    }
+  },
+  "queue_more_actions_semantic": "{song}, more actions",
+  "@queue_more_actions_semantic": {
+    "description": "queue_more_actions_semantic",
+    "placeholders": {
+      "song": {
+        "type": "String"
+      }
+    }
+  },
+  "queue_cast_title": "Cast queue",
+  "@queue_cast_title": {
+    "description": "queue_cast_title"
+  },
+  "queue_cast_count": "{count} tracks · streaming to “{device}”",
+  "@queue_cast_count": {
+    "description": "queue_cast_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "queue_cast_offline_suffix": " · offline",
+  "@queue_cast_offline_suffix": {
+    "description": "queue_cast_offline_suffix"
+  },
+  "queue_cast_close": "Close cast queue",
+  "@queue_cast_close": {
+    "description": "queue_cast_close"
+  },
+  "queue_cast_empty": "Cast queue is empty",
+  "@queue_cast_empty": {
+    "description": "queue_cast_empty"
+  },
+  "queue_cast_empty_desc": "The server cast queue is empty; add songs via the song menu.",
+  "@queue_cast_empty_desc": {
+    "description": "queue_cast_empty_desc"
+  },
+  "queue_cast_clear": "Clear and stop casting",
+  "@queue_cast_clear": {
+    "description": "queue_cast_clear"
+  },
+  "queue_cast_clear_semantic": "Clear the cast queue and stop casting",
+  "@queue_cast_clear_semantic": {
+    "description": "queue_cast_clear_semantic"
+  },
+  "queue_device_local": "LAN device",
+  "@queue_device_local": {
+    "description": "queue_device_local"
+  },
+  "song_info_title": "Song info",
+  "@song_info_title": {
+    "description": "song_info_title"
+  },
+  "song_info_duration": "Duration",
+  "@song_info_duration": {
+    "description": "song_info_duration"
+  },
+  "song_info_genre": "Genre",
+  "@song_info_genre": {
+    "description": "song_info_genre"
+  },
+  "song_info_disc": "Disc",
+  "@song_info_disc": {
+    "description": "song_info_disc"
+  },
+  "song_info_audio_title": "Audio info",
+  "@song_info_audio_title": {
+    "description": "song_info_audio_title"
+  },
+  "song_info_file_type": "File type",
+  "@song_info_file_type": {
+    "description": "song_info_file_type"
+  },
+  "song_info_bit_rate": "Bit rate",
+  "@song_info_bit_rate": {
+    "description": "song_info_bit_rate"
+  },
+  "song_info_sample_rate": "Sample rate",
+  "@song_info_sample_rate": {
+    "description": "song_info_sample_rate"
+  },
+  "song_info_bit_depth": "Bit depth",
+  "@song_info_bit_depth": {
+    "description": "song_info_bit_depth"
+  },
+  "song_info_channels": "Channels",
+  "@song_info_channels": {
+    "description": "song_info_channels"
+  },
+  "song_info_file_title": "File info",
+  "@song_info_file_title": {
+    "description": "song_info_file_title"
+  },
+  "song_info_file_size": "File size",
+  "@song_info_file_size": {
+    "description": "song_info_file_size"
+  },
+  "song_info_path": "Song path",
+  "@song_info_path": {
+    "description": "song_info_path"
+  },
+  "song_info_actions_title": "Actions",
+  "@song_info_actions_title": {
+    "description": "song_info_actions_title"
+  },
+  "song_info_song_actions": "Song actions",
+  "@song_info_song_actions": {
+    "description": "song_info_song_actions"
+  },
+  "song_info_song_actions_desc": "Play next, add to playlist, show artist and album",
+  "@song_info_song_actions_desc": {
+    "description": "song_info_song_actions_desc"
+  },
+  "song_info_action_row": "{label}, {description}",
+  "@song_info_action_row": {
+    "description": "song_info_action_row",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "song_info_mono": "Mono",
+  "@song_info_mono": {
+    "description": "song_info_mono"
+  },
+  "song_info_stereo": "Stereo",
+  "@song_info_stereo": {
+    "description": "song_info_stereo"
+  },
+  "song_info_channels_count": "{count} channels",
+  "@song_info_channels_count": {
+    "description": "song_info_channels_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "song_option_unknown_artist": "Unknown artist",
+  "@song_option_unknown_artist": {
+    "description": "song_option_unknown_artist"
+  },
+  "song_option_unknown_album": "Unknown album",
+  "@song_option_unknown_album": {
+    "description": "song_option_unknown_album"
+  },
+  "song_option_enqueue": "Add to cast queue",
+  "@song_option_enqueue": {
+    "description": "song_option_enqueue"
+  },
+  "song_option_enqueued": "Added to cast queue",
+  "@song_option_enqueued": {
+    "description": "song_option_enqueued"
+  },
+  "song_option_play_next": "Play next",
+  "@song_option_play_next": {
+    "description": "song_option_play_next"
+  },
+  "song_option_play_next_added": "Added to play next",
+  "@song_option_play_next_added": {
+    "description": "song_option_play_next_added"
+  },
+  "song_option_favorite_added": "Liked",
+  "@song_option_favorite_added": {
+    "description": "song_option_favorite_added"
+  },
+  "song_option_favorite_removed": "Unliked",
+  "@song_option_favorite_removed": {
+    "description": "song_option_favorite_removed"
+  },
+  "song_option_operation_failed": "Operation failed",
+  "@song_option_operation_failed": {
+    "description": "song_option_operation_failed"
+  },
+  "song_option_artist": "Artist: {name}",
+  "@song_option_artist": {
+    "description": "song_option_artist",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_album": "Album: {name}",
+  "@song_option_album": {
+    "description": "song_option_album",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_artist_copied": "Copied artist: {name}",
+  "@song_option_artist_copied": {
+    "description": "song_option_artist_copied",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_album_copied": "Copied album: {name}",
+  "@song_option_album_copied": {
+    "description": "song_option_album_copied",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_title_preview": "Preview song actions",
+  "@song_option_title_preview": {
+    "description": "song_option_title_preview"
+  },
+  "song_option_title": "Song actions",
+  "@song_option_title": {
+    "description": "song_option_title"
+  },
+  "song_option_copied_title": "Copied song title: {title}",
+  "@song_option_copied_title": {
+    "description": "song_option_copied_title",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_summary_semantic": "{title}, {artist}, {album}, long-press to copy the title",
+  "@song_option_summary_semantic": {
+    "description": "song_option_summary_semantic",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "artist": {
+        "type": "String"
+      },
+      "album": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_selected": "Selected",
+  "@song_option_selected": {
+    "description": "song_option_selected"
+  },
+  "song_option_not_available": "Not available",
+  "@song_option_not_available": {
+    "description": "song_option_not_available"
+  },
+  "song_option_playlist_load_failed": "Failed to load playlists",
+  "@song_option_playlist_load_failed": {
+    "description": "song_option_playlist_load_failed"
+  },
+  "song_option_no_playlists": "No playlists yet",
+  "@song_option_no_playlists": {
+    "description": "song_option_no_playlists"
+  },
+  "song_option_load_failed_desc": "Please check your network or server status and try again.",
+  "@song_option_load_failed_desc": {
+    "description": "song_option_load_failed_desc"
+  },
+  "song_option_create_playlist_hint": "Create a playlist and you can add this song to it.",
+  "@song_option_create_playlist_hint": {
+    "description": "song_option_create_playlist_hint"
+  },
+  "song_option_added_to_playlist": "Added to playlist “{name}”",
+  "@song_option_added_to_playlist": {
+    "description": "song_option_added_to_playlist",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_network_error": "Network error, failed to add",
+  "@song_option_network_error": {
+    "description": "song_option_network_error"
+  },
+  "song_option_playlist_row_semantic": "{name}, {count} songs",
+  "@song_option_playlist_row_semantic": {
+    "description": "song_option_playlist_row_semantic",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "song_option_song_count": "{count} songs",
+  "@song_option_song_count": {
+    "description": "song_option_song_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

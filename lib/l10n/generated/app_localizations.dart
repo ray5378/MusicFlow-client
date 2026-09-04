@@ -3581,6 +3581,826 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已开启'**
   String get state_enabled;
+
+  /// player_close
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭播放器'**
+  String get player_close;
+
+  /// player_empty_title
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无播放内容'**
+  String get player_empty_title;
+
+  /// player_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'从音乐流、搜索或资料库选择一首歌曲开始播放。'**
+  String get player_empty_desc;
+
+  /// player_collapse
+  ///
+  /// In zh, this message translates to:
+  /// **'收起播放器'**
+  String get player_collapse;
+
+  /// player_page_dots
+  ///
+  /// In zh, this message translates to:
+  /// **'播放器页面，第 {page} 页，共 {total} 页'**
+  String player_page_dots(int page, int total);
+
+  /// player_no_lyrics_title
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌词'**
+  String get player_no_lyrics_title;
+
+  /// player_no_lyrics_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'当前曲目没有可用的歌词内容。'**
+  String get player_no_lyrics_desc;
+
+  /// player_lyrics_load_failed_title
+  ///
+  /// In zh, this message translates to:
+  /// **'歌词加载失败'**
+  String get player_lyrics_load_failed_title;
+
+  /// player_lyrics_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'播放不受影响，可以立即重试。'**
+  String get player_lyrics_load_failed_desc;
+
+  /// player_lyrics_loading
+  ///
+  /// In zh, this message translates to:
+  /// **'歌词加载中'**
+  String get player_lyrics_loading;
+
+  /// player_lyrics_synced_label
+  ///
+  /// In zh, this message translates to:
+  /// **'同步歌词'**
+  String get player_lyrics_synced_label;
+
+  /// player_lyrics_label
+  ///
+  /// In zh, this message translates to:
+  /// **'歌词'**
+  String get player_lyrics_label;
+
+  /// player_lyrics_current
+  ///
+  /// In zh, this message translates to:
+  /// **'当前歌词'**
+  String get player_lyrics_current;
+
+  /// player_lyrics_seek
+  ///
+  /// In zh, this message translates to:
+  /// **'跳转到 {time}'**
+  String player_lyrics_seek(String time);
+
+  /// player_mode_shuffle
+  ///
+  /// In zh, this message translates to:
+  /// **'随机播放，点击切换到顺序播放'**
+  String get player_mode_shuffle;
+
+  /// player_mode_loop_one
+  ///
+  /// In zh, this message translates to:
+  /// **'单曲循环，点击切换到列表循环'**
+  String get player_mode_loop_one;
+
+  /// player_mode_order
+  ///
+  /// In zh, this message translates to:
+  /// **'顺序播放，点击切换到单曲循环'**
+  String get player_mode_order;
+
+  /// player_mode_list
+  ///
+  /// In zh, this message translates to:
+  /// **'列表循环，点击切换到随机播放'**
+  String get player_mode_list;
+
+  /// player_previous
+  ///
+  /// In zh, this message translates to:
+  /// **'上一首'**
+  String get player_previous;
+
+  /// player_pause
+  ///
+  /// In zh, this message translates to:
+  /// **'暂停'**
+  String get player_pause;
+
+  /// player_next
+  ///
+  /// In zh, this message translates to:
+  /// **'下一首'**
+  String get player_next;
+
+  /// player_queue
+  ///
+  /// In zh, this message translates to:
+  /// **'播放队列'**
+  String get player_queue;
+
+  /// player_dlna_local
+  ///
+  /// In zh, this message translates to:
+  /// **'局域网 DLNA 直投'**
+  String get player_dlna_local;
+
+  /// player_dlna_local_casting
+  ///
+  /// In zh, this message translates to:
+  /// **'局域网 DLNA 直投，正在投屏到「{device}」'**
+  String player_dlna_local_casting(String device);
+
+  /// player_unfavorite
+  ///
+  /// In zh, this message translates to:
+  /// **'取消红心'**
+  String get player_unfavorite;
+
+  /// player_favorite
+  ///
+  /// In zh, this message translates to:
+  /// **'红心'**
+  String get player_favorite;
+
+  /// player_switch_current
+  ///
+  /// In zh, this message translates to:
+  /// **'切换播放器，当前：{name}'**
+  String player_switch_current(String name);
+
+  /// player_casting_to
+  ///
+  /// In zh, this message translates to:
+  /// **'正在投屏到「{name}」'**
+  String player_casting_to(String name);
+
+  /// player_switched_local
+  ///
+  /// In zh, this message translates to:
+  /// **'已切换为本机播放'**
+  String get player_switched_local;
+
+  /// player_dlna_dialog_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。'**
+  String get player_dlna_dialog_subtitle;
+
+  /// player_progress
+  ///
+  /// In zh, this message translates to:
+  /// **'播放进度'**
+  String get player_progress;
+
+  /// player_progress_percent
+  ///
+  /// In zh, this message translates to:
+  /// **'播放进度 {percent}%'**
+  String player_progress_percent(int percent);
+
+  /// player_playlist_label
+  ///
+  /// In zh, this message translates to:
+  /// **'当前播放列表'**
+  String get player_playlist_label;
+
+  /// player_playing_state
+  ///
+  /// In zh, this message translates to:
+  /// **'正在播放'**
+  String get player_playing_state;
+
+  /// player_paused_state
+  ///
+  /// In zh, this message translates to:
+  /// **'已暂停'**
+  String get player_paused_state;
+
+  /// player_not_playing
+  ///
+  /// In zh, this message translates to:
+  /// **'未在播放'**
+  String get player_not_playing;
+
+  /// player_mini_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'迷你播放器，{title}{subtitle}'**
+  String player_mini_semantic(String title, String subtitle);
+
+  /// player_seek_forward
+  ///
+  /// In zh, this message translates to:
+  /// **'快进 10 秒'**
+  String get player_seek_forward;
+
+  /// player_seek_backward
+  ///
+  /// In zh, this message translates to:
+  /// **'后退 10 秒'**
+  String get player_seek_backward;
+
+  /// player_choose_song_prompt
+  ///
+  /// In zh, this message translates to:
+  /// **'选择一首歌曲开始播放'**
+  String get player_choose_song_prompt;
+
+  /// player_volume_inc
+  ///
+  /// In zh, this message translates to:
+  /// **'增大音量'**
+  String get player_volume_inc;
+
+  /// player_volume_dec
+  ///
+  /// In zh, this message translates to:
+  /// **'减小音量'**
+  String get player_volume_dec;
+
+  /// player_volume_percent
+  ///
+  /// In zh, this message translates to:
+  /// **'音量 {percent}%'**
+  String player_volume_percent(int percent);
+
+  /// player_select_source_title
+  ///
+  /// In zh, this message translates to:
+  /// **'选择播放器'**
+  String get player_select_source_title;
+
+  /// player_select_source_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'切换播放器仅改变当前控制目标,不会停止其他播放器。'**
+  String get player_select_source_subtitle;
+
+  /// player_source_local_title
+  ///
+  /// In zh, this message translates to:
+  /// **'本机播放'**
+  String get player_source_local_title;
+
+  /// player_source_local_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'使用此设备扬声器'**
+  String get player_source_local_desc;
+
+  /// player_source_casting
+  ///
+  /// In zh, this message translates to:
+  /// **'当前正在投屏'**
+  String get player_source_casting;
+
+  /// player_source_offline
+  ///
+  /// In zh, this message translates to:
+  /// **'设备离线,已暂停轮询'**
+  String get player_source_offline;
+
+  /// player_stop_cast
+  ///
+  /// In zh, this message translates to:
+  /// **'停止投屏'**
+  String get player_stop_cast;
+
+  /// player_stop_cast_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'停止「{name}」播放并清除控制'**
+  String player_stop_cast_subtitle(String name);
+
+  /// player_cast_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'切换到「{name}」失败,请检查设备是否在线'**
+  String player_cast_failed(String name);
+
+  /// player_loading_peers
+  ///
+  /// In zh, this message translates to:
+  /// **'正在获取可用播放器…'**
+  String get player_loading_peers;
+
+  /// player_no_other_players
+  ///
+  /// In zh, this message translates to:
+  /// **'未发现其他可用播放器。'**
+  String get player_no_other_players;
+
+  /// player_refresh_players
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新播放器列表'**
+  String get player_refresh_players;
+
+  /// player_stopped_cast
+  ///
+  /// In zh, this message translates to:
+  /// **'已停止投屏'**
+  String get player_stopped_cast;
+
+  /// player_remote_control
+  ///
+  /// In zh, this message translates to:
+  /// **'正在远控「{name}」'**
+  String player_remote_control(String name);
+
+  /// song_cover_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'{title} 封面'**
+  String song_cover_semantic(String title);
+
+  /// dlna_no_queue_to_cast
+  ///
+  /// In zh, this message translates to:
+  /// **'当前没有可投屏的播放队列'**
+  String get dlna_no_queue_to_cast;
+
+  /// dlna_cast_success
+  ///
+  /// In zh, this message translates to:
+  /// **'已投屏到「{device}」'**
+  String dlna_cast_success(String device);
+
+  /// dlna_cast_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'投屏到「{device}」失败，请检查设备是否在线'**
+  String dlna_cast_failed(String device);
+
+  /// dlna_cast_stopped
+  ///
+  /// In zh, this message translates to:
+  /// **'已停止局域网投屏'**
+  String get dlna_cast_stopped;
+
+  /// dlna_queue_ended
+  ///
+  /// In zh, this message translates to:
+  /// **'队列已结束'**
+  String get dlna_queue_ended;
+
+  /// dlna_stop
+  ///
+  /// In zh, this message translates to:
+  /// **'停止局域网投屏'**
+  String get dlna_stop;
+
+  /// dlna_stop_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'停止设备播放并释放本地投屏队列'**
+  String get dlna_stop_subtitle;
+
+  /// dlna_scan_devices
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描局域网 DLNA 设备'**
+  String get dlna_scan_devices;
+
+  /// dlna_device_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'本机局域网发现 · 直投'**
+  String get dlna_device_subtitle;
+
+  /// dlna_searching
+  ///
+  /// In zh, this message translates to:
+  /// **'正在搜索局域网内的 DLNA 设备…'**
+  String get dlna_searching;
+
+  /// dlna_no_device
+  ///
+  /// In zh, this message translates to:
+  /// **'未发现可用 DLNA 设备。请确认与音箱/电视处于同一网络后再扫描。'**
+  String get dlna_no_device;
+
+  /// dlna_background_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'为保证后台持续投屏并自动切下一首：请在系统设置中将 MusicFlow 的「电池优化」改为「不限制」，并将「应用启动管理」改为「手动管理」后全部允许（允许自启动 / 关联启动 / 后台活动），避免曲末时因后台冻结而停播。'**
+  String get dlna_background_hint;
+
+  /// queue_title
+  ///
+  /// In zh, this message translates to:
+  /// **'播放队列'**
+  String get queue_title;
+
+  /// queue_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首曲目'**
+  String queue_count(int count);
+
+  /// queue_close
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭播放队列'**
+  String get queue_close;
+
+  /// queue_empty
+  ///
+  /// In zh, this message translates to:
+  /// **'队列为空'**
+  String get queue_empty;
+
+  /// queue_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'开始播放一首歌曲后，接下来的曲目会出现在这里。'**
+  String get queue_empty_desc;
+
+  /// queue_clear_after
+  ///
+  /// In zh, this message translates to:
+  /// **'清空后续队列'**
+  String get queue_clear_after;
+
+  /// queue_clear_after_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'清空后续播放队列，保留当前曲目'**
+  String get queue_clear_after_semantic;
+
+  /// queue_remove
+  ///
+  /// In zh, this message translates to:
+  /// **'从队列移除'**
+  String get queue_remove;
+
+  /// queue_remove_more_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'{song}，从投屏队列移除'**
+  String queue_remove_more_semantic(String song);
+
+  /// queue_more_actions_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'{song}，更多操作'**
+  String queue_more_actions_semantic(String song);
+
+  /// queue_cast_title
+  ///
+  /// In zh, this message translates to:
+  /// **'投屏队列'**
+  String get queue_cast_title;
+
+  /// queue_cast_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首曲目 · 正在投屏到「{device}」'**
+  String queue_cast_count(int count, String device);
+
+  /// queue_cast_offline_suffix
+  ///
+  /// In zh, this message translates to:
+  /// **' · 设备离线'**
+  String get queue_cast_offline_suffix;
+
+  /// queue_cast_close
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭投屏队列'**
+  String get queue_cast_close;
+
+  /// queue_cast_empty
+  ///
+  /// In zh, this message translates to:
+  /// **'投屏队列为空'**
+  String get queue_cast_empty;
+
+  /// queue_cast_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。'**
+  String get queue_cast_empty_desc;
+
+  /// queue_cast_clear
+  ///
+  /// In zh, this message translates to:
+  /// **'清空并停止投屏'**
+  String get queue_cast_clear;
+
+  /// queue_cast_clear_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'清空投屏队列并停止投屏'**
+  String get queue_cast_clear_semantic;
+
+  /// queue_device_local
+  ///
+  /// In zh, this message translates to:
+  /// **'局域网设备'**
+  String get queue_device_local;
+
+  /// song_info_title
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲信息'**
+  String get song_info_title;
+
+  /// song_info_duration
+  ///
+  /// In zh, this message translates to:
+  /// **'时长'**
+  String get song_info_duration;
+
+  /// song_info_genre
+  ///
+  /// In zh, this message translates to:
+  /// **'按流派'**
+  String get song_info_genre;
+
+  /// song_info_disc
+  ///
+  /// In zh, this message translates to:
+  /// **'唱片号'**
+  String get song_info_disc;
+
+  /// song_info_audio_title
+  ///
+  /// In zh, this message translates to:
+  /// **'音频信息'**
+  String get song_info_audio_title;
+
+  /// song_info_file_type
+  ///
+  /// In zh, this message translates to:
+  /// **'文件类型'**
+  String get song_info_file_type;
+
+  /// song_info_bit_rate
+  ///
+  /// In zh, this message translates to:
+  /// **'码率'**
+  String get song_info_bit_rate;
+
+  /// song_info_sample_rate
+  ///
+  /// In zh, this message translates to:
+  /// **'采样率'**
+  String get song_info_sample_rate;
+
+  /// song_info_bit_depth
+  ///
+  /// In zh, this message translates to:
+  /// **'位深'**
+  String get song_info_bit_depth;
+
+  /// song_info_channels
+  ///
+  /// In zh, this message translates to:
+  /// **'声道'**
+  String get song_info_channels;
+
+  /// song_info_file_title
+  ///
+  /// In zh, this message translates to:
+  /// **'文件信息'**
+  String get song_info_file_title;
+
+  /// song_info_file_size
+  ///
+  /// In zh, this message translates to:
+  /// **'文件大小'**
+  String get song_info_file_size;
+
+  /// song_info_path
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲路径'**
+  String get song_info_path;
+
+  /// song_info_actions_title
+  ///
+  /// In zh, this message translates to:
+  /// **'操作'**
+  String get song_info_actions_title;
+
+  /// song_info_song_actions
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲操作'**
+  String get song_info_song_actions;
+
+  /// song_info_song_actions_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'下一曲播放、添加到歌单、查看歌手与专辑'**
+  String get song_info_song_actions_desc;
+
+  /// song_info_action_row
+  ///
+  /// In zh, this message translates to:
+  /// **'{label}，{description}'**
+  String song_info_action_row(String label, String description);
+
+  /// song_info_mono
+  ///
+  /// In zh, this message translates to:
+  /// **'单声道'**
+  String get song_info_mono;
+
+  /// song_info_stereo
+  ///
+  /// In zh, this message translates to:
+  /// **'立体声'**
+  String get song_info_stereo;
+
+  /// song_info_channels_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 声道'**
+  String song_info_channels_count(int count);
+
+  /// song_option_unknown_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'未知歌手'**
+  String get song_option_unknown_artist;
+
+  /// song_option_unknown_album
+  ///
+  /// In zh, this message translates to:
+  /// **'未知专辑'**
+  String get song_option_unknown_album;
+
+  /// song_option_enqueue
+  ///
+  /// In zh, this message translates to:
+  /// **'加入投屏队列'**
+  String get song_option_enqueue;
+
+  /// song_option_enqueued
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入投屏队列'**
+  String get song_option_enqueued;
+
+  /// song_option_play_next
+  ///
+  /// In zh, this message translates to:
+  /// **'下一曲播放'**
+  String get song_option_play_next;
+
+  /// song_option_play_next_added
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到下一曲'**
+  String get song_option_play_next_added;
+
+  /// song_option_favorite_added
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加红心'**
+  String get song_option_favorite_added;
+
+  /// song_option_favorite_removed
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消红心'**
+  String get song_option_favorite_removed;
+
+  /// song_option_operation_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败'**
+  String get song_option_operation_failed;
+
+  /// song_option_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手：{name}'**
+  String song_option_artist(String name);
+
+  /// song_option_album
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑：{name}'**
+  String song_option_album(String name);
+
+  /// song_option_artist_copied
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制歌手: {name}'**
+  String song_option_artist_copied(String name);
+
+  /// song_option_album_copied
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制专辑: {name}'**
+  String song_option_album_copied(String name);
+
+  /// song_option_title_preview
+  ///
+  /// In zh, this message translates to:
+  /// **'试听歌曲操作'**
+  String get song_option_title_preview;
+
+  /// song_option_title
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲操作'**
+  String get song_option_title;
+
+  /// song_option_copied_title
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制歌曲名: {title}'**
+  String song_option_copied_title(String title);
+
+  /// song_option_summary_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'{title}，{artist}，{album}，长按复制歌曲名'**
+  String song_option_summary_semantic(
+    String title,
+    String artist,
+    String album,
+  );
+
+  /// song_option_selected
+  ///
+  /// In zh, this message translates to:
+  /// **'已选中'**
+  String get song_option_selected;
+
+  /// song_option_not_available
+  ///
+  /// In zh, this message translates to:
+  /// **'不可用'**
+  String get song_option_not_available;
+
+  /// song_option_playlist_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单加载失败'**
+  String get song_option_playlist_load_failed;
+
+  /// song_option_no_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌单'**
+  String get song_option_no_playlists;
+
+  /// song_option_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或服务器状态后重试。'**
+  String get song_option_load_failed_desc;
+
+  /// song_option_create_playlist_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'创建歌单后，即可将这首歌曲加入收藏。'**
+  String get song_option_create_playlist_hint;
+
+  /// song_option_added_to_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到歌单「{name}」'**
+  String song_option_added_to_playlist(String name);
+
+  /// song_option_network_error
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，添加失败'**
+  String get song_option_network_error;
+
+  /// song_option_playlist_row_semantic
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}，{count} 首歌曲'**
+  String song_option_playlist_row_semantic(String name, int count);
+
+  /// song_option_song_count
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首'**
+  String song_option_song_count(int count);
 }
 
 class _AppLocalizationsDelegate

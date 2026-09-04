@@ -1942,4 +1942,476 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get state_enabled => '已开启';
+
+  @override
+  String get player_close => '关闭播放器';
+
+  @override
+  String get player_empty_title => '暂无播放内容';
+
+  @override
+  String get player_empty_desc => '从音乐流、搜索或资料库选择一首歌曲开始播放。';
+
+  @override
+  String get player_collapse => '收起播放器';
+
+  @override
+  String player_page_dots(int page, int total) {
+    return '播放器页面，第 $page 页，共 $total 页';
+  }
+
+  @override
+  String get player_no_lyrics_title => '暂无歌词';
+
+  @override
+  String get player_no_lyrics_desc => '当前曲目没有可用的歌词内容。';
+
+  @override
+  String get player_lyrics_load_failed_title => '歌词加载失败';
+
+  @override
+  String get player_lyrics_load_failed_desc => '播放不受影响，可以立即重试。';
+
+  @override
+  String get player_lyrics_loading => '歌词加载中';
+
+  @override
+  String get player_lyrics_synced_label => '同步歌词';
+
+  @override
+  String get player_lyrics_label => '歌词';
+
+  @override
+  String get player_lyrics_current => '当前歌词';
+
+  @override
+  String player_lyrics_seek(String time) {
+    return '跳转到 $time';
+  }
+
+  @override
+  String get player_mode_shuffle => '随机播放，点击切换到顺序播放';
+
+  @override
+  String get player_mode_loop_one => '单曲循环，点击切换到列表循环';
+
+  @override
+  String get player_mode_order => '顺序播放，点击切换到单曲循环';
+
+  @override
+  String get player_mode_list => '列表循环，点击切换到随机播放';
+
+  @override
+  String get player_previous => '上一首';
+
+  @override
+  String get player_pause => '暂停';
+
+  @override
+  String get player_next => '下一首';
+
+  @override
+  String get player_queue => '播放队列';
+
+  @override
+  String get player_dlna_local => '局域网 DLNA 直投';
+
+  @override
+  String player_dlna_local_casting(String device) {
+    return '局域网 DLNA 直投，正在投屏到「$device」';
+  }
+
+  @override
+  String get player_unfavorite => '取消红心';
+
+  @override
+  String get player_favorite => '红心';
+
+  @override
+  String player_switch_current(String name) {
+    return '切换播放器，当前：$name';
+  }
+
+  @override
+  String player_casting_to(String name) {
+    return '正在投屏到「$name」';
+  }
+
+  @override
+  String get player_switched_local => '已切换为本机播放';
+
+  @override
+  String get player_dlna_dialog_subtitle =>
+      '客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。';
+
+  @override
+  String get player_progress => '播放进度';
+
+  @override
+  String player_progress_percent(int percent) {
+    return '播放进度 $percent%';
+  }
+
+  @override
+  String get player_playlist_label => '当前播放列表';
+
+  @override
+  String get player_playing_state => '正在播放';
+
+  @override
+  String get player_paused_state => '已暂停';
+
+  @override
+  String get player_not_playing => '未在播放';
+
+  @override
+  String player_mini_semantic(String title, String subtitle) {
+    return '迷你播放器，$title$subtitle';
+  }
+
+  @override
+  String get player_seek_forward => '快进 10 秒';
+
+  @override
+  String get player_seek_backward => '后退 10 秒';
+
+  @override
+  String get player_choose_song_prompt => '选择一首歌曲开始播放';
+
+  @override
+  String get player_volume_inc => '增大音量';
+
+  @override
+  String get player_volume_dec => '减小音量';
+
+  @override
+  String player_volume_percent(int percent) {
+    return '音量 $percent%';
+  }
+
+  @override
+  String get player_select_source_title => '选择播放器';
+
+  @override
+  String get player_select_source_subtitle => '切换播放器仅改变当前控制目标,不会停止其他播放器。';
+
+  @override
+  String get player_source_local_title => '本机播放';
+
+  @override
+  String get player_source_local_desc => '使用此设备扬声器';
+
+  @override
+  String get player_source_casting => '当前正在投屏';
+
+  @override
+  String get player_source_offline => '设备离线,已暂停轮询';
+
+  @override
+  String get player_stop_cast => '停止投屏';
+
+  @override
+  String player_stop_cast_subtitle(String name) {
+    return '停止「$name」播放并清除控制';
+  }
+
+  @override
+  String player_cast_failed(String name) {
+    return '切换到「$name」失败,请检查设备是否在线';
+  }
+
+  @override
+  String get player_loading_peers => '正在获取可用播放器…';
+
+  @override
+  String get player_no_other_players => '未发现其他可用播放器。';
+
+  @override
+  String get player_refresh_players => '刷新播放器列表';
+
+  @override
+  String get player_stopped_cast => '已停止投屏';
+
+  @override
+  String player_remote_control(String name) {
+    return '正在远控「$name」';
+  }
+
+  @override
+  String song_cover_semantic(String title) {
+    return '$title 封面';
+  }
+
+  @override
+  String get dlna_no_queue_to_cast => '当前没有可投屏的播放队列';
+
+  @override
+  String dlna_cast_success(String device) {
+    return '已投屏到「$device」';
+  }
+
+  @override
+  String dlna_cast_failed(String device) {
+    return '投屏到「$device」失败，请检查设备是否在线';
+  }
+
+  @override
+  String get dlna_cast_stopped => '已停止局域网投屏';
+
+  @override
+  String get dlna_queue_ended => '队列已结束';
+
+  @override
+  String get dlna_stop => '停止局域网投屏';
+
+  @override
+  String get dlna_stop_subtitle => '停止设备播放并释放本地投屏队列';
+
+  @override
+  String get dlna_scan_devices => '扫描局域网 DLNA 设备';
+
+  @override
+  String get dlna_device_subtitle => '本机局域网发现 · 直投';
+
+  @override
+  String get dlna_searching => '正在搜索局域网内的 DLNA 设备…';
+
+  @override
+  String get dlna_no_device => '未发现可用 DLNA 设备。请确认与音箱/电视处于同一网络后再扫描。';
+
+  @override
+  String get dlna_background_hint =>
+      '为保证后台持续投屏并自动切下一首：请在系统设置中将 MusicFlow 的「电池优化」改为「不限制」，并将「应用启动管理」改为「手动管理」后全部允许（允许自启动 / 关联启动 / 后台活动），避免曲末时因后台冻结而停播。';
+
+  @override
+  String get queue_title => '播放队列';
+
+  @override
+  String queue_count(int count) {
+    return '$count 首曲目';
+  }
+
+  @override
+  String get queue_close => '关闭播放队列';
+
+  @override
+  String get queue_empty => '队列为空';
+
+  @override
+  String get queue_empty_desc => '开始播放一首歌曲后，接下来的曲目会出现在这里。';
+
+  @override
+  String get queue_clear_after => '清空后续队列';
+
+  @override
+  String get queue_clear_after_semantic => '清空后续播放队列，保留当前曲目';
+
+  @override
+  String get queue_remove => '从队列移除';
+
+  @override
+  String queue_remove_more_semantic(String song) {
+    return '$song，从投屏队列移除';
+  }
+
+  @override
+  String queue_more_actions_semantic(String song) {
+    return '$song，更多操作';
+  }
+
+  @override
+  String get queue_cast_title => '投屏队列';
+
+  @override
+  String queue_cast_count(int count, String device) {
+    return '$count 首曲目 · 正在投屏到「$device」';
+  }
+
+  @override
+  String get queue_cast_offline_suffix => ' · 设备离线';
+
+  @override
+  String get queue_cast_close => '关闭投屏队列';
+
+  @override
+  String get queue_cast_empty => '投屏队列为空';
+
+  @override
+  String get queue_cast_empty_desc => '后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。';
+
+  @override
+  String get queue_cast_clear => '清空并停止投屏';
+
+  @override
+  String get queue_cast_clear_semantic => '清空投屏队列并停止投屏';
+
+  @override
+  String get queue_device_local => '局域网设备';
+
+  @override
+  String get song_info_title => '歌曲信息';
+
+  @override
+  String get song_info_duration => '时长';
+
+  @override
+  String get song_info_genre => '按流派';
+
+  @override
+  String get song_info_disc => '唱片号';
+
+  @override
+  String get song_info_audio_title => '音频信息';
+
+  @override
+  String get song_info_file_type => '文件类型';
+
+  @override
+  String get song_info_bit_rate => '码率';
+
+  @override
+  String get song_info_sample_rate => '采样率';
+
+  @override
+  String get song_info_bit_depth => '位深';
+
+  @override
+  String get song_info_channels => '声道';
+
+  @override
+  String get song_info_file_title => '文件信息';
+
+  @override
+  String get song_info_file_size => '文件大小';
+
+  @override
+  String get song_info_path => '歌曲路径';
+
+  @override
+  String get song_info_actions_title => '操作';
+
+  @override
+  String get song_info_song_actions => '歌曲操作';
+
+  @override
+  String get song_info_song_actions_desc => '下一曲播放、添加到歌单、查看歌手与专辑';
+
+  @override
+  String song_info_action_row(String label, String description) {
+    return '$label，$description';
+  }
+
+  @override
+  String get song_info_mono => '单声道';
+
+  @override
+  String get song_info_stereo => '立体声';
+
+  @override
+  String song_info_channels_count(int count) {
+    return '$count 声道';
+  }
+
+  @override
+  String get song_option_unknown_artist => '未知歌手';
+
+  @override
+  String get song_option_unknown_album => '未知专辑';
+
+  @override
+  String get song_option_enqueue => '加入投屏队列';
+
+  @override
+  String get song_option_enqueued => '已加入投屏队列';
+
+  @override
+  String get song_option_play_next => '下一曲播放';
+
+  @override
+  String get song_option_play_next_added => '已添加到下一曲';
+
+  @override
+  String get song_option_favorite_added => '已添加红心';
+
+  @override
+  String get song_option_favorite_removed => '已取消红心';
+
+  @override
+  String get song_option_operation_failed => '操作失败';
+
+  @override
+  String song_option_artist(String name) {
+    return '歌手：$name';
+  }
+
+  @override
+  String song_option_album(String name) {
+    return '专辑：$name';
+  }
+
+  @override
+  String song_option_artist_copied(String name) {
+    return '已复制歌手: $name';
+  }
+
+  @override
+  String song_option_album_copied(String name) {
+    return '已复制专辑: $name';
+  }
+
+  @override
+  String get song_option_title_preview => '试听歌曲操作';
+
+  @override
+  String get song_option_title => '歌曲操作';
+
+  @override
+  String song_option_copied_title(String title) {
+    return '已复制歌曲名: $title';
+  }
+
+  @override
+  String song_option_summary_semantic(
+    String title,
+    String artist,
+    String album,
+  ) {
+    return '$title，$artist，$album，长按复制歌曲名';
+  }
+
+  @override
+  String get song_option_selected => '已选中';
+
+  @override
+  String get song_option_not_available => '不可用';
+
+  @override
+  String get song_option_playlist_load_failed => '歌单加载失败';
+
+  @override
+  String get song_option_no_playlists => '暂无歌单';
+
+  @override
+  String get song_option_load_failed_desc => '请检查网络或服务器状态后重试。';
+
+  @override
+  String get song_option_create_playlist_hint => '创建歌单后，即可将这首歌曲加入收藏。';
+
+  @override
+  String song_option_added_to_playlist(String name) {
+    return '已添加到歌单「$name」';
+  }
+
+  @override
+  String get song_option_network_error => '网络异常，添加失败';
+
+  @override
+  String song_option_playlist_row_semantic(String name, int count) {
+    return '$name，$count 首歌曲';
+  }
+
+  @override
+  String song_option_song_count(int count) {
+    return '$count 首';
+  }
 }

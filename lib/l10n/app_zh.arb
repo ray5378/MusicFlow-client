@@ -1925,5 +1925,715 @@
   "state_enabled": "已开启",
   "@state_enabled": {
     "description": "state_enabled"
+  },
+  "player_close": "关闭播放器",
+  "@player_close": {
+    "description": "player_close"
+  },
+  "player_empty_title": "暂无播放内容",
+  "@player_empty_title": {
+    "description": "player_empty_title"
+  },
+  "player_empty_desc": "从音乐流、搜索或资料库选择一首歌曲开始播放。",
+  "@player_empty_desc": {
+    "description": "player_empty_desc"
+  },
+  "player_collapse": "收起播放器",
+  "@player_collapse": {
+    "description": "player_collapse"
+  },
+  "player_page_dots": "播放器页面，第 {page} 页，共 {total} 页",
+  "@player_page_dots": {
+    "description": "player_page_dots",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "player_no_lyrics_title": "暂无歌词",
+  "@player_no_lyrics_title": {
+    "description": "player_no_lyrics_title"
+  },
+  "player_no_lyrics_desc": "当前曲目没有可用的歌词内容。",
+  "@player_no_lyrics_desc": {
+    "description": "player_no_lyrics_desc"
+  },
+  "player_lyrics_load_failed_title": "歌词加载失败",
+  "@player_lyrics_load_failed_title": {
+    "description": "player_lyrics_load_failed_title"
+  },
+  "player_lyrics_load_failed_desc": "播放不受影响，可以立即重试。",
+  "@player_lyrics_load_failed_desc": {
+    "description": "player_lyrics_load_failed_desc"
+  },
+  "player_lyrics_loading": "歌词加载中",
+  "@player_lyrics_loading": {
+    "description": "player_lyrics_loading"
+  },
+  "player_lyrics_synced_label": "同步歌词",
+  "@player_lyrics_synced_label": {
+    "description": "player_lyrics_synced_label"
+  },
+  "player_lyrics_label": "歌词",
+  "@player_lyrics_label": {
+    "description": "player_lyrics_label"
+  },
+  "player_lyrics_current": "当前歌词",
+  "@player_lyrics_current": {
+    "description": "player_lyrics_current"
+  },
+  "player_lyrics_seek": "跳转到 {time}",
+  "@player_lyrics_seek": {
+    "description": "player_lyrics_seek",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "player_mode_shuffle": "随机播放，点击切换到顺序播放",
+  "@player_mode_shuffle": {
+    "description": "player_mode_shuffle"
+  },
+  "player_mode_loop_one": "单曲循环，点击切换到列表循环",
+  "@player_mode_loop_one": {
+    "description": "player_mode_loop_one"
+  },
+  "player_mode_order": "顺序播放，点击切换到单曲循环",
+  "@player_mode_order": {
+    "description": "player_mode_order"
+  },
+  "player_mode_list": "列表循环，点击切换到随机播放",
+  "@player_mode_list": {
+    "description": "player_mode_list"
+  },
+  "player_previous": "上一首",
+  "@player_previous": {
+    "description": "player_previous"
+  },
+  "player_pause": "暂停",
+  "@player_pause": {
+    "description": "player_pause"
+  },
+  "player_next": "下一首",
+  "@player_next": {
+    "description": "player_next"
+  },
+  "player_queue": "播放队列",
+  "@player_queue": {
+    "description": "player_queue"
+  },
+  "player_dlna_local": "局域网 DLNA 直投",
+  "@player_dlna_local": {
+    "description": "player_dlna_local"
+  },
+  "player_dlna_local_casting": "局域网 DLNA 直投，正在投屏到「{device}」",
+  "@player_dlna_local_casting": {
+    "description": "player_dlna_local_casting",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "player_unfavorite": "取消红心",
+  "@player_unfavorite": {
+    "description": "player_unfavorite"
+  },
+  "player_favorite": "红心",
+  "@player_favorite": {
+    "description": "player_favorite"
+  },
+  "player_switch_current": "切换播放器，当前：{name}",
+  "@player_switch_current": {
+    "description": "player_switch_current",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_casting_to": "正在投屏到「{name}」",
+  "@player_casting_to": {
+    "description": "player_casting_to",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_switched_local": "已切换为本机播放",
+  "@player_switched_local": {
+    "description": "player_switched_local"
+  },
+  "player_dlna_dialog_subtitle": "客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。",
+  "@player_dlna_dialog_subtitle": {
+    "description": "player_dlna_dialog_subtitle"
+  },
+  "player_progress": "播放进度",
+  "@player_progress": {
+    "description": "player_progress"
+  },
+  "player_progress_percent": "播放进度 {percent}%",
+  "@player_progress_percent": {
+    "description": "player_progress_percent",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "player_playlist_label": "当前播放列表",
+  "@player_playlist_label": {
+    "description": "player_playlist_label"
+  },
+  "player_playing_state": "正在播放",
+  "@player_playing_state": {
+    "description": "player_playing_state"
+  },
+  "player_paused_state": "已暂停",
+  "@player_paused_state": {
+    "description": "player_paused_state"
+  },
+  "player_not_playing": "未在播放",
+  "@player_not_playing": {
+    "description": "player_not_playing"
+  },
+  "player_mini_semantic": "迷你播放器，{title}{subtitle}",
+  "@player_mini_semantic": {
+    "description": "player_mini_semantic",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "subtitle": {
+        "type": "String"
+      }
+    }
+  },
+  "player_seek_forward": "快进 10 秒",
+  "@player_seek_forward": {
+    "description": "player_seek_forward"
+  },
+  "player_seek_backward": "后退 10 秒",
+  "@player_seek_backward": {
+    "description": "player_seek_backward"
+  },
+  "player_choose_song_prompt": "选择一首歌曲开始播放",
+  "@player_choose_song_prompt": {
+    "description": "player_choose_song_prompt"
+  },
+  "player_volume_inc": "增大音量",
+  "@player_volume_inc": {
+    "description": "player_volume_inc"
+  },
+  "player_volume_dec": "减小音量",
+  "@player_volume_dec": {
+    "description": "player_volume_dec"
+  },
+  "player_volume_percent": "音量 {percent}%",
+  "@player_volume_percent": {
+    "description": "player_volume_percent",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "player_select_source_title": "选择播放器",
+  "@player_select_source_title": {
+    "description": "player_select_source_title"
+  },
+  "player_select_source_subtitle": "切换播放器仅改变当前控制目标,不会停止其他播放器。",
+  "@player_select_source_subtitle": {
+    "description": "player_select_source_subtitle"
+  },
+  "player_source_local_title": "本机播放",
+  "@player_source_local_title": {
+    "description": "player_source_local_title"
+  },
+  "player_source_local_desc": "使用此设备扬声器",
+  "@player_source_local_desc": {
+    "description": "player_source_local_desc"
+  },
+  "player_source_casting": "当前正在投屏",
+  "@player_source_casting": {
+    "description": "player_source_casting"
+  },
+  "player_source_offline": "设备离线,已暂停轮询",
+  "@player_source_offline": {
+    "description": "player_source_offline"
+  },
+  "player_stop_cast": "停止投屏",
+  "@player_stop_cast": {
+    "description": "player_stop_cast"
+  },
+  "player_stop_cast_subtitle": "停止「{name}」播放并清除控制",
+  "@player_stop_cast_subtitle": {
+    "description": "player_stop_cast_subtitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_cast_failed": "切换到「{name}」失败,请检查设备是否在线",
+  "@player_cast_failed": {
+    "description": "player_cast_failed",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_loading_peers": "正在获取可用播放器…",
+  "@player_loading_peers": {
+    "description": "player_loading_peers"
+  },
+  "player_no_other_players": "未发现其他可用播放器。",
+  "@player_no_other_players": {
+    "description": "player_no_other_players"
+  },
+  "player_refresh_players": "刷新播放器列表",
+  "@player_refresh_players": {
+    "description": "player_refresh_players"
+  },
+  "player_stopped_cast": "已停止投屏",
+  "@player_stopped_cast": {
+    "description": "player_stopped_cast"
+  },
+  "player_remote_control": "正在远控「{name}」",
+  "@player_remote_control": {
+    "description": "player_remote_control",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_cover_semantic": "{title} 封面",
+  "@song_cover_semantic": {
+    "description": "song_cover_semantic",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "dlna_no_queue_to_cast": "当前没有可投屏的播放队列",
+  "@dlna_no_queue_to_cast": {
+    "description": "dlna_no_queue_to_cast"
+  },
+  "dlna_cast_success": "已投屏到「{device}」",
+  "@dlna_cast_success": {
+    "description": "dlna_cast_success",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "dlna_cast_failed": "投屏到「{device}」失败，请检查设备是否在线",
+  "@dlna_cast_failed": {
+    "description": "dlna_cast_failed",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "dlna_cast_stopped": "已停止局域网投屏",
+  "@dlna_cast_stopped": {
+    "description": "dlna_cast_stopped"
+  },
+  "dlna_queue_ended": "队列已结束",
+  "@dlna_queue_ended": {
+    "description": "dlna_queue_ended"
+  },
+  "dlna_stop": "停止局域网投屏",
+  "@dlna_stop": {
+    "description": "dlna_stop"
+  },
+  "dlna_stop_subtitle": "停止设备播放并释放本地投屏队列",
+  "@dlna_stop_subtitle": {
+    "description": "dlna_stop_subtitle"
+  },
+  "dlna_scan_devices": "扫描局域网 DLNA 设备",
+  "@dlna_scan_devices": {
+    "description": "dlna_scan_devices"
+  },
+  "dlna_device_subtitle": "本机局域网发现 · 直投",
+  "@dlna_device_subtitle": {
+    "description": "dlna_device_subtitle"
+  },
+  "dlna_searching": "正在搜索局域网内的 DLNA 设备…",
+  "@dlna_searching": {
+    "description": "dlna_searching"
+  },
+  "dlna_no_device": "未发现可用 DLNA 设备。请确认与音箱/电视处于同一网络后再扫描。",
+  "@dlna_no_device": {
+    "description": "dlna_no_device"
+  },
+  "dlna_background_hint": "为保证后台持续投屏并自动切下一首：请在系统设置中将 MusicFlow 的「电池优化」改为「不限制」，并将「应用启动管理」改为「手动管理」后全部允许（允许自启动 / 关联启动 / 后台活动），避免曲末时因后台冻结而停播。",
+  "@dlna_background_hint": {
+    "description": "dlna_background_hint"
+  },
+  "queue_title": "播放队列",
+  "@queue_title": {
+    "description": "queue_title"
+  },
+  "queue_count": "{count} 首曲目",
+  "@queue_count": {
+    "description": "queue_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queue_close": "关闭播放队列",
+  "@queue_close": {
+    "description": "queue_close"
+  },
+  "queue_empty": "队列为空",
+  "@queue_empty": {
+    "description": "queue_empty"
+  },
+  "queue_empty_desc": "开始播放一首歌曲后，接下来的曲目会出现在这里。",
+  "@queue_empty_desc": {
+    "description": "queue_empty_desc"
+  },
+  "queue_clear_after": "清空后续队列",
+  "@queue_clear_after": {
+    "description": "queue_clear_after"
+  },
+  "queue_clear_after_semantic": "清空后续播放队列，保留当前曲目",
+  "@queue_clear_after_semantic": {
+    "description": "queue_clear_after_semantic"
+  },
+  "queue_remove": "从队列移除",
+  "@queue_remove": {
+    "description": "queue_remove"
+  },
+  "queue_remove_more_semantic": "{song}，从投屏队列移除",
+  "@queue_remove_more_semantic": {
+    "description": "queue_remove_more_semantic",
+    "placeholders": {
+      "song": {
+        "type": "String"
+      }
+    }
+  },
+  "queue_more_actions_semantic": "{song}，更多操作",
+  "@queue_more_actions_semantic": {
+    "description": "queue_more_actions_semantic",
+    "placeholders": {
+      "song": {
+        "type": "String"
+      }
+    }
+  },
+  "queue_cast_title": "投屏队列",
+  "@queue_cast_title": {
+    "description": "queue_cast_title"
+  },
+  "queue_cast_count": "{count} 首曲目 · 正在投屏到「{device}」",
+  "@queue_cast_count": {
+    "description": "queue_cast_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "queue_cast_offline_suffix": " · 设备离线",
+  "@queue_cast_offline_suffix": {
+    "description": "queue_cast_offline_suffix"
+  },
+  "queue_cast_close": "关闭投屏队列",
+  "@queue_cast_close": {
+    "description": "queue_cast_close"
+  },
+  "queue_cast_empty": "投屏队列为空",
+  "@queue_cast_empty": {
+    "description": "queue_cast_empty"
+  },
+  "queue_cast_empty_desc": "后端投屏队列暂无曲目,可在歌曲菜单中添加到投屏队列。",
+  "@queue_cast_empty_desc": {
+    "description": "queue_cast_empty_desc"
+  },
+  "queue_cast_clear": "清空并停止投屏",
+  "@queue_cast_clear": {
+    "description": "queue_cast_clear"
+  },
+  "queue_cast_clear_semantic": "清空投屏队列并停止投屏",
+  "@queue_cast_clear_semantic": {
+    "description": "queue_cast_clear_semantic"
+  },
+  "queue_device_local": "局域网设备",
+  "@queue_device_local": {
+    "description": "queue_device_local"
+  },
+  "song_info_title": "歌曲信息",
+  "@song_info_title": {
+    "description": "song_info_title"
+  },
+  "song_info_duration": "时长",
+  "@song_info_duration": {
+    "description": "song_info_duration"
+  },
+  "song_info_genre": "按流派",
+  "@song_info_genre": {
+    "description": "song_info_genre"
+  },
+  "song_info_disc": "唱片号",
+  "@song_info_disc": {
+    "description": "song_info_disc"
+  },
+  "song_info_audio_title": "音频信息",
+  "@song_info_audio_title": {
+    "description": "song_info_audio_title"
+  },
+  "song_info_file_type": "文件类型",
+  "@song_info_file_type": {
+    "description": "song_info_file_type"
+  },
+  "song_info_bit_rate": "码率",
+  "@song_info_bit_rate": {
+    "description": "song_info_bit_rate"
+  },
+  "song_info_sample_rate": "采样率",
+  "@song_info_sample_rate": {
+    "description": "song_info_sample_rate"
+  },
+  "song_info_bit_depth": "位深",
+  "@song_info_bit_depth": {
+    "description": "song_info_bit_depth"
+  },
+  "song_info_channels": "声道",
+  "@song_info_channels": {
+    "description": "song_info_channels"
+  },
+  "song_info_file_title": "文件信息",
+  "@song_info_file_title": {
+    "description": "song_info_file_title"
+  },
+  "song_info_file_size": "文件大小",
+  "@song_info_file_size": {
+    "description": "song_info_file_size"
+  },
+  "song_info_path": "歌曲路径",
+  "@song_info_path": {
+    "description": "song_info_path"
+  },
+  "song_info_actions_title": "操作",
+  "@song_info_actions_title": {
+    "description": "song_info_actions_title"
+  },
+  "song_info_song_actions": "歌曲操作",
+  "@song_info_song_actions": {
+    "description": "song_info_song_actions"
+  },
+  "song_info_song_actions_desc": "下一曲播放、添加到歌单、查看歌手与专辑",
+  "@song_info_song_actions_desc": {
+    "description": "song_info_song_actions_desc"
+  },
+  "song_info_action_row": "{label}，{description}",
+  "@song_info_action_row": {
+    "description": "song_info_action_row",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "song_info_mono": "单声道",
+  "@song_info_mono": {
+    "description": "song_info_mono"
+  },
+  "song_info_stereo": "立体声",
+  "@song_info_stereo": {
+    "description": "song_info_stereo"
+  },
+  "song_info_channels_count": "{count} 声道",
+  "@song_info_channels_count": {
+    "description": "song_info_channels_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "song_option_unknown_artist": "未知歌手",
+  "@song_option_unknown_artist": {
+    "description": "song_option_unknown_artist"
+  },
+  "song_option_unknown_album": "未知专辑",
+  "@song_option_unknown_album": {
+    "description": "song_option_unknown_album"
+  },
+  "song_option_enqueue": "加入投屏队列",
+  "@song_option_enqueue": {
+    "description": "song_option_enqueue"
+  },
+  "song_option_enqueued": "已加入投屏队列",
+  "@song_option_enqueued": {
+    "description": "song_option_enqueued"
+  },
+  "song_option_play_next": "下一曲播放",
+  "@song_option_play_next": {
+    "description": "song_option_play_next"
+  },
+  "song_option_play_next_added": "已添加到下一曲",
+  "@song_option_play_next_added": {
+    "description": "song_option_play_next_added"
+  },
+  "song_option_favorite_added": "已添加红心",
+  "@song_option_favorite_added": {
+    "description": "song_option_favorite_added"
+  },
+  "song_option_favorite_removed": "已取消红心",
+  "@song_option_favorite_removed": {
+    "description": "song_option_favorite_removed"
+  },
+  "song_option_operation_failed": "操作失败",
+  "@song_option_operation_failed": {
+    "description": "song_option_operation_failed"
+  },
+  "song_option_artist": "歌手：{name}",
+  "@song_option_artist": {
+    "description": "song_option_artist",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_album": "专辑：{name}",
+  "@song_option_album": {
+    "description": "song_option_album",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_artist_copied": "已复制歌手: {name}",
+  "@song_option_artist_copied": {
+    "description": "song_option_artist_copied",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_album_copied": "已复制专辑: {name}",
+  "@song_option_album_copied": {
+    "description": "song_option_album_copied",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_title_preview": "试听歌曲操作",
+  "@song_option_title_preview": {
+    "description": "song_option_title_preview"
+  },
+  "song_option_title": "歌曲操作",
+  "@song_option_title": {
+    "description": "song_option_title"
+  },
+  "song_option_copied_title": "已复制歌曲名: {title}",
+  "@song_option_copied_title": {
+    "description": "song_option_copied_title",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_summary_semantic": "{title}，{artist}，{album}，长按复制歌曲名",
+  "@song_option_summary_semantic": {
+    "description": "song_option_summary_semantic",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "artist": {
+        "type": "String"
+      },
+      "album": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_selected": "已选中",
+  "@song_option_selected": {
+    "description": "song_option_selected"
+  },
+  "song_option_not_available": "不可用",
+  "@song_option_not_available": {
+    "description": "song_option_not_available"
+  },
+  "song_option_playlist_load_failed": "歌单加载失败",
+  "@song_option_playlist_load_failed": {
+    "description": "song_option_playlist_load_failed"
+  },
+  "song_option_no_playlists": "暂无歌单",
+  "@song_option_no_playlists": {
+    "description": "song_option_no_playlists"
+  },
+  "song_option_load_failed_desc": "请检查网络或服务器状态后重试。",
+  "@song_option_load_failed_desc": {
+    "description": "song_option_load_failed_desc"
+  },
+  "song_option_create_playlist_hint": "创建歌单后，即可将这首歌曲加入收藏。",
+  "@song_option_create_playlist_hint": {
+    "description": "song_option_create_playlist_hint"
+  },
+  "song_option_added_to_playlist": "已添加到歌单「{name}」",
+  "@song_option_added_to_playlist": {
+    "description": "song_option_added_to_playlist",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "song_option_network_error": "网络异常，添加失败",
+  "@song_option_network_error": {
+    "description": "song_option_network_error"
+  },
+  "song_option_playlist_row_semantic": "{name}，{count} 首歌曲",
+  "@song_option_playlist_row_semantic": {
+    "description": "song_option_playlist_row_semantic",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "song_option_song_count": "{count} 首",
+  "@song_option_song_count": {
+    "description": "song_option_song_count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

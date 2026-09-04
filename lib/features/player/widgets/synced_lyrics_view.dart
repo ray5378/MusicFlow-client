@@ -11,6 +11,7 @@ import '../../../data/models/structured_lyrics.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/frozen_playback_provider.dart';
 import '../../../providers/lyrics_dwell_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class _LyricsRenderParts {
   const _LyricsRenderParts(this.primary, [this.secondary]);
@@ -262,6 +263,7 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final lines = widget.lyrics.lines;
     if (lines.isEmpty) return const SizedBox.shrink();
 
@@ -291,7 +293,7 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
 
     return Semantics(
       container: true,
-      label: widget.lyrics.synced ? '同步歌词' : '歌词',
+      label: widget.lyrics.synced ? loc.player_lyrics_synced_label : loc.player_lyrics_label,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           final userStarted =
@@ -338,11 +340,11 @@ class _SyncedLyricsSurfaceState extends State<SyncedLyricsSurface> {
             );
             final timeLabel = _formatDuration(target);
             final semanticLabel = <String>[
-              if (isCurrent && hasVisibleLyrics) '当前歌词',
+              if (isCurrent && hasVisibleLyrics) loc.player_lyrics_current,
               if (_hasVisibleLyricsCharacters(parts.primary)) parts.primary,
               if (secondary != null && _hasVisibleLyricsCharacters(secondary))
                 secondary,
-              if (canSeek) '跳转到 $timeLabel',
+              if (canSeek) loc.player_lyrics_seek(timeLabel),
             ].join('，');
             final lineContent = _SyncedLyricLineContent(
               key: ValueKey<String>('lyrics-line-$index'),

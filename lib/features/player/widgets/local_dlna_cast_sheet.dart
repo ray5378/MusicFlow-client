@@ -7,6 +7,7 @@ import '../../../core/dlna/dlna_models.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../widgets/windows_title_bar.dart' show isWindowsDesktop;
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 链路 B：局域网 DLNA 直投面板（独立副轨道）
 /// 与「选择播放器」（链路 A，cast_peer_provider）完全独立：客户端自行 SSDP 发现
@@ -34,6 +35,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
   }
 
   Future<void> _startCast(DlnaDevice device) async {
+    final loc = AppLocalizations.of(context);
     // 兜底防线：面板渲染时已拦截「无可用 http 地址」，这里再挡一次，
     // 防止打开面板后地址被改动（编辑媒体库/线路切换）导致越界投流。
     if (ref.read(dlnaCastHttpBaseProvider) == null) {
@@ -49,7 +51,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
         .map(dlnaCastTrackFromSong)
         .toList(growable: false);
     if (tracks.isEmpty) {
-      showMusicFlowMessage(context, '当前没有可投屏的播放队列', kind: MusicFlowMessageKind.warning);
+      showMusicFlowMessage(context, loc.dlna_no_queue_to_cast, kind: MusicFlowMessageKind.warning);
       return;
     }
     final safeStart = playerState.currentIndex.clamp(0, tracks.length - 1);
@@ -62,26 +64,28 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
     if (ok) {
       showMusicFlowMessage(
         context,
-        '已投屏到「${device.name}」',
+        loc.dlna_cast_success(device.name),
         kind: MusicFlowMessageKind.success,
       );
     } else {
       showMusicFlowMessage(
         context,
-        '投屏到「${device.name}」失败，请检查设备是否在线',
+        loc.dlna_cast_failed(device.name),
         kind: MusicFlowMessageKind.error,
       );
     }
   }
 
   Future<void> _stopCast() async {
+    final loc = AppLocalizations.of(context);
     await ref.read(dlnaCastProvider.notifier).stopCast();
     if (!mounted) return;
-    showMusicFlowMessage(context, '已停止局域网投屏', kind: MusicFlowMessageKind.success);
+    showMusicFlowMessage(context, loc.dlna_cast_stopped, kind: MusicFlowMessageKind.success);
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final cast = ref.watch(dlnaCastProvider);
     final devicesState = ref.watch(dlnaDevicesProvider);
 
@@ -92,8 +96,8 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
     }
 
     return MusicFlowBottomSheet(
-      title: '局域网 DLNA 直投',
-      subtitle: '客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。',
+      title: loc.player_dlna_local,
+      subtitle: loc.player_dlna_dialog_subtitle,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.6,
@@ -156,6 +160,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
 
   /// 投屏中：当前曲目 + 播放控制 + 停止投屏
   Widget _buildCastingPanel(DlnaCastState cast) {
+    final loc = AppLocalizations.of(context);
     final track = cast.currentTrack;
     final isPlaying = cast.status.state == 'PLAYING';
     return Column(
@@ -163,9 +168,9 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
       children: <Widget>[
         MusicFlowActionRow(
           icon: AppIcons.dlnaLocalFilled,
-          title: '正在投屏到「${cast.currentDevice?.name ?? ''}」',
+          title: loc.player_casting_to(cast.currentDevice?.name ?? ''),
           subtitle: track == null
-              ? '队列已结束'
+              ? loc.dlna_queue_ended
               : '${track.title}${track.artist == null ? '' : ' · ${track.artist}'}',
           selected: true,
           onPressed: () {},
@@ -176,14 +181,14 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
           children: <Widget>[
             _castControlIcon(
               icon: AppIcons.previous,
-              label: '上一首',
+              label: loc.player_previous,
               enabled: cast.currentIndex > 0,
               onPressed: () => ref.read(dlnaCastProvider.notifier).previous(),
             ),
             const SizedBox(width: 8),
             _castControlIcon(
               icon: isPlaying ? AppIcons.pause : AppIcons.play,
-              label: isPlaying ? '暂停' : '播放',
+              label: isPlaying ? loc.player_pause : loc.widgets_play,
               onPressed: () => isPlaying
                   ? ref.read(dlnaCastProvider.notifier).pause()
                   : ref.read(dlnaCastProvider.notifier).resume(),
@@ -191,7 +196,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
             const SizedBox(width: 8),
             _castControlIcon(
               icon: AppIcons.next,
-              label: '下一首',
+              label: loc.player_next,
               enabled: cast.currentIndex < cast.queue.length - 1,
               onPressed: () => ref.read(dlnaCastProvider.notifier).next(),
             ),
@@ -199,8 +204,8 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
         ),
         MusicFlowActionRow(
           icon: AppIcons.close,
-          title: '停止局域网投屏',
-          subtitle: '停止设备播放并释放本地投屏队列',
+          title: loc.dlna_stop,
+          subtitle: loc.dlna_stop_subtitle,
           onPressed: () async {
             await _stopCast();
           },
@@ -237,6 +242,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
 
   /// 设备自发现列表
   Widget _buildDeviceList(DlnaCastState cast, DlnaDevicesState devicesState) {
+    final loc = AppLocalizations.of(context);
     final online = devicesState.devices
         .where((d) => d.available && !d.disabled)
         .toList();
@@ -245,7 +251,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
       children: <Widget>[
         MusicFlowActionRow(
           icon: AppIcons.refresh,
-          title: '扫描局域网 DLNA 设备',
+          title: loc.dlna_scan_devices,
           trailing: devicesState.isScanning
               ? const SizedBox.square(
                   dimension: 16,
@@ -259,7 +265,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
             MusicFlowActionRow(
               icon: AppIcons.dlnaLocal,
               title: device.name,
-              subtitle: '本机局域网发现 · 直投',
+              subtitle: loc.dlna_device_subtitle,
               selected: cast.currentDevice?.id == device.id,
               onPressed: () async {
                 await _startCast(device);
@@ -272,8 +278,8 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
             ),
             child: Text(
               devicesState.isScanning
-                  ? '正在搜索局域网内的 DLNA 设备…'
-                  : '未发现可用 DLNA 设备。请确认与音箱/电视处于同一网络后再扫描。',
+                  ? loc.dlna_searching
+                  : loc.dlna_no_device,
               style: context.musicFlowTypography.body.copyWith(
                 color: context.musicFlowColors.muted,
               ),
@@ -287,6 +293,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
   /// 主要面向安卓（含鸿蒙4）：国产 ROM / 鸿蒙默认会深度冻结后台音频进程，
   /// 仅靠前台服务+闹钟可能仍被压制，最有效的做法是在系统层把本应用放开。
   Widget _buildBackgroundHint() {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final typography = context.musicFlowTypography;
     return Padding(
@@ -301,9 +308,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '为保证后台持续投屏并自动切下一首：请在系统设置中将 MusicFlow 的'
-              '「电池优化」改为「不限制」，并将「应用启动管理」改为「手动管理」后'
-              '全部允许（允许自启动 / 关联启动 / 后台活动），避免曲末时因后台冻结而停播。',
+              loc.dlna_background_hint,
               style: typography.body.copyWith(color: colors.muted),
             ),
           ),

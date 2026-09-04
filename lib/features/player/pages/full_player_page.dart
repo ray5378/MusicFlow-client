@@ -23,6 +23,7 @@ import '../widgets/song_info_page.dart';
 import '../widgets/synced_lyrics_view.dart';
 import '../widgets/vinyl_record_cover.dart';
 import '../../../widgets/windows_title_bar.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// MusicFlow's immersive now-playing scene.
 class FullPlayerPage extends ConsumerStatefulWidget {
@@ -117,6 +118,7 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final currentSong = ref.watch(
       playerProvider.select((state) => state.currentSong),
     );
@@ -136,20 +138,20 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
                   child: Padding(
                     padding: EdgeInsets.all(context.musicFlowSpacing.xs),
                     child: Tooltip(
-                      message: '关闭播放器',
+                      message: loc.player_close,
                       waitDuration: const Duration(milliseconds: 400),
                       child: MusicFlowIconButton(
                         icon: AppIcons.chevronDown,
-                        label: '关闭播放器',
+                        label: loc.player_close,
                         onPressed: _closeToMini,
                       ),
                     ),
                   ),
                 ),
-                const Expanded(
+                Expanded(
                   child: MusicFlowEmptyState(
-                    title: '暂无播放内容',
-                    description: '从音乐流、搜索或资料库选择一首歌曲开始播放。',
+                    title: loc.player_empty_title,
+                    description: loc.player_empty_desc,
                     icon: AppIcons.music,
                   ),
                 ),
@@ -705,6 +707,7 @@ class _PlayerTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.xs),
       child: SizedBox(
@@ -713,7 +716,7 @@ class _PlayerTopBar extends StatelessWidget {
           children: <Widget>[
             _PlayerIconButton(
               icon: AppIcons.chevronDown,
-              label: '收起播放器',
+              label: loc.player_collapse,
               onPressed: onClose,
             ),
             Expanded(
@@ -740,6 +743,7 @@ class _PageDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final ink = context.musicFlowColors.ink;
     return AnimatedBuilder(
       animation: controller,
@@ -749,7 +753,7 @@ class _PageDots extends StatelessWidget {
             : controller.initialPage.toDouble();
         final activeIndex = page.round().clamp(0, 2);
         return Semantics(
-          label: '播放器页面，第 ${activeIndex + 1} 页，共 3 页',
+          label: loc.player_page_dots(activeIndex + 1, 3),
           child: ExcludeSemantics(
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -786,6 +790,7 @@ class _PlayerLyricsPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
+    final loc = AppLocalizations.of(context);
     // 高亮颜色跟随当前主题强调色；未显式指定时不再使用硬编码黄色。
     final lyricActiveColor = activeColor ?? context.musicFlowColors.accent;
     // RepaintBoundary：歌词列表即便发生重建/滚动，也只重绘本窗格，不扩散整页。
@@ -793,18 +798,18 @@ class _PlayerLyricsPane extends ConsumerWidget {
       child: lyricsAsync.when(
         data: (lyrics) {
           if (lyrics == null || lyrics.isEmpty) {
-            return const _PlayerLyricsMessage(
+            return _PlayerLyricsMessage(
               icon: AppIcons.lyrics,
-              title: '暂无歌词',
-              description: '当前曲目没有可用的歌词内容。',
+              title: loc.player_no_lyrics_title,
+              description: loc.player_no_lyrics_desc,
             );
           }
           final bestLyrics = lyrics.getBest();
           if (bestLyrics == null) {
-            return const _PlayerLyricsMessage(
+            return _PlayerLyricsMessage(
               icon: AppIcons.lyrics,
-              title: '暂无歌词',
-              description: '当前曲目没有可用的歌词内容。',
+              title: loc.player_no_lyrics_title,
+              description: loc.player_no_lyrics_desc,
             );
           }
           return SyncedLyricsView(
@@ -820,9 +825,9 @@ class _PlayerLyricsPane extends ConsumerWidget {
         loading: () => const _PlayerLyricsLoading(),
         error: (error, stackTrace) => _PlayerLyricsMessage(
           icon: AppIcons.error,
-          title: '歌词加载失败',
-          description: '播放不受影响，可以立即重试。',
-          actionLabel: '重试',
+          title: loc.player_lyrics_load_failed_title,
+          description: loc.player_lyrics_load_failed_desc,
+          actionLabel: loc.widgets_retry,
           onAction: () => ref.invalidate(currentLyricsProvider),
         ),
       ),
@@ -971,9 +976,10 @@ class _PlayerLyricsLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Semantics(
       liveRegion: true,
-      label: '歌词加载中',
+      label: loc.player_lyrics_loading,
       child: ExcludeSemantics(
         child: Center(
           child: Column(
@@ -1072,6 +1078,7 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     ref.listen<String?>(
       playerProvider.select((state) => state.currentSong?.id),
       (previous, next) {
@@ -1147,7 +1154,7 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
                 max: maxMilliseconds,
                 secondaryValue: bufferedValue,
                 semanticStep: 10000,
-                semanticLabel: '播放进度',
+                semanticLabel: loc.player_progress,
                 semanticValue: progressLabel,
                 semanticValueFormatter: (value) {
                   final position = Duration(milliseconds: value.round());
@@ -1243,6 +1250,7 @@ class PlaybackControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
     final modeState = ref.watch(
       playerProvider.select(
@@ -1271,10 +1279,10 @@ class PlaybackControls extends ConsumerWidget {
       _ => AppIcons.repeat,
     };
     final modeLabel = switch (mode) {
-      'shuffle' => '随机播放，点击切换到顺序播放',
-      'one' => '单曲循环，点击切换到列表循环',
-      'order' => '顺序播放，点击切换到单曲循环',
-      _ => '列表循环，点击切换到随机播放',
+      'shuffle' => loc.player_mode_shuffle,
+      'one' => loc.player_mode_loop_one,
+      'order' => loc.player_mode_order,
+      _ => loc.player_mode_list,
     };
 
     // 播放按钮尺寸随可用宽度自适应:5 个按钮(模式48 + 上一首48 + 播放 + 下一首
@@ -1319,12 +1327,12 @@ class PlaybackControls extends ConsumerWidget {
                 ),
                 _PlayerIconButton(
                   icon: AppIcons.previous,
-                  label: '上一首',
+                  label: loc.player_previous,
                   onPressed: () => unawaited(previousEffectivePlayback(ref)),
                 ),
                 _PlayerIconButton(
                   icon: isPlaying ? AppIcons.pause : AppIcons.play,
-                  label: isPlaying ? '暂停' : '播放',
+                  label: isPlaying ? loc.player_pause : loc.widgets_play,
                   emphasized: true,
                   dimension: playDimension,
                   iconSize: playIconSize,
@@ -1335,12 +1343,12 @@ class PlaybackControls extends ConsumerWidget {
                 ),
                 _PlayerIconButton(
                   icon: AppIcons.next,
-                  label: '下一首',
+                  label: loc.player_next,
                   onPressed: () => unawaited(nextEffectivePlayback(ref)),
                 ),
                 _PlayerIconButton(
                   icon: AppIcons.queue,
-                  label: '播放队列',
+                  label: loc.player_queue,
                   onPressed: onOpenQueue,
                 ),
               ],
@@ -1359,6 +1367,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final state = ref.watch(
       playerProvider.select(
         (state) => (starred: state.currentSong?.starred ?? currentSong.starred),
@@ -1379,14 +1388,14 @@ class _PlayerUtilityBar extends ConsumerWidget {
             _PlayerIconButton(
               icon: AppIcons.dlnaLocal,
               label: dlnaCast.isCasting
-                  ? '局域网 DLNA 直投，正在投屏到「${dlnaCast.currentDevice?.name ?? ''}」'
-                  : '局域网 DLNA 直投',
+                  ? loc.player_dlna_local_casting(dlnaCast.currentDevice?.name ?? '')
+                  : loc.player_dlna_local,
               selected: dlnaCast.isCasting,
               onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
             ),
             _PlayerIconButton(
               icon: state.starred ? AppIcons.heart : AppIcons.heartOutline,
-              label: state.starred ? '取消红心' : '红心',
+              label: state.starred ? loc.player_unfavorite : loc.player_favorite,
               selected: state.starred,
               onPressed: () {
                 ref.read(playerProvider.notifier).toggleFavorite();
@@ -1398,7 +1407,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
             // DLNA 设备行(信号/三角) 保持一致；置于最右，与最左的 DLNA 直投拉开距离。
             _PlayerIconButton(
               icon: AppIcons.signalTower,
-              label: '切换播放器，当前：${currentPlayerName(cast)}',
+              label: loc.player_switch_current(currentPlayerName(cast)),
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
             ),
@@ -1409,6 +1418,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
   }
 
   Future<void> _openPlayerSwitcher(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -1420,8 +1430,8 @@ class _PlayerUtilityBar extends ConsumerWidget {
     showMusicFlowToast(
       context,
       cast.activePeer != null
-          ? '正在投屏到「${currentPlayerName(cast)}」'
-          : '已切换为本机播放',
+          ? loc.player_casting_to(currentPlayerName(cast))
+          : loc.player_switched_local,
       kind: MusicFlowMessageKind.success,
     );
   }
@@ -1430,16 +1440,17 @@ class _PlayerUtilityBar extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
+    final loc = AppLocalizations.of(context);
     // Windows 桌面端用「窗户」样式对话框（独立标题栏 + 等圆角），
     // 与安卓底部抽屉区分（对齐更新检测/设置页的平台样式策略）。
     if (isWindowsDesktop) {
       await showMusicFlowDesktopDialog<void>(
         context: context,
         useRootNavigator: true,
-        builder: (dialogContext) => const MusicFlowDesktopDialog(
+        builder: (dialogContext) => MusicFlowDesktopDialog(
           icon: AppIcons.dlnaLocal,
-          title: '局域网 DLNA 直投',
-          subtitle: '客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。',
+          title: loc.player_dlna_local,
+          subtitle: loc.player_dlna_dialog_subtitle,
           child: LocalDlnaCastSheet(),
         ),
       );
