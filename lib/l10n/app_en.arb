@@ -554,5 +554,171 @@
   "widgets_nav_main": "Main navigation",
   "widgets_nav_main_collapsed": "Main navigation (collapsed)",
   "widgets_nav_expand_sidebar": "Expand sidebar",
-  "widgets_nav_collapse_sidebar": "Collapse sidebar"
+  "widgets_nav_collapse_sidebar": "Collapse sidebar",
+  "discover_category_nav": "Category navigation",
+  "discover_cover_semantics": "{name} cover",
+  "@discover_cover_semantics": {
+    "description": "Accessibility label for a media cover image (with the name)",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_error_desc_check_route": "Check your network or current route and try again.",
+  "discover_error_desc_switch_route": "Check your network or switch routes, then retry.",
+  "discover_explore": "Explore",
+  "discover_for_you": "For you",
+  "discover_import_no_valid_id": "No valid id was returned after importing the playlist",
+  "discover_import_playlist_failed": "Failed to import playlist: {msg}",
+  "@discover_import_playlist_failed": {
+    "description": "Message when importing a recommended playlist fails (with the error)",
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_local_random": "Local random",
+  "discover_local_random_load_failed": "Failed to load local random playlists",
+  "discover_music_suffix": "Music",
+  "discover_network_failed_play_playlist": "Network error; unable to play the playlist",
+  "discover_no_library_selected": "No music library selected",
+  "discover_not_connected_library": "Not connected to a music library",
+  "discover_open_app_menu": "Open app menu",
+  "discover_platform_load_failed": "Failed to load platform recommendations",
+  "discover_platform_recommend": "Platform recommendations",
+  "discover_play_playlist": "Play playlist",
+  "discover_play_playlist_failed": "Failed to play playlist: {msg}",
+  "@discover_play_playlist_failed": {
+    "description": "Message when playing a playlist fails (with the error)",
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_play_random_songs": "Play random songs",
+  "discover_playlist_empty": "This playlist has no playable songs",
+  "discover_random_songs": "Random songs",
+  "discover_recent_album_semantics": "Recently played album {name}",
+  "@discover_recent_album_semantics": {
+    "description": "Accessibility label for a recently played album card (with the album name)",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_recent_playlists": "Recently updated playlists",
+  "discover_recent_playlists_load_failed": "Failed to load recently updated playlists",
+  "discover_recent_song_count": "{count} songs",
+  "@discover_recent_song_count": {
+    "description": "Song count description for a recently played album card",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_recently_played": "Recently played",
+  "discover_recommend_load_failed": "Failed to load recommendations",
+  "discover_recommend_service_unavailable": "Recommendation service is temporarily unavailable; check whether the platform recommendation plugin is enabled",
+  "discover_refresh_recent_playlists": "Refresh recently updated playlists",
+  "discover_search": "Search",
+  "discover_section_unavailable_playlist": "Playlists are temporarily unavailable",
+  "discover_shuffle_song_label": "Load another batch of random songs",
+  "discover_song_actions_semantics": "{title} actions",
+  "@discover_song_actions_semantics": {
+    "description": "Accessibility label for a song row more-actions button (with the song title)",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_track_count": "{count} songs",
+  "@discover_track_count": {
+    "description": "Song count subtitle for a playlist card",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_unavailable_local_random": "Local random playlists are temporarily unavailable",
+  "discover_unavailable_platform": "Platform recommendations are temporarily unavailable",
+  "discover_unavailable_recommend": "Recommendations are temporarily unavailable",
+  "search_back": "Back",
+  "search_clear": "Clear search",
+  "search_clear_history": "Clear search history",
+  "search_current_library": "Current music library",
+  "search_delete_history": "Delete history for {term}",
+  "@search_delete_history": {
+    "description": "Button semantics to delete a single search history entry (with the term)",
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "search_group_search_failed": "Failed to search {section}; pull down to retry",
+  "@search_group_search_failed": {
+    "description": "Message when search within a scope fails (with the scope name)",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "search_history": "Search history",
+  "search_hint": "Search songs, playlists, artists, albums",
+  "search_hot_search": "Hot searches",
+  "search_items_count": "{count} items",
+  "@search_items_count": {
+    "description": "Result item count label",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "search_local_no_results": "No local results found",
+  "search_local_results": "Local results",
+  "search_network_results": "Web-wide results",
+  "search_network_results_subtitle": "Aggregated search across enabled plugins; cards carry the plugin · platform label",
+  "search_scope_overlay": "Search scope overlay",
+  "search_search_term_semantics": "Search {term}",
+  "@search_search_term_semantics": {
+    "description": "Accessibility label for a button that searches a given term",
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "search_showing_results": "Showing results for \"{query}\"",
+  "@search_showing_results": {
+    "description": "Accessibility label for the results list (with the query)",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "search_song_count": "{count} songs",
+  "@search_song_count": {
+    "description": "Song count subtitle for a playlist card",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_music_flow_title": "Music Flow",
+  "discover_category_favorites": "Favorites",
+  "discover_category_playlists": "Playlists",
+  "discover_category_songs": "Songs",
+  "discover_category_artists": "Artists",
+  "discover_category_albums": "Albums"
 }

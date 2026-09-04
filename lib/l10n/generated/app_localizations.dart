@@ -1702,6 +1702,378 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'收起侧边栏'**
   String get widgets_nav_collapse_sidebar;
+
+  /// No description provided for @discover_category_nav.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类导航'**
+  String get discover_category_nav;
+
+  /// 媒体封面图片的语义标签（含名称）
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 封面'**
+  String discover_cover_semantics(String name);
+
+  /// No description provided for @discover_error_desc_check_route.
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或当前线路，然后重试。'**
+  String get discover_error_desc_check_route;
+
+  /// No description provided for @discover_error_desc_switch_route.
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或切换线路后重试。'**
+  String get discover_error_desc_switch_route;
+
+  /// No description provided for @discover_explore.
+  ///
+  /// In zh, this message translates to:
+  /// **'探索'**
+  String get discover_explore;
+
+  /// No description provided for @discover_for_you.
+  ///
+  /// In zh, this message translates to:
+  /// **'为你推荐'**
+  String get discover_for_you;
+
+  /// No description provided for @discover_import_no_valid_id.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单导入后未返回有效 id'**
+  String get discover_import_no_valid_id;
+
+  /// 导入推荐歌单失败的提示（含错误信息）
+  ///
+  /// In zh, this message translates to:
+  /// **'导入歌单失败：{msg}'**
+  String discover_import_playlist_failed(String msg);
+
+  /// No description provided for @discover_local_random.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地随机'**
+  String get discover_local_random;
+
+  /// No description provided for @discover_local_random_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地随机加载失败'**
+  String get discover_local_random_load_failed;
+
+  /// No description provided for @discover_music_suffix.
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐'**
+  String get discover_music_suffix;
+
+  /// No description provided for @discover_network_failed_play_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常，无法播放歌单'**
+  String get discover_network_failed_play_playlist;
+
+  /// No description provided for @discover_no_library_selected.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择音乐库'**
+  String get discover_no_library_selected;
+
+  /// No description provided for @discover_not_connected_library.
+  ///
+  /// In zh, this message translates to:
+  /// **'未连接到音乐库'**
+  String get discover_not_connected_library;
+
+  /// No description provided for @discover_open_app_menu.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开应用菜单'**
+  String get discover_open_app_menu;
+
+  /// No description provided for @discover_platform_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'平台推荐加载失败'**
+  String get discover_platform_load_failed;
+
+  /// No description provided for @discover_platform_recommend.
+  ///
+  /// In zh, this message translates to:
+  /// **'平台推荐'**
+  String get discover_platform_recommend;
+
+  /// No description provided for @discover_play_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放歌单'**
+  String get discover_play_playlist;
+
+  /// 播放歌单失败的提示（含错误信息）
+  ///
+  /// In zh, this message translates to:
+  /// **'播放歌单失败：{msg}'**
+  String discover_play_playlist_failed(String msg);
+
+  /// No description provided for @discover_play_random_songs.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放随机歌曲'**
+  String get discover_play_random_songs;
+
+  /// No description provided for @discover_playlist_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单暂无可用歌曲'**
+  String get discover_playlist_empty;
+
+  /// No description provided for @discover_random_songs.
+  ///
+  /// In zh, this message translates to:
+  /// **'随机歌曲'**
+  String get discover_random_songs;
+
+  /// 最近播放专辑卡片的语义标签（含专辑名）
+  ///
+  /// In zh, this message translates to:
+  /// **'最近播放专辑 {name}'**
+  String discover_recent_album_semantics(String name);
+
+  /// No description provided for @discover_recent_playlists.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新的歌单'**
+  String get discover_recent_playlists;
+
+  /// No description provided for @discover_recent_playlists_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新歌单加载失败'**
+  String get discover_recent_playlists_load_failed;
+
+  /// 最近播放专辑卡片的歌曲数描述
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首歌曲'**
+  String discover_recent_song_count(String count);
+
+  /// No description provided for @discover_recently_played.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近听过'**
+  String get discover_recently_played;
+
+  /// No description provided for @discover_recommend_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'为你推荐加载失败'**
+  String get discover_recommend_load_failed;
+
+  /// No description provided for @discover_recommend_service_unavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'推荐服务暂不可用，请检查平台推荐插件是否已启用'**
+  String get discover_recommend_service_unavailable;
+
+  /// No description provided for @discover_refresh_recent_playlists.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新最近更新歌单'**
+  String get discover_refresh_recent_playlists;
+
+  /// No description provided for @discover_search.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get discover_search;
+
+  /// No description provided for @discover_section_unavailable_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单暂时不可用'**
+  String get discover_section_unavailable_playlist;
+
+  /// No description provided for @discover_shuffle_song_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'换一批随机歌曲'**
+  String get discover_shuffle_song_label;
+
+  /// 歌曲行更多操作按钮的语义标签（含歌名）
+  ///
+  /// In zh, this message translates to:
+  /// **'{title} 操作'**
+  String discover_song_actions_semantics(String title);
+
+  /// 歌单卡片的歌曲数副标题（含数量）
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首'**
+  String discover_track_count(String count);
+
+  /// No description provided for @discover_unavailable_local_random.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地随机暂时不可用'**
+  String get discover_unavailable_local_random;
+
+  /// No description provided for @discover_unavailable_platform.
+  ///
+  /// In zh, this message translates to:
+  /// **'平台推荐暂时不可用'**
+  String get discover_unavailable_platform;
+
+  /// No description provided for @discover_unavailable_recommend.
+  ///
+  /// In zh, this message translates to:
+  /// **'为你推荐暂时不可用'**
+  String get discover_unavailable_recommend;
+
+  /// No description provided for @search_back.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get search_back;
+
+  /// No description provided for @search_clear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空搜索'**
+  String get search_clear;
+
+  /// No description provided for @search_clear_history.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空搜索历史'**
+  String get search_clear_history;
+
+  /// No description provided for @search_current_library.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前音乐库'**
+  String get search_current_library;
+
+  /// 删除某条搜索历史记录的按钮语义标签（含关键词）
+  ///
+  /// In zh, this message translates to:
+  /// **'删除历史 {term}'**
+  String search_delete_history(String term);
+
+  /// 某范围搜索失败的提示（含范围名）
+  ///
+  /// In zh, this message translates to:
+  /// **'{section}搜索失败,可下拉重试'**
+  String search_group_search_failed(String section);
+
+  /// No description provided for @search_history.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索历史'**
+  String get search_history;
+
+  /// No description provided for @search_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索歌曲、歌单、艺术家、专辑'**
+  String get search_hint;
+
+  /// No description provided for @search_hot_search.
+  ///
+  /// In zh, this message translates to:
+  /// **'热门搜索'**
+  String get search_hot_search;
+
+  /// 搜索结果条目数量标签
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 项'**
+  String search_items_count(int count);
+
+  /// No description provided for @search_local_no_results.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地没有找到相关结果'**
+  String get search_local_no_results;
+
+  /// No description provided for @search_local_results.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地结果'**
+  String get search_local_results;
+
+  /// No description provided for @search_network_results.
+  ///
+  /// In zh, this message translates to:
+  /// **'全网结果'**
+  String get search_network_results;
+
+  /// No description provided for @search_network_results_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'已启用插件的合并搜索,卡片带插件·平台标签'**
+  String get search_network_results_subtitle;
+
+  /// No description provided for @search_scope_overlay.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索范围浮层'**
+  String get search_scope_overlay;
+
+  /// 搜索某个关键词的按钮语义标签（含关键词）
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索 {term}'**
+  String search_search_term_semantics(String term);
+
+  /// 结果列表的语义标签（含关键词）
+  ///
+  /// In zh, this message translates to:
+  /// **'正在显示“{query}”的结果'**
+  String search_showing_results(String query);
+
+  /// 歌单卡片的歌曲数副标题（含数量）
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首'**
+  String search_song_count(String count);
+
+  /// No description provided for @discover_music_flow_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐流'**
+  String get discover_music_flow_title;
+
+  /// No description provided for @discover_category_favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'喜欢'**
+  String get discover_category_favorites;
+
+  /// No description provided for @discover_category_playlists.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单'**
+  String get discover_category_playlists;
+
+  /// No description provided for @discover_category_songs.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲'**
+  String get discover_category_songs;
+
+  /// No description provided for @discover_category_artists.
+  ///
+  /// In zh, this message translates to:
+  /// **'艺术家'**
+  String get discover_category_artists;
+
+  /// No description provided for @discover_category_albums.
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑'**
+  String get discover_category_albums;
 }
 
 class _AppLocalizationsDelegate

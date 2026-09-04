@@ -945,4 +945,232 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get widgets_nav_collapse_sidebar => 'Collapse sidebar';
+
+  @override
+  String get discover_category_nav => 'Category navigation';
+
+  @override
+  String discover_cover_semantics(String name) {
+    return '$name cover';
+  }
+
+  @override
+  String get discover_error_desc_check_route =>
+      'Check your network or current route and try again.';
+
+  @override
+  String get discover_error_desc_switch_route =>
+      'Check your network or switch routes, then retry.';
+
+  @override
+  String get discover_explore => 'Explore';
+
+  @override
+  String get discover_for_you => 'For you';
+
+  @override
+  String get discover_import_no_valid_id =>
+      'No valid id was returned after importing the playlist';
+
+  @override
+  String discover_import_playlist_failed(String msg) {
+    return 'Failed to import playlist: $msg';
+  }
+
+  @override
+  String get discover_local_random => 'Local random';
+
+  @override
+  String get discover_local_random_load_failed =>
+      'Failed to load local random playlists';
+
+  @override
+  String get discover_music_suffix => 'Music';
+
+  @override
+  String get discover_network_failed_play_playlist =>
+      'Network error; unable to play the playlist';
+
+  @override
+  String get discover_no_library_selected => 'No music library selected';
+
+  @override
+  String get discover_not_connected_library =>
+      'Not connected to a music library';
+
+  @override
+  String get discover_open_app_menu => 'Open app menu';
+
+  @override
+  String get discover_platform_load_failed =>
+      'Failed to load platform recommendations';
+
+  @override
+  String get discover_platform_recommend => 'Platform recommendations';
+
+  @override
+  String get discover_play_playlist => 'Play playlist';
+
+  @override
+  String discover_play_playlist_failed(String msg) {
+    return 'Failed to play playlist: $msg';
+  }
+
+  @override
+  String get discover_play_random_songs => 'Play random songs';
+
+  @override
+  String get discover_playlist_empty => 'This playlist has no playable songs';
+
+  @override
+  String get discover_random_songs => 'Random songs';
+
+  @override
+  String discover_recent_album_semantics(String name) {
+    return 'Recently played album $name';
+  }
+
+  @override
+  String get discover_recent_playlists => 'Recently updated playlists';
+
+  @override
+  String get discover_recent_playlists_load_failed =>
+      'Failed to load recently updated playlists';
+
+  @override
+  String discover_recent_song_count(String count) {
+    return '$count songs';
+  }
+
+  @override
+  String get discover_recently_played => 'Recently played';
+
+  @override
+  String get discover_recommend_load_failed => 'Failed to load recommendations';
+
+  @override
+  String get discover_recommend_service_unavailable =>
+      'Recommendation service is temporarily unavailable; check whether the platform recommendation plugin is enabled';
+
+  @override
+  String get discover_refresh_recent_playlists =>
+      'Refresh recently updated playlists';
+
+  @override
+  String get discover_search => 'Search';
+
+  @override
+  String get discover_section_unavailable_playlist =>
+      'Playlists are temporarily unavailable';
+
+  @override
+  String get discover_shuffle_song_label =>
+      'Load another batch of random songs';
+
+  @override
+  String discover_song_actions_semantics(String title) {
+    return '$title actions';
+  }
+
+  @override
+  String discover_track_count(String count) {
+    return '$count songs';
+  }
+
+  @override
+  String get discover_unavailable_local_random =>
+      'Local random playlists are temporarily unavailable';
+
+  @override
+  String get discover_unavailable_platform =>
+      'Platform recommendations are temporarily unavailable';
+
+  @override
+  String get discover_unavailable_recommend =>
+      'Recommendations are temporarily unavailable';
+
+  @override
+  String get search_back => 'Back';
+
+  @override
+  String get search_clear => 'Clear search';
+
+  @override
+  String get search_clear_history => 'Clear search history';
+
+  @override
+  String get search_current_library => 'Current music library';
+
+  @override
+  String search_delete_history(String term) {
+    return 'Delete history for $term';
+  }
+
+  @override
+  String search_group_search_failed(String section) {
+    return 'Failed to search $section; pull down to retry';
+  }
+
+  @override
+  String get search_history => 'Search history';
+
+  @override
+  String get search_hint => 'Search songs, playlists, artists, albums';
+
+  @override
+  String get search_hot_search => 'Hot searches';
+
+  @override
+  String search_items_count(int count) {
+    return '$count items';
+  }
+
+  @override
+  String get search_local_no_results => 'No local results found';
+
+  @override
+  String get search_local_results => 'Local results';
+
+  @override
+  String get search_network_results => 'Web-wide results';
+
+  @override
+  String get search_network_results_subtitle =>
+      'Aggregated search across enabled plugins; cards carry the plugin · platform label';
+
+  @override
+  String get search_scope_overlay => 'Search scope overlay';
+
+  @override
+  String search_search_term_semantics(String term) {
+    return 'Search $term';
+  }
+
+  @override
+  String search_showing_results(String query) {
+    return 'Showing results for \"$query\"';
+  }
+
+  @override
+  String search_song_count(String count) {
+    return '$count songs';
+  }
+
+  @override
+  String get discover_music_flow_title => 'Music Flow';
+
+  @override
+  String get discover_category_favorites => 'Favorites';
+
+  @override
+  String get discover_category_playlists => 'Playlists';
+
+  @override
+  String get discover_category_songs => 'Songs';
+
+  @override
+  String get discover_category_artists => 'Artists';
+
+  @override
+  String get discover_category_albums => 'Albums';
 }

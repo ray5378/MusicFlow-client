@@ -886,4 +886,217 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get widgets_nav_collapse_sidebar => '收起侧边栏';
+
+  @override
+  String get discover_category_nav => '分类导航';
+
+  @override
+  String discover_cover_semantics(String name) {
+    return '$name 封面';
+  }
+
+  @override
+  String get discover_error_desc_check_route => '请检查网络或当前线路，然后重试。';
+
+  @override
+  String get discover_error_desc_switch_route => '请检查网络或切换线路后重试。';
+
+  @override
+  String get discover_explore => '探索';
+
+  @override
+  String get discover_for_you => '为你推荐';
+
+  @override
+  String get discover_import_no_valid_id => '歌单导入后未返回有效 id';
+
+  @override
+  String discover_import_playlist_failed(String msg) {
+    return '导入歌单失败：$msg';
+  }
+
+  @override
+  String get discover_local_random => '本地随机';
+
+  @override
+  String get discover_local_random_load_failed => '本地随机加载失败';
+
+  @override
+  String get discover_music_suffix => '音乐';
+
+  @override
+  String get discover_network_failed_play_playlist => '网络异常，无法播放歌单';
+
+  @override
+  String get discover_no_library_selected => '未选择音乐库';
+
+  @override
+  String get discover_not_connected_library => '未连接到音乐库';
+
+  @override
+  String get discover_open_app_menu => '打开应用菜单';
+
+  @override
+  String get discover_platform_load_failed => '平台推荐加载失败';
+
+  @override
+  String get discover_platform_recommend => '平台推荐';
+
+  @override
+  String get discover_play_playlist => '播放歌单';
+
+  @override
+  String discover_play_playlist_failed(String msg) {
+    return '播放歌单失败：$msg';
+  }
+
+  @override
+  String get discover_play_random_songs => '播放随机歌曲';
+
+  @override
+  String get discover_playlist_empty => '歌单暂无可用歌曲';
+
+  @override
+  String get discover_random_songs => '随机歌曲';
+
+  @override
+  String discover_recent_album_semantics(String name) {
+    return '最近播放专辑 $name';
+  }
+
+  @override
+  String get discover_recent_playlists => '最近更新的歌单';
+
+  @override
+  String get discover_recent_playlists_load_failed => '最近更新歌单加载失败';
+
+  @override
+  String discover_recent_song_count(String count) {
+    return '$count 首歌曲';
+  }
+
+  @override
+  String get discover_recently_played => '最近听过';
+
+  @override
+  String get discover_recommend_load_failed => '为你推荐加载失败';
+
+  @override
+  String get discover_recommend_service_unavailable =>
+      '推荐服务暂不可用，请检查平台推荐插件是否已启用';
+
+  @override
+  String get discover_refresh_recent_playlists => '刷新最近更新歌单';
+
+  @override
+  String get discover_search => '搜索';
+
+  @override
+  String get discover_section_unavailable_playlist => '歌单暂时不可用';
+
+  @override
+  String get discover_shuffle_song_label => '换一批随机歌曲';
+
+  @override
+  String discover_song_actions_semantics(String title) {
+    return '$title 操作';
+  }
+
+  @override
+  String discover_track_count(String count) {
+    return '$count 首';
+  }
+
+  @override
+  String get discover_unavailable_local_random => '本地随机暂时不可用';
+
+  @override
+  String get discover_unavailable_platform => '平台推荐暂时不可用';
+
+  @override
+  String get discover_unavailable_recommend => '为你推荐暂时不可用';
+
+  @override
+  String get search_back => '返回';
+
+  @override
+  String get search_clear => '清空搜索';
+
+  @override
+  String get search_clear_history => '清空搜索历史';
+
+  @override
+  String get search_current_library => '当前音乐库';
+
+  @override
+  String search_delete_history(String term) {
+    return '删除历史 $term';
+  }
+
+  @override
+  String search_group_search_failed(String section) {
+    return '$section搜索失败,可下拉重试';
+  }
+
+  @override
+  String get search_history => '搜索历史';
+
+  @override
+  String get search_hint => '搜索歌曲、歌单、艺术家、专辑';
+
+  @override
+  String get search_hot_search => '热门搜索';
+
+  @override
+  String search_items_count(int count) {
+    return '$count 项';
+  }
+
+  @override
+  String get search_local_no_results => '本地没有找到相关结果';
+
+  @override
+  String get search_local_results => '本地结果';
+
+  @override
+  String get search_network_results => '全网结果';
+
+  @override
+  String get search_network_results_subtitle => '已启用插件的合并搜索,卡片带插件·平台标签';
+
+  @override
+  String get search_scope_overlay => '搜索范围浮层';
+
+  @override
+  String search_search_term_semantics(String term) {
+    return '搜索 $term';
+  }
+
+  @override
+  String search_showing_results(String query) {
+    return '正在显示“$query”的结果';
+  }
+
+  @override
+  String search_song_count(String count) {
+    return '$count 首';
+  }
+
+  @override
+  String get discover_music_flow_title => '音乐流';
+
+  @override
+  String get discover_category_favorites => '喜欢';
+
+  @override
+  String get discover_category_playlists => '歌单';
+
+  @override
+  String get discover_category_songs => '歌曲';
+
+  @override
+  String get discover_category_artists => '艺术家';
+
+  @override
+  String get discover_category_albums => '专辑';
 }

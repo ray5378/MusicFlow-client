@@ -554,5 +554,171 @@
   "widgets_nav_main": "主导航",
   "widgets_nav_main_collapsed": "主导航（已收起）",
   "widgets_nav_expand_sidebar": "展开侧边栏",
-  "widgets_nav_collapse_sidebar": "收起侧边栏"
+  "widgets_nav_collapse_sidebar": "收起侧边栏",
+  "discover_category_nav": "分类导航",
+  "discover_cover_semantics": "{name} 封面",
+  "@discover_cover_semantics": {
+    "description": "媒体封面图片的语义标签（含名称）",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_error_desc_check_route": "请检查网络或当前线路，然后重试。",
+  "discover_error_desc_switch_route": "请检查网络或切换线路后重试。",
+  "discover_explore": "探索",
+  "discover_for_you": "为你推荐",
+  "discover_import_no_valid_id": "歌单导入后未返回有效 id",
+  "discover_import_playlist_failed": "导入歌单失败：{msg}",
+  "@discover_import_playlist_failed": {
+    "description": "导入推荐歌单失败的提示（含错误信息）",
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_local_random": "本地随机",
+  "discover_local_random_load_failed": "本地随机加载失败",
+  "discover_music_suffix": "音乐",
+  "discover_network_failed_play_playlist": "网络异常，无法播放歌单",
+  "discover_no_library_selected": "未选择音乐库",
+  "discover_not_connected_library": "未连接到音乐库",
+  "discover_open_app_menu": "打开应用菜单",
+  "discover_platform_load_failed": "平台推荐加载失败",
+  "discover_platform_recommend": "平台推荐",
+  "discover_play_playlist": "播放歌单",
+  "discover_play_playlist_failed": "播放歌单失败：{msg}",
+  "@discover_play_playlist_failed": {
+    "description": "播放歌单失败的提示（含错误信息）",
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_play_random_songs": "播放随机歌曲",
+  "discover_playlist_empty": "歌单暂无可用歌曲",
+  "discover_random_songs": "随机歌曲",
+  "discover_recent_album_semantics": "最近播放专辑 {name}",
+  "@discover_recent_album_semantics": {
+    "description": "最近播放专辑卡片的语义标签（含专辑名）",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_recent_playlists": "最近更新的歌单",
+  "discover_recent_playlists_load_failed": "最近更新歌单加载失败",
+  "discover_recent_song_count": "{count} 首歌曲",
+  "@discover_recent_song_count": {
+    "description": "最近播放专辑卡片的歌曲数描述",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_recently_played": "最近听过",
+  "discover_recommend_load_failed": "为你推荐加载失败",
+  "discover_recommend_service_unavailable": "推荐服务暂不可用，请检查平台推荐插件是否已启用",
+  "discover_refresh_recent_playlists": "刷新最近更新歌单",
+  "discover_search": "搜索",
+  "discover_section_unavailable_playlist": "歌单暂时不可用",
+  "discover_shuffle_song_label": "换一批随机歌曲",
+  "discover_song_actions_semantics": "{title} 操作",
+  "@discover_song_actions_semantics": {
+    "description": "歌曲行更多操作按钮的语义标签（含歌名）",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_track_count": "{count} 首",
+  "@discover_track_count": {
+    "description": "歌单卡片的歌曲数副标题（含数量）",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_unavailable_local_random": "本地随机暂时不可用",
+  "discover_unavailable_platform": "平台推荐暂时不可用",
+  "discover_unavailable_recommend": "为你推荐暂时不可用",
+  "search_back": "返回",
+  "search_clear": "清空搜索",
+  "search_clear_history": "清空搜索历史",
+  "search_current_library": "当前音乐库",
+  "search_delete_history": "删除历史 {term}",
+  "@search_delete_history": {
+    "description": "删除某条搜索历史记录的按钮语义标签（含关键词）",
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "search_group_search_failed": "{section}搜索失败,可下拉重试",
+  "@search_group_search_failed": {
+    "description": "某范围搜索失败的提示（含范围名）",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "search_history": "搜索历史",
+  "search_hint": "搜索歌曲、歌单、艺术家、专辑",
+  "search_hot_search": "热门搜索",
+  "search_items_count": "{count} 项",
+  "@search_items_count": {
+    "description": "搜索结果条目数量标签",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "search_local_no_results": "本地没有找到相关结果",
+  "search_local_results": "本地结果",
+  "search_network_results": "全网结果",
+  "search_network_results_subtitle": "已启用插件的合并搜索,卡片带插件·平台标签",
+  "search_scope_overlay": "搜索范围浮层",
+  "search_search_term_semantics": "搜索 {term}",
+  "@search_search_term_semantics": {
+    "description": "搜索某个关键词的按钮语义标签（含关键词）",
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "search_showing_results": "正在显示“{query}”的结果",
+  "@search_showing_results": {
+    "description": "结果列表的语义标签（含关键词）",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "search_song_count": "{count} 首",
+  "@search_song_count": {
+    "description": "歌单卡片的歌曲数副标题（含数量）",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "discover_music_flow_title": "音乐流",
+  "discover_category_favorites": "喜欢",
+  "discover_category_playlists": "歌单",
+  "discover_category_songs": "歌曲",
+  "discover_category_artists": "艺术家",
+  "discover_category_albums": "专辑"
 }

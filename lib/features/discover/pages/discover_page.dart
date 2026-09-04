@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../core/l10n/localizations.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
 import '../../../data/models/recommend.dart';
@@ -18,6 +19,7 @@ import '../../../providers/cast_peer_provider.dart';
 import '../../../providers/dlna_provider.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/library_provider.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../providers/metadata_cache_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
@@ -37,6 +39,7 @@ import '../../library/widgets/playlist_options_sheet.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../../../widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
+import '../../../l10n/generated/app_localizations.dart';
 import '../widgets/discover_media_widgets.dart';
 import '../widgets/hoverable_horizontal_scroll.dart';
 import 'search_page.dart';
@@ -59,14 +62,14 @@ double playlistRailHeight(BuildContext context) {
 }
 
 /// 首页标题:Windows 桌面端不显示标题;安卓端显示 MusicFlow;其余平台沿用「音乐流」。
-String resolveMusicFlowHomeTitle() {
+String resolveMusicFlowHomeTitle(AppLocalizations loc) {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
     return '';
   }
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     return 'MusicFlow';
   }
-  return '音乐流';
+  return loc.discover_music_flow_title;
 }
 
 /// 首页各分区 widget 的 key 映射。服务端分区清单(key)未命中时忽略该分区,
@@ -125,7 +128,8 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   /// 应用菜单（显示更多），不再单独放菜单按钮；标题为空（Windows 等不显示
   /// 首页标题的平台）或宽屏布局（菜单已由侧边栏提供）时回退为原顶部栏。
   Widget _buildHomeHeader(BuildContext context) {
-    final title = resolveMusicFlowHomeTitle();
+    final loc = AppLocalizations.of(context);
+    final title = resolveMusicFlowHomeTitle(loc);
     final showDrawerTrigger = shouldShowPageDrawerTrigger(context);
     // 宽屏(侧边栏已提供导航与品牌标题)且该平台不显示首页标题(Windows)时:
     // 不再渲染空标题栏 —— 空 header 会把「随机歌曲」整体压低约 72px,
@@ -161,7 +165,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               Flexible(
                 fit: FlexFit.loose,
                 child: MusicFlowPressable(
-                  semanticLabel: '打开应用菜单',
+                  semanticLabel: loc.discover_open_app_menu,
                   onPressed: openMusicFlowAppDrawer,
                   child: Semantics(
                     header: true,
@@ -190,7 +194,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       leading: showDrawerTrigger
           ? MusicFlowIconButton(
               icon: AppIcons.menu,
-              label: '打开应用菜单',
+              label: loc.discover_open_app_menu,
               onPressed: openMusicFlowAppDrawer,
             )
           : null,
@@ -199,6 +203,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final randomSongsLoadFailed = ref.watch(randomSongsLoadFailedProvider);
     final homeCardsFailed = ref.watch(homeCardsLoadFailedProvider);
     final recommendFailed = ref.watch(recommendChannelsLoadFailedProvider);
@@ -270,7 +275,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
               // 搜索条只在宽屏(Windows 等)展示；compact 标题行右侧已有
               // 搜索按钮(同一入口)，移动端不再重复放一条占位搜索框(v3.4.50)。
               if (!(showCategoryNav &&
-                  resolveMusicFlowHomeTitle().isNotEmpty))
+                  resolveMusicFlowHomeTitle(loc).isNotEmpty))
                 _HomeSearchEntry(),
               // 分类导航(喜欢/歌单/歌曲/艺术家/专辑)只在 compact 布局展示:
               // 宽屏/桌面端侧边抽屉已提供同样的入口,内容区不再重复一行,
@@ -452,15 +457,16 @@ void _openSearchPage(BuildContext context) {
 /// 播放本地歌单（供首页歌单卡封面播放按钮与长按菜单使用）。
 /// 加载歌单全部歌曲后整单播放，并记录队列来源为歌单（封面叠加跳动竖条）。
 Future<void> playLocalPlaylistById(WidgetRef ref, String playlistId) async {
+  final loc = l10nNow(ref.read(appLanguageProvider).preference);
   final repository = ref.read(playlistRepositoryProvider);
   if (repository == null) {
-    NetworkErrorNotifier.show('未选择音乐库');
+    NetworkErrorNotifier.show(loc.discover_no_library_selected);
     return;
   }
   try {
     final songs = await repository.getAllPlaylistSongs(playlistId);
     if (songs.isEmpty) {
-      NetworkErrorNotifier.show('歌单暂无可用歌曲');
+      NetworkErrorNotifier.show(loc.discover_playlist_empty);
       return;
     }
     await playEffectiveQueue(
@@ -470,7 +476,7 @@ Future<void> playLocalPlaylistById(WidgetRef ref, String playlistId) async {
       origin: QueueOrigin(QueueOriginKind.playlist, playlistId),
     );
   } catch (_) {
-    NetworkErrorNotifier.show('网络异常，无法播放歌单');
+    NetworkErrorNotifier.show(loc.discover_network_failed_play_playlist);
   }
 }
 
@@ -483,6 +489,7 @@ class _HomeSearchEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final spacing = context.musicFlowSpacing;
     // Windows 无系统标题栏:右上角是窗口控制按钮(最小化/最大化/关闭),
@@ -502,7 +509,7 @@ class _HomeSearchEntry extends StatelessWidget {
         widthFactor: 0.5,
         alignment: Alignment.centerLeft,
         child: MusicFlowPressable(
-          semanticLabel: '搜索',
+          semanticLabel: loc.discover_search,
           onPressed: () => _openSearchPage(context),
           borderRadius: context.musicFlowRadii.pill,
           child: Container(
@@ -519,7 +526,7 @@ class _HomeSearchEntry extends StatelessWidget {
                 SizedBox(width: spacing.sm),
                 Expanded(
                   child: Text(
-                    '搜索歌曲、歌单、艺术家、专辑',
+                    loc.search_hint,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: context.musicFlowTypography.body.copyWith(
@@ -540,21 +547,24 @@ class _HomeSearchEntry extends StatelessWidget {
 class CategoryNavBar extends StatelessWidget {
   const CategoryNavBar({super.key});
 
-  static final List<(String, IconData, Widget)> _items = <(String, IconData, Widget)>[
+  static List<(String, IconData, Widget)> _items(AppLocalizations loc) =>
+      <(String, IconData, Widget)>[
     // 探索：原首页标题行右侧搜索按钮移入库导航第一位(v3.4.62)，
     // 样式与库按钮一致(accent 图标 + 下方文字标注)。
-    ('探索', AppIcons.search, const SearchPage()),
-    ('喜欢', AppIcons.heart, const StarredPage()),
-    ('歌单', AppIcons.playlist, const PlaylistSearchPage()),
-    ('歌曲', AppIcons.music, const SongListPage()),
-    ('艺术家', AppIcons.profile, const ArtistListPage()),
-    ('专辑', AppIcons.album, const AlbumListPage()),
-  ];
+        (loc.discover_explore, AppIcons.search, const SearchPage()),
+        (loc.discover_category_favorites, AppIcons.heart, const StarredPage()),
+        (loc.discover_category_playlists, AppIcons.playlist, const PlaylistSearchPage()),
+        (loc.discover_category_songs, AppIcons.music, const SongListPage()),
+        (loc.discover_category_artists, AppIcons.profile, const ArtistListPage()),
+        (loc.discover_category_albums, AppIcons.album, const AlbumListPage()),
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final items = _items(loc);
     return Semantics(
-      label: '分类导航',
+      label: loc.discover_category_nav,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(
@@ -563,17 +573,17 @@ class CategoryNavBar extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            for (var i = 0; i < _items.length; i++) ...<Widget>[
+            for (var i = 0; i < items.length; i++) ...<Widget>[
               if (i > 0)
                 SizedBox(width: context.musicFlowSpacing.md),
               _CategoryNavItem(
-                label: _items[i].$1,
-                icon: _items[i].$2,
+                label: items[i].$1,
+                icon: items[i].$2,
                 onPressed: () {
                   Navigator.of(context).push<void>(
                     MusicFlowPageRoute<void>(
                       context: context,
-                      builder: (context) => _items[i].$3,
+                      builder: (context) => items[i].$3,
                     ),
                   );
                 },
@@ -997,6 +1007,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final loc = AppLocalizations.of(context);
     final loadFailed = ref.watch(randomSongsLoadFailedProvider);
     final knownSongs = _lastKnownSongs;
     final hasContent = knownSongs != null && knownSongs.isNotEmpty;
@@ -1053,14 +1064,14 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           MusicFlowSectionHeader.compact(
-            title: '随机歌曲',
+            title: loc.discover_random_songs,
             // 刷新按钮挨着模块标题,播放按钮由 Spacer 推到最右。
             trailingFollowsTitle: true,
             trailing: Row(
               children: <Widget>[
                 MusicFlowIconButton(
                   icon: AppIcons.refresh,
-                  label: '换一批随机歌曲',
+                  label: loc.discover_shuffle_song_label,
                   onPressed: _refresh,
                 ),
                 const Spacer(),
@@ -1072,7 +1083,7 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
                   offset: Offset(playRightShift, 0),
                   child: MusicFlowIconButton(
                     icon: AppIcons.play,
-                    label: '播放随机歌曲',
+                    label: loc.discover_play_random_songs,
                     onPressed: _playRound,
                   ),
                 ),
@@ -1173,6 +1184,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final playlistsAsync = ref.watch(recentPlaylistsProvider);
     final loadFailed = ref.watch(recentPlaylistsLoadFailedProvider);
     // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
@@ -1182,12 +1194,12 @@ class RecentPlaylistsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         MusicFlowSectionHeader.compact(
-          title: '最近更新的歌单',
+          title: loc.discover_recent_playlists,
           // 刷新按钮挨着模块标题。
           trailingFollowsTitle: true,
           trailing: MusicFlowIconButton(
             icon: AppIcons.refresh,
-            label: '刷新最近更新歌单',
+            label: loc.discover_refresh_recent_playlists,
             onPressed: () => ref.invalidate(recentPlaylistsProvider),
           ),
         ),
@@ -1201,8 +1213,8 @@ class RecentPlaylistsSection extends ConsumerWidget {
               // 错误提示(可重试),避免空数据/失败占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: '歌单暂时不可用',
-                description: '请检查网络或当前线路，然后重试。',
+                title: loc.discover_section_unavailable_playlist,
+                description: loc.discover_error_desc_check_route,
                 icon: AppIcons.cloudOff,
                 onRetry: () => ref.invalidate(recentPlaylistsProvider),
               );
@@ -1222,7 +1234,7 @@ class RecentPlaylistsSection extends ConsumerWidget {
                     return DiscoverPlaylistCard(
                       width: _playlistCardWidth,
                       title: pl.name,
-                      subtitle: '${pl.songCount} 首',
+                      subtitle: loc.discover_track_count('${pl.songCount}'),
                       coverArtId: pl.coverArt,
                       isNowPlaying: queueOrigin?.matchesPlaylist(pl.id) ??
                           false,
@@ -1263,8 +1275,8 @@ class RecentPlaylistsSection extends ConsumerWidget {
             ),
           ),
           error: (error, stackTrace) => DiscoverSectionMessage(
-            title: '最近更新歌单加载失败',
-            description: '请检查网络或切换线路后重试。',
+            title: loc.discover_recent_playlists_load_failed,
+            description: loc.discover_error_desc_switch_route,
             icon: AppIcons.cloudOff,
             onRetry: () => ref.invalidate(recentPlaylistsProvider),
           ),
@@ -1282,6 +1294,7 @@ class FixedRecommendSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final sectionAsync = ref.watch(homeRecommendSectionProvider);
     final loadFailed = ref.watch(homeCardsLoadFailedProvider);
     // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
@@ -1291,7 +1304,7 @@ class FixedRecommendSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         MusicFlowSectionHeader.compact(
-          title: '为你推荐',
+          title: loc.discover_for_you,
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
         sectionAsync.when(
@@ -1303,8 +1316,8 @@ class FixedRecommendSection extends ConsumerWidget {
               // 错误提示(可重试),不让空数据/占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: '为你推荐暂时不可用',
-                description: '请检查网络或当前线路，然后重试。',
+                title: loc.discover_unavailable_recommend,
+                description: loc.discover_error_desc_check_route,
                 icon: AppIcons.cloudOff,
                 onRetry: () => ref.invalidate(homeRecommendSectionProvider),
               );
@@ -1344,7 +1357,7 @@ class FixedRecommendSection extends ConsumerWidget {
                     return DiscoverPlaylistCard(
                       width: _playlistCardWidth,
                       title: card.name,
-                      subtitle: '${card.songCount} 首',
+                      subtitle: loc.discover_track_count('${card.songCount}'),
                       coverArtId: card.coverArt,
                       isNowPlaying:
                           queueOrigin?.matchesPlaylist(card.playlistId) ??
@@ -1393,8 +1406,8 @@ class FixedRecommendSection extends ConsumerWidget {
             ),
           ),
           error: (error, stackTrace) => DiscoverSectionMessage(
-            title: '为你推荐加载失败',
-            description: '请检查网络或切换线路后重试。',
+            title: loc.discover_recommend_load_failed,
+            description: loc.discover_error_desc_switch_route,
             icon: AppIcons.cloudOff,
             onRetry: () => ref.invalidate(homeRecommendSectionProvider),
           ),
@@ -1415,13 +1428,14 @@ Future<void> _openRecommendPlaylist(
   String? providerId,
   RecommendPlaylist pl,
 ) async {
+  final loc = AppLocalizations.of(context);
   if (providerId == null || providerId.isEmpty) {
-    showMusicFlowToast(context, '推荐服务暂不可用，请检查平台推荐插件是否已启用');
+    showMusicFlowToast(context, loc.discover_recommend_service_unavailable);
     return;
   }
   final repo = ref.read(recommendRepositoryProvider);
   if (repo == null) {
-    showMusicFlowToast(context, '未连接到音乐库');
+    showMusicFlowToast(context, loc.discover_not_connected_library);
     return;
   }
 
@@ -1465,7 +1479,7 @@ Future<void> _openRecommendPlaylist(
   } catch (e) {
     if (context.mounted) {
       final msg = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
-      showMusicFlowToast(context, '导入歌单失败：$msg');
+      showMusicFlowToast(context, loc.discover_import_playlist_failed(msg));
     }
   } finally {
     ref.read(recommendImportingProvider.notifier).state = null;
@@ -1481,13 +1495,14 @@ Future<void> _playRecommendPlaylist(
   String? providerId,
   RecommendPlaylist pl,
 ) async {
+  final loc = l10nNow(ref.read(appLanguageProvider).preference);
   if (providerId == null || providerId.isEmpty) {
-    NetworkErrorNotifier.show('推荐服务暂不可用，请检查平台推荐插件是否已启用');
+    NetworkErrorNotifier.show(loc.discover_recommend_service_unavailable);
     return;
   }
   final repo = ref.read(recommendRepositoryProvider);
   if (repo == null) {
-    NetworkErrorNotifier.show('未连接到音乐库');
+    NetworkErrorNotifier.show(loc.discover_not_connected_library);
     return;
   }
   try {
@@ -1509,14 +1524,14 @@ Future<void> _playRecommendPlaylist(
       'link': pl.link,
     });
     if (localId.isEmpty) {
-      NetworkErrorNotifier.show('歌单导入后未返回有效 id');
+      NetworkErrorNotifier.show(loc.discover_import_no_valid_id);
       return;
     }
     await playLocalPlaylistById(ref, localId);
   } catch (e) {
     final msg =
         e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
-    NetworkErrorNotifier.show('播放歌单失败：$msg');
+    NetworkErrorNotifier.show(loc.discover_play_playlist_failed(msg));
   }
 }
 
@@ -1527,6 +1542,7 @@ class PlatformRecommendSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final channelsAsync = ref.watch(recommendChannelsProvider);
     final loadFailed = ref.watch(recommendChannelsLoadFailedProvider);
     final providerId = ref.watch(recommendProviderIdProvider).valueOrNull;
@@ -1536,7 +1552,7 @@ class PlatformRecommendSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         MusicFlowSectionHeader.compact(
-          title: '平台推荐',
+          title: loc.discover_platform_recommend,
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
         channelsAsync.when(
@@ -1551,8 +1567,8 @@ class PlatformRecommendSection extends ConsumerWidget {
               // 错误提示(可重试),避免空数据/失败占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: '平台推荐暂时不可用',
-                description: '请检查网络或当前线路，然后重试。',
+                title: loc.discover_unavailable_platform,
+                description: loc.discover_error_desc_check_route,
                 icon: AppIcons.cloudOff,
                 onRetry: () => ref.invalidate(recommendChannelsProvider),
               );
@@ -1589,7 +1605,7 @@ class PlatformRecommendSection extends ConsumerWidget {
                               width: _playlistCardWidth,
                               title: pl.name,
                               subtitle: pl.trackCount.isNotEmpty
-                                  ? '${pl.trackCount} 首'
+                                  ? loc.discover_track_count(pl.trackCount)
                                   : null,
                               coverUrl: pl.cover,
                               loading: isImporting,
@@ -1631,8 +1647,8 @@ class PlatformRecommendSection extends ConsumerWidget {
             ),
           ),
           error: (error, stackTrace) => DiscoverSectionMessage(
-            title: '平台推荐加载失败',
-            description: '请检查网络或切换线路后重试。',
+            title: loc.discover_platform_load_failed,
+            description: loc.discover_error_desc_switch_route,
             icon: AppIcons.cloudOff,
             onRetry: () => ref.invalidate(recommendChannelsProvider),
           ),
@@ -1644,13 +1660,13 @@ class PlatformRecommendSection extends ConsumerWidget {
 
 /// 本地随机分区标题:优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
 /// 名称去掉末尾「音乐」与主项目前端保持一致。
-String localChannelTitle(LocalRecommendChannel channel) {
-  final base = channel.name.endsWith('音乐')
-      ? channel.name.substring(0, channel.name.length - '音乐'.length)
+String localChannelTitle(AppLocalizations loc, LocalRecommendChannel channel) {
+  final base = channel.name.endsWith(loc.discover_music_suffix)
+      ? channel.name.substring(0, channel.name.length - loc.discover_music_suffix.length)
       : channel.name;
   final tag = (channel.subtag != null && channel.subtag!.isNotEmpty)
       ? channel.subtag!
-      : '本地随机';
+      : loc.discover_local_random;
   return '$base·$tag';
 }
 
@@ -1661,6 +1677,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final channelsAsync = ref.watch(localRecommendChannelsProvider);
     final loadFailed = ref.watch(localRecommendChannelsLoadFailedProvider);
     // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
@@ -1669,7 +1686,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        MusicFlowSectionHeader.compact(title: '本地随机'),
+        MusicFlowSectionHeader.compact(title: loc.discover_local_random),
         SizedBox(height: context.musicFlowSpacing.xxs),
         channelsAsync.when(
           skipLoadingOnRefresh: false,
@@ -1682,8 +1699,8 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
               // 错误提示(可重试),避免空数据/失败占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
-                title: '本地随机暂时不可用',
-                description: '请检查网络或当前线路，然后重试。',
+                title: loc.discover_unavailable_local_random,
+                description: loc.discover_error_desc_check_route,
                 icon: AppIcons.cloudOff,
                 onRetry: () => ref.invalidate(localRecommendChannelsProvider),
               );
@@ -1697,7 +1714,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                       SizedBox(height: context.musicFlowSpacing.sm),
                       // 分区标题优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
                       Text(
-                        localChannelTitle(channel),
+                        localChannelTitle(loc, channel),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: context.musicFlowTypography.label.copyWith(
@@ -1732,7 +1749,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                             return DiscoverPlaylistCard(
                               width: _playlistCardWidth,
                               title: pl.name,
-                              subtitle: '${pl.songCount} 首',
+                              subtitle: loc.discover_track_count('${pl.songCount}'),
                               coverArtId: pl.coverArt,
                               isNowPlaying:
                                   queueOrigin?.matchesPlaylist(pl.id) ??
@@ -1783,8 +1800,8 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
             ),
           ),
           error: (error, stackTrace) => DiscoverSectionMessage(
-            title: '本地随机加载失败',
-            description: '请检查网络或切换线路后重试。',
+            title: loc.discover_local_random_load_failed,
+            description: loc.discover_error_desc_switch_route,
             icon: AppIcons.cloudOff,
             onRetry: () => ref.invalidate(localRecommendChannelsProvider),
           ),

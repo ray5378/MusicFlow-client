@@ -32,6 +32,7 @@ import '../../search/search_scope.dart';
 import '../../search/widgets/search_result_card.dart';
 import '../../search/widgets/search_scope_picker.dart';
 import '../../discover/widgets/discover_media_widgets.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 搜索页。
 ///
@@ -166,6 +167,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     final horizontal = context.musicFlowPageHorizontalPadding;
 
@@ -209,7 +211,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   children: <Widget>[
                     MusicFlowIconButton(
                       icon: AppIcons.back,
-                      label: '返回',
+                      label: loc.search_back,
                       onPressed: () => Navigator.of(context).maybePop(),
                     ),
                     SizedBox(width: spacing.xs),
@@ -259,6 +261,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Widget _buildTextField() {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     return SizedBox(
       height: 48,
@@ -279,7 +282,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               }
             },
             decoration: InputDecoration(
-              hintText: '搜索歌曲、歌单、艺术家、专辑',
+              hintText: loc.search_hint,
               hintStyle: context.musicFlowTypography.body.copyWith(
                 color: colors.muted,
               ),
@@ -292,7 +295,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ? null
                   : MusicFlowIconButton(
                       icon: AppIcons.close,
-                      label: '清空搜索',
+                      label: loc.search_clear,
                       iconSize: 18,
                       onPressed: _clearSearch,
                     ),
@@ -327,12 +330,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   /// 不用全屏 scrim:浮层下方就是热门搜索/搜索历史,需要保持可见可点
   /// (进入页面即直接带出,与首页示意图一致);遮罩会把它们挡住并拦截点击。
   Widget _buildOverlay() {
+    final loc = AppLocalizations.of(context);
     return Positioned(
       left: 0,
       right: 0,
       top: 0,
       child: Semantics(
-        label: '搜索范围浮层',
+        label: loc.search_scope_overlay,
         child: TapRegion(
           onTapOutside: (_) {
             if (!_overlayVisible) return;
@@ -375,6 +379,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   /// 已提交关键词:本地结果 → 分隔线 → 全网结果。
   Widget _buildResults() {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     return ListView(
       key: const ValueKey<String>('search_results_list'),
@@ -389,7 +394,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         Semantics(
           container: true,
           liveRegion: true,
-          label: '正在显示“$_query”的结果',
+          label: loc.search_showing_results(_query),
           child: const SizedBox.shrink(),
         ),
         _LocalResultsBlock(scope: _scope, query: _query),
@@ -457,6 +462,7 @@ class _GroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         context.musicFlowPageHorizontalPadding,
@@ -476,7 +482,7 @@ class _GroupHeader extends StatelessWidget {
           ),
           if (count != null)
             Text(
-              '$count 项',
+              loc.search_items_count(count!),
               style: context.musicFlowTypography.metadata.copyWith(
                 color: context.musicFlowColors.muted,
               ),
@@ -516,6 +522,7 @@ class _LocalResultsBlock extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final scopes = scope.stackedScopes;
     final hasAny = scopes.any((item) => _hasData(ref, item));
     final isLoading = scopes.any((item) => _isLoading(ref, item));
@@ -523,7 +530,10 @@ class _LocalResultsBlock extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const _BlockHeader(title: '本地结果', subtitle: '当前音乐库'),
+        _BlockHeader(
+          title: loc.search_local_results,
+          subtitle: loc.search_current_library,
+        ),
         for (final item in scopes)
           KeyedSubtree(
             key: ValueKey<String>('local-group-${item.name}'),
@@ -540,7 +550,7 @@ class _LocalResultsBlock extends ConsumerWidget {
             child: isLoading
                 ? const MusicFlowMediaListSkeleton(count: 3)
                 : Text(
-                    '本地没有找到相关结果',
+                    loc.search_local_no_results,
                     style: context.musicFlowTypography.metadata.copyWith(
                       color: context.musicFlowColors.muted,
                     ),
@@ -582,6 +592,7 @@ class _LocalGroup extends ConsumerWidget {
   }
 
   Widget _songs(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(localSongSearchProvider(query));
     final songs = async.valueOrNull?.items ?? const <Song>[];
     if (songs.isEmpty) return const SizedBox.shrink();
@@ -591,7 +602,7 @@ class _LocalGroup extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _GroupHeader(title: '歌曲', count: async.valueOrNull?.total),
+        _GroupHeader(title: loc.widgets_songs, count: async.valueOrNull?.total),
         for (var index = 0; index < songs.length; index++)
           Padding(
             padding: EdgeInsets.symmetric(
@@ -614,13 +625,14 @@ class _LocalGroup extends ConsumerWidget {
   }
 
   Widget _albums(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(localAlbumSearchProvider(query));
     final albums = async.valueOrNull?.items ?? const <Album>[];
     if (albums.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _GroupHeader(title: '专辑', count: async.valueOrNull?.total),
+        _GroupHeader(title: loc.widgets_albums, count: async.valueOrNull?.total),
         for (final album in albums)
           Padding(
             padding: EdgeInsets.symmetric(
@@ -647,13 +659,14 @@ class _LocalGroup extends ConsumerWidget {
   }
 
   Widget _artists(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(localArtistSearchProvider(query));
     final artists = async.valueOrNull?.items ?? const <Artist>[];
     if (artists.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _GroupHeader(title: '艺术家', count: async.valueOrNull?.total),
+        _GroupHeader(title: loc.widgets_artists, count: async.valueOrNull?.total),
         for (final artist in artists)
           Padding(
             padding: EdgeInsets.symmetric(
@@ -680,13 +693,14 @@ class _LocalGroup extends ConsumerWidget {
   }
 
   Widget _playlists(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(localPlaylistSearchProvider(query));
     final playlists = async.valueOrNull?.items ?? const <Playlist>[];
     if (playlists.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _GroupHeader(title: '歌单', count: async.valueOrNull?.total),
+        _GroupHeader(title: loc.widgets_playlists, count: async.valueOrNull?.total),
         Padding(
           padding: EdgeInsets.fromLTRB(
             context.musicFlowPageHorizontalPadding,
@@ -702,7 +716,7 @@ class _LocalGroup extends ConsumerWidget {
                 DiscoverPlaylistCard(
                   width: 128,
                   title: playlist.name,
-                  subtitle: '${playlist.songCount} 首',
+                  subtitle: loc.search_song_count('${playlist.songCount}'),
                   coverArtId: playlist.coverArt,
                   onPressed: () => Navigator.of(context).push<void>(
                     MusicFlowPageRoute<void>(
@@ -737,13 +751,14 @@ class _NetworkResultsBlock extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final scopes = scope.stackedScopes;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const _BlockHeader(
-          title: '全网结果',
-          subtitle: '已启用插件的合并搜索,卡片带插件·平台标签',
+        _BlockHeader(
+          title: loc.search_network_results,
+          subtitle: loc.search_network_results_subtitle,
         ),
         for (var i = 0; i < scopes.length; i++)
           KeyedSubtree(
@@ -772,6 +787,7 @@ class _NetworkGroup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final kind = scope.kind;
     if (kind == null) return const SizedBox.shrink();
     final request = SearchRequest(
@@ -797,7 +813,7 @@ class _NetworkGroup extends ConsumerWidget {
           vertical: context.musicFlowSpacing.xs,
         ),
         child: Text(
-          '${scope.sectionTitle}搜索失败,可下拉重试',
+          loc.search_group_search_failed(scope.sectionTitle),
           style: context.musicFlowTypography.metadata.copyWith(
             color: context.musicFlowColors.muted,
           ),
@@ -829,13 +845,14 @@ class _HotSearchBlock extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(hotSearchTermsProvider);
     final terms = async.valueOrNull ?? const <String>[];
     if (terms.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const _BlockHeader(title: '热门搜索'),
+        _BlockHeader(title: loc.search_hot_search),
         Padding(
           padding: EdgeInsets.symmetric(
             horizontal: context.musicFlowPageHorizontalPadding,
@@ -855,6 +872,7 @@ class _SearchHistoryBlock extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(searchHistoryProvider);
     final entries = async.valueOrNull ?? const <SearchHistoryEntry>[];
     if (entries.isEmpty) return const SizedBox.shrink();
@@ -870,10 +888,10 @@ class _SearchHistoryBlock extends ConsumerWidget {
           ),
           child: Row(
             children: <Widget>[
-              Expanded(child: const _BlockHeader(title: '搜索历史')),
+              Expanded(child: _BlockHeader(title: loc.search_history)),
               MusicFlowIconButton(
                 icon: AppIcons.delete,
-                label: '清空搜索历史',
+                label: loc.search_clear_history,
                 iconSize: 20,
                 onPressed: () =>
                     ref.read(searchHistoryProvider.notifier).clear(),
@@ -896,7 +914,7 @@ class _SearchHistoryBlock extends ConsumerWidget {
                 SizedBox(width: context.musicFlowSpacing.sm),
                 Expanded(
                   child: MusicFlowPressable(
-                    semanticLabel: '搜索 ${entry.query}',
+                    semanticLabel: loc.search_search_term_semantics(entry.query),
                     onPressed: () => onTap(entry.query),
                     minimumSize: const Size.fromHeight(44),
                     borderRadius: context.musicFlowRadii.detail,
@@ -913,7 +931,7 @@ class _SearchHistoryBlock extends ConsumerWidget {
                 ),
                 MusicFlowIconButton(
                   icon: AppIcons.close,
-                  label: '删除历史 ${entry.query}',
+                  label: loc.search_delete_history(entry.query),
                   iconSize: 18,
                   onPressed: () => ref
                       .read(searchHistoryProvider.notifier)
@@ -936,6 +954,7 @@ class _TermWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final spacing = context.musicFlowSpacing;
     return Wrap(
@@ -944,7 +963,7 @@ class _TermWrap extends StatelessWidget {
       children: <Widget>[
         for (final term in terms)
           MusicFlowPressable(
-            semanticLabel: '搜索 $term',
+            semanticLabel: loc.search_search_term_semantics(term),
             onPressed: () => onTap(term),
             borderRadius: context.musicFlowRadii.pill,
             child: Container(

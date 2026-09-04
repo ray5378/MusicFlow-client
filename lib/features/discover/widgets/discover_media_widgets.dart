@@ -9,6 +9,7 @@ import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/now_playing_bars.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../library/widgets/library_collection_components.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class DiscoverSongTile extends StatelessWidget {
   const DiscoverSongTile({
@@ -30,6 +31,7 @@ class DiscoverSongTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 行高与封面等高(56)：信息区 3 行（歌名/歌手/刮削标签）正好填满。
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 56),
@@ -40,7 +42,7 @@ class DiscoverSongTile extends StatelessWidget {
         onPressed: onPressed,
         onLongPress: onLongPress ?? onOpenActions,
         onMorePressed: onOpenActions,
-        moreSemanticLabel: '${song.title} 操作',
+        moreSemanticLabel: loc.discover_song_actions_semantics(song.title),
         // 歌名只占一行,过长截断,保证随机歌曲行高与参考稿一致。
         titleMaxLines: 1,
         // 信息区 3 行：歌名 / 歌手 / 刮削标签（音质·码率·格式·大小·时长）。
@@ -184,17 +186,19 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final artist = album.artist?.trim();
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final artworkSize = scale > 1.3 ? 88.0 : 112.0;
+    final songCount = loc.discover_recent_song_count('${album.songCount}');
     final semanticLabel = <String>[
-      '最近播放专辑 ${album.name}',
+      loc.discover_recent_album_semantics(album.name),
       if (artist != null && artist.isNotEmpty) artist,
-      '${album.songCount} 首歌曲',
+      songCount,
     ].join('，');
     final metadata = <String>[
       if (artist != null && artist.isNotEmpty) artist,
-      '${album.songCount} 首歌曲',
+      songCount,
     ].join('，');
 
     return SizedBox(
@@ -225,7 +229,7 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
                           size: artworkSize,
                           requestSize: 320,
                           fit: BoxFit.cover,
-                          semanticLabel: '${album.name} 封面',
+                          semanticLabel: loc.discover_cover_semantics(album.name),
                         ),
                       ),
                       // 正在播放：封面右下角半透明遮罩 + 白色跳动竖条。
@@ -252,7 +256,7 @@ class DiscoverRecentAlbumCard extends StatelessWidget {
                           SizedBox(width: context.musicFlowSpacing.xxs),
                           Expanded(
                             child: Text(
-                              '最近听过',
+                              loc.discover_recently_played,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: context.musicFlowTypography.label.copyWith(
@@ -520,6 +524,7 @@ class DiscoverSectionMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -562,7 +567,7 @@ class DiscoverSectionMessage extends StatelessWidget {
                   if (onRetry != null) ...<Widget>[
                     SizedBox(height: context.musicFlowSpacing.xs),
                     MusicFlowButton.ghost(
-                      label: '重试',
+                      label: loc.widgets_retry,
                       leadingIcon: AppIcons.refresh,
                       onPressed: onRetry,
                     ),
@@ -911,10 +916,12 @@ class DiscoverPlaylistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 72),
       child: MusicFlowPressable(
-        semanticLabel: '${playlist.name}，${playlist.songCount} 首',
+        semanticLabel: '${playlist.name}，'
+            '${loc.discover_track_count('${playlist.songCount}')}',
         onPressed: onPressed,
         onLongPress: onLongPress,
         minimumSize: const Size(double.infinity, 72),
@@ -938,7 +945,7 @@ class DiscoverPlaylistTile extends StatelessWidget {
                           size: context.musicFlowInteraction.minimumTouchTarget,
                           requestSize: 160,
                           fit: BoxFit.cover,
-                          semanticLabel: '${playlist.name} 封面',
+                          semanticLabel: loc.discover_cover_semantics(playlist.name),
                         )
                       : Center(
                           child: Icon(
@@ -960,7 +967,7 @@ class DiscoverPlaylistTile extends StatelessWidget {
                     ),
                     SizedBox(height: context.musicFlowSpacing.xxs),
                     Text(
-                      '${playlist.songCount} 首 · ${playlist.durationString}',
+                      '${loc.discover_track_count('${playlist.songCount}')} · ${playlist.durationString}',
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: context.musicFlowColors.muted,
                       ),
@@ -1062,6 +1069,7 @@ class DiscoverRecommendTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final coverRef = _effectiveCoverRef;
     final artworkSize = MediaQuery.textScalerOf(context).scale(1) > 1.3
         ? 80.0
@@ -1095,7 +1103,7 @@ class DiscoverRecommendTile extends StatelessWidget {
                           size: artworkSize,
                           requestSize: 160,
                           fit: BoxFit.cover,
-                          semanticLabel: '$title 封面',
+                          semanticLabel: loc.discover_cover_semantics(title),
                         )
                       : Container(
                           color: context.musicFlowColors.surface,
@@ -1229,6 +1237,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final coverRef = _effectiveCoverRef;
     final semanticLabel = <String>[
       title,
@@ -1261,7 +1270,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
                               size: width,
                               requestSize: 320,
                               fit: BoxFit.cover,
-                              semanticLabel: '$title 封面',
+                              semanticLabel: loc.discover_cover_semantics(title),
                             )
                           : Container(
                               color: context.musicFlowColors.surface,
@@ -1373,6 +1382,7 @@ class _PlaylistCoverPlayButtonState extends State<_PlaylistCoverPlayButton> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final compact =
         context.musicFlowWindowClass == MusicFlowWindowClass.compact;
     // 移动端常驻；桌面端 hover 才显示。
@@ -1394,7 +1404,7 @@ class _PlaylistCoverPlayButtonState extends State<_PlaylistCoverPlayButton> {
           child: IgnorePointer(
             ignoring: !visible,
             child: MusicFlowIconButton(
-              label: '播放歌单',
+              label: loc.discover_play_playlist,
               onPressed: widget.onPlay,
               icon: AppIcons.play,
               iconSize: iconSize,
