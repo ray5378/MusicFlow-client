@@ -2542,4 +2542,198 @@ class AppLocalizationsEn extends AppLocalizations {
   String song_option_song_count(int count) {
     return '$count songs';
   }
+
+  @override
+  String get login_connect_server => 'Connect to server';
+
+  @override
+  String get login_confirm_server_first => 'Confirm the server address first';
+
+  @override
+  String get login_enter_auth => 'Enter authentication details';
+
+  @override
+  String get login_detecting => 'Detecting…';
+
+  @override
+  String get login_logging_in => 'Logging in…';
+
+  @override
+  String get login_next => 'Next';
+
+  @override
+  String get login_login => 'Log in';
+
+  @override
+  String get login_previous => 'Back';
+
+  @override
+  String get login_detecting_ability => 'Detecting server capabilities';
+
+  @override
+  String get login_verifying_auth => 'Verifying authentication details';
+
+  @override
+  String get login_cannot_connect =>
+      'Cannot connect to the server. Please check the address.';
+
+  @override
+  String get login_http_insecure_title => 'Insecure HTTP connection';
+
+  @override
+  String get login_http_insecure_body =>
+      'HTTP does not encrypt traffic. Passwords, API keys, tokens and media requests may be intercepted or tampered with by others on the same network. Only continue if you trust the current network and this server.';
+
+  @override
+  String get login_continue_anyway => 'Continue anyway';
+
+  @override
+  String get login_server_section => 'Server';
+
+  @override
+  String get login_server_section_desc =>
+      'MusicFlow will probe the server\'s capabilities first, then decide which authentication method is available.';
+
+  @override
+  String get login_server_url_hint => 'https://your-server.com';
+
+  @override
+  String get login_server_url_http_helper =>
+      'Prefer HTTPS. Only use HTTP on a trusted local network.';
+
+  @override
+  String get login_server_url_required =>
+      'Please enter a full URL (including http:// or https://)';
+
+  @override
+  String get login_library_name_label => 'Library name (optional)';
+
+  @override
+  String get login_library_name_hint => 'e.g. Home NAS';
+
+  @override
+  String get login_library_name_helper =>
+      'If left blank, the server type is used automatically.';
+
+  @override
+  String get login_address_label => 'Route name (optional)';
+
+  @override
+  String get login_address_hint => 'e.g. Main route / Home';
+
+  @override
+  String get login_address_helper => 'If left blank, defaults to Primary.';
+
+  @override
+  String get login_auth_section => 'Authentication details';
+
+  @override
+  String get login_auth_section_desc =>
+      'Authentication details are only used to connect to your music server.';
+
+  @override
+  String get login_opensubsonic_detected => 'OpenSubsonic detected';
+
+  @override
+  String get login_unknown_server_type => 'Unknown server type';
+
+  @override
+  String get login_username_required => 'Please enter a username';
+
+  @override
+  String get login_api_key_label => 'API Key (recommended)';
+
+  @override
+  String get login_api_key_helper =>
+      'Filling in an API Key will prioritize API Key authentication.';
+
+  @override
+  String get login_or_password => 'or use password';
+
+  @override
+  String get login_password_required => 'Please enter a password';
+
+  @override
+  String login_step_semantics(String step, String total) {
+    return 'Login progress, step $step of $total';
+  }
+
+  @override
+  String get login_step_server => 'Server';
+
+  @override
+  String get login_step_auth => 'Authentication';
+
+  @override
+  String get search_source_not_specified => 'No source plugin specified';
+
+  @override
+  String search_entity_no_playable(String kind) {
+    return 'No playable songs here yet ($kind)';
+  }
+
+  @override
+  String search_play_failed(String error) {
+    return 'Playback failed: $error';
+  }
+
+  @override
+  String get search_import_submitted =>
+      'Import task submitted; you will be notified.';
+
+  @override
+  String search_import_failed(String error) {
+    return 'Import failed: $error';
+  }
+
+  @override
+  String search_import_done(String name) {
+    return 'Import finished: $name; check the music library';
+  }
+
+  @override
+  String search_import_entry_failed(String name, String error) {
+    return 'Import failed for $name: $error';
+  }
+
+  @override
+  String search_playlist_import_submitted(String name) {
+    return 'Import task for $name submitted; you will be notified.';
+  }
+
+  @override
+  String get search_scope_all => 'All';
+
+  @override
+  String get search_scope_all_desc => 'All content';
+
+  @override
+  String get search_scope_playlist_desc => 'Playlists only';
+
+  @override
+  String get search_scope_song_desc => 'i.e. songs';
+
+  @override
+  String get search_scope_artist_desc => 'Artists';
+
+  @override
+  String get search_network_search_failed => 'Web-wide search failed';
+
+  @override
+  String get search_network_no_results => 'No web-wide results';
+
+  @override
+  String get search_try_another_keyword => 'Try another keyword.';
+
+  @override
+  String get search_bar_clear => 'Clear search query';
+
+  @override
+  String get search_add_to_library => 'Add to library';
+
+  @override
+  String get search_scope_title => 'Search scope';
+
+  @override
+  String get search_scope_select_title => 'Select a search scope';
 }

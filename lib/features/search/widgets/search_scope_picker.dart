@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design/music_flow_design.dart';
 import '../search_scope.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 搜索范围切换器(五档 pill):所有 / 歌单 / 音乐 / 艺术家 / 专辑。
 ///
@@ -19,10 +20,11 @@ class SearchScopeTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     return Semantics(
       container: true,
-      label: '搜索范围',
+      label: loc.search_scope_title,
       child: SizedBox(
         height: 44,
         child: ListView.separated(
@@ -35,7 +37,7 @@ class SearchScopeTabs extends StatelessWidget {
           itemBuilder: (context, index) {
             final scope = SearchScope.values[index];
             return _ScopePill(
-              label: scope.label,
+              label: scope.label(loc),
               selected: scope == value,
               onPressed: () => onChanged(scope),
             );
@@ -106,11 +108,12 @@ class SearchScopePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final spacing = context.musicFlowSpacing;
     return Semantics(
       container: true,
-      label: '选择搜索范围',
+      label: loc.search_scope_select_title,
       child: Container(
         margin: EdgeInsets.symmetric(
           horizontal: context.musicFlowPageHorizontalPadding,
@@ -132,7 +135,7 @@ class SearchScopePanel extends StatelessWidget {
                 spacing.xxs,
               ),
               child: Text(
-                '搜索范围',
+                loc.search_scope_title,
                 style: context.musicFlowTypography.metadata.copyWith(
                   color: colors.muted,
                 ),
@@ -165,10 +168,11 @@ class _ScopeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final spacing = context.musicFlowSpacing;
     return MusicFlowPressable(
-      semanticLabel: scope.label,
+      semanticLabel: scope.label(loc),
       selected: selected,
       onPressed: onPressed,
       borderRadius: context.musicFlowRadii.detail,
@@ -189,9 +193,9 @@ class _ScopeRow extends StatelessWidget {
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                   ),
                   children: <TextSpan>[
-                    TextSpan(text: scope.label),
+                    TextSpan(text: scope.label(loc)),
                     TextSpan(
-                      text: '  ${scope.description}',
+                      text: '  ${scope.description(loc)}',
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: colors.muted,
                         fontWeight: FontWeight.w400,

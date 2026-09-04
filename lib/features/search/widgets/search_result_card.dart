@@ -11,6 +11,7 @@ import '../../library/pages/remote_album_page.dart';
 import '../../library/pages/remote_artist_page.dart';
 import '../../library/pages/remote_playlist_page.dart';
 import '../search_actions.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 远程搜索结果展示:按类目渲染歌曲/专辑/艺术家/歌单卡片,
 /// 每个卡片支持「播放」与(适用时)「加入库」。
@@ -123,6 +124,7 @@ class SearchResultList extends ConsumerWidget {
     WidgetRef ref,
     List<SearchSong> songs,
   ) {
+    final loc = AppLocalizations.of(context);
     if (songs.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -175,13 +177,13 @@ class SearchResultList extends ConsumerWidget {
               ),
               MusicFlowIconButton(
                 icon: Remix.play_circle_line,
-                label: '播放',
+                label: loc.widgets_play,
                 iconSize: 22,
                 onPressed: () => playRemoteSearchSong(context, ref, s),
               ),
               MusicFlowIconButton(
                 icon: Remix.add_circle_line,
-                label: '加入库',
+                label: loc.search_add_to_library,
                 iconSize: 22,
                 onPressed: () => importSearchSong(context, ref, s),
               ),
@@ -268,6 +270,7 @@ class SearchAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
       onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
@@ -304,7 +307,7 @@ class SearchAlbumCard extends StatelessWidget {
                         if (showPlay)
                           MusicFlowIconButton(
                             icon: Remix.play_circle_fill,
-                            label: '播放',
+                            label: loc.widgets_play,
                             iconSize: 24,
                             foregroundColor: context.musicFlowColors.accent,
                             onPressed: onPlay,
@@ -312,7 +315,7 @@ class SearchAlbumCard extends StatelessWidget {
                         if (showImport)
                           MusicFlowIconButton(
                             icon: Remix.add_circle_line,
-                            label: '加入库',
+                            label: loc.search_add_to_library,
                             iconSize: 22,
                             onPressed: onImport,
                           ),
@@ -353,6 +356,7 @@ class SearchArtistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
       onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
@@ -385,7 +389,7 @@ class SearchArtistCard extends StatelessWidget {
                     bottom: 4,
                     child: MusicFlowIconButton(
                       icon: Remix.play_circle_fill,
-                      label: '播放',
+                      label: loc.widgets_play,
                       iconSize: 24,
                       foregroundColor: context.musicFlowColors.accent,
                       onPressed: onPlay,
@@ -425,6 +429,7 @@ class SearchPlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
       onPressed: onOpen,
       borderRadius: BorderRadius.circular(8),
@@ -459,7 +464,7 @@ class SearchPlaylistCard extends StatelessWidget {
                     bottom: 4,
                     child: MusicFlowIconButton(
                       icon: Remix.play_circle_fill,
-                      label: '播放',
+                      label: loc.widgets_play,
                       iconSize: 24,
                       foregroundColor: context.musicFlowColors.accent,
                       onPressed: onPlay,
@@ -472,7 +477,7 @@ class SearchPlaylistCard extends StatelessWidget {
           Text(playlist.name, maxLines: 2, overflow: TextOverflow.ellipsis),
           Text(
             playlist.trackCount.isNotEmpty
-                ? '${playlist.trackCount} 首'
+                ? loc.search_song_count(playlist.trackCount)
                 : playlist.platformLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

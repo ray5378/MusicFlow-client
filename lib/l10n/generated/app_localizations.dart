@@ -4401,6 +4401,348 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'{count} 首'**
   String song_option_song_count(int count);
+
+  /// No description provided for @login_connect_server.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接到服务器'**
+  String get login_connect_server;
+
+  /// No description provided for @login_confirm_server_first.
+  ///
+  /// In zh, this message translates to:
+  /// **'先确认服务器地址'**
+  String get login_confirm_server_first;
+
+  /// No description provided for @login_enter_auth.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入认证信息'**
+  String get login_enter_auth;
+
+  /// No description provided for @login_detecting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在检测…'**
+  String get login_detecting;
+
+  /// No description provided for @login_logging_in.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在登录…'**
+  String get login_logging_in;
+
+  /// No description provided for @login_next.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一步'**
+  String get login_next;
+
+  /// No description provided for @login_login.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录'**
+  String get login_login;
+
+  /// No description provided for @login_previous.
+  ///
+  /// In zh, this message translates to:
+  /// **'上一步'**
+  String get login_previous;
+
+  /// No description provided for @login_detecting_ability.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在检测服务器能力'**
+  String get login_detecting_ability;
+
+  /// No description provided for @login_verifying_auth.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在验证认证信息'**
+  String get login_verifying_auth;
+
+  /// No description provided for @login_cannot_connect.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法连接到服务器，请检查地址是否正确'**
+  String get login_cannot_connect;
+
+  /// No description provided for @login_http_insecure_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'HTTP 连接不安全'**
+  String get login_http_insecure_title;
+
+  /// No description provided for @login_http_insecure_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'HTTP 不会加密传输。密码、API Key、令牌以及媒体请求都可能被同一网络中的其他人窃听或篡改。仅当你信任当前网络和该服务器时才继续。'**
+  String get login_http_insecure_body;
+
+  /// No description provided for @login_continue_anyway.
+  ///
+  /// In zh, this message translates to:
+  /// **'仍然继续'**
+  String get login_continue_anyway;
+
+  /// No description provided for @login_server_section.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器'**
+  String get login_server_section;
+
+  /// No description provided for @login_server_section_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'MusicFlow 会先探测服务器能力，再决定可用的认证方式。'**
+  String get login_server_section_desc;
+
+  /// No description provided for @login_server_url_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://your-server.com'**
+  String get login_server_url_hint;
+
+  /// No description provided for @login_server_url_http_helper.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先使用 HTTPS。只有在可信局域网中才建议使用 HTTP。'**
+  String get login_server_url_http_helper;
+
+  /// No description provided for @login_server_url_required.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入完整的 URL（包括 http:// 或 https://）'**
+  String get login_server_url_required;
+
+  /// No description provided for @login_library_name_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐库名称（可选）'**
+  String get login_library_name_label;
+
+  /// No description provided for @login_library_name_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：家庭 NAS'**
+  String get login_library_name_hint;
+
+  /// No description provided for @login_library_name_helper.
+  ///
+  /// In zh, this message translates to:
+  /// **'不填写则自动使用服务器类型。'**
+  String get login_library_name_helper;
+
+  /// No description provided for @login_address_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'线路名称（可选）'**
+  String get login_address_label;
+
+  /// No description provided for @login_address_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：主线路 / 家里'**
+  String get login_address_hint;
+
+  /// No description provided for @login_address_helper.
+  ///
+  /// In zh, this message translates to:
+  /// **'不填写则默认使用 Primary。'**
+  String get login_address_helper;
+
+  /// No description provided for @login_auth_section.
+  ///
+  /// In zh, this message translates to:
+  /// **'认证信息'**
+  String get login_auth_section;
+
+  /// No description provided for @login_auth_section_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'认证信息只用于连接你的音乐服务器。'**
+  String get login_auth_section_desc;
+
+  /// No description provided for @login_opensubsonic_detected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已检测到 OpenSubsonic'**
+  String get login_opensubsonic_detected;
+
+  /// No description provided for @login_unknown_server_type.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知服务器类型'**
+  String get login_unknown_server_type;
+
+  /// No description provided for @login_username_required.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入用户名'**
+  String get login_username_required;
+
+  /// No description provided for @login_api_key_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'API Key（推荐）'**
+  String get login_api_key_label;
+
+  /// No description provided for @login_api_key_helper.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写 API Key 后将优先使用 API Key 认证。'**
+  String get login_api_key_helper;
+
+  /// No description provided for @login_or_password.
+  ///
+  /// In zh, this message translates to:
+  /// **'或使用密码'**
+  String get login_or_password;
+
+  /// No description provided for @login_password_required.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入密码'**
+  String get login_password_required;
+
+  /// login_step_semantics
+  ///
+  /// In zh, this message translates to:
+  /// **'登录进度，第 {step} 步，共 {total} 步'**
+  String login_step_semantics(String step, String total);
+
+  /// No description provided for @login_step_server.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器'**
+  String get login_step_server;
+
+  /// No description provided for @login_step_auth.
+  ///
+  /// In zh, this message translates to:
+  /// **'认证'**
+  String get login_step_auth;
+
+  /// No description provided for @search_source_not_specified.
+  ///
+  /// In zh, this message translates to:
+  /// **'未指定来源插件'**
+  String get search_source_not_specified;
+
+  /// search_entity_no_playable
+  ///
+  /// In zh, this message translates to:
+  /// **'该{kind}暂无可播放歌曲'**
+  String search_entity_no_playable(String kind);
+
+  /// search_play_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败: {error}'**
+  String search_play_failed(String error);
+
+  /// No description provided for @search_import_submitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已提交入库任务，完成后会通知你'**
+  String get search_import_submitted;
+
+  /// search_import_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'入库失败: {error}'**
+  String search_import_failed(String error);
+
+  /// search_import_done
+  ///
+  /// In zh, this message translates to:
+  /// **'《{name}》入库完成，可在音乐库查看'**
+  String search_import_done(String name);
+
+  /// search_import_entry_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'《{name}》入库失败: {error}'**
+  String search_import_entry_failed(String name, String error);
+
+  /// search_playlist_import_submitted
+  ///
+  /// In zh, this message translates to:
+  /// **'《{name}》入库任务已提交，完成后会通知你'**
+  String search_playlist_import_submitted(String name);
+
+  /// No description provided for @search_scope_all.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有'**
+  String get search_scope_all;
+
+  /// No description provided for @search_scope_all_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部内容'**
+  String get search_scope_all_desc;
+
+  /// No description provided for @search_scope_playlist_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅歌单'**
+  String get search_scope_playlist_desc;
+
+  /// No description provided for @search_scope_song_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'即歌曲'**
+  String get search_scope_song_desc;
+
+  /// No description provided for @search_scope_artist_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手'**
+  String get search_scope_artist_desc;
+
+  /// No description provided for @search_network_search_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'全网搜索失败'**
+  String get search_network_search_failed;
+
+  /// No description provided for @search_network_no_results.
+  ///
+  /// In zh, this message translates to:
+  /// **'全网暂无结果'**
+  String get search_network_no_results;
+
+  /// No description provided for @search_try_another_keyword.
+  ///
+  /// In zh, this message translates to:
+  /// **'换个关键词试试。'**
+  String get search_try_another_keyword;
+
+  /// No description provided for @search_bar_clear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空搜索词'**
+  String get search_bar_clear;
+
+  /// No description provided for @search_add_to_library.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入库'**
+  String get search_add_to_library;
+
+  /// No description provided for @search_scope_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索范围'**
+  String get search_scope_title;
+
+  /// No description provided for @search_scope_select_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择搜索范围'**
+  String get search_scope_select_title;
 }
 
 class _AppLocalizationsDelegate

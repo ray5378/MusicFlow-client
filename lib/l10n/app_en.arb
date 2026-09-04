@@ -2631,9 +2631,95 @@
   "@song_option_song_count": {
     "description": "song_option_song_count",
     "placeholders": {
-      "count": {
-        "type": "int"
-      }
+      "count": {"type": "int"}
     }
-  }
+  },
+  "login_connect_server": "Connect to server",
+  "login_confirm_server_first": "Confirm the server address first",
+  "login_enter_auth": "Enter authentication details",
+  "login_detecting": "Detecting…",
+  "login_logging_in": "Logging in…",
+  "login_next": "Next",
+  "login_login": "Log in",
+  "login_previous": "Back",
+  "login_detecting_ability": "Detecting server capabilities",
+  "login_verifying_auth": "Verifying authentication details",
+  "login_cannot_connect": "Cannot connect to the server. Please check the address.",
+  "login_http_insecure_title": "Insecure HTTP connection",
+  "login_http_insecure_body": "HTTP does not encrypt traffic. Passwords, API keys, tokens and media requests may be intercepted or tampered with by others on the same network. Only continue if you trust the current network and this server.",
+  "login_continue_anyway": "Continue anyway",
+  "login_server_section": "Server",
+  "login_server_section_desc": "MusicFlow will probe the server's capabilities first, then decide which authentication method is available.",
+  "login_server_url_hint": "https://your-server.com",
+  "login_server_url_http_helper": "Prefer HTTPS. Only use HTTP on a trusted local network.",
+  "login_server_url_required": "Please enter a full URL (including http:// or https://)",
+  "login_library_name_label": "Library name (optional)",
+  "login_library_name_hint": "e.g. Home NAS",
+  "login_library_name_helper": "If left blank, the server type is used automatically.",
+  "login_address_label": "Route name (optional)",
+  "login_address_hint": "e.g. Main route / Home",
+  "login_address_helper": "If left blank, defaults to Primary.",
+  "login_auth_section": "Authentication details",
+  "login_auth_section_desc": "Authentication details are only used to connect to your music server.",
+  "login_opensubsonic_detected": "OpenSubsonic detected",
+  "login_unknown_server_type": "Unknown server type",
+  "login_username_required": "Please enter a username",
+  "login_api_key_label": "API Key (recommended)",
+  "login_api_key_helper": "Filling in an API Key will prioritize API Key authentication.",
+  "login_or_password": "or use password",
+  "login_password_required": "Please enter a password",
+  "login_step_semantics": "Login progress, step {step} of {total}",
+  "@login_step_semantics": {
+    "description": "login_step_semantics",
+    "placeholders": {
+      "step": {"type": "String"},
+      "total": {"type": "String"}
+    }
+  },
+  "login_step_server": "Server",
+  "login_step_auth": "Authentication",
+  "search_source_not_specified": "No source plugin specified",
+  "search_entity_no_playable": "No playable songs here yet ({kind})",
+  "@search_entity_no_playable": {
+    "description": "search_entity_no_playable",
+    "placeholders": {"kind": {"type": "String"}}
+  },
+  "search_play_failed": "Playback failed: {error}",
+  "@search_play_failed": {
+    "description": "search_play_failed",
+    "placeholders": {"error": {"type": "String"}}
+  },
+  "search_import_submitted": "Import task submitted; you will be notified.",
+  "search_import_failed": "Import failed: {error}",
+  "@search_import_failed": {
+    "description": "search_import_failed",
+    "placeholders": {"error": {"type": "String"}}
+  },
+  "search_import_done": "Import finished: {name}; check the music library",
+  "@search_import_done": {
+    "description": "search_import_done",
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "search_import_entry_failed": "Import failed for {name}: {error}",
+  "@search_import_entry_failed": {
+    "description": "search_import_entry_failed",
+    "placeholders": {"name": {"type": "String"}, "error": {"type": "String"}}
+  },
+  "search_playlist_import_submitted": "Import task for {name} submitted; you will be notified.",
+  "@search_playlist_import_submitted": {
+    "description": "search_playlist_import_submitted",
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "search_scope_all": "All",
+  "search_scope_all_desc": "All content",
+  "search_scope_playlist_desc": "Playlists only",
+  "search_scope_song_desc": "i.e. songs",
+  "search_scope_artist_desc": "Artists",
+  "search_network_search_failed": "Web-wide search failed",
+  "search_network_no_results": "No web-wide results",
+  "search_try_another_keyword": "Try another keyword.",
+  "search_bar_clear": "Clear search query",
+  "search_add_to_library": "Add to library",
+  "search_scope_title": "Search scope",
+  "search_scope_select_title": "Select a search scope"
 }

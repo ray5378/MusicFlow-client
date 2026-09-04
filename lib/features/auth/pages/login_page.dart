@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/server_url_security.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/auth_provider.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -46,6 +47,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _detectServer() async {
+    final loc = AppLocalizations.of(context);
     if (!(_serverFormKey.currentState?.validate() ?? false)) return;
     if (!await _confirmInsecureHttpIfNeeded()) return;
 
@@ -64,7 +66,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isDetecting = false);
-      _showError('无法连接到服务器，请检查地址是否正确');
+      _showError(loc.login_cannot_connect);
     }
   }
 
@@ -100,6 +102,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<bool> _confirmInsecureHttpIfNeeded() async {
+    final loc = AppLocalizations.of(context);
     final serverUrl = _normalizedServerUrl;
     if (!isInsecureHttpUrl(serverUrl)) return true;
     if (_confirmedInsecureHttpUrl == serverUrl) return true;
@@ -108,28 +111,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: 'HTTP 连接不安全',
+        title: loc.login_http_insecure_title,
         subtitle: serverUrl,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Text(
-              'HTTP 不会加密传输。密码、API Key、令牌以及媒体请求都可能被同一网络中的其他人窃听或篡改。'
-              '仅当你信任当前网络和该服务器时才继续。',
+              loc.login_http_insecure_body,
               style: context.musicFlowTypography.body.copyWith(
                 color: context.musicFlowColors.muted,
               ),
             ),
             SizedBox(height: context.musicFlowSpacing.lg),
             MusicFlowButton.destructive(
-              label: '仍然继续',
+              label: loc.login_continue_anyway,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(true),
             ),
             SizedBox(height: context.musicFlowSpacing.xs),
             MusicFlowButton.ghost(
-              label: '取消',
+              label: loc.settings_cancel,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(false),
             ),
@@ -149,6 +151,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final authState = ref.watch(authStateProvider);
     final busy = authState.isLoading || _isDetecting;
 
@@ -160,12 +163,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     return MusicFlowScaffold(
       topBar: MusicFlowTopBar(
-        title: '连接到服务器',
-        subtitle: _currentStep == 0 ? '先确认服务器地址' : '输入认证信息',
+        title: loc.login_connect_server,
+        subtitle: _currentStep == 0 ? loc.login_confirm_server_first : loc.login_enter_auth,
         leading: context.canPop()
             ? MusicFlowIconButton(
                 icon: AppIcons.back,
-                label: '返回',
+                label: loc.search_back,
                 onPressed: context.pop,
               )
             : null,
@@ -198,12 +201,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       SizedBox(height: context.musicFlowSpacing.lg),
                       MusicFlowButton.primary(
                         label: _isDetecting
-                            ? '正在检测…'
+                            ? loc.login_detecting
                             : authState.isLoading
-                            ? '正在登录…'
+                            ? loc.login_logging_in
                             : _currentStep == 0
-                            ? '下一步'
-                            : '登录',
+                            ? loc.login_next
+                            : loc.login_login,
                         leadingIcon: _currentStep == 0
                             ? AppIcons.route
                             : AppIcons.key,
@@ -217,7 +220,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       if (_currentStep > 0) ...<Widget>[
                         SizedBox(height: context.musicFlowSpacing.xs),
                         MusicFlowButton.ghost(
-                          label: '上一步',
+                          label: loc.login_previous,
                           leadingIcon: AppIcons.back,
                           expand: true,
                           onPressed: busy
@@ -237,30 +240,31 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Widget _buildServerStep() {
+    final loc = AppLocalizations.of(context);
     return Form(
       key: _serverFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const MusicFlowSectionHeader(
-            title: '服务器',
-            description: 'MusicFlow 会先探测服务器能力，再决定可用的认证方式。',
+          MusicFlowSectionHeader(
+            title: loc.login_server_section,
+            description: loc.login_server_section_desc,
           ),
           SizedBox(height: context.musicFlowSpacing.md),
           MusicFlowTextField(
             controller: _serverUrlController,
-            label: '服务器地址',
-            hintText: 'https://your-server.com',
-            helperText: '优先使用 HTTPS。只有在可信局域网中才建议使用 HTTP。',
+            label: loc.settings_server_address,
+            hintText: loc.login_server_url_hint,
+            helperText: loc.login_server_url_http_helper,
             leadingIcon: AppIcons.router,
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.next,
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return '请输入服务器地址';
+                return loc.library_server_required;
               }
               if (!isSupportedServerUrl(value)) {
-                return '请输入完整的 URL（包括 http:// 或 https://）';
+                return loc.login_server_url_required;
               }
               return null;
             },
@@ -268,25 +272,25 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           SizedBox(height: context.musicFlowSpacing.md),
           MusicFlowTextField(
             controller: _libraryNameController,
-            label: '音乐库名称（可选）',
-            hintText: '例如：家庭 NAS',
-            helperText: '不填写则自动使用服务器类型。',
+            label: loc.login_library_name_label,
+            hintText: loc.login_library_name_hint,
+            helperText: loc.login_library_name_helper,
             leadingIcon: AppIcons.library,
             textInputAction: TextInputAction.next,
           ),
           SizedBox(height: context.musicFlowSpacing.md),
           MusicFlowTextField(
             controller: _addressLabelController,
-            label: '线路名称（可选）',
-            hintText: '例如：主线路 / 家里',
-            helperText: '不填写则默认使用 Primary。',
+            label: loc.login_address_label,
+            hintText: loc.login_address_hint,
+            helperText: loc.login_address_helper,
             leadingIcon: AppIcons.route,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _detectServer(),
           ),
           if (_isDetecting) ...<Widget>[
             SizedBox(height: context.musicFlowSpacing.md),
-            const _LoginBusyStatus(label: '正在检测服务器能力', icon: AppIcons.route),
+            _LoginBusyStatus(label: loc.login_detecting_ability, icon: AppIcons.route),
           ],
         ],
       ),
@@ -294,6 +298,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Widget _buildAuthenticationStep() {
+    final loc = AppLocalizations.of(context);
     final capabilities = _serverCapabilities;
     final supportsApiKey = capabilities?.supportsApiKey == true;
 
@@ -302,9 +307,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const MusicFlowSectionHeader(
-            title: '认证信息',
-            description: '认证信息只用于连接你的音乐服务器。',
+          MusicFlowSectionHeader(
+            title: loc.login_auth_section,
+            description: loc.login_auth_section_desc,
           ),
           if (capabilities?.isOpenSubsonic == true) ...<Widget>[
             SizedBox(height: context.musicFlowSpacing.md),
@@ -331,12 +336,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Text(
-                          '已检测到 OpenSubsonic',
+                          loc.login_opensubsonic_detected,
                           style: context.musicFlowTypography.title,
                         ),
                         SizedBox(height: context.musicFlowSpacing.xxs),
                         Text(
-                          capabilities?.serverType ?? '未知服务器类型',
+                          capabilities?.serverType ?? loc.login_unknown_server_type,
                           style: context.musicFlowTypography.body.copyWith(
                             color: context.musicFlowColors.muted,
                           ),
@@ -351,11 +356,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           SizedBox(height: context.musicFlowSpacing.md),
           MusicFlowTextField(
             controller: _usernameController,
-            label: '用户名',
+            label: loc.settings_username,
             leadingIcon: AppIcons.profile,
             textInputAction: TextInputAction.next,
             validator: (value) {
-              if (value == null || value.trim().isEmpty) return '请输入用户名';
+              if (value == null || value.trim().isEmpty) return loc.login_username_required;
               return null;
             },
           ),
@@ -363,8 +368,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             SizedBox(height: context.musicFlowSpacing.md),
             MusicFlowTextField(
               controller: _apiKeyController,
-              label: 'API Key（推荐）',
-              helperText: '填写 API Key 后将优先使用 API Key 认证。',
+              label: loc.login_api_key_label,
+              helperText: loc.login_api_key_helper,
               leadingIcon: AppIcons.key,
               obscureText: true,
               textInputAction: TextInputAction.next,
@@ -379,7 +384,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       horizontal: context.musicFlowSpacing.sm,
                     ),
                     child: Text(
-                      '或使用密码',
+                      loc.login_or_password,
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: context.musicFlowColors.muted,
                       ),
@@ -393,7 +398,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             SizedBox(height: context.musicFlowSpacing.md),
           MusicFlowTextField(
             controller: _passwordController,
-            label: '密码',
+            label: loc.settings_auth_password,
             leadingIcon: AppIcons.shield,
             obscureText: true,
             textInputAction: TextInputAction.done,
@@ -402,13 +407,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               if (supportsApiKey && _apiKeyController.text.isNotEmpty) {
                 return null;
               }
-              if (value == null || value.isEmpty) return '请输入密码';
+              if (value == null || value.isEmpty) return loc.login_password_required;
               return null;
             },
           ),
           if (ref.watch(authStateProvider).isLoading) ...<Widget>[
             SizedBox(height: context.musicFlowSpacing.md),
-            const _LoginBusyStatus(label: '正在验证认证信息', icon: AppIcons.key),
+            _LoginBusyStatus(label: loc.login_verifying_auth, icon: AppIcons.key),
           ],
         ],
       ),
@@ -423,16 +428,17 @@ class _LoginStepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Semantics(
       container: true,
-      label: '登录进度，第 ${currentStep + 1} 步，共 2 步',
+      label: loc.login_step_semantics('${currentStep + 1}', '2'),
       child: ExcludeSemantics(
         child: Row(
           children: <Widget>[
             Expanded(
               child: _LoginStep(
                 number: 1,
-                label: '服务器',
+                label: loc.login_step_server,
                 active: currentStep == 0,
                 complete: currentStep > 0,
               ),
@@ -451,7 +457,7 @@ class _LoginStepIndicator extends StatelessWidget {
             Expanded(
               child: _LoginStep(
                 number: 2,
-                label: '认证',
+                label: loc.login_step_auth,
                 active: currentStep == 1,
                 complete: false,
               ),

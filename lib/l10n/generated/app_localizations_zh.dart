@@ -2414,4 +2414,190 @@ class AppLocalizationsZh extends AppLocalizations {
   String song_option_song_count(int count) {
     return '$count 首';
   }
+
+  @override
+  String get login_connect_server => '连接到服务器';
+
+  @override
+  String get login_confirm_server_first => '先确认服务器地址';
+
+  @override
+  String get login_enter_auth => '输入认证信息';
+
+  @override
+  String get login_detecting => '正在检测…';
+
+  @override
+  String get login_logging_in => '正在登录…';
+
+  @override
+  String get login_next => '下一步';
+
+  @override
+  String get login_login => '登录';
+
+  @override
+  String get login_previous => '上一步';
+
+  @override
+  String get login_detecting_ability => '正在检测服务器能力';
+
+  @override
+  String get login_verifying_auth => '正在验证认证信息';
+
+  @override
+  String get login_cannot_connect => '无法连接到服务器，请检查地址是否正确';
+
+  @override
+  String get login_http_insecure_title => 'HTTP 连接不安全';
+
+  @override
+  String get login_http_insecure_body =>
+      'HTTP 不会加密传输。密码、API Key、令牌以及媒体请求都可能被同一网络中的其他人窃听或篡改。仅当你信任当前网络和该服务器时才继续。';
+
+  @override
+  String get login_continue_anyway => '仍然继续';
+
+  @override
+  String get login_server_section => '服务器';
+
+  @override
+  String get login_server_section_desc => 'MusicFlow 会先探测服务器能力，再决定可用的认证方式。';
+
+  @override
+  String get login_server_url_hint => 'https://your-server.com';
+
+  @override
+  String get login_server_url_http_helper => '优先使用 HTTPS。只有在可信局域网中才建议使用 HTTP。';
+
+  @override
+  String get login_server_url_required => '请输入完整的 URL（包括 http:// 或 https://）';
+
+  @override
+  String get login_library_name_label => '音乐库名称（可选）';
+
+  @override
+  String get login_library_name_hint => '例如：家庭 NAS';
+
+  @override
+  String get login_library_name_helper => '不填写则自动使用服务器类型。';
+
+  @override
+  String get login_address_label => '线路名称（可选）';
+
+  @override
+  String get login_address_hint => '例如：主线路 / 家里';
+
+  @override
+  String get login_address_helper => '不填写则默认使用 Primary。';
+
+  @override
+  String get login_auth_section => '认证信息';
+
+  @override
+  String get login_auth_section_desc => '认证信息只用于连接你的音乐服务器。';
+
+  @override
+  String get login_opensubsonic_detected => '已检测到 OpenSubsonic';
+
+  @override
+  String get login_unknown_server_type => '未知服务器类型';
+
+  @override
+  String get login_username_required => '请输入用户名';
+
+  @override
+  String get login_api_key_label => 'API Key（推荐）';
+
+  @override
+  String get login_api_key_helper => '填写 API Key 后将优先使用 API Key 认证。';
+
+  @override
+  String get login_or_password => '或使用密码';
+
+  @override
+  String get login_password_required => '请输入密码';
+
+  @override
+  String login_step_semantics(String step, String total) {
+    return '登录进度，第 $step 步，共 $total 步';
+  }
+
+  @override
+  String get login_step_server => '服务器';
+
+  @override
+  String get login_step_auth => '认证';
+
+  @override
+  String get search_source_not_specified => '未指定来源插件';
+
+  @override
+  String search_entity_no_playable(String kind) {
+    return '该$kind暂无可播放歌曲';
+  }
+
+  @override
+  String search_play_failed(String error) {
+    return '播放失败: $error';
+  }
+
+  @override
+  String get search_import_submitted => '已提交入库任务，完成后会通知你';
+
+  @override
+  String search_import_failed(String error) {
+    return '入库失败: $error';
+  }
+
+  @override
+  String search_import_done(String name) {
+    return '《$name》入库完成，可在音乐库查看';
+  }
+
+  @override
+  String search_import_entry_failed(String name, String error) {
+    return '《$name》入库失败: $error';
+  }
+
+  @override
+  String search_playlist_import_submitted(String name) {
+    return '《$name》入库任务已提交，完成后会通知你';
+  }
+
+  @override
+  String get search_scope_all => '所有';
+
+  @override
+  String get search_scope_all_desc => '全部内容';
+
+  @override
+  String get search_scope_playlist_desc => '仅歌单';
+
+  @override
+  String get search_scope_song_desc => '即歌曲';
+
+  @override
+  String get search_scope_artist_desc => '歌手';
+
+  @override
+  String get search_network_search_failed => '全网搜索失败';
+
+  @override
+  String get search_network_no_results => '全网暂无结果';
+
+  @override
+  String get search_try_another_keyword => '换个关键词试试。';
+
+  @override
+  String get search_bar_clear => '清空搜索词';
+
+  @override
+  String get search_add_to_library => '加入库';
+
+  @override
+  String get search_scope_title => '搜索范围';
+
+  @override
+  String get search_scope_select_title => '选择搜索范围';
 }

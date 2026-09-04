@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 统一搜索条(聚合搜索专用):只有关键词输入(debounce),无来源切换。
 /// 需求:去掉「聚合 / 本地 / 插件」切换按钮,全部强制聚合搜索。
@@ -16,7 +17,7 @@ class EntitySearchBar extends StatefulWidget {
     super.key,
     required this.query,
     required this.onQueryChanged,
-    this.hintText = '搜索',
+    this.hintText = '',
   });
 
   @override
@@ -61,6 +62,7 @@ class _EntitySearchBarState extends State<EntitySearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: context.musicFlowPageHorizontalPadding,
@@ -70,12 +72,12 @@ class _EntitySearchBarState extends State<EntitySearchBar> {
         focusNode: _focus,
         onChanged: _onQueryChanged,
         decoration: InputDecoration(
-          hintText: widget.hintText,
+          hintText: widget.hintText.isEmpty ? loc.discover_search : widget.hintText,
           prefixIcon: const Icon(AppIcons.search, size: 20),
           suffixIcon: _controller.text.isNotEmpty
               ? MusicFlowIconButton(
                   icon: AppIcons.close,
-                  label: '清空搜索词',
+                  label: loc.search_bar_clear,
                   iconSize: 18,
                   onPressed: () {
                     _controller.clear();

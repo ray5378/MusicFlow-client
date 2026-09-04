@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/search.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 /// 首页搜索入口与搜索页共用的搜索范围。
 ///
@@ -24,27 +25,27 @@ const List<SearchScope> kSearchScopeStackOrder = <SearchScope>[
 
 extension SearchScopeExtension on SearchScope {
   /// 切换器/浮层上的短标签。
-  String get label => switch (this) {
-        SearchScope.all => '所有',
-        SearchScope.playlist => '歌单',
-        SearchScope.song => '音乐',
-        SearchScope.artist => '艺术家',
-        SearchScope.album => '专辑',
+  String label(AppLocalizations loc) => switch (this) {
+        SearchScope.all => loc.search_scope_all,
+        SearchScope.playlist => loc.widgets_playlists,
+        SearchScope.song => loc.widgets_music,
+        SearchScope.artist => loc.widgets_artists,
+        SearchScope.album => loc.widgets_albums,
       };
 
   /// 浮层里每项的一行说明。
-  String get description => switch (this) {
-        SearchScope.all => '全部内容',
-        SearchScope.playlist => '仅歌单',
-        SearchScope.song => '即歌曲',
-        SearchScope.artist => '歌手',
-        SearchScope.album => '专辑',
+  String description(AppLocalizations loc) => switch (this) {
+        SearchScope.all => loc.search_scope_all_desc,
+        SearchScope.playlist => loc.search_scope_playlist_desc,
+        SearchScope.song => loc.search_scope_song_desc,
+        SearchScope.artist => loc.search_scope_artist_desc,
+        SearchScope.album => loc.widgets_albums,
       };
 
   /// 结果区块标题(结果区用「歌曲」,切换器用「音乐」)。
-  String get sectionTitle => switch (this) {
-        SearchScope.song => '歌曲',
-        _ => label,
+  String sectionTitle(AppLocalizations loc) => switch (this) {
+        SearchScope.song => loc.widgets_songs,
+        _ => label(loc),
       };
 
   /// 对应的服务端搜索实体;「所有」无单一实体,需分段堆叠。

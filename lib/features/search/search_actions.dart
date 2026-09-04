@@ -11,6 +11,7 @@ import '../../providers/playlist_provider.dart';
 import '../../providers/search_provider.dart';
 import '../../core/design/components/music_flow_message.dart';
 import '../../core/utils/toast_notifier.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 void _toast(BuildContext context, String message, {bool error = false}) {
   if (!context.mounted) return;
@@ -31,15 +32,16 @@ void _toast(BuildContext context, String message, {bool error = false}) {
 void _watchImportTask(
   SearchRepository repo,
   String taskId,
-  String label, {
+  String label,
+  AppLocalizations loc, {
   void Function(Map<String, dynamic> result)? onSuccess,
 }) {
   unawaited(
     repo.waitTask(taskId).then((result) {
-      ToastNotifier.show('《$label》入库完成，可在音乐库查看');
+      ToastNotifier.show(loc.search_import_done(label));
       onSuccess?.call(result);
     }).catchError((Object e) {
-      ToastNotifier.show('《$label》入库失败: $e', kind: MusicFlowMessageKind.error);
+      ToastNotifier.show(loc.search_import_entry_failed(label, '$e'), kind: MusicFlowMessageKind.error);
     }),
   );
 }
@@ -50,13 +52,14 @@ Future<void> playRemoteSearchSong(
   WidgetRef ref,
   SearchSong song,
 ) async {
+  final loc = AppLocalizations.of(context);
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   try {
     final playSong = repo.buildRemoteSong(song);
     await ref.read(playerProvider.notifier).playPreviewSong(playSong);
   } catch (e) {
-    _toast(context, '播放失败: $e', error: true);
+    _toast(context, loc.search_play_failed('$e'), error: true);
   }
 }
 
@@ -69,10 +72,11 @@ Future<void> playRemoteSearchCollection(
   SearchSongLike item, {
   SearchPlaylist? playlist,
 }) async {
+  final loc = AppLocalizations.of(context);
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   if (providerId.isEmpty) {
-    _toast(context, '未指定来源插件', error: true);
+    _toast(context, loc.search_source_not_specified, error: true);
     return;
   }
   try {
@@ -83,12 +87,12 @@ Future<void> playRemoteSearchCollection(
           )
         : await repo.getCollectionSongs(kind, providerId, item);
     if (songs.isEmpty) {
-      _toast(context, '该${_kindLabel(kind)}暂无可播放歌曲');
+      _toast(context, loc.search_entity_no_playable(_kindLabel(kind, loc)));
       return;
     }
     await playEffectiveQueue(ref, songs, startIndex: 0);
   } catch (e) {
-    _toast(context, '播放失败: $e', error: true);
+    _toast(context, loc.search_play_failed('$e'), error: true);
   }
 }
 
@@ -98,14 +102,15 @@ Future<void> importSearchSong(
   WidgetRef ref,
   SearchSong song,
 ) async {
+  final loc = AppLocalizations.of(context);
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   try {
     final taskId = await repo.importSong(song.providerId, [song]);
-    _toast(context, '已提交入库任务，完成后会通知你');
-    _watchImportTask(repo, taskId, song.name);
+    _toast(context, loc.search_import_submitted);
+    _watchImportTask(repo, taskId, song.name, loc);
   } catch (e) {
-    _toast(context, '入库失败: $e', error: true);
+    _toast(context, loc.search_import_failed('$e'), error: true);
   }
 }
 
@@ -115,14 +120,15 @@ Future<void> importSearchAlbum(
   WidgetRef ref,
   SearchAlbum album,
 ) async {
+  final loc = AppLocalizations.of(context);
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   try {
     final taskId = await repo.importAlbum(album.providerId, album);
-    _toast(context, '已提交入库任务，完成后会通知你');
-    _watchImportTask(repo, taskId, album.name);
+    _toast(context, loc.search_import_submitted);
+    _watchImportTask(repo, taskId, album.name, loc);
   } catch (e) {
-    _toast(context, '入库失败: $e', error: true);
+    _toast(context, loc.search_import_failed('$e'), error: true);
   }
 }
 
@@ -138,19 +144,21 @@ Future<void> importSearchPlaylist(
   WidgetRef ref,
   SearchPlaylist pl,
 ) async {
+  final loc = AppLocalizations.of(context);
   final repo = ref.read(searchRepositoryProvider);
   if (repo == null) return;
   if (pl.providerId.isEmpty) {
-    _toast(context, '未指定来源插件', error: true);
+    _toast(context, loc.search_source_not_specified, error: true);
     return;
   }
   try {
     final taskId = await repo.startPlaylistImport(pl.providerId, pl);
-    _toast(context, '《${pl.name}》入库任务已提交，完成后会通知你');
+    _toast(context, loc.search_playlist_import_submitted(pl.name));
     _watchImportTask(
       repo,
       taskId,
       pl.name,
+      loc,
       // 后台回调:拿到一个独立 ref(ProviderContainer 不会随页面销毁而失效),
       // 让最近更新歌单下一次被读时重新加载,把刚入库的歌单带回来。
       onSuccess: (_) {
@@ -163,19 +171,19 @@ Future<void> importSearchPlaylist(
       },
     );
   } catch (e) {
-    _toast(context, '入库失败: $e', error: true);
+    _toast(context, loc.search_import_failed('$e'), error: true);
   }
 }
 
-String _kindLabel(SearchEntityKind kind) {
+String _kindLabel(SearchEntityKind kind, AppLocalizations loc) {
   switch (kind) {
     case SearchEntityKind.song:
-      return '歌曲';
+      return loc.widgets_songs;
     case SearchEntityKind.album:
-      return '专辑';
+      return loc.widgets_albums;
     case SearchEntityKind.artist:
-      return '艺术家';
+      return loc.widgets_artists;
     case SearchEntityKind.playlist:
-      return '歌单';
+      return loc.widgets_playlists;
   }
 }

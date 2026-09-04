@@ -813,7 +813,7 @@ class _NetworkGroup extends ConsumerWidget {
           vertical: context.musicFlowSpacing.xs,
         ),
         child: Text(
-          loc.search_group_search_failed(scope.sectionTitle),
+          loc.search_group_search_failed(scope.sectionTitle(loc)),
           style: context.musicFlowTypography.metadata.copyWith(
             color: context.musicFlowColors.muted,
           ),
@@ -824,7 +824,7 @@ class _NetworkGroup extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            _GroupHeader(title: scope.sectionTitle),
+            _GroupHeader(title: scope.sectionTitle(loc)),
             SearchResultList(
               kind: kind,
               outcome: outcome,

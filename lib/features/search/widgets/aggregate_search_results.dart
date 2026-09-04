@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/search.dart';
 import '../../../providers/search_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../library/widgets/library_collection_components.dart';
 import 'search_result_card.dart';
 
@@ -29,6 +30,7 @@ class AggregateSearchResults extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final request = SearchRequest(
       kind: kind,
       mode: SearchMode.aggregate,
@@ -40,13 +42,13 @@ class AggregateSearchResults extends ConsumerWidget {
     return CustomScrollView(
       key: ValueKey<String>('aggregate-search-$kind-$query'),
       slivers: <Widget>[
-        SliverToBoxAdapter(child: _SectionHeader(title: '本地结果')),
+        SliverToBoxAdapter(child: _SectionHeader(title: loc.search_local_results)),
         SliverToBoxAdapter(child: localBlock),
         const SliverToBoxAdapter(child: Divider(height: 28)),
-        const SliverToBoxAdapter(
+        SliverToBoxAdapter(
           child: _SectionHeader(
-            title: '全网结果',
-            subtitle: '已启用插件的合并搜索，卡片带插件·平台标签',
+            title: loc.search_network_results,
+            subtitle: loc.search_network_results_subtitle,
           ),
         ),
         ..._networkSlivers(context, ref, request, results),
@@ -60,16 +62,18 @@ class AggregateSearchResults extends ConsumerWidget {
     SearchRequest request,
     AsyncValue<SearchOutcome> results,
   ) {
+    final loc = AppLocalizations.of(context);
     return results.when(
+
       loading: () => const <Widget>[
         SliverToBoxAdapter(child: MusicFlowMediaListSkeleton(count: 6)),
       ],
       error: (e, _) => <Widget>[
         SliverToBoxAdapter(
           child: MusicFlowErrorState(
-            title: '全网搜索失败',
+            title: loc.search_network_search_failed,
             description: '$e',
-            actionLabel: '重试',
+            actionLabel: loc.widgets_retry,
             onAction: () =>
                 ref.invalidate(searchResultsProvider(request)),
           ),
@@ -81,13 +85,13 @@ class AggregateSearchResults extends ConsumerWidget {
             outcome.artists.isEmpty &&
             outcome.playlists.isEmpty;
         if (empty) {
-          return const <Widget>[
+          return <Widget>[
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: MusicFlowEmptyState(
-                  title: '全网暂无结果',
-                  description: '换个关键词试试。',
+                  title: loc.search_network_no_results,
+                  description: loc.search_try_another_keyword,
                   icon: AppIcons.search,
                 ),
               ),
