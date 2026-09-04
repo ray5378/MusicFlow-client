@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/design/music_flow_design.dart';
 import '../core/utils/song_quality.dart';
 import '../data/models/song.dart';
+import '../l10n/generated/app_localizations.dart';
 import 'music_flow_artwork.dart';
 import 'music_flow_metadata_line.dart';
 import 'now_playing_bars.dart';
@@ -74,6 +75,7 @@ class MusicFlowSongRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final artist = song.artist?.trim();
     final artistText = artist != null && artist.isNotEmpty ? artist : '-';
     final selectionAction = onToggleSelected ?? onPressed;
@@ -86,9 +88,9 @@ class MusicFlowSongRow extends StatelessWidget {
             song.title,
             artistText,
             song.durationString,
-            if (selected) '已选择',
+            if (selected) loc.widgets_song_selected,
           ].join('，')
-        : _buildSemanticLabel(artistText);
+        : _buildSemanticLabel(artistText, loc);
     final mainContent = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
@@ -156,7 +158,9 @@ class MusicFlowSongRow extends StatelessWidget {
             SizedBox(width: context.musicFlowSpacing.xs),
             MusicFlowIconButton(
               icon: selected ? AppIcons.checkCircle : AppIcons.radio,
-              label: selected ? '取消选择 ${song.title}' : '选择 ${song.title}',
+              label: selected
+                  ? loc.widgets_song_deselect(song.title)
+                  : loc.widgets_song_select(song.title),
               selected: selected,
               onPressed: selectionAction,
             ),
@@ -164,7 +168,7 @@ class MusicFlowSongRow extends StatelessWidget {
             SizedBox(width: context.musicFlowSpacing.xs),
             MusicFlowIconButton(
               icon: AppIcons.more,
-              label: moreSemanticLabel ?? '${song.title}，更多操作',
+              label: moreSemanticLabel ?? loc.widgets_song_more_semantics(song.title),
               onPressed: moreAction,
             ),
           ],
@@ -174,11 +178,13 @@ class MusicFlowSongRow extends StatelessWidget {
   }
 
   Widget _buildDetails(BuildContext context, String artistText) {
+    final loc = AppLocalizations.of(context);
     final showFullText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     final statusMarkers = <Widget>[
       if (_favorite)
-        const _SongStatusMarker(icon: AppIcons.heart, label: '已收藏'),
-      if (_preview) const _SongStatusMarker(icon: AppIcons.cloud, label: '试听'),
+        _SongStatusMarker(icon: AppIcons.heart, label: loc.widgets_song_favorite),
+      if (_preview)
+        _SongStatusMarker(icon: AppIcons.cloud, label: loc.widgets_song_preview),
     ];
 
     // 标题与元信息用 Flexible 包裹:行本身处于有界高度(如首页随机歌曲的
@@ -250,6 +256,7 @@ class MusicFlowSongRow extends StatelessWidget {
   }
 
   Widget _buildLeading(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return switch (variant) {
       MusicFlowSongRowVariant.standard => SizedBox.square(
         dimension: coverSize,
@@ -259,7 +266,7 @@ class MusicFlowSongRow extends StatelessWidget {
             Positioned.fill(
               child: MusicFlowArtwork(
                 coverArtId: coverArtId ?? song.artworkReference,
-                semanticLabel: '${song.title} 封面',
+                semanticLabel: loc.widgets_song_cover_semantics(song.title),
                 size: coverSize,
                 requestSize: 192,
                 borderRadius: context.musicFlowRadii.detail,
@@ -292,14 +299,14 @@ class MusicFlowSongRow extends StatelessWidget {
     };
   }
 
-  String _buildSemanticLabel(String artistText) {
+  String _buildSemanticLabel(String artistText, AppLocalizations loc) {
     return <String>[
-      if (isCurrent) '正在播放',
+      if (isCurrent) loc.widgets_song_now_playing,
       song.title,
       artistText,
       song.durationString,
-      if (_favorite) '已收藏',
-      if (_preview) '试听',
+      if (_favorite) loc.widgets_song_favorite,
+      if (_preview) loc.widgets_song_preview,
     ].join('，');
   }
 }

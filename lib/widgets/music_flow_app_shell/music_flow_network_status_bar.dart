@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/design/components/music_flow_message.dart';
 import '../../core/design/music_flow_design.dart';
 import '../../core/utils/network_error_notifier.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 /// The reachability states surfaced by MusicFlow's application shell.
 ///
@@ -74,7 +75,8 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
       // 的 markNeedsBuild(setState during build)。推迟到当前帧结束再通知。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        NetworkErrorNotifier.show('连接不到服务器');
+        final loc = AppLocalizations.of(context);
+        NetworkErrorNotifier.show(loc.widgets_network_cannot_reach_server);
       });
     }
 
@@ -99,6 +101,7 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
         widget.startupSilentRecoveryWindow) {
       return;
     }
+    final recoveredText = AppLocalizations.of(context).widgets_network_recovered;
     // 网络恢复：释放内联横幅空间，改为右上角成功 Toast。didUpdateWidget 发生在
     // build 阶段,推迟到帧结束再插入 Overlay,避免 setState during build。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -107,7 +110,7 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
       if (overlay == null) return;
       insertMusicFlowToast(
         overlay,
-        '网络已恢复',
+        recoveredText,
         kind: MusicFlowMessageKind.success,
         duration: widget.recoveryDisplayDuration,
         startAutoDismissOnInsert: true,
@@ -166,6 +169,7 @@ class _MusicFlowNetworkStatusContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final statusColor = colors.warning;
     final background = Color.alphaBlend(
@@ -187,7 +191,7 @@ class _MusicFlowNetworkStatusContent extends StatelessWidget {
       colors.muted,
       background: background,
     );
-    final presentation = _presentationFor(state);
+    final presentation = _presentationFor(state, loc);
     final semanticsLabel = '${presentation.title}。${presentation.description}';
 
     return Semantics(
@@ -260,16 +264,17 @@ class _MusicFlowNetworkStatusContent extends StatelessWidget {
 
   static _MusicFlowNetworkPresentation _presentationFor(
     _MusicFlowNetworkBannerState state,
+    AppLocalizations loc,
   ) {
     return switch (state) {
-      _MusicFlowNetworkBannerState.weak => const _MusicFlowNetworkPresentation(
-        title: '网络不稳定',
-        description: '正在重试可用线路，已加载内容和离线歌曲仍可使用',
+      _MusicFlowNetworkBannerState.weak => _MusicFlowNetworkPresentation(
+        title: loc.widgets_network_weak_title,
+        description: loc.widgets_network_weak_desc,
         icon: AppIcons.signal,
       ),
-      _MusicFlowNetworkBannerState.offline => const _MusicFlowNetworkPresentation(
-        title: '当前离线',
-        description: '已加载内容和离线歌曲仍可使用，在线操作将在联网后恢复',
+      _MusicFlowNetworkBannerState.offline => _MusicFlowNetworkPresentation(
+        title: loc.widgets_network_offline_title,
+        description: loc.widgets_network_offline_desc,
         icon: AppIcons.wifiOff,
       ),
       _MusicFlowNetworkBannerState.hidden => throw StateError(

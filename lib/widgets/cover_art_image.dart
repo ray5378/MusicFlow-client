@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/design/music_flow_design.dart';
 import '../core/utils/cover_ref_security.dart';
 import '../data/models/server_address.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../providers/api_provider.dart';
 
 /// 网络封面图。
@@ -134,7 +135,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     String imageUrl,
     int cacheSize,
   ) {
-    final loadedLabel = widget.semanticLabel ?? '专辑封面';
+    final loc = AppLocalizations.of(context);
+    final loadedLabel = widget.semanticLabel ?? loc.widgets_cover_art_album;
     return RepaintBoundary(
       child: Image.network(
         imageUrl,
@@ -166,11 +168,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
           // 失败自动重试兜底：指数退避后重发，覆盖服务器刚就绪/线路
           // 切换/偶发网络抖动导致的封面不稳定。
           _scheduleRetry();
+          final label = widget.semanticLabel;
           return _buildPlaceholder(
             context,
-            accessibilityLabel: widget.semanticLabel == null
-                ? '封面加载失败，自动重试中'
-                : '${widget.semanticLabel}，封面加载失败',
+            accessibilityLabel: label == null
+                ? loc.widgets_cover_art_load_failed
+                : loc.widgets_cover_art_load_failed_with_label(label),
           );
         },
       ),
@@ -183,6 +186,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     bool semantic = true,
     String? accessibilityLabel,
   }) {
+    final loc = AppLocalizations.of(context);
     final bgColor = context.musicFlowColors.raised;
     final placeholder = SizedBox(
       width: widget.size,
@@ -207,7 +211,9 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       image: true,
       label:
           accessibilityLabel ??
-          (isLoading ? '封面加载中' : widget.semanticLabel ?? '暂无封面'),
+          (isLoading
+              ? loc.widgets_cover_art_loading
+              : widget.semanticLabel ?? loc.widgets_cover_art_none),
       child: ExcludeSemantics(child: placeholder),
     );
   }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/design/music_flow_design.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 enum MusicFlowDrawerConnectionState { connected, failed, unknown, disconnected }
 
@@ -35,7 +36,7 @@ class MusicFlowDrawerFrame extends StatelessWidget {
           scopesRoute: true,
           namesRoute: true,
           explicitChildNodes: true,
-          label: '应用菜单',
+          label: AppLocalizations.of(context).widgets_drawer_frame_semantics,
           child: MusicFlowSurface(
             borderRadius: BorderRadiusDirectional.only(
               topEnd: sceneRadius.topRight,
@@ -85,13 +86,19 @@ class MusicFlowDrawerIdentityHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     final status = _connectionPresentation(context, connectionState);
 
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '当前账户 $username，音乐库 $libraryName，${status.label}，$addressLabel',
+      label: loc.widgets_drawer_identity_semantics(
+        username,
+        libraryName,
+        status.label,
+        addressLabel,
+      ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           spacing.md,
@@ -149,7 +156,9 @@ class MusicFlowDrawerIdentityHeader extends StatelessWidget {
               icon: showingLibraries
                   ? AppIcons.chevronUp
                   : AppIcons.chevronDown,
-              label: showingLibraries ? '返回应用功能菜单' : '查看音乐库',
+              label: showingLibraries
+                  ? loc.widgets_drawer_back_app_menu
+                  : loc.widgets_drawer_view_libraries,
               selected: showingLibraries,
               onPressed: onToggleLibraries,
             ),
@@ -178,6 +187,7 @@ class MusicFlowDrawerLibraryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final spacing = context.musicFlowSpacing;
     final motion = context.musicFlowMotion;
@@ -201,7 +211,7 @@ class MusicFlowDrawerLibraryRow extends StatelessWidget {
                 semanticLabel: <String>[
                   title,
                   subtitle,
-                  if (selected) '当前音乐库',
+                  if (selected) loc.widgets_drawer_current_library,
                 ].join('，'),
                 selected: selected,
                 onPressed: onSelected,
@@ -250,7 +260,7 @@ class MusicFlowDrawerLibraryRow extends StatelessWidget {
               padding: EdgeInsets.only(right: spacing.xs),
               child: MusicFlowIconButton(
                 icon: AppIcons.edit,
-                label: '编辑 $title',
+                label: loc.widgets_drawer_edit_library(title),
                 onPressed: onEdit,
               ),
             ),
@@ -298,25 +308,26 @@ _ConnectionPresentation _connectionPresentation(
   MusicFlowDrawerConnectionState state,
 ) {
   final colors = context.musicFlowColors;
+  final loc = AppLocalizations.of(context);
   return switch (state) {
     MusicFlowDrawerConnectionState.connected => _ConnectionPresentation(
       icon: AppIcons.checkCircle,
-      label: '连接正常',
+      label: loc.widgets_connection_ok,
       color: colors.accent,
     ),
     MusicFlowDrawerConnectionState.failed => _ConnectionPresentation(
       icon: AppIcons.error,
-      label: '连接失败',
+      label: loc.widgets_connection_failed,
       color: colors.error,
     ),
     MusicFlowDrawerConnectionState.unknown => _ConnectionPresentation(
       icon: AppIcons.help,
-      label: '等待检测',
+      label: loc.widgets_connection_pending,
       color: colors.muted,
     ),
     MusicFlowDrawerConnectionState.disconnected => _ConnectionPresentation(
       icon: AppIcons.cloudOff,
-      label: '未连接',
+      label: loc.widgets_connection_disconnected,
       color: colors.muted,
     ),
   };

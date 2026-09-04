@@ -80,7 +80,7 @@ void main() {
 
     test('exposes only the music-flow destination', () {
       // 探索分支已移除:侧栏仅保留「音乐流」,分支索引固定为 0。
-      final destinations = musicFlowMainDestinations();
+      final destinations = musicFlowMainDestinations(label: '音乐流');
       expect(destinations, hasLength(1));
       expect(destinations.single.branchIndex, discoverBranchIndex);
       expect(destinations.single.label, '音乐流');

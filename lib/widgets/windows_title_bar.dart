@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/design/music_flow_design.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Windows runner 窗口控制通道(对应 windows/runner/flutter_window.cpp)。
 const MethodChannel kWindowsWindowChannel = MethodChannel(
@@ -95,6 +96,8 @@ class WindowsWindowChrome extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isWindowsDesktop) return const SizedBox.shrink();
 
+    final loc = AppLocalizations.of(context);
+
     return Positioned(
       top: 0,
       left: 0,
@@ -122,17 +125,17 @@ class WindowsWindowChrome extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 _WindowControlButton(
-                  tooltip: '最小化',
+                  tooltip: loc.widgets_window_minimize,
                   icon: Icons.remove,
                   onPressed: () => _invoke('minimize'),
                 ),
                 _WindowControlButton(
-                  tooltip: '最大化/还原',
+                  tooltip: loc.widgets_window_maximize_restore,
                   icon: Icons.crop_square,
                   onPressed: () => _invoke('maximize_toggle'),
                 ),
                 _WindowControlButton(
-                  tooltip: '关闭',
+                  tooltip: loc.widgets_window_close,
                   icon: Icons.close,
                   isClose: true,
                   onPressed: () => _invoke('close'),

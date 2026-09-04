@@ -8,5 +8,157 @@
   "language_zh": "Chinese",
   "language_zh_desc": "Always use Simplified Chinese",
   "language_en": "English",
-  "language_en_desc": "Always use the English interface"
+  "language_en_desc": "Always use the English interface",
+  "widgets_retry": "Retry",
+  "widgets_settings": "Settings",
+  "widgets_artists": "Artists",
+  "widgets_albums": "Albums",
+  "widgets_songs": "Songs",
+  "widgets_playlists": "Playlists",
+  "widgets_favorites": "Favorites",
+  "widgets_connection_ok": "Connected",
+  "widgets_connection_failed": "Connection failed",
+  "widgets_connection_pending": "Pending",
+  "widgets_connection_disconnected": "Not connected",
+  "widgets_drawer_library_unselected": "Not selected",
+  "widgets_drawer_no_active_route": "No active route",
+  "widgets_drawer_library_empty_title": "No music libraries yet",
+  "widgets_drawer_library_empty_desc": "Add a Navidrome, Subsonic, or OpenSubsonic music library to start listening.",
+  "widgets_drawer_add_library": "Add library",
+  "widgets_drawer_server_unconfigured": "No server address configured",
+  "widgets_drawer_add_new_library": "Add new library",
+  "widgets_drawer_add_new_library_subtitle": "Connect another server or another account",
+  "widgets_drawer_library_error_title": "Couldn't load libraries",
+  "widgets_drawer_library_error_desc": "The library list is temporarily unavailable. Retrying won't affect what's currently playing.",
+  "widgets_cover_art_album": "Album art",
+  "widgets_cover_art_load_failed": "Cover failed to load; retrying automatically",
+  "widgets_cover_art_load_failed_with_label": "{label}, cover failed to load",
+  "@widgets_cover_art_load_failed_with_label": {
+    "description": "Cover load failure semantics label including a custom accessibility label",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_cover_art_loading": "Loading cover",
+  "widgets_cover_art_none": "No cover",
+  "widgets_home": "Home",
+  "widgets_music_flow": "Music Flow",
+  "widgets_music": "Music",
+  "widgets_i_like": "My favorites",
+  "widgets_play": "Play",
+  "widgets_shuffle": "Shuffle",
+  "widgets_route_selection_title": "Switch route",
+  "widgets_route_redetect_latency": "Re-check latency",
+  "widgets_route_error_title": "Couldn't load routes",
+  "widgets_route_error_desc": "Route info is temporarily unavailable. Retry, or open library settings later to check addresses.",
+  "widgets_route_no_route_title": "No available routes",
+  "widgets_route_no_route_desc": "Add at least one server address in library settings first.",
+  "widgets_route_auto_enabled": "Currently enabled",
+  "widgets_route_auto_enabled_label": "Currently enabled · {label}",
+  "@widgets_route_auto_enabled_label": {
+    "description": "Auto mode enabled label including the current route label",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_route_auto_select": "Auto select",
+  "widgets_route_auto_select_desc": "Pick routes by availability and latency",
+  "widgets_route_latency_unknown": "unknown",
+  "widgets_route_latency_label": "Latency {value}",
+  "@widgets_route_latency_label": {
+    "description": "Latency value label",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_song_selected": "Selected",
+  "widgets_song_more_semantics": "{title}, more actions",
+  "@widgets_song_more_semantics": {
+    "description": "Accessibility label for the row more-actions button",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_song_deselect": "Deselect {title}",
+  "@widgets_song_deselect": {
+    "description": "Deselect action label for a song",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_song_select": "Select {title}",
+  "@widgets_song_select": {
+    "description": "Select action label for a song",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_song_favorite": "Favorite",
+  "widgets_song_preview": "Preview",
+  "widgets_song_cover_semantics": "{title} cover",
+  "@widgets_song_cover_semantics": {
+    "description": "Accessibility label for a song's cover art",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_song_now_playing": "Now playing",
+  "widgets_window_minimize": "Minimize",
+  "widgets_window_maximize_restore": "Maximize/Restore",
+  "widgets_window_close": "Close",
+  "widgets_drawer_frame_semantics": "App menu",
+  "widgets_drawer_identity_semantics": "Account {username}, library {libraryName}, {status}, {address}",
+  "@widgets_drawer_identity_semantics": {
+    "description": "Accessibility label for the drawer identity header (account/library/route status)",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      },
+      "libraryName": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      },
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_drawer_back_app_menu": "Back to app menu",
+  "widgets_drawer_view_libraries": "View libraries",
+  "widgets_drawer_current_library": "Current library",
+  "widgets_drawer_edit_library": "Edit {title}",
+  "@widgets_drawer_edit_library": {
+    "description": "Edit action label for a library",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "widgets_network_cannot_reach_server": "Can't reach the server",
+  "widgets_network_recovered": "Connection restored",
+  "widgets_network_weak_title": "Unstable connection",
+  "widgets_network_weak_desc": "Retrying available routes; loaded content and offline songs still work",
+  "widgets_network_offline_title": "Offline",
+  "widgets_network_offline_desc": "Loaded content and offline songs still work; online actions resume once connected",
+  "widgets_nav_main": "Main navigation",
+  "widgets_nav_main_collapsed": "Main navigation (collapsed)",
+  "widgets_nav_expand_sidebar": "Expand sidebar",
+  "widgets_nav_collapse_sidebar": "Collapse sidebar"
 }

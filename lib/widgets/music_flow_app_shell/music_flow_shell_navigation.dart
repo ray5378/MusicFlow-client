@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/design/music_flow_design.dart';
 import '../../features/settings/pages/app_settings_page.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 @immutable
 class MusicFlowShellDestination {
@@ -40,7 +41,7 @@ class MusicFlowCompactNavigation extends StatelessWidget {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '主导航',
+      label: AppLocalizations.of(context).widgets_nav_main,
       child: ColoredBox(
         key: const ValueKey<String>('musicflow-compact-navigation'),
         color: colors.surface,
@@ -103,8 +104,9 @@ class _SidebarAppActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const actions = <(IconData, String, _SidebarAppAction)>[
-      (AppIcons.settings, '设置', _SidebarAppAction.settings),
+    final settingsTitle = AppLocalizations.of(context).widgets_settings;
+    final actions = <(IconData, String, _SidebarAppAction)>[
+      (AppIcons.settings, settingsTitle, _SidebarAppAction.settings),
     ];
 
     return Column(
@@ -153,7 +155,7 @@ class MusicFlowMediumNavigationRail extends StatelessWidget {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '主导航',
+      label: AppLocalizations.of(context).widgets_nav_main,
       child: ColoredBox(
         key: const ValueKey<String>('musicflow-medium-navigation'),
         color: context.musicFlowColors.surface,
@@ -254,12 +256,13 @@ class _MusicFlowExpandedNavigationSidebarState
     final spacing = context.musicFlowSpacing;
     final motion = context.musicFlowMotion;
     final duration = motion.resolve(context, motion.state);
+    final loc = AppLocalizations.of(context);
     final collapsed = _collapsed;
 
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: collapsed ? '主导航（已收起）' : '主导航',
+      label: collapsed ? loc.widgets_nav_main_collapsed : loc.widgets_nav_main,
       child: ColoredBox(
         key: const ValueKey<String>('musicflow-expanded-navigation'),
         color: context.musicFlowColors.surface,
@@ -284,7 +287,7 @@ class _MusicFlowExpandedNavigationSidebarState
                           children: <Widget>[
                             MusicFlowIconButton(
                               icon: AppIcons.menu,
-                              label: '展开侧边栏',
+                              label: loc.widgets_nav_expand_sidebar,
                               onPressed: _toggleCollapsed,
                             ),
                           ],
@@ -293,7 +296,7 @@ class _MusicFlowExpandedNavigationSidebarState
                           children: <Widget>[
                             MusicFlowIconButton(
                               icon: AppIcons.menu,
-                              label: '收起侧边栏',
+                              label: loc.widgets_nav_collapse_sidebar,
                               onPressed: _toggleCollapsed,
                             ),
                             SizedBox(width: spacing.sm),

@@ -5,6 +5,7 @@ import '../core/design/music_flow_design.dart';
 import '../core/network/address_pool.dart';
 import '../data/models/music_library.dart';
 import '../data/models/server_address.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../providers/api_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/library_provider.dart';
@@ -18,6 +19,7 @@ class RouteSelectionPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final authState = ref.watch(authStateProvider);
     final activeLibraryId = authState.currentLibrary?.id;
     final libraries = ref.watch(librariesProvider);
@@ -25,7 +27,10 @@ class RouteSelectionPage extends ConsumerWidget {
     final addressPool = ref.read(addressPoolProvider);
 
     return MusicFlowScaffold(
-      topBar: MusicFlowTopBar.back(context: context, title: '切换线路'),
+      topBar: MusicFlowTopBar.back(
+        context: context,
+        title: loc.widgets_route_selection_title,
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -36,7 +41,7 @@ class RouteSelectionPage extends ConsumerWidget {
               bottom: context.musicFlowSpacing.sm,
             ),
             child: MusicFlowButton.ghost(
-              label: '重新检测延迟',
+              label: loc.widgets_route_redetect_latency,
               leadingIcon: AppIcons.refresh,
               expand: true,
               onPressed: () => addressPool.probeAll(),
@@ -56,9 +61,9 @@ class RouteSelectionPage extends ConsumerWidget {
               ),
               error: (error, stackTrace) => SingleChildScrollView(
                 child: MusicFlowErrorState(
-                  title: '无法读取线路',
-                  description: '线路信息暂时不可用。请重试，或稍后打开音乐库设置检查地址。',
-                  actionLabel: '重试',
+                  title: loc.widgets_route_error_title,
+                  description: loc.widgets_route_error_desc,
+                  actionLabel: loc.widgets_retry,
                   onAction: () => ref.invalidate(librariesProvider),
                   padding: const EdgeInsets.all(24),
                 ),
@@ -88,6 +93,7 @@ class _RouteSelectionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final fallbackLibrary =
         items.where((library) => library.id == activeLibraryId).firstOrNull ??
         items.firstOrNull;
@@ -100,12 +106,12 @@ class _RouteSelectionList extends StatelessWidget {
         )..sort((first, second) => first.priority.compareTo(second.priority));
 
     if (addresses.isEmpty) {
-      return const SingleChildScrollView(
+      return SingleChildScrollView(
         child: MusicFlowEmptyState(
-          title: '没有可用线路',
-          description: '请先在音乐库设置中添加至少一个服务器地址。',
+          title: loc.widgets_route_no_route_title,
+          description: loc.widgets_route_no_route_desc,
           icon: AppIcons.route,
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
         ),
       );
     }
@@ -115,8 +121,8 @@ class _RouteSelectionList extends StatelessWidget {
     );
     final currentAddress = activeAddress;
     String autoModeLabel = currentAddress == null
-        ? '当前已开启'
-        : '当前已开启 · ${currentAddress.label}';
+        ? loc.widgets_route_auto_enabled
+        : loc.widgets_route_auto_enabled_label(currentAddress.label);
 
     return ListView(
       shrinkWrap: true,
@@ -124,10 +130,10 @@ class _RouteSelectionList extends StatelessWidget {
       children: <Widget>[
         MusicFlowActionRow(
           icon: AppIcons.route,
-          title: '自动选择',
+          title: loc.widgets_route_auto_select,
           subtitle: isAuto
               ? autoModeLabel
-              : '根据可用性和延迟选择线路',
+              : loc.widgets_route_auto_select_desc,
           selected: isAuto,
           trailing: isAuto
               ? Icon(AppIcons.check, color: context.musicFlowColors.accent)
@@ -171,10 +177,11 @@ class _RouteAddressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final statusLabel = switch (address.status) {
-      ServerAddressStatus.ok => '连接正常',
-      ServerAddressStatus.failed => '连接失败',
-      ServerAddressStatus.unknown => '等待检测',
+      ServerAddressStatus.ok => loc.widgets_connection_ok,
+      ServerAddressStatus.failed => loc.widgets_connection_failed,
+      ServerAddressStatus.unknown => loc.widgets_connection_pending,
     };
     final statusIcon = switch (address.status) {
       ServerAddressStatus.ok => AppIcons.checkCircle,
@@ -186,13 +193,16 @@ class _RouteAddressRow extends StatelessWidget {
       ServerAddressStatus.failed => context.musicFlowColors.error,
       ServerAddressStatus.unknown => context.musicFlowColors.muted,
     };
+    final latency =
+        address.lastLatencyMs == null
+            ? loc.widgets_route_latency_unknown
+            : '${address.lastLatencyMs}ms';
+    final delayLabel = loc.widgets_route_latency_label(latency);
 
     return MusicFlowActionRow(
       icon: AppIcons.signalTower,
       title: address.label,
-      subtitle:
-          '${address.url}\n$statusLabel · '
-          '延迟 ${address.lastLatencyMs == null ? '未知' : '${address.lastLatencyMs}ms'}',
+      subtitle: '${address.url}\n$statusLabel · $delayLabel',
       selected: isSelected,
       trailing: Semantics(
         label: statusLabel,

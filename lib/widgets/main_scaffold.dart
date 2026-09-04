@@ -18,6 +18,7 @@ import '../features/library/pages/playlist_search_page.dart';
 import '../features/library/pages/song_list_page.dart';
 import '../features/library/pages/starred_page.dart';
 import '../features/player/widgets/mini_player.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../providers/api_provider.dart';
 import '../providers/cast_peer_provider.dart';
 import '../providers/effective_playback_provider.dart';
@@ -95,14 +96,13 @@ MusicFlowBackAction resolveMusicFlowBackAction({
 }
 
 /// Windows 桌面端侧栏入口文案为「主页」,其余平台沿用「音乐流」。
+/// 命令时的实际文案由调用方在 build 期用 l10n 值注入。
 @visibleForTesting
-List<MusicFlowShellDestination> musicFlowMainDestinations() {
-  final isWindowsDesktop =
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+List<MusicFlowShellDestination> musicFlowMainDestinations({required String label}) {
   return <MusicFlowShellDestination>[
     MusicFlowShellDestination(
       branchIndex: discoverBranchIndex,
-      label: isWindowsDesktop ? '主页' : '音乐流',
+      label: label,
       icon: AppIcons.home,
       selectedIcon: AppIcons.homeFilled,
     ),
@@ -346,6 +346,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     _scheduleVisibleBranchSync();
     // 迷你播放器常驻显示(对齐主项目前端 player-bar 始终渲染):
     // 无歌曲时展示「未在播放」占位,而不是隐藏播放控件。
@@ -359,7 +360,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         widget.networkStatusOverride ??
         _resolveNetworkStatus(activeAddressIsHealthy: activeAddressIsHealthy);
     final currentBranchIndex = widget.navigationShell.currentIndex;
-    final destinations = musicFlowMainDestinations();
+    final isWindowsDesktop =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+    final homeLabel = isWindowsDesktop
+        ? loc.widgets_home
+        : loc.widgets_music_flow;
+    final destinations = musicFlowMainDestinations(label: homeLabel);
     final currentBranchIsVisible = destinations.any(
       (destination) => destination.branchIndex == currentBranchIndex,
     );
@@ -403,7 +409,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                 showNavigationBar: false,
                 onOpenDrawer: openMusicFlowAppDrawer,
                 // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-                libraryEntries: _libraryEntries(),
+                libraryEntries: _libraryEntries(loc),
                 onOpenPage: _openPageInContentArea,
               ),
             ),
@@ -447,32 +453,32 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   ///
   /// 注意:必须是 State 的实例方法——它通过 [_openPageInContentArea]
   /// 把页面推到内容区分支导航器,而该方法依赖 State 的 widget 状态。
-  List<MusicFlowSidebarLibraryEntry> _libraryEntries() {
+  List<MusicFlowSidebarLibraryEntry> _libraryEntries(AppLocalizations loc) {
     Future<void> open(Widget page) => _openPageInContentArea(page);
 
     return <MusicFlowSidebarLibraryEntry>[
       MusicFlowSidebarLibraryEntry(
-        label: '歌单',
+        label: loc.widgets_playlists,
         icon: AppIcons.playlist,
         onTap: () => unawaited(open(const PlaylistSearchPage())),
       ),
       MusicFlowSidebarLibraryEntry(
-        label: '音乐',
+        label: loc.widgets_music,
         icon: AppIcons.headphones,
         onTap: () => unawaited(open(const SongListPage())),
       ),
       MusicFlowSidebarLibraryEntry(
-        label: '艺术家',
+        label: loc.widgets_artists,
         icon: AppIcons.profile,
         onTap: () => unawaited(open(const ArtistListPage())),
       ),
       MusicFlowSidebarLibraryEntry(
-        label: '专辑',
+        label: loc.widgets_albums,
         icon: AppIcons.album,
         onTap: () => unawaited(open(const AlbumListPage())),
       ),
       MusicFlowSidebarLibraryEntry(
-        label: '我喜欢',
+        label: loc.widgets_i_like,
         icon: AppIcons.heart,
         onTap: () => unawaited(open(const StarredPage())),
       ),

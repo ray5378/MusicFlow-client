@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/design/music_flow_design.dart';
+import '../l10n/generated/app_localizations.dart';
 
 @immutable
 class MusicFlowMediaAction {
@@ -28,8 +29,8 @@ class MusicFlowMediaActions extends StatelessWidget {
     required this.onPlay,
     this.onShuffle,
     this.showShuffle = false,
-    this.playLabel = '播放',
-    this.shuffleLabel = '随机播放',
+    this.playLabel,
+    this.shuffleLabel,
     this.playIcon = AppIcons.play,
     this.shuffleIcon = AppIcons.shuffle,
     this.secondaryActions = const <MusicFlowMediaAction>[],
@@ -40,14 +41,15 @@ class MusicFlowMediaActions extends StatelessWidget {
 
   /// Keeps the shuffle action in the hierarchy when [onShuffle] is null.
   final bool showShuffle;
-  final String playLabel;
-  final String shuffleLabel;
+  final String? playLabel;
+  final String? shuffleLabel;
   final IconData playIcon;
   final IconData shuffleIcon;
   final List<MusicFlowMediaAction> secondaryActions;
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final scaledLabelSize = MediaQuery.textScalerOf(
@@ -56,17 +58,20 @@ class MusicFlowMediaActions extends StatelessWidget {
         final stackPrimaryActions =
             constraints.maxWidth < 340 || scaledLabelSize >= 20;
 
+        final resolvedPlayLabel = playLabel ?? loc.widgets_play;
+        final resolvedShuffleLabel = shuffleLabel ?? loc.widgets_shuffle;
+
         final play = MusicFlowButton.primary(
-          label: playLabel,
-          semanticLabel: playLabel,
+          label: resolvedPlayLabel,
+          semanticLabel: resolvedPlayLabel,
           leadingIcon: playIcon,
           onPressed: onPlay,
           expand: true,
           enableHaptics: true,
         );
         final shuffle = MusicFlowButton.secondary(
-          label: shuffleLabel,
-          semanticLabel: shuffleLabel,
+          label: resolvedShuffleLabel,
+          semanticLabel: resolvedShuffleLabel,
           leadingIcon: shuffleIcon,
           onPressed: onShuffle,
           expand: true,

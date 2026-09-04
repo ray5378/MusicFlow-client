@@ -9,6 +9,7 @@ import 'package:musicflow_client/features/library/pages/playlist_search_page.dar
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
 import 'package:musicflow_client/features/library/pages/starred_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 import 'package:flutter/foundation.dart'
@@ -42,6 +43,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final authState = ref.watch(authStateProvider);
     final activeLibrary = authState.currentLibrary;
     final activeAddress = ref.watch(activeAddressProvider);
@@ -49,8 +51,8 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
     return MusicFlowDrawerFrame(
       header: MusicFlowDrawerIdentityHeader(
         username: activeLibrary?.username ?? 'Guest',
-        libraryName: activeLibrary?.name ?? '未选择',
-        addressLabel: activeAddress?.label ?? '没有活动线路',
+        libraryName: activeLibrary?.name ?? loc.widgets_drawer_library_unselected,
+        addressLabel: activeAddress?.label ?? loc.widgets_drawer_no_active_route,
         connectionState: _connectionState(activeAddress),
         avatarUrl: resolveMusicFlowDrawerAvatarUrl(activeLibrary),
         showingLibraries: _showLibraries,
@@ -67,16 +69,17 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
   }
 
   Widget _buildLibraryList(MusicLibrary? activeLibrary) {
+    final loc = AppLocalizations.of(context);
     final libraries = ref.watch(librariesProvider);
 
     return libraries.when(
       data: (items) {
         if (items.isEmpty) {
           return MusicFlowEmptyState(
-            title: '还没有音乐库',
-            description: '添加一个 Navidrome、Subsonic 或 OpenSubsonic 音乐库后即可开始聆听。',
+            title: loc.widgets_drawer_library_empty_title,
+            description: loc.widgets_drawer_library_empty_desc,
             icon: AppIcons.library,
-            actionLabel: '添加音乐库',
+            actionLabel: loc.widgets_drawer_add_library,
             onAction: () => _closeDrawerAndPushLocation('/login?add=true'),
           );
         }
@@ -94,7 +97,9 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                 padding: EdgeInsets.only(bottom: context.musicFlowSpacing.xs),
                 child: MusicFlowDrawerLibraryRow(
                   title: library.name,
-                  subtitle: library.addresses.firstOrNull?.url ?? '未配置服务器地址',
+                  subtitle:
+                      library.addresses.firstOrNull?.url ??
+                      loc.widgets_drawer_server_unconfigured,
                   selected: isActive,
                   onSelected: () {
                     if (!isActive) {
@@ -128,8 +133,8 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
               padding: EdgeInsets.symmetric(horizontal: context.musicFlowSpacing.xs),
               child: MusicFlowActionRow(
                 icon: AppIcons.add,
-                title: '添加新音乐库',
-                subtitle: '连接另一台服务器或另一个账户',
+                title: loc.widgets_drawer_add_new_library,
+                subtitle: loc.widgets_drawer_add_new_library_subtitle,
                 onPressed: () => _closeDrawerAndPushLocation('/login?add=true'),
               ),
             );
@@ -138,49 +143,50 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
       },
       loading: () => const _DrawerSkeletonList(),
       error: (error, stackTrace) => MusicFlowErrorState(
-        title: '无法读取音乐库',
-        description: '音乐库列表暂时不可用。重试不会影响当前正在播放的内容。',
-        actionLabel: '重试',
+        title: loc.widgets_drawer_library_error_title,
+        description: loc.widgets_drawer_library_error_desc,
+        actionLabel: loc.widgets_retry,
         onAction: () => ref.invalidate(librariesProvider),
       ),
     );
   }
 
   Widget _buildNavigationList() {
+    final loc = AppLocalizations.of(context);
     final entries = <_DrawerNavigationEntry?>[
       _DrawerNavigationEntry(
-        title: '艺术家',
+        title: loc.widgets_artists,
         icon: AppIcons.profile,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const ArtistListPage()),
       ),
       _DrawerNavigationEntry(
-        title: '专辑',
+        title: loc.widgets_albums,
         icon: AppIcons.album,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const AlbumListPage()),
       ),
       _DrawerNavigationEntry(
-        title: '歌曲',
+        title: loc.widgets_songs,
         icon: AppIcons.music,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const SongListPage()),
       ),
       _DrawerNavigationEntry(
-        title: '歌单',
+        title: loc.widgets_playlists,
         icon: AppIcons.playlist,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const PlaylistSearchPage()),
       ),
       _DrawerNavigationEntry(
-        title: '喜欢',
+        title: loc.widgets_favorites,
         icon: AppIcons.heart,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const StarredPage()),
       ),
       _DrawerNavigationEntry(
         icon: AppIcons.settings,
-        title: '设置',
+        title: loc.widgets_settings,
         onPressed: () =>
             _closeDrawerAndPushPage((context) => const AppSettingsPage()),
       ),
