@@ -35,6 +35,11 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
+  # 国际化
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
   cupertino_icons: ^1.0.8
 
   # 状态管理
@@ -112,6 +117,7 @@ flutter:
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
+  generate: true
   uses-material-design: true
 
   # 全局中文字体：HarmonyOS Sans SC（笔画均匀、干净耐看，修复 Windows 端

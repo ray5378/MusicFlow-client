@@ -37,7 +37,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.1'
+          flutter-version: '3.38.10'
           channel: 'stable'
           cache: true
 
@@ -87,3 +87,30 @@ jobs:
             test-results.err
           retention-days: 7
           if-no-files-found: ignore
+
+  # —— l10n 合规守卫(阻塞) ——
+  # 与全量测试不同，这一步没有 continue-on-error：l10n 基建破损(ARB 键不对齐 /
+  # providers 误用 AppLocalizations.of / gen-l10n 失败)会直接标红。
+  # 硬编码 CJK 保全量迁移完成后，给下面命令追加 --gate-cjk 即可启用硬门禁。
+  l10n-guard:
+    name: l10n guard (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.10'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate localizations
+        run: flutter gen-l10n
+
+      - name: Run l10n compliance guard
+        run: node tool/check-l10n.mjs

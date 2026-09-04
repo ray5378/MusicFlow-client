@@ -50,3 +50,6 @@ unlinked_spec.ds
 /outputs/
 
 .workbuddy/
+
+# gen-l10n 产物(由 CI 的 flutter pub get / gen-l10n 生成)
+/lib/l10n/generated/

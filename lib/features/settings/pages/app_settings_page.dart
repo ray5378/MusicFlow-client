@@ -21,12 +21,15 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../providers/status_lyrics_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/locale_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../widgets/windows_title_bar.dart';
 import '../widgets/music_flow_settings_components.dart';
 import 'audio_quality_page.dart';
 import 'cover_providers_page.dart';
 import 'lyrics_providers_page.dart';
 import 'theme_settings_page.dart';
+import 'language_settings_page.dart';
 import 'log_viewer_page.dart';
 
 /// 全屏设置页
@@ -294,10 +297,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     final activeAddress = ref.watch(activeAddressProvider);
     final autoFallback = ref.watch(autoFallbackProvider);
     final themeSettings = ref.watch(themeSettingsProvider);
+    final languageSettings = ref.watch(appLanguageProvider);
     final crossfadeMs = ref.watch(crossfadeDurationMsProvider);
     final lyricsDwellSeconds = ref.watch(lyricsScrollDwellProvider);
     final statusLyricsEnabled = ref.watch(statusLyricsEnabledProvider);
     final availableLibraries = librariesAsync.valueOrNull;
+    final loc = AppLocalizations.of(context);
     final switchDescription = librariesAsync.when(
       data: (libraries) => libraries.length > 1
           ? '已保存 ${libraries.length} 个音乐库'
@@ -403,6 +408,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                         '${_themeModeText(themeSettings.mode)} · ${_colorHex(themeSettings.seedColor)}',
                     description: '明暗模式与主题色',
                     onPressed: () => _pushPage(const ThemeSettingsPage()),
+                  ),
+                  MusicFlowSettingRow(
+                    icon: AppIcons.settings,
+                    title: loc.settings_language,
+                    value: _languageLabel(languageSettings.preference),
+                    description: loc.settings_language_caption,
+                    onPressed: () => _pushPage(const LanguageSettingsPage()),
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.quality,
@@ -717,6 +729,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         ),
       ),
     );
+  }
+
+  String _languageLabel(AppLanguagePreference pref) {
+    return switch (pref) {
+      AppLanguagePreference.system => AppLocalizations.of(context).language_follow_system,
+      AppLanguagePreference.zh => AppLocalizations.of(context).language_zh,
+      AppLanguagePreference.en => AppLocalizations.of(context).language_en,
+    };
   }
 
   String _themeModeText(ThemeMode mode) {

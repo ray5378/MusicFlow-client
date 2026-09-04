@@ -16,6 +16,8 @@ import 'features/settings/services/startup_update_checker.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cast_peer_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/locale_provider.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'widgets/main_scaffold.dart';
 import 'features/discover/pages/discover_page.dart';
 import 'features/library/pages/edit_library_page.dart';
@@ -82,12 +84,16 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeSettings = ref.watch(themeSettingsProvider);
+    final languageSettings = ref.watch(appLanguageProvider);
 
     return MaterialApp.router(
-      title: 'MusicFlow',
       theme: AppTheme.light(seedColor: themeSettings.seedColor),
       darkTheme: AppTheme.dark(seedColor: themeSettings.seedColor),
       themeMode: themeSettings.mode,
+      locale: languageSettings.effectiveLocale(),
+      supportedLocales: const <Locale>[Locale('zh'), Locale('en')],
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      onGenerateTitle: (context) => AppLocalizations.of(context).app_title,
       routerConfig: router,
       // 注意：不能用 MaterialApp.router 的 navigatorKey（该构造没有此参数）；
       // 根 Navigator 由 GoRouter 持有（navigatorKey: rootNavigatorKey）。

@@ -1,0 +1,12 @@
+{
+  "@@locale": "en",
+  "app_title": "MusicFlow",
+  "settings_language": "Language",
+  "settings_language_caption": "Change the language used by the app interface",
+  "language_follow_system": "Follow system",
+  "language_follow_system_desc": "Match the device language automatically; falls back to Chinese when unsupported",
+  "language_zh": "Chinese",
+  "language_zh_desc": "Always use Simplified Chinese",
+  "language_en": "English",
+  "language_en_desc": "Always use the English interface"
+}

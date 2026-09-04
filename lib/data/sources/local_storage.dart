@@ -20,6 +20,7 @@ class LocalStorage {
   static const String _keyPlaybackSession = 'playback_session_v1';
   static const String _keyThemeMode = 'theme_mode';
   static const String _keyThemeSeedColor = 'theme_seed_color';
+  static const String _keyAppLanguage = 'app_language';
   static const String _keyMobileCacheSavedBytesByLibrary =
       'mobile_cache_saved_bytes_by_library_v1';
   static const String _keyMaxCacheSizeBytes = 'max_cache_size_bytes';
@@ -312,6 +313,29 @@ class LocalStorage {
       'theme seed color loaded: 0x${color.toRadixString(16)}',
     );
     return color;
+  }
+
+  /// 读取界面语言（system / zh / en，默认 zh，非法值回退 zh）。
+  static Future<String> getAppLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lang = prefs.getString(_keyAppLanguage) ?? 'zh';
+    switch (lang) {
+      case 'system':
+      case 'zh':
+      case 'en':
+        Logger.debugWithTag(_logTag, 'app language loaded: ');
+        return lang;
+      default:
+        Logger.warnWithTag(_logTag, 'invalid app language in storage: ');
+        return 'zh';
+    }
+  }
+
+  /// 保存界面语言（system / zh / en）。
+  static Future<void> setAppLanguage(String lang) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAppLanguage, lang);
+    Logger.infoWithTag(_logTag, 'app language saved: ');
   }
 
   /// 保存主题主色（ARGB int）
