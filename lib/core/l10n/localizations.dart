@@ -27,7 +27,7 @@ String _systemLocale() {
   }
 }
 
-AppLanguagePreference _currentAppLanguage = AppLanguagePreference.zh;
+AppLanguagePreference _currentAppLanguage = AppLanguagePreference.system;
 
 /// 记录当前语言偏好（由 App 根节点在 watch [appLanguageProvider] 时写入），供
 /// 无 BuildContext 环境（拦截器 / 通知器 / 解析器）通过 [l10nNowCurrent] 读取。

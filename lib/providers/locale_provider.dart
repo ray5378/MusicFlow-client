@@ -15,7 +15,7 @@ enum AppLanguagePreference {
 class LocaleSettings {
   final AppLanguagePreference preference;
 
-  const LocaleSettings({this.preference = AppLanguagePreference.zh});
+  const LocaleSettings({this.preference = AppLanguagePreference.system});
 
   LocaleSettings copyWith({AppLanguagePreference? preference}) {
     return LocaleSettings(preference: preference ?? this.preference);
