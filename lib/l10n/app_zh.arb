@@ -9,6 +9,400 @@
   "language_zh_desc": "始终使用简体中文",
   "language_en": "English",
   "language_en_desc": "始终使用英文界面",
+  "settings_about": "关于",
+  "settings_about_desc": "MusicFlow · 基于 Subsonic API",
+  "settings_about_subtitle": "基于 Subsonic API 的音乐客户端。",
+  "settings_about_title": "关于 MusicFlow",
+  "settings_api_key": "API Key",
+  "settings_api_key_helper": "选择“清空”会移除本机保存的 Key。",
+  "settings_api_key_hint": "输入 Fanart.tv API Key",
+  "settings_audio_auto_switch": "按网络自动切换",
+  "settings_audio_auto_switch_off_desc": "所有网络都使用同一音质。",
+  "settings_audio_auto_switch_on_desc": "Wi-Fi 与移动数据分别保存音质。",
+  "settings_audio_current_strategy": "当前播放策略",
+  "settings_audio_desc_data_saver": "减少流量消耗，适合信号波动时使用",
+  "settings_audio_desc_high": "高保真听感，适合稳定网络",
+  "settings_audio_desc_original": "不限制码率，直接播放服务器原始文件",
+  "settings_audio_desc_standard": "兼顾听感、启动速度与流量",
+  "settings_audio_effective_quality": "生效音质",
+  "settings_audio_global_section": "全局音质",
+  "settings_audio_global_section_desc": "此选择将用于所有网络。",
+  "settings_audio_mobile_section": "移动数据音质",
+  "settings_audio_mobile_section_desc": "在流量消耗、启动速度与听感之间选择。",
+  "settings_audio_network": "网络",
+  "settings_audio_network_mobile": "移动数据",
+  "settings_audio_network_none": "无网络",
+  "settings_audio_network_strategy": "网络策略",
+  "settings_audio_network_strategy_desc": "在 Wi-Fi 与移动数据之间自动使用不同码率。",
+  "settings_audio_network_wifi": "Wi-Fi",
+  "settings_audio_quality": "音质设置",
+  "settings_audio_quality_desc": "按网络选择播放码率",
+  "settings_audio_status_line": "{label}，{value}",
+  "@settings_audio_status_line": {
+    "description": "音质页状态行（标签与值）的语义标签",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_audio_wifi_section": "Wi-Fi 音质",
+  "settings_audio_wifi_section_desc": "连接 Wi-Fi 时优先保证音乐完整度。",
+  "settings_autoplay": "打开时自动播放",
+  "settings_autoplay_desc": "启动后恢复上次本机播放队列与进度，并自动续播。",
+  "settings_auth_password": "密码",
+  "settings_auth_type": "认证方式",
+  "settings_cancel": "取消",
+  "settings_check_update": "检查更新",
+  "settings_check_update_checking_semantics": "检查更新，正在连接 GitHub Releases",
+  "settings_check_update_desc": "从 GitHub Releases 检查最新版本",
+  "settings_clear": "清空",
+  "settings_configure": "配置",
+  "settings_configure_fanart": "配置 Fanart.tv",
+  "settings_configure_fanart_subtitle": "Fanart.tv 高清封面需要单独的 API Key。",
+  "settings_crossfade": "切歌淡入淡出",
+  "settings_crossfade_desc": "设置相邻曲目之间的交叉衰减时长。",
+  "settings_crossfade_off": "关闭",
+  "settings_crossfade_off_value": "关闭交叉衰减",
+  "settings_crossfade_seconds": "{seconds} 秒",
+  "@settings_crossfade_seconds": {
+    "description": "交叉衰减时长数值标签（秒）",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_crossfade_smooth": "用 {label} 平滑衔接相邻曲目",
+  "@settings_crossfade_smooth": {
+    "description": "带时长的交叉衰减选项描述",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_crossfade_subtitle": "选择相邻曲目同时播放的交叉衰减时长。",
+  "settings_cover_api_key_configured": "API Key：已配置",
+  "settings_cover_api_key_unconfigured": "API Key：未配置",
+  "settings_cover_priority_desc": "查找封面时会从上到下依次尝试。按住拖动图标可调整顺序。",
+  "settings_cover_provider": "封面提供商",
+  "settings_cover_provider_custom_desc": "自定义 API 地址",
+  "settings_cover_provider_desc": "调整获取顺序并配置 Fanart.tv",
+  "settings_cover_provider_empty_desc": "提供商配置为空，请稍后重试或检查应用数据。",
+  "settings_cover_provider_empty_title": "没有可用的封面提供商",
+  "settings_cover_provider_fanart_desc": "Fanart.tv 高清封面（需要 API Key）",
+  "settings_cover_provider_musicbrainz_desc": "MusicBrainz Cover Art Archive",
+  "settings_cover_provider_page_error_desc": "提供商顺序、启用状态和配置暂时不可用。\n{error}",
+  "@settings_cover_provider_page_error_desc": {
+    "description": "封面提供商列表加载失败的描述（含错误信息）",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_cover_provider_page_error_title": "无法读取封面提供商",
+  "settings_cover_provider_subsonic_desc": "Subsonic 服务端封面",
+  "settings_current_connection": "当前连接",
+  "settings_current_version": "当前版本",
+  "settings_desktop_lyrics": "桌面歌词",
+  "settings_desktop_lyrics_desc": "开启后，桌面显示可拖动的歌词浮窗(置顶、不抢焦点)。",
+  "settings_diagnostics_section": "诊断与更新",
+  "settings_diagnostics_section_desc": "查看本机诊断日志，或检查 GitHub Releases。",
+  "settings_disable": "停用",
+  "settings_download": "前往下载",
+  "settings_download_confirm_body": "将跳转到浏览器开始下载。下载完成后请自行完成更新安装：Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。",
+  "settings_dwell_seconds": "{seconds} 秒",
+  "@settings_dwell_seconds": {
+    "description": "歌词跟随停靠时长数值标签（秒）",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_edit_library": "编辑当前音乐库",
+  "settings_edit_library_desc": "管理服务器地址、认证方式与音乐库能力。",
+  "settings_edit_library_empty_desc": "选择音乐库后可编辑服务器与认证信息。",
+  "settings_enable": "启用",
+  "settings_info_line_semantics": "{label}，{value}",
+  "@settings_info_line_semantics": {
+    "description": "信息行（标签与值）的语义标签",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_later": "稍后再说",
+  "settings_latest_version": "最新版本",
+  "settings_library_count_saved": "已保存 {count} 个音乐库",
+  "@settings_library_count_saved": {
+    "description": "已保存的音乐库数量描述",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settings_library_empty": "当前没有可切换的音乐库",
+  "settings_library_label": "音乐库",
+  "settings_library_load_failed": "音乐库列表读取失败，点击重试",
+  "settings_library_loading": "正在读取音乐库列表",
+  "settings_library_section": "音乐库与服务器",
+  "settings_library_section_desc": "查看当前连接，也可以切换或编辑已经保存的音乐库。",
+  "settings_library_single": "当前仅有一个音乐库",
+  "settings_library_switch_failed": "切换音乐库失败: {error}",
+  "@settings_library_switch_failed": {
+    "description": "切换音乐库失败的提示（含错误信息）",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_library_switch_subtitle": "选择后会刷新当前音乐库的内容与播放状态。",
+  "settings_library_switched": "已切换到“{name}”",
+  "@settings_library_switched": {
+    "description": "成功切换到某音乐库的提示（含库名）",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_log_auto_refresh": "自动刷新",
+  "settings_log_clear_cache": "清空缓存",
+  "settings_log_copy": "复制",
+  "settings_log_copied": "已复制 {count} 行日志",
+  "@settings_log_copied": {
+    "description": "复制日志成功提示（含行数）",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settings_log_diagnostics": "诊断日志",
+  "settings_log_empty": "暂无日志",
+  "settings_log_filter_hint": "筛选关键字，如 DLNA-AUTO / SSDP / 触发续播",
+  "settings_log_no_content": "当前没有可复制的日志",
+  "settings_log_status_live": "实时刷新中",
+  "settings_log_status_paused": "已暂停",
+  "settings_log_summary": "共 {total} 行｜显示 {shown} 行（{status}）",
+  "@settings_log_summary": {
+    "description": "日志窗口的统计信息（总数、显示数、刷新状态）",
+    "placeholders": {
+      "total": {
+        "type": "int"
+      },
+      "shown": {
+        "type": "int"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_logging": "记录日志",
+  "settings_logging_desc": "默认关闭不抓取任何日志；开启后记录全部日志（最多 5000 条）。",
+  "settings_lyrics_dwell": "歌词跟随停靠时长",
+  "settings_lyrics_dwell_default": "默认：停下 3 秒后恢复跟随",
+  "settings_lyrics_dwell_desc": "手动滚动歌词后，过多久恢复自动跟随当前歌词。",
+  "settings_lyrics_dwell_resume": "停下 {duration} 后恢复跟随",
+  "@settings_lyrics_dwell_resume": {
+    "description": "指定时长后恢复跟随的选项描述",
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_lyrics_dwell_subtitle": "手动滚动并停下后，等待该时长再恢复「跟随当前歌词」自动滚动。",
+  "settings_lyrics_priority_desc": "播放时会从上到下依次尝试。按住拖动图标可调整顺序。",
+  "settings_lyrics_provider": "歌词提供商",
+  "settings_lyrics_provider_custom_desc": "自定义 API 地址",
+  "settings_lyrics_provider_desc": "调整获取顺序与启用状态",
+  "settings_lyrics_provider_empty_desc": "提供商配置为空，请稍后重试或检查应用数据。",
+  "settings_lyrics_provider_empty_title": "没有可用的歌词提供商",
+  "settings_lyrics_provider_lrclib_desc": "公共同步歌词 API",
+  "settings_lyrics_provider_netease_desc": "网易云音乐歌词",
+  "settings_lyrics_provider_page_error_desc": "提供商顺序和启用状态暂时不可用。\n{error}",
+  "@settings_lyrics_provider_page_error_desc": {
+    "description": "歌词提供商列表加载失败的描述（含错误信息）",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_lyrics_provider_page_error_title": "无法读取歌词提供商",
+  "settings_lyrics_provider_subsonic_desc": "OpenSubsonic / Subsonic 内嵌歌词",
+  "settings_not_connected": "未连接",
+  "settings_not_selected": "未选择",
+  "settings_not_set": "未设置",
+  "settings_playback_section": "播放与外观",
+  "settings_playback_section_desc": "这些选择会立即应用到当前设备。",
+  "settings_priority_order": "优先顺序",
+  "settings_project_home": "项目主页",
+  "settings_provider_custom": "自定义源",
+  "settings_provider_drag_semantics": "按住并拖动{title}，调整优先顺序",
+  "@settings_provider_drag_semantics": {
+    "description": "提供商列表拖动排序手柄的语义标签（含名称）",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_provider_fanart": "Fanart.tv",
+  "settings_provider_lrclib": "LRCLIB",
+  "settings_provider_musicbrainz": "MusicBrainz",
+  "settings_provider_netease": "网易云音乐",
+  "settings_provider_subsonic": "服务端",
+  "settings_provider_toggle_semantics": "{action}{title}",
+  "@settings_provider_toggle_semantics": {
+    "description": "提供商开关的语义标签（启用/停用动作加名称）",
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_route_auto_fallback": "线路自动回退",
+  "settings_route_auto_fallback_desc": "手动线路不可用时，自动切换到其他可用线路。",
+  "settings_save": "保存",
+  "settings_selected": "已选择",
+  "settings_server_address": "服务器地址",
+  "settings_server_unconfigured": "未配置服务器地址",
+  "settings_status_disabled": "已停用",
+  "settings_status_enabled": "已启用",
+  "settings_switch_library": "切换音乐库",
+  "settings_theme": "主题设置",
+  "settings_theme_accent": "强调色",
+  "settings_theme_accent_desc": "只用于主要操作、当前选择与键盘焦点。专辑颜色不会扩散到普通页面。",
+  "settings_theme_apply": "应用",
+  "settings_theme_appearance": "外观模式",
+  "settings_theme_appearance_desc": "跟随设备，或固定使用浅色与深色界面。",
+  "settings_theme_brightness": "明度",
+  "settings_theme_color": "强调色 {hex}",
+  "@settings_theme_color": {
+    "description": "预设主题色按钮的语义标签（含色值）",
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_theme_color_picker_subtitle": "系统会在保存时校准对比度和色度。",
+  "settings_theme_color_picker_title": "调整强调色",
+  "settings_theme_color_selected": "强调色 {hex}，已选择",
+  "@settings_theme_color_selected": {
+    "description": "已选中的预设主题色按钮语义标签（含色值）",
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_theme_current_accent": "当前强调色",
+  "settings_theme_dark": "深色",
+  "settings_theme_dark_desc": "使用低亮度的夜间试听空间",
+  "settings_theme_desc": "明暗模式与主题色",
+  "settings_theme_fine_tune": "精细调整",
+  "settings_theme_follow_system": "跟随系统",
+  "settings_theme_follow_system_desc": "自动匹配设备的外观设置",
+  "settings_theme_hue": "色相",
+  "settings_theme_light": "浅色",
+  "settings_theme_light_desc": "使用明亮、中性的试听空间",
+  "settings_theme_mode_dark": "黑色",
+  "settings_theme_mode_light": "白色",
+  "settings_theme_mode_system": "跟随系统",
+  "settings_theme_reset_default": "恢复默认主题",
+  "settings_theme_saturation": "饱和度",
+  "settings_title": "设置",
+  "settings_toggle_disabled": "已关闭",
+  "settings_toggle_enabled": "已开启",
+  "settings_toggle_semantics": "{title}，{state}，{description}",
+  "@settings_toggle_semantics": {
+    "description": "带描述的开关行的语义标签",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_toggle_semantics_no_desc": "{title}，{state}",
+  "@settings_toggle_semantics_no_desc": {
+    "description": "无描述的开关行的语义标签",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_assets": "下载文件",
+  "settings_update_assets_desc": "选择适合当前设备的安装文件。",
+  "settings_update_check_failed": "检查更新失败: {error}",
+  "@settings_update_check_failed": {
+    "description": "检查更新失败的提示（含错误信息）",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_found": "发现新版本",
+  "settings_update_found_version": "发现新版本 {version}",
+  "@settings_update_found_version": {
+    "description": "发现新版本对话框标题（含最新版本号）",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_latest": "当前已是最新版本 ({version})",
+  "@settings_update_latest": {
+    "description": "已是最新版本的提示（含当前版本号）",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_notes": "更新说明",
+  "settings_update_package": "更新包 {version}",
+  "@settings_update_package": {
+    "description": "更新安装包下载项名称（含版本号）",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_username": "用户名",
+  "settings_view_logs": "查看日志",
+  "settings_view_logs_desc": "应用内直接查看并复制诊断日志（可筛选 DLNA）",
   "widgets_retry": "重试",
   "widgets_settings": "设置",
   "widgets_artists": "艺术家",

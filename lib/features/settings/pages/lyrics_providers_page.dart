@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/provider_config.dart';
 import '../../../data/sources/database/database_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../widgets/music_flow_settings_components.dart';
 
@@ -19,9 +20,10 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
   @override
   Widget build(BuildContext context) {
     final configsAsync = ref.watch(lyricsProviderConfigsProvider);
+    final loc = AppLocalizations.of(context);
 
     return MusicFlowScaffold(
-      topBar: MusicFlowTopBar.back(context: context, title: '歌词提供商'),
+      topBar: MusicFlowTopBar.back(context: context, title: loc.settings_lyrics_provider),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -30,9 +32,9 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
             data: _buildProviderList,
             loading: () => const MusicFlowProviderListSkeleton(),
             error: (error, stackTrace) => MusicFlowErrorState(
-              title: '无法读取歌词提供商',
-              description: '提供商顺序和启用状态暂时不可用。\n$error',
-              actionLabel: '重试',
+              title: loc.settings_lyrics_provider_page_error_title,
+              description: loc.settings_lyrics_provider_page_error_desc('$error'),
+              actionLabel: loc.widgets_retry,
               onAction: () => ref.invalidate(lyricsProviderConfigsProvider),
             ),
           ),
@@ -42,10 +44,11 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
   }
 
   Widget _buildProviderList(List<ProviderConfig> configs) {
+    final loc = AppLocalizations.of(context);
     if (configs.isEmpty) {
-      return const MusicFlowEmptyState(
-        title: '没有可用的歌词提供商',
-        description: '提供商配置为空，请稍后重试或检查应用数据。',
+      return MusicFlowEmptyState(
+        title: loc.settings_lyrics_provider_empty_title,
+        description: loc.settings_lyrics_provider_empty_desc,
         icon: AppIcons.lyrics,
       );
     }
@@ -62,9 +65,9 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
       ),
       header: Padding(
         padding: EdgeInsets.only(bottom: context.musicFlowSpacing.md),
-        child: const MusicFlowSectionHeader(
-          title: '优先顺序',
-          description: '播放时会从上到下依次尝试。按住拖动图标可调整顺序。',
+        child: MusicFlowSectionHeader(
+          title: loc.settings_priority_order,
+          description: loc.settings_lyrics_priority_desc,
         ),
       ),
       itemCount: currentConfigs.length,
@@ -97,30 +100,32 @@ class _LyricsProvidersPageState extends ConsumerState<LyricsProvidersPage> {
   }
 
   String _getProviderName(String sourceId) {
+    final loc = AppLocalizations.of(context);
     switch (sourceId) {
       case 'subsonic':
-        return '服务端';
+        return loc.settings_provider_subsonic;
       case 'lrclib':
         return 'LRCLIB';
       case 'netease':
-        return '网易云音乐';
+        return loc.settings_provider_netease;
       case 'custom':
-        return '自定义源';
+        return loc.settings_provider_custom;
       default:
         return sourceId;
     }
   }
 
   String _getProviderDescription(String sourceId) {
+    final loc = AppLocalizations.of(context);
     switch (sourceId) {
       case 'subsonic':
-        return 'OpenSubsonic / Subsonic 内嵌歌词';
+        return loc.settings_lyrics_provider_subsonic_desc;
       case 'lrclib':
-        return '公共同步歌词 API';
+        return loc.settings_lyrics_provider_lrclib_desc;
       case 'netease':
-        return '网易云音乐歌词';
+        return loc.settings_lyrics_provider_netease_desc;
       case 'custom':
-        return '自定义 API 地址';
+        return loc.settings_lyrics_provider_custom_desc;
       default:
         return '';
     }

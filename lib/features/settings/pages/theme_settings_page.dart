@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/theme/color_scheme.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/theme_provider.dart';
 import '../widgets/music_flow_settings_components.dart';
 
@@ -13,9 +14,10 @@ class ThemeSettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(themeSettingsProvider);
     final notifier = ref.read(themeSettingsProvider.notifier);
+    final loc = AppLocalizations.of(context);
 
     return MusicFlowScaffold(
-      topBar: MusicFlowTopBar.back(context: context, title: '主题设置'),
+      topBar: MusicFlowTopBar.back(context: context, title: loc.settings_theme),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -29,26 +31,26 @@ class ThemeSettingsPage extends ConsumerWidget {
             ),
             children: <Widget>[
               MusicFlowSettingsSection(
-                title: '外观模式',
-                description: '跟随设备，或固定使用浅色与深色界面。',
+                title: loc.settings_theme_appearance,
+                description: loc.settings_theme_appearance_desc,
                 children: <Widget>[
                   MusicFlowChoiceRow(
-                    title: '跟随系统',
-                    description: '自动匹配设备的外观设置',
+                    title: loc.settings_theme_follow_system,
+                    description: loc.settings_theme_follow_system_desc,
                     selected: settings.mode == ThemeMode.system,
                     onPressed: () => notifier.setThemeMode(ThemeMode.system),
                     icon: AppIcons.settings,
                   ),
                   MusicFlowChoiceRow(
-                    title: '浅色',
-                    description: '使用明亮、中性的试听空间',
+                    title: loc.settings_theme_light,
+                    description: loc.settings_theme_light_desc,
                     selected: settings.mode == ThemeMode.light,
                     onPressed: () => notifier.setThemeMode(ThemeMode.light),
                     icon: AppIcons.image,
                   ),
                   MusicFlowChoiceRow(
-                    title: '深色',
-                    description: '使用低亮度的夜间试听空间',
+                    title: loc.settings_theme_dark,
+                    description: loc.settings_theme_dark_desc,
                     selected: settings.mode == ThemeMode.dark,
                     onPressed: () => notifier.setThemeMode(ThemeMode.dark),
                     icon: AppIcons.album,
@@ -57,8 +59,8 @@ class ThemeSettingsPage extends ConsumerWidget {
               ),
               SizedBox(height: context.musicFlowSpacing.xl),
               MusicFlowSettingsSection(
-                title: '强调色',
-                description: '只用于主要操作、当前选择与键盘焦点。专辑颜色不会扩散到普通页面。',
+                title: loc.settings_theme_accent,
+                description: loc.settings_theme_accent_desc,
                 children: <Widget>[
                   MusicFlowSurface(
                     level: MusicFlowSurfaceLevel.raised,
@@ -73,7 +75,7 @@ class ThemeSettingsPage extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               Text(
-                                '当前强调色',
+                                loc.settings_theme_current_accent,
                                 style: context.musicFlowTypography.label,
                               ),
                               SizedBox(height: context.musicFlowSpacing.xxs),
@@ -112,13 +114,13 @@ class ThemeSettingsPage extends ConsumerWidget {
                     runSpacing: context.musicFlowSpacing.sm,
                     children: <Widget>[
                       MusicFlowButton.primary(
-                        label: '精细调整',
+                        label: loc.settings_theme_fine_tune,
                         leadingIcon: AppIcons.palette,
                         onPressed: () =>
                             _openColorPicker(context, ref, settings.seedColor),
                       ),
                       MusicFlowButton.secondary(
-                        label: '恢复默认主题',
+                        label: loc.settings_theme_reset_default,
                         onPressed: notifier.resetSeedColor,
                       ),
                     ],
@@ -182,10 +184,11 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final color = _hsv.toColor();
+    final loc = AppLocalizations.of(context);
 
     return MusicFlowBottomSheet(
-      title: '调整强调色',
-      subtitle: '系统会在保存时校准对比度和色度。',
+      title: loc.settings_theme_color_picker_title,
+      subtitle: loc.settings_theme_color_picker_subtitle,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.7,
@@ -208,7 +211,7 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
               ),
               SizedBox(height: context.musicFlowSpacing.lg),
               _ColorSliderLine(
-                label: '色相',
+                label: loc.settings_theme_hue,
                 valueLabel: '${_hsv.hue.round()}°',
                 value: _hsv.hue,
                 min: 0,
@@ -223,7 +226,7 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                     setState(() => _hsv = _hsv.withHue(value)),
               ),
               _ColorSliderLine(
-                label: '饱和度',
+                label: loc.settings_theme_saturation,
                 valueLabel: '${(_hsv.saturation * 100).round()}%',
                 value: _hsv.saturation,
                 min: 0,
@@ -233,7 +236,7 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                     setState(() => _hsv = _hsv.withSaturation(value)),
               ),
               _ColorSliderLine(
-                label: '明度',
+                label: loc.settings_theme_brightness,
                 valueLabel: '${(_hsv.value * 100).round()}%',
                 value: _hsv.value,
                 min: 0,
@@ -247,14 +250,14 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                 children: <Widget>[
                   Expanded(
                     child: MusicFlowButton.secondary(
-                      label: '取消',
+                      label: loc.settings_cancel,
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
                   SizedBox(width: context.musicFlowSpacing.sm),
                   Expanded(
                     child: MusicFlowButton.primary(
-                      label: '应用',
+                      label: loc.settings_theme_apply,
                       onPressed: () => Navigator.of(context).pop(color),
                     ),
                   ),
@@ -338,8 +341,11 @@ class _PresetColorButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hex = _toHex(color);
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
-      semanticLabel: '强调色 $hex${selected ? '，已选择' : ''}',
+      semanticLabel: selected
+          ? loc.settings_theme_color_selected(hex)
+          : loc.settings_theme_color(hex),
       selected: selected,
       onPressed: onPressed,
       minimumSize: const Size.square(48),

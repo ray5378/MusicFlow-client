@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../../core/design/components/music_flow_app_bar.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/logger.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 应用内诊断日志窗口：无需控制台/导出即可直接在客户端查看并复制日志。
 ///
@@ -66,16 +67,17 @@ class _LogViewerPageState extends State<LogViewerPage> {
 
   void _copyAll() {
     final lines = _visibleLines;
+    final loc = AppLocalizations.of(context);
     if (lines.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('当前没有可复制的日志')));
+      ).showSnackBar(SnackBar(content: Text(loc.settings_log_no_content)));
       return;
     }
     Clipboard.setData(ClipboardData(text: lines.join('\n')));
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('已复制 ${lines.length} 行日志')));
+    ).showSnackBar(SnackBar(content: Text(loc.settings_log_copied(lines.length))));
   }
 
   void _clearBuffer() {
@@ -88,19 +90,20 @@ class _LogViewerPageState extends State<LogViewerPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final lines = _visibleLines;
+    final loc = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: MusicFlowAppBar(
-        title: const Text('诊断日志'),
+        title: Text(loc.settings_log_diagnostics),
         actions: <Widget>[
           MusicFlowIconButton(
             icon: _autoRefresh ? Icons.pause : Icons.play_arrow,
-            label: '自动刷新',
+            label: loc.settings_log_auto_refresh,
             onPressed: () => setState(() => _autoRefresh = !_autoRefresh),
           ),
           MusicFlowIconButton(
             icon: Icons.delete_sweep_outlined,
-            label: '清空缓存',
+            label: loc.settings_log_clear_cache,
             onPressed: _clearBuffer,
           ),
         ],
@@ -115,11 +118,11 @@ class _LogViewerPageState extends State<LogViewerPage> {
                   Expanded(
                     child: TextField(
                       controller: _filterController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         isDense: true,
-                        border: OutlineInputBorder(),
-                        hintText: '筛选关键字，如 DLNA-AUTO / SSDP / 触发续播',
-                        prefixIcon: Icon(Icons.search, size: 20),
+                        border: const OutlineInputBorder(),
+                        hintText: loc.settings_log_filter_hint,
+                        prefixIcon: const Icon(Icons.search, size: 20),
                       ),
                       onChanged: (_) => setState(() {}),
                     ),
@@ -127,7 +130,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                   const SizedBox(width: 8),
                   FilledButton.tonal(
                     onPressed: _copyAll,
-                    child: const Text('复制'),
+                    child: Text(loc.settings_log_copy),
                   ),
                 ],
               ),
@@ -137,8 +140,13 @@ class _LogViewerPageState extends State<LogViewerPage> {
               child: Row(
                 children: <Widget>[
                   Text(
-                    '共 ${Logger.bufferedLineCount} 行｜显示 ${lines.length} 行'
-                    '（${_autoRefresh ? "实时刷新中" : "已暂停"}）',
+                    loc.settings_log_summary(
+                      Logger.bufferedLineCount,
+                      lines.length,
+                      _autoRefresh
+                          ? loc.settings_log_status_live
+                          : loc.settings_log_status_paused,
+                    ),
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -147,7 +155,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
             const Divider(height: 1),
             Expanded(
               child: _isEmpty
-                  ? const Center(child: Text('暂无日志'))
+                  ? Center(child: Text(loc.settings_log_empty))
                   : SelectionArea(
                       child: ListView.builder(
                         padding: const EdgeInsets.all(12),

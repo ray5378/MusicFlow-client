@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/network/connectivity_monitor.dart';
 import '../../../data/models/audio_quality.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/audio_quality_provider.dart';
 import '../widgets/music_flow_settings_components.dart';
 
@@ -17,9 +18,10 @@ class AudioQualityPage extends ConsumerWidget {
         ref.watch(currentNetworkTypeProvider).valueOrNull ?? NetworkType.none;
     final effectiveQuality = ref.watch(effectiveQualityProvider);
     final notifier = ref.read(audioQualitySettingsProvider.notifier);
+    final loc = AppLocalizations.of(context);
 
     return MusicFlowScaffold(
-      topBar: MusicFlowTopBar.back(context: context, title: '音质设置'),
+      topBar: MusicFlowTopBar.back(context: context, title: loc.settings_audio_quality),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -39,17 +41,17 @@ class AudioQualityPage extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text('当前播放策略', style: context.musicFlowTypography.headline),
+                    Text(loc.settings_audio_current_strategy, style: context.musicFlowTypography.headline),
                     SizedBox(height: context.musicFlowSpacing.sm),
                     _StatusLine(
                       icon: _networkIcon(networkType),
-                      label: '网络',
-                      value: _networkName(networkType),
+                      label: loc.settings_audio_network,
+                      value: _networkName(loc, networkType),
                     ),
                     SizedBox(height: context.musicFlowSpacing.xs),
                     _StatusLine(
                       icon: AppIcons.quality,
-                      label: '生效音质',
+                      label: loc.settings_audio_effective_quality,
                       value: effectiveQuality.displayName,
                     ),
                   ],
@@ -57,15 +59,15 @@ class AudioQualityPage extends ConsumerWidget {
               ),
               SizedBox(height: context.musicFlowSpacing.xl),
               MusicFlowSettingsSection(
-                title: '网络策略',
-                description: '在 Wi-Fi 与移动数据之间自动使用不同码率。',
+                title: loc.settings_audio_network_strategy,
+                description: loc.settings_audio_network_strategy_desc,
                 children: <Widget>[
                   MusicFlowToggleSettingRow(
                     icon: AppIcons.route,
-                    title: '按网络自动切换',
+                    title: loc.settings_audio_auto_switch,
                     description: settings.autoSwitch
-                        ? 'Wi-Fi 与移动数据分别保存音质。'
-                        : '所有网络都使用同一音质。',
+                        ? loc.settings_audio_auto_switch_on_desc
+                        : loc.settings_audio_auto_switch_off_desc,
                     value: settings.autoSwitch,
                     onChanged: notifier.setAutoSwitch,
                   ),
@@ -73,15 +75,15 @@ class AudioQualityPage extends ConsumerWidget {
               ),
               SizedBox(height: context.musicFlowSpacing.xl),
               MusicFlowSettingsSection(
-                title: settings.autoSwitch ? 'Wi-Fi 音质' : '全局音质',
+                title: settings.autoSwitch ? loc.settings_audio_wifi_section : loc.settings_audio_global_section,
                 description: settings.autoSwitch
-                    ? '连接 Wi-Fi 时优先保证音乐完整度。'
-                    : '此选择将用于所有网络。',
+                    ? loc.settings_audio_wifi_section_desc
+                    : loc.settings_audio_global_section_desc,
                 children: <Widget>[
                   for (final quality in AudioQualityLevel.values)
                     MusicFlowChoiceRow(
                       title: quality.displayName,
-                      description: _qualityDescription(quality),
+                      description: _qualityDescription(loc, quality),
                       selected: settings.wifiQuality == quality,
                       onPressed: () => notifier.setWifiQuality(quality),
                       icon: AppIcons.quality,
@@ -91,13 +93,13 @@ class AudioQualityPage extends ConsumerWidget {
               if (settings.autoSwitch) ...<Widget>[
                 SizedBox(height: context.musicFlowSpacing.xl),
                 MusicFlowSettingsSection(
-                  title: '移动数据音质',
-                  description: '在流量消耗、启动速度与听感之间选择。',
+                  title: loc.settings_audio_mobile_section,
+                  description: loc.settings_audio_mobile_section_desc,
                   children: <Widget>[
                     for (final quality in AudioQualityLevel.values)
                       MusicFlowChoiceRow(
                         title: quality.displayName,
-                        description: _qualityDescription(quality),
+                        description: _qualityDescription(loc, quality),
                         selected: settings.mobileQuality == quality,
                         onPressed: () => notifier.setMobileQuality(quality),
                         icon: AppIcons.signal,
@@ -126,8 +128,9 @@ class _StatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Semantics(
-      label: '$label，$value',
+      label: loc.settings_audio_status_line(label, value),
       child: ExcludeSemantics(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,15 +170,15 @@ IconData _networkIcon(NetworkType type) => switch (type) {
   NetworkType.none => AppIcons.wifiOff,
 };
 
-String _networkName(NetworkType type) => switch (type) {
-  NetworkType.wifi => 'Wi-Fi',
-  NetworkType.mobile => '移动数据',
-  NetworkType.none => '无网络',
+String _networkName(AppLocalizations loc, NetworkType type) => switch (type) {
+  NetworkType.wifi => loc.settings_audio_network_wifi,
+  NetworkType.mobile => loc.settings_audio_network_mobile,
+  NetworkType.none => loc.settings_audio_network_none,
 };
 
-String _qualityDescription(AudioQualityLevel quality) => switch (quality) {
-  AudioQualityLevel.original => '不限制码率，直接播放服务器原始文件',
-  AudioQualityLevel.high => '高保真听感，适合稳定网络',
-  AudioQualityLevel.standard => '兼顾听感、启动速度与流量',
-  AudioQualityLevel.dataSaver => '减少流量消耗，适合信号波动时使用',
+String _qualityDescription(AppLocalizations loc, AudioQualityLevel quality) => switch (quality) {
+  AudioQualityLevel.original => loc.settings_audio_desc_original,
+  AudioQualityLevel.high => loc.settings_audio_desc_high,
+  AudioQualityLevel.standard => loc.settings_audio_desc_standard,
+  AudioQualityLevel.dataSaver => loc.settings_audio_desc_data_saver,
 };

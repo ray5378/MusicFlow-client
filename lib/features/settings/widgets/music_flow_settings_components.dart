@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class MusicFlowSettingsSection extends StatelessWidget {
   const MusicFlowSettingsSection({
@@ -54,6 +55,7 @@ class MusicFlowSettingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
+    final loc = AppLocalizations.of(context);
     final accent = destructive ? colors.error : colors.accent;
     final label =
         semanticLabel ??
@@ -61,7 +63,7 @@ class MusicFlowSettingRow extends StatelessWidget {
           title,
           if (value != null) value!,
           if (description != null) description!,
-          if (selected) '已选择',
+          if (selected) loc.settings_selected,
         ].join('，');
 
     return Padding(
@@ -149,13 +151,22 @@ class MusicFlowToggleSettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowSettingRow(
       icon: icon,
       title: title,
       description: description,
       selected: value,
-      semanticLabel:
-          '$title，${value ? '已开启' : '已关闭'}${description == null ? '' : '，$description'}',
+      semanticLabel: description == null
+          ? loc.settings_toggle_semantics_no_desc(
+              title,
+              value ? loc.settings_toggle_enabled : loc.settings_toggle_disabled,
+            )
+          : loc.settings_toggle_semantics(
+              title,
+              value ? loc.settings_toggle_enabled : loc.settings_toggle_disabled,
+              description!,
+            ),
       onPressed: () => onChanged(!value),
       trailing: _MusicFlowToggle(value: value),
     );
@@ -204,7 +215,7 @@ class MusicFlowProviderSettingRow extends StatelessWidget {
     required this.enabled,
     required this.onChanged,
     this.onConfigure,
-    this.configureLabel = '配置',
+    this.configureLabel,
   });
 
   final int index;
@@ -213,12 +224,14 @@ class MusicFlowProviderSettingRow extends StatelessWidget {
   final bool enabled;
   final ValueChanged<bool> onChanged;
   final VoidCallback? onConfigure;
-  final String configureLabel;
+  final String? configureLabel;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
     final spacing = context.musicFlowSpacing;
+    final loc = AppLocalizations.of(context);
+    final configLabel = configureLabel ?? loc.settings_configure;
 
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.xs),
@@ -241,7 +254,7 @@ class MusicFlowProviderSettingRow extends StatelessWidget {
               index: index,
               child: Semantics(
                 button: true,
-                label: '按住并拖动$title，调整优先顺序',
+                label: loc.settings_provider_drag_semantics(title),
                 child: SizedBox.square(
                   dimension: context.musicFlowInteraction.minimumTouchTarget,
                   child: Center(
@@ -269,7 +282,7 @@ class MusicFlowProviderSettingRow extends StatelessWidget {
                   ),
                   SizedBox(height: spacing.xxs),
                   Text(
-                    enabled ? '已启用' : '已停用',
+                    enabled ? loc.settings_status_enabled : loc.settings_status_disabled,
                     style: context.musicFlowTypography.metadata.copyWith(
                       color: enabled ? colors.accent : colors.muted,
                     ),
@@ -281,11 +294,14 @@ class MusicFlowProviderSettingRow extends StatelessWidget {
                 ? null
                 : MusicFlowIconButton(
                     icon: AppIcons.settings,
-                    label: '$configureLabel$title',
+                    label: '$configLabel$title',
                     onPressed: onConfigure,
                   );
             final toggle = MusicFlowPressable(
-              semanticLabel: '${enabled ? '停用' : '启用'}$title',
+              semanticLabel: loc.settings_provider_toggle_semantics(
+                enabled ? loc.settings_disable : loc.settings_enable,
+                title,
+              ),
               selected: enabled,
               onPressed: () => onChanged(!enabled),
               minimumSize: const Size(60, 48),

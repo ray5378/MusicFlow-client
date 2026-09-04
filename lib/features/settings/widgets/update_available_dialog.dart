@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/services/update_checker.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../widgets/windows_title_bar.dart' show isWindowsDesktop;
 
 /// 发现新版本时弹出的提示框（启动自动检查 / 设置页手动检查共用）。
@@ -16,6 +17,7 @@ Future<void> showUpdateAvailableDialog(
   required void Function(String url) onDownload,
   TargetPlatform? platform,
 }) async {
+  final loc = AppLocalizations.of(context);
   final asset = pickPlatformUpdateAsset(result, platform: platform);
   final downloadUrl = asset?.downloadUrl ?? result.releaseUrl;
   VoidCallback? onDownloadPressed;
@@ -26,7 +28,7 @@ Future<void> showUpdateAvailableDialog(
     };
   }
 
-  final title = '发现新版本 ${result.latestVersion}';
+  final title = loc.settings_update_found_version(result.latestVersion);
   final subtitle = '${result.currentVersion} → ${result.latestVersion}';
   final content = UpdateAvailableContent(
     result: result,
@@ -80,6 +82,7 @@ class UpdateAvailableContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spacing = context.musicFlowSpacing;
+    final loc = AppLocalizations.of(context);
     final notes = result.releaseNotes?.trim();
     final hasNotes = notes != null && notes.isNotEmpty;
 
@@ -87,13 +90,13 @@ class UpdateAvailableContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _InfoLine(label: '当前版本', value: result.currentVersion),
-        _InfoLine(label: '最新版本', value: result.latestVersion),
+        _InfoLine(label: loc.settings_current_version, value: result.currentVersion),
+        _InfoLine(label: loc.settings_latest_version, value: result.latestVersion),
         if (hasNotes) ...<Widget>[
           SizedBox(height: spacing.sm),
           const MusicFlowDivider(),
           SizedBox(height: spacing.md),
-          const MusicFlowSectionHeader(title: '更新说明'),
+          MusicFlowSectionHeader(title: loc.settings_update_notes),
           SizedBox(height: spacing.xs),
           Text(
             notes,
@@ -109,11 +112,11 @@ class UpdateAvailableContent extends StatelessWidget {
           runSpacing: spacing.xs,
           children: <Widget>[
             MusicFlowButton.ghost(
-              label: '稍后再说',
+              label: loc.settings_later,
               onPressed: () => Navigator.of(context).maybePop(),
             ),
             MusicFlowButton.primary(
-              label: '前往下载',
+              label: loc.settings_download,
               leadingIcon: AppIcons.download,
               onPressed: onDownload,
             ),

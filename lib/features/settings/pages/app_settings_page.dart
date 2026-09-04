@@ -68,13 +68,17 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       if (result.hasUpdate) {
         _showUpdateDialog(result);
       } else {
+        final loc = AppLocalizations.of(context);
         _showMessage(
-          '当前已是最新版本 (${result.currentVersion})',
+          loc.settings_update_latest(result.currentVersion),
           kind: MusicFlowMessageKind.success,
         );
       }
     } catch (error) {
-      _showMessage('检查更新失败: $error', kind: MusicFlowMessageKind.error);
+      _showMessage(
+        AppLocalizations.of(context).settings_update_check_failed('$error'),
+        kind: MusicFlowMessageKind.error,
+      );
     } finally {
       if (mounted) setState(() => _isCheckingUpdate = false);
     }
@@ -82,7 +86,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   void _showUpdateDialog(UpdateCheckResult result) {
     final ctx = context;
-    const subtitle = '发现新版本';
+    final loc = AppLocalizations.of(ctx);
+    final subtitle = loc.settings_update_found;
     final title = '${result.currentVersion} → ${result.latestVersion}';
 
     if (isWindowsDesktop) {
@@ -115,17 +120,18 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   Widget _buildUpdateContent(BuildContext ctx, UpdateCheckResult result) {
+    final loc = AppLocalizations.of(ctx);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-          _SettingsInfoLine(label: '当前版本', value: result.currentVersion),
-          _SettingsInfoLine(label: '最新版本', value: result.latestVersion),
+          _SettingsInfoLine(label: loc.settings_current_version, value: result.currentVersion),
+          _SettingsInfoLine(label: loc.settings_latest_version, value: result.latestVersion),
           if (result.releaseNotes != null &&
               result.releaseNotes!.isNotEmpty) ...<Widget>[
             SizedBox(height: ctx.musicFlowSpacing.sm),
             const MusicFlowDivider(),
             SizedBox(height: ctx.musicFlowSpacing.md),
-            const MusicFlowSectionHeader(title: '更新说明'),
+            MusicFlowSectionHeader(title: loc.settings_update_notes),
             SizedBox(height: ctx.musicFlowSpacing.xs),
             Text(
               result.releaseNotes!,
@@ -138,9 +144,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             SizedBox(height: ctx.musicFlowSpacing.sm),
             const MusicFlowDivider(),
             SizedBox(height: ctx.musicFlowSpacing.md),
-            const MusicFlowSectionHeader(
-              title: '下载文件',
-              description: '选择适合当前设备的安装文件。',
+            MusicFlowSectionHeader(
+              title: loc.settings_update_assets,
+              description: loc.settings_update_assets_desc,
             ),
             SizedBox(height: ctx.musicFlowSpacing.xs),
             for (final asset in result.assets)
@@ -168,13 +174,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             runSpacing: ctx.musicFlowSpacing.xs,
             children: <Widget>[
               MusicFlowButton.ghost(
-                label: '稍后再说',
+                label: loc.settings_later,
                 onPressed: () => Navigator.of(ctx).pop(),
               ),
               if (result.releaseUrl != null ||
                   _pickPlatformAsset(result) != null)
                 MusicFlowButton.primary(
-                  label: '前往下载',
+                  label: loc.settings_download,
                   leadingIcon: AppIcons.download,
                   onPressed: () {
                     final asset = _pickPlatformAsset(result);
@@ -183,7 +189,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       _confirmOpenDownload(asset.name, asset.downloadUrl);
                     } else if (result.releaseUrl != null) {
                       _confirmOpenDownload(
-                        '更新包 ${result.latestVersion}',
+                        loc.settings_update_package(result.latestVersion),
                         result.releaseUrl!,
                       );
                     }
@@ -211,6 +217,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   /// Windows 用「窗户」样式对话框,安卓保持底部抽屉。
   Future<void> _confirmOpenDownload(String label, String url) async {
     final ctx = context;
+    final loc = AppLocalizations.of(ctx);
     final bool confirmed;
     if (isWindowsDesktop) {
       confirmed = (await showMusicFlowDesktopDialog<bool>(
@@ -218,7 +225,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         useRootNavigator: true,
         builder: (dialogContext) => MusicFlowDesktopDialog(
           icon: AppIcons.download,
-          title: '前往下载',
+          title: loc.settings_download,
           subtitle: label,
           child: _buildConfirmContent(dialogContext),
         ),
@@ -229,7 +236,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         context: ctx,
         useRootNavigator: true,
         builder: (sheetContext) => MusicFlowBottomSheet(
-          title: '前往下载',
+          title: loc.settings_download,
           subtitle: label,
           child: _buildConfirmContent(sheetContext),
         ),
@@ -242,13 +249,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   Widget _buildConfirmContent(BuildContext ctx) {
+    final loc = AppLocalizations.of(ctx);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Text(
-          '将跳转到浏览器开始下载。下载完成后请自行完成更新安装：'
-          'Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。',
+          loc.settings_download_confirm_body,
           style: ctx.musicFlowTypography.body.copyWith(
             color: ctx.musicFlowColors.muted,
           ),
@@ -260,11 +267,11 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           runSpacing: ctx.musicFlowSpacing.xs,
           children: <Widget>[
             MusicFlowButton.ghost(
-              label: '取消',
+              label: loc.settings_cancel,
               onPressed: () => Navigator.of(ctx).pop(false),
             ),
             MusicFlowButton.primary(
-              label: '前往下载',
+              label: loc.settings_download,
               leadingIcon: AppIcons.download,
               onPressed: () => Navigator.of(ctx).pop(true),
             ),
@@ -305,12 +312,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     final loc = AppLocalizations.of(context);
     final switchDescription = librariesAsync.when(
       data: (libraries) => libraries.length > 1
-          ? '已保存 ${libraries.length} 个音乐库'
+          ? loc.settings_library_count_saved(libraries.length)
           : libraries.isEmpty
-          ? '当前没有可切换的音乐库'
-          : '当前仅有一个音乐库',
-      loading: () => '正在读取音乐库列表',
-      error: (error, stackTrace) => '音乐库列表读取失败，点击重试',
+          ? loc.settings_library_empty
+          : loc.settings_library_single,
+      loading: () => loc.settings_library_loading,
+      error: (error, stackTrace) => loc.settings_library_load_failed,
     );
 
     final VoidCallback? switchLibraryAction;
@@ -341,7 +348,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     }
 
     return MusicFlowScaffold(
-      topBar: MusicFlowTopBar.back(context: context, title: '设置'),
+      topBar: MusicFlowTopBar.back(context: context, title: loc.settings_title),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -356,8 +363,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             ),
             children: <Widget>[
               MusicFlowSettingsSection(
-                title: '音乐库与服务器',
-                description: '查看当前连接，也可以切换或编辑已经保存的音乐库。',
+                title: loc.settings_library_section,
+                description: loc.settings_library_section_desc,
                 children: <Widget>[
                   _ServerSummary(
                     library: library,
@@ -366,19 +373,19 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   SizedBox(height: context.musicFlowSpacing.sm),
                   MusicFlowSettingRow(
                     icon: AppIcons.library,
-                    title: '切换音乐库',
-                    value: library?.name ?? '未选择',
+                    title: loc.settings_switch_library,
+                    value: library?.name ?? loc.settings_not_selected,
                     description: switchDescription,
                     trailing: switchLibraryTrailing,
                     onPressed: switchLibraryAction,
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.edit,
-                    title: '编辑当前音乐库',
-                    value: library?.name ?? '未选择',
+                    title: loc.settings_edit_library,
+                    value: library?.name ?? loc.settings_not_selected,
                     description: library == null
-                        ? '选择音乐库后可编辑服务器与认证信息。'
-                        : '管理服务器地址、认证方式与音乐库能力。',
+                        ? loc.settings_edit_library_empty_desc
+                        : loc.settings_edit_library_desc,
                     onPressed: library == null
                         ? null
                         : () => context.push('/library/edit/${library.id}'),
@@ -387,13 +394,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               ),
               SizedBox(height: context.musicFlowSpacing.xl),
               MusicFlowSettingsSection(
-                title: '播放与外观',
-                description: '这些选择会立即应用到当前设备。',
+                title: loc.settings_playback_section,
+                description: loc.settings_playback_section_desc,
                 children: <Widget>[
                   MusicFlowToggleSettingRow(
                     icon: AppIcons.route,
-                    title: '线路自动回退',
-                    description: '手动线路不可用时，自动切换到其他可用线路。',
+                    title: loc.settings_route_auto_fallback,
+                    description: loc.settings_route_auto_fallback_desc,
                     value: autoFallback,
                     onChanged: (value) async {
                       ref.read(autoFallbackProvider.notifier).state = value;
@@ -403,10 +410,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.palette,
-                    title: '主题设置',
+                    title: loc.settings_theme,
                     value:
                         '${_themeModeText(themeSettings.mode)} · ${_colorHex(themeSettings.seedColor)}',
-                    description: '明暗模式与主题色',
+                    description: loc.settings_theme_desc,
                     onPressed: () => _pushPage(const ThemeSettingsPage()),
                   ),
                   MusicFlowSettingRow(
@@ -418,29 +425,29 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.quality,
-                    title: '音质设置',
-                    description: '按网络选择播放码率',
+                    title: loc.settings_audio_quality,
+                    description: loc.settings_audio_quality_desc,
                     onPressed: () => _pushPage(const AudioQualityPage()),
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.timer,
-                    title: '切歌淡入淡出',
-                    value: _crossfadeLabel(crossfadeMs),
-                    description: '设置相邻曲目之间的交叉衰减时长。',
+                    title: loc.settings_crossfade,
+                    value: _crossfadeLabel(loc, crossfadeMs),
+                    description: loc.settings_crossfade_desc,
                     onPressed: () => _showCrossfadeSheet(crossfadeMs),
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.lyrics,
-                    title: '歌词跟随停靠时长',
-                    value: _lyricsDwellLabel(lyricsDwellSeconds),
-                    description: '手动滚动歌词后，过多久恢复自动跟随当前歌词。',
+                    title: loc.settings_lyrics_dwell,
+                    value: _lyricsDwellLabel(loc, lyricsDwellSeconds),
+                    description: loc.settings_lyrics_dwell_desc,
                     onPressed: () =>
                         _showLyricsDwellSheet(lyricsDwellSeconds),
                   ),
                   MusicFlowToggleSettingRow(
                     icon: AppIcons.play,
-                    title: '打开时自动播放',
-                    description: '启动后恢复上次本机播放队列与进度，并自动续播。',
+                    title: loc.settings_autoplay,
+                    description: loc.settings_autoplay_desc,
                     value: _autoPlayOnLaunch,
                     onChanged: (value) async {
                       setState(() => _autoPlayOnLaunch = value);
@@ -450,35 +457,35 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   if (isWindowsDesktop)
                     MusicFlowToggleSettingRow(
                       icon: AppIcons.lyrics,
-                      title: '桌面歌词',
-                      description: '开启后，桌面显示可拖动的歌词浮窗(置顶、不抢焦点)。',
+                      title: loc.settings_desktop_lyrics,
+                      description: loc.settings_desktop_lyrics_desc,
                       value: statusLyricsEnabled,
                       onChanged: (_) =>
                           ref.read(statusLyricsControllerProvider).toggle(),
                     ),
                   MusicFlowSettingRow(
                     icon: AppIcons.lyrics,
-                    title: '歌词提供商',
-                    description: '调整获取顺序与启用状态',
+                    title: loc.settings_lyrics_provider,
+                    description: loc.settings_lyrics_provider_desc,
                     onPressed: () => _pushPage(const LyricsProvidersPage()),
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.image,
-                    title: '封面提供商',
-                    description: '调整获取顺序并配置 Fanart.tv',
+                    title: loc.settings_cover_provider,
+                    description: loc.settings_cover_provider_desc,
                     onPressed: () => _pushPage(const CoverProvidersPage()),
                   ),
                 ],
               ),
               SizedBox(height: context.musicFlowSpacing.xl),
               MusicFlowSettingsSection(
-                title: '诊断与更新',
-                description: '查看本机诊断日志，或检查 GitHub Releases。',
+                title: loc.settings_diagnostics_section,
+                description: loc.settings_diagnostics_section_desc,
                 children: <Widget>[
                   MusicFlowToggleSettingRow(
                     icon: AppIcons.fileText,
-                    title: '记录日志',
-                    description: '默认关闭不抓取任何日志；开启后记录全部日志（最多 5000 条）。',
+                    title: loc.settings_logging,
+                    description: loc.settings_logging_desc,
                     value: _loggingEnabled,
                     onChanged: (value) async {
                       setState(() => _loggingEnabled = value);
@@ -488,8 +495,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.fileText,
-                    title: '查看日志',
-                    description: '应用内直接查看并复制诊断日志（可筛选 DLNA）',
+                    title: loc.settings_view_logs,
+                    description: loc.settings_view_logs_desc,
                     trailing: Icon(
                       AppIcons.chevronRight,
                       size: 20,
@@ -499,10 +506,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.refresh,
-                    title: '检查更新',
-                    description: '从 GitHub Releases 检查最新版本',
+                    title: loc.settings_check_update,
+                    description: loc.settings_check_update_desc,
                     semanticLabel: _isCheckingUpdate
-                        ? '检查更新，正在连接 GitHub Releases'
+                        ? loc.settings_check_update_checking_semantics
                         : null,
                     trailing: _isCheckingUpdate
                         ? const MusicFlowSkeleton.circle(size: 20)
@@ -511,8 +518,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.info,
-                    title: '关于',
-                    description: 'MusicFlow · 基于 Subsonic API',
+                    title: loc.settings_about,
+                    description: loc.settings_about_desc,
                     onPressed: _showAboutSheet,
                   ),
                 ],
@@ -534,13 +541,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     List<MusicLibrary> libraries,
     MusicLibrary? currentLibrary,
   ) async {
+    final loc = AppLocalizations.of(context);
     await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '切换音乐库',
-        subtitle: '选择后会刷新当前音乐库的内容与播放状态。',
+        title: loc.settings_switch_library,
+        subtitle: loc.settings_library_switch_subtitle,
         constrainToAvailableHeight: true,
         child: SingleChildScrollView(
           child: Column(
@@ -549,7 +557,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               for (final library in libraries)
                 MusicFlowChoiceRow(
                   title: library.name,
-                  description: library.addresses.firstOrNull?.url ?? '未配置服务器地址',
+                  description: library.addresses.firstOrNull?.url ?? loc.settings_server_unconfigured,
                   selected: library.id == currentLibrary?.id,
                   icon: AppIcons.library,
                   onPressed: () {
@@ -578,21 +586,28 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       ref.invalidate(frequentAlbumsProvider);
       ref.invalidate(playlistsProvider);
       ref.invalidate(starredProvider);
-      _showMessage('已切换到“${library.name}”', kind: MusicFlowMessageKind.success);
+      _showMessage(
+        AppLocalizations.of(context).settings_library_switched(library.name),
+        kind: MusicFlowMessageKind.success,
+      );
     } catch (error) {
-      _showMessage('切换音乐库失败: $error', kind: MusicFlowMessageKind.error);
+      _showMessage(
+        AppLocalizations.of(context).settings_library_switch_failed('$error'),
+        kind: MusicFlowMessageKind.error,
+      );
     }
   }
 
   Future<void> _showCrossfadeSheet(int currentValue) async {
     const values = <int>[0, 500, 1000, 1500, 2000, 2500, 3000];
+    final loc = AppLocalizations.of(context);
     final selected = await showMusicFlowBottomSheet<int>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '切歌淡入淡出',
-        subtitle: '选择相邻曲目同时播放的交叉衰减时长。',
+        title: loc.settings_crossfade,
+        subtitle: loc.settings_crossfade_subtitle,
         constrainToAvailableHeight: true,
         child: SingleChildScrollView(
           child: Column(
@@ -600,10 +615,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             children: <Widget>[
               for (final value in values)
                 MusicFlowChoiceRow(
-                  title: _crossfadeLabel(value),
+                  title: _crossfadeLabel(loc, value),
                   description: value == 0
-                      ? '关闭交叉衰减'
-                      : '用 ${_crossfadeLabel(value)} 平滑衔接相邻曲目',
+                      ? loc.settings_crossfade_off_value
+                      : loc.settings_crossfade_smooth(_crossfadeLabel(loc, value)),
                   selected: value == currentValue,
                   icon: AppIcons.timer,
                   onPressed: () => Navigator.of(sheetContext).pop(value),
@@ -619,13 +634,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   Future<void> _showLyricsDwellSheet(int currentValue) async {
     const values = <int>[1, 2, 3, 4, 5, 8, 10];
+    final loc = AppLocalizations.of(context);
     final selected = await showMusicFlowBottomSheet<int>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '歌词跟随停靠时长',
-        subtitle: '手动滚动并停下后，等待该时长再恢复「跟随当前歌词」自动滚动。',
+        title: loc.settings_lyrics_dwell,
+        subtitle: loc.settings_lyrics_dwell_subtitle,
         constrainToAvailableHeight: true,
         child: SingleChildScrollView(
           child: Column(
@@ -633,10 +649,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
             children: <Widget>[
               for (final value in values)
                 MusicFlowChoiceRow(
-                  title: _lyricsDwellLabel(value),
+                  title: _lyricsDwellLabel(loc, value),
                   description: value == 3
-                      ? '默认：停下 3 秒后恢复跟随'
-                      : '停下 ${_lyricsDwellLabel(value)} 后恢复跟随',
+                      ? loc.settings_lyrics_dwell_default
+                      : loc.settings_lyrics_dwell_resume(_lyricsDwellLabel(loc, value)),
                   selected: value == currentValue,
                   icon: AppIcons.lyrics,
                   onPressed: () => Navigator.of(sheetContext).pop(value),
@@ -651,12 +667,13 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   void _showAboutSheet() {
+    final loc = AppLocalizations.of(context);
     showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '关于 MusicFlow',
+        title: loc.settings_about_title,
         constrainToAvailableHeight: true,
         child: SingleChildScrollView(
           child: Column(
@@ -692,7 +709,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                           ),
                           SizedBox(height: sheetContext.musicFlowSpacing.xxs),
                           Text(
-                            '基于 Subsonic API 的音乐客户端。',
+                            loc.settings_about_subtitle,
                             style: sheetContext.musicFlowTypography.body.copyWith(
                               color: sheetContext.musicFlowColors.muted,
                             ),
@@ -706,7 +723,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               SizedBox(height: sheetContext.musicFlowSpacing.md),
               MusicFlowActionRow(
                 icon: AppIcons.externalLink,
-                title: '项目主页',
+                title: loc.settings_project_home,
                 subtitle: 'github.com/ray5378/MusicFlow-client',
                 trailing: Icon(
                   AppIcons.chevronRight,
@@ -740,13 +757,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   String _themeModeText(ThemeMode mode) {
+    final loc = AppLocalizations.of(context);
     switch (mode) {
       case ThemeMode.system:
-        return '跟随系统';
+        return loc.settings_theme_mode_system;
       case ThemeMode.light:
-        return '白色';
+        return loc.settings_theme_mode_light;
       case ThemeMode.dark:
-        return '黑色';
+        return loc.settings_theme_mode_dark;
     }
   }
 
@@ -768,6 +786,7 @@ class _ServerSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowSurface(
       level: MusicFlowSurfaceLevel.raised,
       borderColor: context.musicFlowColors.controlBoundary,
@@ -775,18 +794,18 @@ class _ServerSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          _SettingsInfoLine(label: '音乐库', value: library?.name ?? '未选择'),
+          _SettingsInfoLine(label: loc.settings_library_label, value: library?.name ?? loc.settings_not_selected),
           _SettingsInfoLine(
-            label: '当前连接',
-            value: activeAddress?.label ?? '未连接',
+            label: loc.settings_current_connection,
+            value: activeAddress?.label ?? loc.settings_not_connected,
           ),
-          _SettingsInfoLine(label: '服务器地址', value: activeAddress?.url ?? '未设置'),
-          _SettingsInfoLine(label: '用户名', value: library?.username ?? '未设置'),
+          _SettingsInfoLine(label: loc.settings_server_address, value: activeAddress?.url ?? loc.settings_not_set),
+          _SettingsInfoLine(label: loc.settings_username, value: library?.username ?? loc.settings_not_set),
           _SettingsInfoLine(
-            label: '认证方式',
+            label: loc.settings_auth_type,
             value: library?.authType == MusicLibraryAuthType.apiKey
                 ? 'API Key'
-                : '密码',
+                : loc.settings_auth_password,
             showBottomSpacing: false,
           ),
         ],
@@ -808,9 +827,10 @@ class _SettingsInfoLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Semantics(
       container: true,
-      label: '$label，$value',
+      label: loc.settings_info_line_semantics(label, value),
       child: ExcludeSemantics(
         child: Padding(
           padding: EdgeInsets.only(
@@ -835,11 +855,11 @@ class _SettingsInfoLine extends StatelessWidget {
   }
 }
 
-String _crossfadeLabel(int milliseconds) {
-  if (milliseconds <= 0) return '关闭';
-  return '${(milliseconds / 1000).toStringAsFixed(1)} 秒';
+String _crossfadeLabel(AppLocalizations loc, int milliseconds) {
+  if (milliseconds <= 0) return loc.settings_crossfade_off;
+  return loc.settings_crossfade_seconds((milliseconds / 1000).toStringAsFixed(1));
 }
 
-String _lyricsDwellLabel(int seconds) {
-  return '$seconds 秒';
+String _lyricsDwellLabel(AppLocalizations loc, int seconds) {
+  return loc.settings_dwell_seconds('$seconds');
 }

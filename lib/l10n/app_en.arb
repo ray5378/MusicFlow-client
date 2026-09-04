@@ -9,6 +9,400 @@
   "language_zh_desc": "Always use Simplified Chinese",
   "language_en": "English",
   "language_en_desc": "Always use the English interface",
+  "settings_about": "About",
+  "settings_about_desc": "MusicFlow · Built on the Subsonic API",
+  "settings_about_subtitle": "A music client built on the Subsonic API.",
+  "settings_about_title": "About MusicFlow",
+  "settings_api_key": "API Key",
+  "settings_api_key_helper": "Choosing \"Clear\" removes the Key stored on this device.",
+  "settings_api_key_hint": "Enter your Fanart.tv API Key",
+  "settings_audio_auto_switch": "Switch automatically by network",
+  "settings_audio_auto_switch_off_desc": "Use the same quality across all networks.",
+  "settings_audio_auto_switch_on_desc": "Save quality separately for Wi-Fi and mobile data.",
+  "settings_audio_current_strategy": "Current playback strategy",
+  "settings_audio_desc_data_saver": "Reduces data usage; suits unstable connections",
+  "settings_audio_desc_high": "High-fidelity sound for stable networks",
+  "settings_audio_desc_original": "No bitrate limit; plays the server's original file",
+  "settings_audio_desc_standard": "A balance of sound, startup speed, and data",
+  "settings_audio_effective_quality": "Effective quality",
+  "settings_audio_global_section": "Global quality",
+  "settings_audio_global_section_desc": "This choice applies to all networks.",
+  "settings_audio_mobile_section": "Mobile data quality",
+  "settings_audio_mobile_section_desc": "Choose between data usage, startup speed, and sound.",
+  "settings_audio_network": "Network",
+  "settings_audio_network_mobile": "Mobile data",
+  "settings_audio_network_none": "No network",
+  "settings_audio_network_strategy": "Network strategy",
+  "settings_audio_network_strategy_desc": "Automatically use different bitrates on Wi-Fi vs mobile data.",
+  "settings_audio_network_wifi": "Wi-Fi",
+  "settings_audio_quality": "Audio quality",
+  "settings_audio_quality_desc": "Choose playback bitrate by network",
+  "settings_audio_status_line": "{label}: {value}",
+  "@settings_audio_status_line": {
+    "description": "Accessibility label for a status line (label and value) on the audio quality page",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_audio_wifi_section": "Wi-Fi quality",
+  "settings_audio_wifi_section_desc": "Prioritize full fidelity while on Wi-Fi.",
+  "settings_autoplay": "Auto-play on launch",
+  "settings_autoplay_desc": "Restore and resume the last local queue and progress on launch.",
+  "settings_auth_password": "Password",
+  "settings_auth_type": "Auth method",
+  "settings_cancel": "Cancel",
+  "settings_check_update": "Check for updates",
+  "settings_check_update_checking_semantics": "Checking for updates; connecting to GitHub Releases",
+  "settings_check_update_desc": "Check for the latest version on GitHub Releases",
+  "settings_clear": "Clear",
+  "settings_configure": "Configure",
+  "settings_configure_fanart": "Configure Fanart.tv",
+  "settings_configure_fanart_subtitle": "Fanart.tv HD covers require a separate API Key.",
+  "settings_crossfade": "Crossfade",
+  "settings_crossfade_desc": "Set the fade duration between adjacent tracks.",
+  "settings_crossfade_off": "Off",
+  "settings_crossfade_off_value": "Disable crossfade",
+  "settings_crossfade_seconds": "{seconds}s",
+  "@settings_crossfade_seconds": {
+    "description": "Crossfade duration value label (seconds)",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_crossfade_smooth": "Smoothly join adjacent tracks with {label}",
+  "@settings_crossfade_smooth": {
+    "description": "Crossfade option description that includes the duration",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_crossfade_subtitle": "Choose the crossfade duration for overlapping adjacent tracks.",
+  "settings_cover_api_key_configured": "API Key: configured",
+  "settings_cover_api_key_unconfigured": "API Key: not configured",
+  "settings_cover_priority_desc": "Cover lookup tries providers top to bottom. Drag the handle to reorder.",
+  "settings_cover_provider": "Cover providers",
+  "settings_cover_provider_custom_desc": "Custom API address",
+  "settings_cover_provider_desc": "Adjust fetch order and configure Fanart.tv",
+  "settings_cover_provider_empty_desc": "No provider config found. Retry later or check your app data.",
+  "settings_cover_provider_empty_title": "No cover providers available",
+  "settings_cover_provider_fanart_desc": "Fanart.tv HD covers (requires API Key)",
+  "settings_cover_provider_musicbrainz_desc": "MusicBrainz Cover Art Archive",
+  "settings_cover_provider_page_error_desc": "Provider order, enabled state, and config are temporarily unavailable.\n{error}",
+  "@settings_cover_provider_page_error_desc": {
+    "description": "Description for the cover provider load error (with the error message)",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_cover_provider_page_error_title": "Couldn't load cover providers",
+  "settings_cover_provider_subsonic_desc": "Subsonic server covers",
+  "settings_current_connection": "Current connection",
+  "settings_current_version": "Current version",
+  "settings_desktop_lyrics": "Desktop lyrics",
+  "settings_desktop_lyrics_desc": "Shows a draggable always-on-top lyrics overlay that doesn't steal focus.",
+  "settings_diagnostics_section": "Diagnostics & updates",
+  "settings_diagnostics_section_desc": "View on-device diagnostic logs or check GitHub Releases.",
+  "settings_disable": "Disable",
+  "settings_download": "Go to download",
+  "settings_download_confirm_body": "You'll be taken to the browser to start the download. After it finishes, complete the update yourself: on Windows unzip and overwrite your install directory; on Android install the downloaded apk.",
+  "settings_dwell_seconds": "{seconds}s",
+  "@settings_dwell_seconds": {
+    "description": "Lyrics follow dwell value label (seconds)",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_edit_library": "Edit current library",
+  "settings_edit_library_desc": "Manage server addresses, auth method, and library capabilities.",
+  "settings_edit_library_empty_desc": "After selecting a library you can edit its server and auth info.",
+  "settings_enable": "Enable",
+  "settings_info_line_semantics": "{label}: {value}",
+  "@settings_info_line_semantics": {
+    "description": "Accessibility label for an info line (label and value)",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_later": "Remind me later",
+  "settings_latest_version": "Latest version",
+  "settings_library_count_saved": "{count} music libraries saved",
+  "@settings_library_count_saved": {
+    "description": "Description of the number of saved music libraries",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settings_library_empty": "No music libraries to switch to",
+  "settings_library_label": "Library",
+  "settings_library_load_failed": "Failed to load the library list. Tap to retry.",
+  "settings_library_loading": "Loading library list",
+  "settings_library_section": "Library & server",
+  "settings_library_section_desc": "View the current connection, or switch and edit saved libraries.",
+  "settings_library_single": "Only one library is available",
+  "settings_library_switch_failed": "Failed to switch library: {error}",
+  "@settings_library_switch_failed": {
+    "description": "Message when switching music libraries fails (with the error)",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_library_switch_subtitle": "The current library's content and playback state will refresh after switching.",
+  "settings_library_switched": "Switched to \"{name}\"",
+  "@settings_library_switched": {
+    "description": "Message after successfully switching to a music library (with the name)",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_log_auto_refresh": "Auto refresh",
+  "settings_log_clear_cache": "Clear buffer",
+  "settings_log_copy": "Copy",
+  "settings_log_copied": "Copied {count} lines of logs",
+  "@settings_log_copied": {
+    "description": "Message when logs are copied successfully (with the line count)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settings_log_diagnostics": "Diagnostic logs",
+  "settings_log_empty": "No logs yet",
+  "settings_log_filter_hint": "Filter by keyword, e.g. DLNA-AUTO / SSDP / trigger resume",
+  "settings_log_no_content": "No logs to copy right now",
+  "settings_log_status_live": "live",
+  "settings_log_status_paused": "paused",
+  "settings_log_summary": "{total} lines total | showing {shown} lines ({status})",
+  "@settings_log_summary": {
+    "description": "Statistics line for the log viewer (total, shown, refresh status)",
+    "placeholders": {
+      "total": {
+        "type": "int"
+      },
+      "shown": {
+        "type": "int"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_logging": "Log to file",
+  "settings_logging_desc": "Disabled by default with no logs captured; when enabled all logs are recorded (up to 5000 entries).",
+  "settings_lyrics_dwell": "Lyrics follow dwell",
+  "settings_lyrics_dwell_default": "Default: resumes after 3 seconds",
+  "settings_lyrics_dwell_desc": "How long after manually scrolling lyrics before resuming auto-follow.",
+  "settings_lyrics_dwell_resume": "Resume following after {duration}",
+  "@settings_lyrics_dwell_resume": {
+    "description": "Option description for resuming follow after a given duration",
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_lyrics_dwell_subtitle": "After you scroll and stop, waits this long before resuming \"follow current lyrics\" auto-scroll.",
+  "settings_lyrics_priority_desc": "Playback tries providers top to bottom. Drag the handle to reorder.",
+  "settings_lyrics_provider": "Lyrics providers",
+  "settings_lyrics_provider_custom_desc": "Custom API address",
+  "settings_lyrics_provider_desc": "Adjust fetch order and enabled state",
+  "settings_lyrics_provider_empty_desc": "No provider config found. Retry later or check your app data.",
+  "settings_lyrics_provider_empty_title": "No lyrics providers available",
+  "settings_lyrics_provider_lrclib_desc": "Public sync lyrics API",
+  "settings_lyrics_provider_netease_desc": "Netease Cloud Music lyrics",
+  "settings_lyrics_provider_page_error_desc": "Provider order and enabled state are temporarily unavailable.\n{error}",
+  "@settings_lyrics_provider_page_error_desc": {
+    "description": "Description for the lyrics provider load error (with the error message)",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_lyrics_provider_page_error_title": "Couldn't load lyrics providers",
+  "settings_lyrics_provider_subsonic_desc": "OpenSubsonic / Subsonic embedded lyrics",
+  "settings_not_connected": "Not connected",
+  "settings_not_selected": "Not selected",
+  "settings_not_set": "Not set",
+  "settings_playback_section": "Playback & appearance",
+  "settings_playback_section_desc": "These choices apply to this device immediately.",
+  "settings_priority_order": "Priority order",
+  "settings_project_home": "Project home",
+  "settings_provider_custom": "Custom source",
+  "settings_provider_drag_semantics": "Press and drag {title} to adjust priority order",
+  "@settings_provider_drag_semantics": {
+    "description": "Accessibility label for the reorder drag handle in a provider list (with the name)",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_provider_fanart": "Fanart.tv",
+  "settings_provider_lrclib": "LRCLIB",
+  "settings_provider_musicbrainz": "MusicBrainz",
+  "settings_provider_netease": "Netease Cloud Music",
+  "settings_provider_subsonic": "Server",
+  "settings_provider_toggle_semantics": "{action}{title}",
+  "@settings_provider_toggle_semantics": {
+    "description": "Accessibility label for a provider enable/disable switch (action and name)",
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_route_auto_fallback": "Route auto-fallback",
+  "settings_route_auto_fallback_desc": "When a manual route is unavailable, automatically switch to another available route.",
+  "settings_save": "Save",
+  "settings_selected": "Selected",
+  "settings_server_address": "Server address",
+  "settings_server_unconfigured": "No server address configured",
+  "settings_status_disabled": "Disabled",
+  "settings_status_enabled": "Enabled",
+  "settings_switch_library": "Switch library",
+  "settings_theme": "Theme",
+  "settings_theme_accent": "Accent color",
+  "settings_theme_accent_desc": "Used only for primary actions, current selection, and keyboard focus. Album colors don't spread to ordinary pages.",
+  "settings_theme_apply": "Apply",
+  "settings_theme_appearance": "Appearance",
+  "settings_theme_appearance_desc": "Follow the device, or fix light or dark.",
+  "settings_theme_brightness": "Brightness",
+  "settings_theme_color": "Accent color {hex}",
+  "@settings_theme_color": {
+    "description": "Accessibility label for a preset accent color button (with the hex value)",
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_theme_color_picker_subtitle": "The system calibrates contrast and chroma on save.",
+  "settings_theme_color_picker_title": "Adjust accent color",
+  "settings_theme_color_selected": "Accent color {hex}, selected",
+  "@settings_theme_color_selected": {
+    "description": "Accessibility label for a selected preset accent color button (with the hex value)",
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_theme_current_accent": "Current accent color",
+  "settings_theme_dark": "Dark",
+  "settings_theme_dark_desc": "A low-brightness night listening space",
+  "settings_theme_desc": "Light/dark mode and accent color",
+  "settings_theme_fine_tune": "Fine-tune",
+  "settings_theme_follow_system": "Follow system",
+  "settings_theme_follow_system_desc": "Automatically match the device's appearance",
+  "settings_theme_hue": "Hue",
+  "settings_theme_light": "Light",
+  "settings_theme_light_desc": "A bright, neutral listening space",
+  "settings_theme_mode_dark": "Dark",
+  "settings_theme_mode_light": "Light",
+  "settings_theme_mode_system": "Follow system",
+  "settings_theme_reset_default": "Reset to default theme",
+  "settings_theme_saturation": "Saturation",
+  "settings_title": "Settings",
+  "settings_toggle_disabled": "Off",
+  "settings_toggle_enabled": "On",
+  "settings_toggle_semantics": "{title}: {state}, {description}",
+  "@settings_toggle_semantics": {
+    "description": "Accessibility label for a toggle row with a description",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_toggle_semantics_no_desc": "{title}: {state}",
+  "@settings_toggle_semantics_no_desc": {
+    "description": "Accessibility label for a toggle row without a description",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_assets": "Download files",
+  "settings_update_assets_desc": "Choose the installer that fits this device.",
+  "settings_update_check_failed": "Failed to check for updates: {error}",
+  "@settings_update_check_failed": {
+    "description": "Message when checking for updates fails (with the error)",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_found": "Update available",
+  "settings_update_found_version": "Update available: {version}",
+  "@settings_update_found_version": {
+    "description": "Title of the update available dialog (with the latest version)",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_latest": "You're up to date ({version})",
+  "@settings_update_latest": {
+    "description": "Message shown when already on the latest version (with the current version)",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_update_notes": "Release notes",
+  "settings_update_package": "Update package {version}",
+  "@settings_update_package": {
+    "description": "Download item name for the update package (with the version)",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settings_username": "Username",
+  "settings_view_logs": "View logs",
+  "settings_view_logs_desc": "View and copy diagnostic logs in-app (filterable by DLNA)",
   "widgets_retry": "Retry",
   "widgets_settings": "Settings",
   "widgets_artists": "Artists",
