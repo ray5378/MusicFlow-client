@@ -12,6 +12,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/discover/pages/discover_page.dart';
 import 'package:musicflow_client/features/discover/pages/search_page.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/music_provider.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
@@ -447,6 +448,9 @@ Future<void> _pumpDiscover(
       overrides: overrides,
       child: MaterialApp(
         theme: AppTheme.light(),
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         builder: (context, child) {
           final media = MediaQuery.of(context);
           return MediaQuery(

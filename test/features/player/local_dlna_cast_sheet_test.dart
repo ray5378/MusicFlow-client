@@ -9,6 +9,7 @@ import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/pages/full_player_page.dart';
 import 'package:musicflow_client/features/player/widgets/local_dlna_cast_sheet.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/dlna_provider.dart';
 import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/palette_provider.dart';
@@ -121,6 +122,9 @@ Widget _app({
     ],
     child: MaterialApp(
       theme: AppTheme.dark(),
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: fullPlayer
           ? const FullPlayerPage()
           : const Scaffold(body: SafeArea(child: LocalDlnaCastSheet())),
