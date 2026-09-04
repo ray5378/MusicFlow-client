@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/utils/server_url_security.dart';
 import '../../../data/models/server_address.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class AddressDialog extends StatefulWidget {
   const AddressDialog({
@@ -20,8 +21,6 @@ class AddressDialog extends StatefulWidget {
 }
 
 class _AddressDialogState extends State<AddressDialog> {
-  static const _httpHintMessage = '优先使用 HTTPS。只有在可信局域网中才建议使用 HTTP。';
-
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _labelController;
   late final TextEditingController _urlController;
@@ -51,24 +50,25 @@ class _AddressDialogState extends State<AddressDialog> {
   }
 
   Future<void> _showHttpHint() async {
+    final loc = AppLocalizations.of(context);
     await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: 'HTTP 使用提示',
+        title: loc.library_http_tip_title,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Text(
-              _httpHintMessage,
+              loc.library_http_hint,
               style: context.musicFlowTypography.body.copyWith(
                 color: context.musicFlowColors.muted,
               ),
             ),
             SizedBox(height: context.musicFlowSpacing.lg),
             MusicFlowButton.primary(
-              label: '知道了',
+              label: loc.library_got_it,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(),
             ),
@@ -79,32 +79,32 @@ class _AddressDialogState extends State<AddressDialog> {
   }
 
   Future<bool> _confirmHttpSave(String normalizedUrl) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await showMusicFlowBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '保存不安全的 HTTP 地址',
+        title: loc.library_save_insecure_http_title,
         subtitle: normalizedUrl,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Text(
-              'HTTP 不会加密传输。凭据、令牌以及媒体请求都可能暴露给同一网络中的其他人。'
-              '仅当该服务器位于可信网络中时才保存。',
+              loc.library_http_insecure_warning,
               style: context.musicFlowTypography.body.copyWith(
                 color: context.musicFlowColors.muted,
               ),
             ),
             SizedBox(height: context.musicFlowSpacing.lg),
             MusicFlowButton.destructive(
-              label: '仍然保存',
+              label: loc.library_save_anyway,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(true),
             ),
             SizedBox(height: context.musicFlowSpacing.xs),
             MusicFlowButton.ghost(
-              label: '取消',
+              label: loc.settings_cancel,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(false),
             ),
@@ -141,12 +141,13 @@ class _AddressDialogState extends State<AddressDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final isEditing = widget.initialAddress != null;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return MusicFlowBottomSheet(
-      title: isEditing ? '编辑地址' : '添加地址',
-      subtitle: '同一音乐库可以配置多条线路，并按优先级自动选择。',
+      title: isEditing ? loc.library_edit_address : loc.library_add_address,
+      subtitle: loc.library_address_subtitle,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.74,
@@ -162,12 +163,12 @@ class _AddressDialogState extends State<AddressDialog> {
               children: <Widget>[
                 MusicFlowTextField(
                   controller: _labelController,
-                  label: '标签',
-                  hintText: '例如：OpenSubsonic',
+                  label: loc.library_label,
+                  hintText: loc.library_label_hint,
                   textInputAction: TextInputAction.next,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return '请输入标签';
+                      return loc.library_label_required;
                     }
                     return null;
                   },
@@ -175,14 +176,14 @@ class _AddressDialogState extends State<AddressDialog> {
                 SizedBox(height: context.musicFlowSpacing.md),
                 MusicFlowTextField(
                   controller: _urlController,
-                  label: '服务器地址',
-                  hintText: '例如：https://music.example.com',
-                  helperText: _httpHintMessage,
+                  label: loc.library_server_address,
+                  hintText: loc.library_url_hint,
+                  helperText: loc.library_http_hint,
                   leadingIcon: AppIcons.router,
                   trailing: _showsHttpWarning
                       ? MusicFlowIconButton(
                           icon: AppIcons.warning,
-                          label: 'HTTP 使用提示',
+                          label: loc.library_http_tip_title,
                           foregroundColor: context.musicFlowColors.warning,
                           onPressed: _showHttpHint,
                         )
@@ -192,24 +193,24 @@ class _AddressDialogState extends State<AddressDialog> {
                   onSubmitted: (_) => _save(),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return '请输入服务器地址';
+                      return loc.library_server_required;
                     }
                     if (!isSupportedServerUrl(value)) {
-                      return '请输入有效的 URL（包含 http/https）';
+                      return loc.library_url_invalid;
                     }
                     return null;
                   },
                 ),
                 SizedBox(height: context.musicFlowSpacing.lg),
                 MusicFlowButton.primary(
-                  label: '保存地址',
+                  label: loc.library_save_address,
                   leadingIcon: AppIcons.save,
                   expand: true,
                   onPressed: _save,
                 ),
                 SizedBox(height: context.musicFlowSpacing.xs),
                 MusicFlowButton.ghost(
-                  label: '取消',
+                  label: loc.settings_cancel,
                   expand: true,
                   onPressed: () => Navigator.of(context).pop(),
                 ),

@@ -720,5 +720,1210 @@
   "discover_category_playlists": "Playlists",
   "discover_category_songs": "Songs",
   "discover_category_artists": "Artists",
-  "discover_category_albums": "Albums"
+  "discover_category_albums": "Albums",
+  "action_collapse": "Collapse",
+  "@action_collapse": {
+    "description": "action_collapse"
+  },
+  "action_show_all": "Show all",
+  "@action_show_all": {
+    "description": "action_show_all"
+  },
+  "common_delete": "Delete",
+  "@common_delete": {
+    "description": "common_delete"
+  },
+  "common_remove": "Remove",
+  "@common_remove": {
+    "description": "common_remove"
+  },
+  "common_save": "Save",
+  "@common_save": {
+    "description": "common_save"
+  },
+  "library_add_address": "Add address",
+  "@library_add_address": {
+    "description": "library_add_address"
+  },
+  "library_add_to_library": "Add to library",
+  "@library_add_to_library": {
+    "description": "library_add_to_library"
+  },
+  "library_add_to_playlist": "Add to playlist",
+  "@library_add_to_playlist": {
+    "description": "library_add_to_playlist"
+  },
+  "library_add_to_queue": "Add to queue",
+  "@library_add_to_queue": {
+    "description": "library_add_to_queue"
+  },
+  "library_added_to_playlist": "Added “{name}” to playlist “{playlist}”",
+  "@library_added_to_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "playlist": {
+        "type": "String"
+      }
+    }
+  },
+  "library_added_to_queue": "Added {count} songs to the queue",
+  "@library_added_to_queue": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_address_subtitle": "Server address",
+  "@library_address_subtitle": {
+    "description": "library_address_subtitle"
+  },
+  "library_album_actions": "Album actions",
+  "@library_album_actions": {
+    "description": "library_album_actions"
+  },
+  "library_album_count": "{count} albums",
+  "@library_album_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_count_semantics": "{name}, {count} songs",
+  "@library_album_count_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_cover": "{name} cover",
+  "@library_album_cover": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_load_failed": "Album load failed",
+  "@library_album_load_failed": {
+    "description": "library_album_load_failed"
+  },
+  "library_album_load_failed_desc": "Please check your network or server status and try again.",
+  "@library_album_load_failed_desc": {
+    "description": "library_album_load_failed_desc"
+  },
+  "library_album_metadata_semantics": "{name}, {metadata}",
+  "@library_album_metadata_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "metadata": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_no_songs": "This album has no songs",
+  "@library_album_no_songs": {
+    "description": "library_album_no_songs"
+  },
+  "library_album_no_tracks": "No tracks",
+  "@library_album_no_tracks": {
+    "description": "library_album_no_tracks"
+  },
+  "library_album_not_found": "Album not found",
+  "@library_album_not_found": {
+    "description": "library_album_not_found"
+  },
+  "library_album_not_found_desc": "The album does not exist or has been deleted.",
+  "@library_album_not_found_desc": {
+    "description": "library_album_not_found_desc"
+  },
+  "library_album_semantics": "{name}",
+  "@library_album_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_title": "Album",
+  "@library_album_title": {
+    "description": "library_album_title"
+  },
+  "library_albums": "Albums",
+  "@library_albums": {
+    "description": "library_albums"
+  },
+  "library_all_albums": "All albums",
+  "@library_all_albums": {
+    "description": "library_all_albums"
+  },
+  "library_all_artists": "All artists",
+  "@library_all_artists": {
+    "description": "library_all_artists"
+  },
+  "library_all_playlists": "All playlists",
+  "@library_all_playlists": {
+    "description": "library_all_playlists"
+  },
+  "library_all_songs": "All songs",
+  "@library_all_songs": {
+    "description": "library_all_songs"
+  },
+  "library_artist_counts": "{songCount} songs · {albumCount} albums",
+  "@library_artist_counts": {
+    "placeholders": {
+      "songCount": {
+        "type": "String"
+      },
+      "albumCount": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_image_semantics": "{name} avatar",
+  "@library_artist_image_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_load_failed": "Artist load failed",
+  "@library_artist_load_failed": {
+    "description": "library_artist_load_failed"
+  },
+  "library_artist_load_failed_desc": "Please check your network or server status and try again.",
+  "@library_artist_load_failed_desc": {
+    "description": "library_artist_load_failed_desc"
+  },
+  "library_artist_no_albums": "No albums for this artist",
+  "@library_artist_no_albums": {
+    "description": "library_artist_no_albums"
+  },
+  "library_artist_no_songs": "No songs for this artist",
+  "@library_artist_no_songs": {
+    "description": "library_artist_no_songs"
+  },
+  "library_artist_not_found": "Artist not found",
+  "@library_artist_not_found": {
+    "description": "library_artist_not_found"
+  },
+  "library_artist_not_found_desc": "The artist does not exist or has been deleted.",
+  "@library_artist_not_found_desc": {
+    "description": "library_artist_not_found_desc"
+  },
+  "library_artist_photo": "{name} photo",
+  "@library_artist_photo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_semantics": "{name} artist",
+  "@library_artist_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_song_source": "Song source",
+  "@library_artist_song_source": {
+    "description": "library_artist_song_source"
+  },
+  "library_artist_song_source_desc": "Shows the source information of this artist’s songs.",
+  "@library_artist_song_source_desc": {
+    "description": "library_artist_song_source_desc"
+  },
+  "library_artist_title": "Artist",
+  "@library_artist_title": {
+    "description": "library_artist_title"
+  },
+  "library_artists": "Artists",
+  "@library_artists": {
+    "description": "library_artists"
+  },
+  "library_create_playlist_first": "Create a playlist first",
+  "@library_create_playlist_first": {
+    "description": "library_create_playlist_first"
+  },
+  "library_delete_failed_network": "Delete failed. Please check your network.",
+  "@library_delete_failed_network": {
+    "description": "library_delete_failed_network"
+  },
+  "library_delete_playlist": "Delete playlist",
+  "@library_delete_playlist": {
+    "description": "library_delete_playlist"
+  },
+  "library_delete_playlist_confirm": "Delete playlist “{name}”?",
+  "@library_delete_playlist_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_delete_playlist_irreversible": "This action cannot be undone.",
+  "@library_delete_playlist_irreversible": {
+    "description": "library_delete_playlist_irreversible"
+  },
+  "library_deselect_all": "Deselect all",
+  "@library_deselect_all": {
+    "description": "library_deselect_all"
+  },
+  "library_edit_add_address": "Add server address",
+  "@library_edit_add_address": {
+    "description": "library_edit_add_address"
+  },
+  "library_edit_add_address_short": "Add address",
+  "@library_edit_add_address_short": {
+    "description": "library_edit_add_address_short"
+  },
+  "library_edit_address": "Address",
+  "@library_edit_address": {
+    "description": "library_edit_address"
+  },
+  "library_edit_address_failed": "Invalid address",
+  "@library_edit_address_failed": {
+    "description": "library_edit_address_failed"
+  },
+  "library_edit_address_ok": "Address is valid",
+  "@library_edit_address_ok": {
+    "description": "library_edit_address_ok"
+  },
+  "library_edit_address_unknown": "Unknown",
+  "@library_edit_address_unknown": {
+    "description": "library_edit_address_unknown"
+  },
+  "library_edit_addresses_desc": "Manage the server addresses for this library.",
+  "@library_edit_addresses_desc": {
+    "description": "library_edit_addresses_desc"
+  },
+  "library_edit_addresses": "Server addresses",
+  "@library_edit_addresses": {
+    "description": "library_edit_addresses"
+  },
+  "library_edit_basic_info": "Basic information",
+  "@library_edit_basic_info": {
+    "description": "library_edit_basic_info"
+  },
+  "library_edit_basic_info_desc": "Edit the library name and other details.",
+  "@library_edit_basic_info_desc": {
+    "description": "library_edit_basic_info_desc"
+  },
+  "library_edit_danger_zone": "Danger zone",
+  "@library_edit_danger_zone": {
+    "description": "library_edit_danger_zone"
+  },
+  "library_edit_danger_zone_desc": "Deleting a library removes local configuration and cannot be undone.",
+  "@library_edit_danger_zone_desc": {
+    "description": "library_edit_danger_zone_desc"
+  },
+  "library_edit_delete_address": "Delete address",
+  "@library_edit_delete_address": {
+    "description": "library_edit_delete_address"
+  },
+  "library_edit_delete_address_confirm": "Delete address “{label}”?",
+  "@library_edit_delete_address_confirm": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_delete_address_short": "Delete “{label}”",
+  "@library_edit_delete_address_short": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_delete_library": "Delete library",
+  "@library_edit_delete_library": {
+    "description": "library_edit_delete_library"
+  },
+  "library_edit_delete_library_action": "Delete",
+  "@library_edit_delete_library_action": {
+    "description": "library_edit_delete_library_action"
+  },
+  "library_edit_delete_library_confirm": "Delete library “{name}”?",
+  "@library_edit_delete_library_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_drag_hint": "Drag “{label}” to change priority",
+  "@library_edit_drag_hint": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_edit_address": "Edit “{label}”",
+  "@library_edit_edit_address": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_failed_network": "Save failed. Please check your network.",
+  "@library_edit_failed_network": {
+    "description": "library_edit_failed_network"
+  },
+  "library_edit_latency": "{ms} ms",
+  "@library_edit_latency": {
+    "placeholders": {
+      "ms": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_latency_unknown": "Latency unknown",
+  "@library_edit_latency_unknown": {
+    "description": "library_edit_latency_unknown"
+  },
+  "library_edit_library": "Edit library",
+  "@library_edit_library": {
+    "description": "library_edit_library"
+  },
+  "library_edit_library_loading": "Loading…",
+  "@library_edit_library_loading": {
+    "description": "library_edit_library_loading"
+  },
+  "library_edit_library_name": "Library name",
+  "@library_edit_library_name": {
+    "description": "library_edit_library_name"
+  },
+  "library_edit_library_name_example": "e.g. My main library",
+  "@library_edit_library_name_example": {
+    "description": "library_edit_library_name_example"
+  },
+  "library_edit_library_updating": "Updating…",
+  "@library_edit_library_updating": {
+    "description": "library_edit_library_updating"
+  },
+  "library_edit_load_failed": "Library load failed",
+  "@library_edit_load_failed": {
+    "description": "library_edit_load_failed"
+  },
+  "library_edit_load_failed_desc": "Please check your network or server status and try again.",
+  "@library_edit_load_failed_desc": {
+    "description": "library_edit_load_failed_desc"
+  },
+  "library_edit_name_required": "Please enter a library name",
+  "@library_edit_name_required": {
+    "description": "library_edit_name_required"
+  },
+  "library_edit_no_addresses": "No server addresses yet",
+  "@library_edit_no_addresses": {
+    "description": "library_edit_no_addresses"
+  },
+  "library_edit_no_addresses_desc": "Add a server address to connect to the library.",
+  "@library_edit_no_addresses_desc": {
+    "description": "library_edit_no_addresses_desc"
+  },
+  "library_edit_playlist": "Edit playlist",
+  "@library_edit_playlist": {
+    "description": "library_edit_playlist"
+  },
+  "library_edit_probe_all": "Test all",
+  "@library_edit_probe_all": {
+    "description": "library_edit_probe_all"
+  },
+  "library_edit_save_success": "Saved",
+  "@library_edit_save_success": {
+    "description": "library_edit_save_success"
+  },
+  "library_edit_server_addresses": "Server addresses",
+  "@library_edit_server_addresses": {
+    "description": "library_edit_server_addresses"
+  },
+  "library_edit_verify_failed": "Server verification failed",
+  "@library_edit_verify_failed": {
+    "description": "library_edit_verify_failed"
+  },
+  "library_edit_verify_failed_desc": "Cannot reach this server. Please check the address and network.",
+  "@library_edit_verify_failed_desc": {
+    "description": "library_edit_verify_failed_desc"
+  },
+  "library_edit_verifying_server": "Verifying server…",
+  "@library_edit_verifying_server": {
+    "description": "library_edit_verifying_server"
+  },
+  "library_empty_albums": "No albums",
+  "@library_empty_albums": {
+    "description": "library_empty_albums"
+  },
+  "library_empty_albums_desc": "There are no albums here yet.",
+  "@library_empty_albums_desc": {
+    "description": "library_empty_albums_desc"
+  },
+  "library_empty_artists": "No artists",
+  "@library_empty_artists": {
+    "description": "library_empty_artists"
+  },
+  "library_empty_artists_desc": "There are no artists here yet.",
+  "@library_empty_artists_desc": {
+    "description": "library_empty_artists_desc"
+  },
+  "library_empty_playlists": "No playlists",
+  "@library_empty_playlists": {
+    "description": "library_empty_playlists"
+  },
+  "library_empty_playlists_desc": "There are no playlists here yet.",
+  "@library_empty_playlists_desc": {
+    "description": "library_empty_playlists_desc"
+  },
+  "library_empty_songs": "No songs",
+  "@library_empty_songs": {
+    "description": "library_empty_songs"
+  },
+  "library_empty_songs_desc": "There are no songs here yet.",
+  "@library_empty_songs_desc": {
+    "description": "library_empty_songs_desc"
+  },
+  "library_empty_tracks": "No tracks",
+  "@library_empty_tracks": {
+    "description": "library_empty_tracks"
+  },
+  "library_empty_tracks_desc": "This library has no tracks.",
+  "@library_empty_tracks_desc": {
+    "description": "library_empty_tracks_desc"
+  },
+  "library_exit_song_management": "Exit song management",
+  "@library_exit_song_management": {
+    "description": "library_exit_song_management"
+  },
+  "library_favorite_album": "Favorite album",
+  "@library_favorite_album": {
+    "description": "library_favorite_album"
+  },
+  "library_favorite_artist": "Favorite artist",
+  "@library_favorite_artist": {
+    "description": "library_favorite_artist"
+  },
+  "library_favorite_playlist": "Favorite playlist",
+  "@library_favorite_playlist": {
+    "description": "library_favorite_playlist"
+  },
+  "library_favorited_album": "Album favorited",
+  "@library_favorited_album": {
+    "description": "library_favorited_album"
+  },
+  "library_favorited_artist": "Artist favorited",
+  "@library_favorited_artist": {
+    "description": "library_favorited_artist"
+  },
+  "library_favorited_playlist": "Favorited playlist “{name}”",
+  "@library_favorited_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_got_it": "Got it",
+  "@library_got_it": {
+    "description": "library_got_it"
+  },
+  "library_http_hint": "Use the http:// or https:// protocol",
+  "@library_http_hint": {
+    "description": "library_http_hint"
+  },
+  "library_http_insecure_warning": "This server uses an insecure HTTP connection.",
+  "@library_http_insecure_warning": {
+    "description": "library_http_insecure_warning"
+  },
+  "library_http_tip_title": "Insecure connection",
+  "@library_http_tip_title": {
+    "description": "library_http_tip_title"
+  },
+  "library_label": "Label",
+  "@library_label": {
+    "description": "library_label"
+  },
+  "library_label_hint": "Give the address an easy-to-identify label",
+  "@library_label_hint": {
+    "description": "library_label_hint"
+  },
+  "library_label_required": "Please enter a label",
+  "@library_label_required": {
+    "description": "library_label_required"
+  },
+  "library_load_failed_retry": "Load failed. Tap to retry",
+  "@library_load_failed_retry": {
+    "description": "library_load_failed_retry"
+  },
+  "library_local_no_match_albums": "No matching albums locally",
+  "@library_local_no_match_albums": {
+    "description": "library_local_no_match_albums"
+  },
+  "library_local_no_match_artists": "No matching artists locally",
+  "@library_local_no_match_artists": {
+    "description": "library_local_no_match_artists"
+  },
+  "library_local_no_match_playlists": "No matching playlists locally",
+  "@library_local_no_match_playlists": {
+    "description": "library_local_no_match_playlists"
+  },
+  "library_local_no_match_songs": "No matching songs locally",
+  "@library_local_no_match_songs": {
+    "description": "library_local_no_match_songs"
+  },
+  "library_manage_playlist_songs": "Manage playwright songs",
+  "@library_manage_playlist_songs": {
+    "description": "library_manage_playlist_songs"
+  },
+  "library_network_add_failed": "Add failed. Please check your network.",
+  "@library_network_add_failed": {
+    "description": "library_network_add_failed"
+  },
+  "library_network_album_load_failed": "Album load failed. Please check your network.",
+  "@library_network_album_load_failed": {
+    "description": "library_network_album_load_failed"
+  },
+  "library_network_artist_load_failed": "Artist load failed. Please check your network.",
+  "@library_network_artist_load_failed": {
+    "description": "library_network_artist_load_failed"
+  },
+  "library_network_cached_content": "Showing cached offline content.",
+  "@library_network_cached_content": {
+    "description": "library_network_cached_content"
+  },
+  "library_network_op_failed": "Operation failed. Please check your network.",
+  "@library_network_op_failed": {
+    "description": "library_network_op_failed"
+  },
+  "library_no_albums": "No albums",
+  "@library_no_albums": {
+    "description": "library_no_albums"
+  },
+  "library_no_library_selected": "No library selected",
+  "@library_no_library_selected": {
+    "description": "library_no_library_selected"
+  },
+  "library_no_playable_songs": "No playable songs",
+  "@library_no_playable_songs": {
+    "description": "library_no_playable_songs"
+  },
+  "library_no_playlists": "No playlists",
+  "@library_no_playlists": {
+    "description": "library_no_playlists"
+  },
+  "library_no_songs": "No songs",
+  "@library_no_songs": {
+    "description": "library_no_songs"
+  },
+  "library_operation_failed": "Operation failed: {reason}",
+  "@library_operation_failed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "library_play_album": "Play album",
+  "@library_play_album": {
+    "description": "library_play_album"
+  },
+  "library_play_all": "Play all",
+  "@library_play_all": {
+    "description": "library_play_all"
+  },
+  "library_play_artist_top": "Play top songs",
+  "@library_play_artist_top": {
+    "description": "library_play_artist_top"
+  },
+  "library_play_failed_network": "Playback failed. Please check your network.",
+  "@library_play_failed_network": {
+    "description": "library_play_failed_network"
+  },
+  "library_play_songs": "Play songs",
+  "@library_play_songs": {
+    "description": "library_play_songs"
+  },
+  "library_playlist": "Playlist",
+  "@library_playlist": {
+    "description": "library_playlist"
+  },
+  "library_playlist_actions": "Playlist actions",
+  "@library_playlist_actions": {
+    "description": "library_playlist_actions"
+  },
+  "library_playlist_comment": "Playlist comment",
+  "@library_playlist_comment": {
+    "description": "library_playlist_comment"
+  },
+  "library_playlist_comment_example": "e.g. My morning workout playlist",
+  "@library_playlist_comment_example": {
+    "description": "library_playlist_comment_example"
+  },
+  "library_playlist_count_duration": "{count} songs · {duration}",
+  "@library_playlist_count_duration": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_cover": "{name} cover",
+  "@library_playlist_cover": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_deleted": "Deleted playlist “{name}”",
+  "@library_playlist_deleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_empty": "This playlist is empty",
+  "@library_playlist_empty": {
+    "description": "library_playlist_empty"
+  },
+  "library_playlist_empty_desc": "Try adding some songs to the playlist.",
+  "@library_playlist_empty_desc": {
+    "description": "library_playlist_empty_desc"
+  },
+  "library_playlist_load_failed": "Playlist load failed",
+  "@library_playlist_load_failed": {
+    "description": "library_playlist_load_failed"
+  },
+  "library_playlist_load_failed_desc": "Please check your network or server status and try again.",
+  "@library_playlist_load_failed_desc": {
+    "description": "library_playlist_load_failed_desc"
+  },
+  "library_playlist_name": "Playlist name",
+  "@library_playlist_name": {
+    "description": "library_playlist_name"
+  },
+  "library_playlist_name_hint": "Name your playlist",
+  "@library_playlist_name_hint": {
+    "description": "library_playlist_name_hint"
+  },
+  "library_playlist_name_required": "Please enter a playlist name",
+  "@library_playlist_name_required": {
+    "description": "library_playlist_name_required"
+  },
+  "library_playlist_no_available_songs": "No songs available to add",
+  "@library_playlist_no_available_songs": {
+    "description": "library_playlist_no_available_songs"
+  },
+  "library_playlist_no_songs": "This playlist has no songs",
+  "@library_playlist_no_songs": {
+    "description": "library_playlist_no_songs"
+  },
+  "library_playlist_private_desc": "Visible only to you",
+  "@library_playlist_private_desc": {
+    "description": "library_playlist_private_desc"
+  },
+  "library_playlist_public_desc": "Visible to all users",
+  "@library_playlist_public_desc": {
+    "description": "library_playlist_public_desc"
+  },
+  "library_playlist_public": "Public",
+  "@library_playlist_public": {
+    "description": "library_playlist_public"
+  },
+  "library_playlist_updated": "“{name}” updated",
+  "@library_playlist_updated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_updated_reselect": "The playlist changed. Please select again",
+  "@library_playlist_updated_reselect": {
+    "description": "library_playlist_updated_reselect"
+  },
+  "library_playlists": "Playlists",
+  "@library_playlists": {
+    "description": "library_playlists"
+  },
+  "library_playlists_unavailable": "Playlists unavailable",
+  "@library_playlists_unavailable": {
+    "description": "library_playlists_unavailable"
+  },
+  "library_private_playlist": "Private playlist",
+  "@library_private_playlist": {
+    "description": "library_private_playlist"
+  },
+  "library_public_playlist": "Public playlist",
+  "@library_public_playlist": {
+    "description": "library_public_playlist"
+  },
+  "library_remote_album_empty_desc": "No albums in the remote library.",
+  "@library_remote_album_empty_desc": {
+    "description": "library_remote_album_empty_desc"
+  },
+  "library_remote_album_load_failed_desc": "Remote album load failed. Please check your network.",
+  "@library_remote_album_load_failed_desc": {
+    "description": "library_remote_album_load_failed_desc"
+  },
+  "library_remote_artist_empty_desc": "No artists in the remote library.",
+  "@library_remote_artist_empty_desc": {
+    "description": "library_remote_artist_empty_desc"
+  },
+  "library_remote_artist_load_failed_desc": "Remote artist load failed. Please check your network.",
+  "@library_remote_artist_load_failed_desc": {
+    "description": "library_remote_artist_load_failed_desc"
+  },
+  "library_remote_load_failed": "Load failed",
+  "@library_remote_load_failed": {
+    "description": "library_remote_load_failed"
+  },
+  "library_remote_playlist_empty_desc": "No playlists in the remote library.",
+  "@library_remote_playlist_empty_desc": {
+    "description": "library_remote_playlist_empty_desc"
+  },
+  "library_remote_playlist_load_failed_desc": "Remote playlist load failed. Please check your network.",
+  "@library_remote_playlist_load_failed_desc": {
+    "description": "library_remote_playlist_load_failed_desc"
+  },
+  "library_remove_failed": "Failed to remove: {reason}",
+  "@library_remove_failed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "library_remove_failed_network": "Remove failed. Please check your network.",
+  "@library_remove_failed_network": {
+    "description": "library_remove_failed_network"
+  },
+  "library_remove_from_current_playlist": "Remove from current playlist",
+  "@library_remove_from_current_playlist": {
+    "description": "library_remove_from_current_playlist"
+  },
+  "library_remove_from_playlist": "Remove from playlist",
+  "@library_remove_from_playlist": {
+    "description": "library_remove_from_playlist"
+  },
+  "library_remove_no_permission": "No permission to remove songs. Please check your account permissions.",
+  "@library_remove_no_permission": {
+    "description": "library_remove_no_permission"
+  },
+  "library_remove_selected": "Remove selected",
+  "@library_remove_selected": {
+    "description": "library_remove_selected"
+  },
+  "library_remove_selected_semantics": "Remove selected songs",
+  "@library_remove_selected_semantics": {
+    "description": "library_remove_selected_semantics"
+  },
+  "library_remove_server_refused": "The server refused the remove request.",
+  "@library_remove_server_refused": {
+    "description": "library_remove_server_refused"
+  },
+  "library_remove_songs": "Remove songs",
+  "@library_remove_songs": {
+    "description": "library_remove_songs"
+  },
+  "library_remove_songs_confirm": "Remove {count} songs from playlist “{name}”?",
+  "@library_remove_songs_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_remove_songs_desc": "The following songs will be removed from the playlist.",
+  "@library_remove_songs_desc": {
+    "description": "library_remove_songs_desc"
+  },
+  "library_removed_count": "Removed {count} songs",
+  "@library_removed_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_removed_from_playlist": "Removed “{title}” from the playlist",
+  "@library_removed_from_playlist": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "library_removing": "Removing…",
+  "@library_removing": {
+    "description": "library_removing"
+  },
+  "library_retry_on_network": "Tap to retry",
+  "@library_retry_on_network": {
+    "description": "library_retry_on_network"
+  },
+  "library_save_address": "Save address",
+  "@library_save_address": {
+    "description": "library_save_address"
+  },
+  "library_save_anyway": "Save anyway",
+  "@library_save_anyway": {
+    "description": "library_save_anyway"
+  },
+  "library_save_insecure_http_title": "Save an insecure address?",
+  "@library_save_insecure_http_title": {
+    "description": "library_save_insecure_http_title"
+  },
+  "library_save_library": "Save library",
+  "@library_save_library": {
+    "description": "library_save_library"
+  },
+  "library_search_albums": "Search albums",
+  "@library_search_albums": {
+    "description": "library_search_albums"
+  },
+  "library_search_artists": "Search artists",
+  "@library_search_artists": {
+    "description": "library_search_artists"
+  },
+  "library_search_playlists": "Search playlists",
+  "@library_search_playlists": {
+    "description": "library_search_playlists"
+  },
+  "library_search_songs": "Search songs",
+  "@library_search_songs": {
+    "description": "library_search_songs"
+  },
+  "library_select_all": "Select all",
+  "@library_select_all": {
+    "description": "library_select_all"
+  },
+  "library_select_songs_to_remove": "Select songs to remove",
+  "@library_select_songs_to_remove": {
+    "description": "library_select_songs_to_remove"
+  },
+  "library_selected_count": "{count} selected",
+  "@library_selected_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_selected_count_rationale": "{count} songs selected",
+  "@library_selected_count_rationale": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_server_address": "Server address",
+  "@library_server_address": {
+    "description": "library_server_address"
+  },
+  "library_server_required": "Please enter a server address",
+  "@library_server_required": {
+    "description": "library_server_required"
+  },
+  "library_song_count": "{count} songs",
+  "@library_song_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_song_sort": "Song order",
+  "@library_song_sort": {
+    "description": "library_song_sort"
+  },
+  "library_song_sort_current": "Current order: {sort}",
+  "@library_song_sort_current": {
+    "placeholders": {
+      "sort": {
+        "type": "String"
+      }
+    }
+  },
+  "library_song_sort_option": "Order: {sort}",
+  "@library_song_sort_option": {
+    "placeholders": {
+      "sort": {
+        "type": "String"
+      }
+    }
+  },
+  "library_songs": "Songs",
+  "@library_songs": {
+    "description": "library_songs"
+  },
+  "library_songs_count": "{count} songs",
+  "@library_songs_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_sort_sheet_subtitle": "Choose the order of songs.",
+  "@library_sort_sheet_subtitle": {
+    "description": "library_sort_sheet_subtitle"
+  },
+  "library_starred_label": "{label} (favorites)",
+  "@library_starred_label": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_load_failed": "Favorites load failed",
+  "@library_starred_load_failed": {
+    "description": "library_starred_load_failed"
+  },
+  "library_starred_load_failed_desc": "Please check your network or server status and try again.",
+  "@library_starred_load_failed_desc": {
+    "description": "library_starred_load_failed_desc"
+  },
+  "library_starred_no_albums": "No favorited albums",
+  "@library_starred_no_albums": {
+    "description": "library_starred_no_albums"
+  },
+  "library_starred_no_albums_desc": "Albums you favorite will show up here.",
+  "@library_starred_no_albums_desc": {
+    "description": "library_starred_no_albums_desc"
+  },
+  "library_starred_no_artists": "No favorited artists",
+  "@library_starred_no_artists": {
+    "description": "library_starred_no_artists"
+  },
+  "library_starred_no_artists_desc": "Artists you favorite will show up here.",
+  "@library_starred_no_artists_desc": {
+    "description": "library_starred_no_artists_desc"
+  },
+  "library_starred_no_playlists": "No favorited playlists",
+  "@library_starred_no_playlists": {
+    "description": "library_starred_no_playlists"
+  },
+  "library_starred_no_playlists_desc": "Playlists you favorite will show up here.",
+  "@library_starred_no_playlists_desc": {
+    "description": "library_starred_no_playlists_desc"
+  },
+  "library_starred_no_songs": "No favorited songs",
+  "@library_starred_no_songs": {
+    "description": "library_starred_no_songs"
+  },
+  "library_starred_no_songs_desc": "Songs you favorite will show up here.",
+  "@library_starred_no_songs_desc": {
+    "description": "library_starred_no_songs_desc"
+  },
+  "library_starred_playlist_cover_semantics": "{name} cover",
+  "@library_starred_playlist_cover_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_playlist_favorited_semantics": "{name}, {count} songs, favorited",
+  "@library_starred_playlist_favorited_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_playlist_meta": "{count} songs · {duration}",
+  "@library_starred_playlist_meta": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_playlists_load_failed": "Playlist load failed",
+  "@library_starred_playlists_load_failed": {
+    "description": "library_starred_playlists_load_failed"
+  },
+  "library_starred_title": "Favorites",
+  "@library_starred_title": {
+    "description": "library_starred_title"
+  },
+  "library_starred_total": "{count} favorites",
+  "@library_starred_total": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_toggle_accessibility": "{title}, {state}, {description}",
+  "@library_toggle_accessibility": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "library_top_songs": "Top songs",
+  "@library_top_songs": {
+    "description": "library_top_songs"
+  },
+  "library_top_songs_count": "{count} top songs",
+  "@library_top_songs_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_top_songs_unavailable": "Top songs unavailable",
+  "@library_top_songs_unavailable": {
+    "description": "library_top_songs_unavailable"
+  },
+  "library_track_count_sort": "{count} songs · {sort}",
+  "@library_track_count_sort": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "sort": {
+        "type": "String"
+      }
+    }
+  },
+  "library_tracks": "Tracks",
+  "@library_tracks": {
+    "description": "library_tracks"
+  },
+  "library_unfavorite_album": "Unfavorite album",
+  "@library_unfavorite_album": {
+    "description": "library_unfavorite_album"
+  },
+  "library_unfavorite_artist": "Unfavorite artist",
+  "@library_unfavorite_artist": {
+    "description": "library_unfavorite_artist"
+  },
+  "library_unfavorite_playlist": "Unfavorite playlist",
+  "@library_unfavorite_playlist": {
+    "description": "library_unfavorite_playlist"
+  },
+  "library_unfavorited_album": "Album unfavorited",
+  "@library_unfavorited_album": {
+    "description": "library_unfavorited_album"
+  },
+  "library_unfavorited_artist": "Artist unfavorited",
+  "@library_unfavorited_artist": {
+    "description": "library_unfavorited_artist"
+  },
+  "library_unfavorited_playlist": "Unfavorited playlist “{name}”",
+  "@library_unfavorited_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_unfavorited_short": "Unfavorited",
+  "@library_unfavorited_short": {
+    "description": "library_unfavorited_short"
+  },
+  "library_unknown_artist": "Unknown artist",
+  "@library_unknown_artist": {
+    "description": "library_unknown_artist"
+  },
+  "library_url_hint": "e.g. http://192.168.1.100:4533",
+  "@library_url_hint": {
+    "description": "library_url_hint"
+  },
+  "library_url_invalid": "Invalid address format",
+  "@library_url_invalid": {
+    "description": "library_url_invalid"
+  },
+  "playlist_sort_updated_asc": "Recently updated (ascending)",
+  "@playlist_sort_updated_asc": {
+    "description": "playlist_sort_updated_asc"
+  },
+  "playlist_sort_updated_desc": "Recently updated",
+  "@playlist_sort_updated_desc": {
+    "description": "playlist_sort_updated_desc"
+  },
+  "song_sort_alphabetical_asc": "By title (ascending)",
+  "@song_sort_alphabetical_asc": {
+    "description": "song_sort_alphabetical_asc"
+  },
+  "song_sort_alphabetical_desc": "By title (descending)",
+  "@song_sort_alphabetical_desc": {
+    "description": "song_sort_alphabetical_desc"
+  },
+  "song_sort_default_order": "Default order",
+  "@song_sort_default_order": {
+    "description": "song_sort_default_order"
+  },
+  "song_sort_duration_asc": "By duration (ascending)",
+  "@song_sort_duration_asc": {
+    "description": "song_sort_duration_asc"
+  },
+  "song_sort_duration_desc": "By duration (descending)",
+  "@song_sort_duration_desc": {
+    "description": "song_sort_duration_desc"
+  },
+  "song_sort_recent_added": "Recently added",
+  "@song_sort_recent_added": {
+    "description": "song_sort_recent_added"
+  },
+  "song_sort_title_asc": "By title (ascending)",
+  "@song_sort_title_asc": {
+    "description": "song_sort_title_asc"
+  },
+  "song_sort_updated_asc": "By update time (ascending)",
+  "@song_sort_updated_asc": {
+    "description": "song_sort_updated_asc"
+  },
+  "song_sort_updated_desc": "By update time (descending)",
+  "@song_sort_updated_desc": {
+    "description": "song_sort_updated_desc"
+  },
+  "state_disabled": "Off",
+  "@state_disabled": {
+    "description": "state_disabled"
+  },
+  "state_enabled": "On",
+  "@state_enabled": {
+    "description": "state_enabled"
+  }
 }

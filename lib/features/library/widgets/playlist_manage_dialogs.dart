@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class PlaylistFormResult {
   const PlaylistFormResult({
@@ -40,19 +41,20 @@ Future<bool> showDeletePlaylistConfirmDialog({
   required BuildContext context,
   required String playlistName,
 }) async {
+  final loc = AppLocalizations.of(context);
   final confirmed = await showMusicFlowBottomSheet<bool>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
     builder: (sheetContext) => MusicFlowBottomSheet(
-      title: '删除歌单',
-      subtitle: '此操作不可恢复。',
+      title: loc.library_delete_playlist,
+      subtitle: loc.library_delete_playlist_irreversible,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Text(
-            '确定要删除歌单「$playlistName」吗？',
+            loc.library_delete_playlist_confirm(playlistName),
             style: sheetContext.musicFlowTypography.body.copyWith(
               color: sheetContext.musicFlowColors.muted,
             ),
@@ -62,14 +64,14 @@ Future<bool> showDeletePlaylistConfirmDialog({
             children: <Widget>[
               Expanded(
                 child: MusicFlowButton.secondary(
-                  label: '取消',
+                  label: loc.settings_cancel,
                   onPressed: () => Navigator.of(sheetContext).pop(false),
                 ),
               ),
               SizedBox(width: sheetContext.musicFlowSpacing.sm),
               Expanded(
                 child: MusicFlowButton.destructive(
-                  label: '删除',
+                  label: loc.common_delete,
                   onPressed: () => Navigator.of(sheetContext).pop(true),
                 ),
               ),
@@ -136,6 +138,7 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final motion = context.musicFlowMotion;
 
@@ -159,21 +162,21 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                 children: <Widget>[
                   MusicFlowTextField(
                     controller: _nameController,
-                    label: '歌单名称',
-                    hintText: '请输入歌单名称',
+                    label: loc.library_playlist_name,
+                    hintText: loc.library_playlist_name_hint,
                     leadingIcon: AppIcons.playlist,
                     autofocus: true,
                     textInputAction: TextInputAction.next,
                     validator: (value) => value == null || value.trim().isEmpty
-                        ? '歌单名称不能为空'
+                        ? loc.library_playlist_name_required
                         : null,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   ),
                   SizedBox(height: context.musicFlowSpacing.md),
                   MusicFlowTextField(
                     controller: _commentController,
-                    label: '简介（可选）',
-                    hintText: '例如：通勤歌单',
+                    label: loc.library_playlist_comment,
+                    hintText: loc.library_playlist_comment_example,
                     leadingIcon: AppIcons.fileText,
                     minLines: 2,
                     maxLines: 4,
@@ -181,10 +184,10 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                   ),
                   SizedBox(height: context.musicFlowSpacing.md),
                   _MusicFlowToggleRow(
-                    title: '公开歌单',
+                    title: loc.library_playlist_public,
                     description: _isPublic
-                        ? '服务器上的其他用户可以看到这个歌单。'
-                        : '只有当前账户可以看到这个歌单。',
+                        ? loc.library_playlist_public_desc
+                        : loc.library_playlist_private_desc,
                     value: _isPublic,
                     onChanged: (value) => setState(() => _isPublic = value),
                   ),
@@ -193,7 +196,7 @@ class _PlaylistFormSheetState extends State<_PlaylistFormSheet> {
                     children: <Widget>[
                       Expanded(
                         child: MusicFlowButton.secondary(
-                          label: '取消',
+                          label: loc.settings_cancel,
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ),
@@ -233,9 +236,10 @@ class _MusicFlowToggleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
     final motion = context.musicFlowMotion;
+    final loc = AppLocalizations.of(context);
 
     return MusicFlowPressable(
-      semanticLabel: '$title，${value ? '已开启' : '已关闭'}，$description',
+      semanticLabel: loc.library_toggle_accessibility(title, value ? loc.state_enabled : loc.state_disabled, description),
       selected: value,
       onPressed: () => onChanged(!value),
       minimumSize: const Size(double.infinity, 72),

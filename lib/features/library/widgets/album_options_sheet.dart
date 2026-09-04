@@ -14,6 +14,7 @@ import '../../../providers/music_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../providers/queue_origin_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 Future<void> showAlbumOptionsSheet({
   required BuildContext context,
@@ -52,9 +53,10 @@ class _AlbumOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final artistName = album.artist?.trim().isNotEmpty == true
         ? album.artist!.trim()
-        : '未知歌手';
+        : loc.library_unknown_artist;
 
     return MusicFlowBottomSheet(
       title: album.name,
@@ -67,17 +69,17 @@ class _AlbumOptionsSheet extends ConsumerWidget {
           children: <Widget>[
             MusicFlowActionRow(
               icon: AppIcons.play,
-              title: '播放专辑',
+              title: loc.library_play_album,
               onPressed: () => _closeAndRun(context, _playAlbum),
             ),
             MusicFlowActionRow(
               icon: album.starred ? AppIcons.heart : AppIcons.heartOutline,
-              title: album.starred ? '取消收藏专辑' : '收藏专辑',
+              title: album.starred ? loc.library_unfavorited_album : loc.library_favorite_album,
               selected: album.starred,
               onPressed: () => _closeAndRun(context, () async {
                 final repository = hostRef.read(musicRepositoryProvider);
                 if (repository == null) {
-                  NetworkErrorNotifier.show('未选择音乐库');
+                  NetworkErrorNotifier.show(loc.discover_no_library_selected);
                   return;
                 }
 
@@ -86,25 +88,25 @@ class _AlbumOptionsSheet extends ConsumerWidget {
                   final nextStarred = !album.starred;
                   await repository.setAlbumStarred(album.id, nextStarred);
                   _invalidateAlbumQueries();
-                  _showMessage(nextStarred ? '已收藏专辑' : '已取消收藏');
+                  _showMessage(nextStarred ? loc.library_favorited_album : loc.library_unfavorited_short);
                 } catch (_) {
-                  NetworkErrorNotifier.show('网络异常，操作失败');
+                  NetworkErrorNotifier.show(loc.library_network_op_failed);
                 }
               }),
             ),
             MusicFlowActionRow(
               icon: AppIcons.queueAdd,
-              title: '添加到播放列表',
+              title: loc.library_add_to_queue,
               onPressed: () => _closeAndRun(context, () async {
                 final songs = await _loadAlbumSongs();
                 if (songs == null || songs.isEmpty) return;
                 hostRef.read(playerProvider.notifier).addAllToQueue(songs);
-                _showMessage('已添加 ${songs.length} 首到播放列表');
+                _showMessage(loc.library_added_to_queue('${songs.length}'));
               }),
             ),
             MusicFlowActionRow(
               icon: AppIcons.playlistAdd,
-              title: '添加到歌单',
+              title: loc.library_add_to_playlist,
               onPressed: () => _closeAndRun(context, () async {
                 final songs = await _loadAlbumSongs();
                 if (songs == null || songs.isEmpty || !hostContext.mounted) {
@@ -141,14 +143,15 @@ class _AlbumOptionsSheet extends ConsumerWidget {
   }
 
   Future<List<Song>?> _loadAlbumSongs() async {
+    final loc = AppLocalizations.of(hostContext);
     if (album.songCount <= 0) {
-      NetworkErrorNotifier.show('专辑暂无可用歌曲');
+      NetworkErrorNotifier.show(loc.library_album_no_songs);
       return null;
     }
 
     final repository = hostRef.read(musicRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.discover_no_library_selected);
       return null;
     }
 
@@ -157,12 +160,12 @@ class _AlbumOptionsSheet extends ConsumerWidget {
       final detail = await repository.getAlbum(album.id);
       final songs = detail?.songs ?? const <Song>[];
       if (songs.isEmpty) {
-        NetworkErrorNotifier.show('专辑暂无可用歌曲');
+        NetworkErrorNotifier.show(loc.library_album_no_songs);
         return null;
       }
       return songs;
     } catch (_) {
-      NetworkErrorNotifier.show('网络异常，专辑加载失败');
+      NetworkErrorNotifier.show(loc.library_network_album_load_failed);
       return null;
     }
   }
@@ -206,13 +209,14 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final playlistsAsync = ref.watch(playlistsProvider);
     final loadFailed = ref.watch(playlistsLoadFailedProvider);
     final songIds = songs.map((song) => song.id).toSet().toList();
     final maxListHeight = MediaQuery.sizeOf(context).height * 0.56;
 
     return MusicFlowBottomSheet(
-      title: '添加到歌单',
+      title: loc.library_add_to_playlist,
       subtitle: album.name,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxListHeight),
@@ -220,10 +224,10 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
           data: (playlists) {
             if (playlists.isEmpty) {
               return MusicFlowEmptyState(
-                title: loadFailed ? '歌单暂时不可用' : '还没有歌单',
-                description: loadFailed ? '网络连接恢复后重试。' : '先创建一个歌单，再把这张专辑加入其中。',
+                title: loadFailed ? loc.library_playlists_unavailable : loc.library_no_playlists,
+                description: loadFailed ? loc.library_retry_on_network : loc.library_create_playlist_first,
                 icon: loadFailed ? AppIcons.cloudOff : AppIcons.playlist,
-                actionLabel: loadFailed ? '重试' : null,
+                actionLabel: loadFailed ? loc.widgets_retry : null,
                 onAction: loadFailed
                     ? () => ref.invalidate(playlistsProvider)
                     : null,
@@ -239,7 +243,7 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
                 return MusicFlowActionRow(
                   icon: AppIcons.playlist,
                   title: playlist.name,
-                  subtitle: '${playlist.songCount} 首',
+                  subtitle: loc.discover_track_count(playlist.songCount.toString()),
                   onPressed: () {
                     Navigator.of(context).pop();
                     unawaited(
@@ -257,9 +261,9 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
           },
           loading: () => const _PlaylistSkeletonList(),
           error: (_, _) => MusicFlowErrorState(
-            title: '歌单加载失败',
-            description: '无法读取歌单，请检查网络后重试。',
-            actionLabel: '重试',
+            title: loc.library_playlist_load_failed,
+            description: loc.library_playlist_load_failed_desc,
+            actionLabel: loc.widgets_retry,
             onAction: () => ref.invalidate(playlistsProvider),
             padding: const EdgeInsets.all(24),
           ),
@@ -274,9 +278,10 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
     required String playlistName,
     required List<String> songIds,
   }) async {
+    final loc = AppLocalizations.of(hostContext);
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.discover_no_library_selected);
       return;
     }
 
@@ -290,12 +295,12 @@ class _AddAlbumToPlaylistSheet extends ConsumerWidget {
       ref.invalidate(playlistDetailProvider(playlistId));
       if (hostContext.mounted) {
         ToastNotifier.show(
-          '已将「${album.name}」添加到歌单「$playlistName」',
+          loc.library_added_to_playlist(album.name, playlistName),
           kind: MusicFlowMessageKind.success,
         );
       }
     } catch (_) {
-      NetworkErrorNotifier.show('网络异常，添加失败');
+      NetworkErrorNotifier.show(loc.library_network_add_failed);
     }
   }
 }

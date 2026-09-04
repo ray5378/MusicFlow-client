@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/design/music_flow_design.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/artist.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/now_playing_bars.dart';
 
@@ -28,11 +29,12 @@ class MusicFlowAlbumTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final artist = album.artist?.trim() ?? '';
     final semanticLabel = <String>[
-      '专辑 ${album.name}',
+      loc.library_album_semantics(album.name),
       if (artist.isNotEmpty) artist,
-      if (album.starred) '已收藏',
+      if (album.starred) loc.widgets_song_favorite,
     ].join('，');
 
     return MusicFlowPressable(
@@ -58,7 +60,7 @@ class MusicFlowAlbumTile extends StatelessWidget {
                       coverArtId: album.coverArt,
                       requestSize: 420,
                       fit: BoxFit.cover,
-                      semanticLabel: '${album.name} 封面',
+                      semanticLabel: loc.discover_cover_semantics(album.name),
                     ),
                   ),
                   if (album.starred)
@@ -137,12 +139,13 @@ class MusicFlowAlbumRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final artist = album.artist?.trim() ?? '';
     return MusicFlowPressable(
       semanticLabel: <String>[
-        '专辑 ${album.name}',
+        loc.library_album_semantics(album.name),
         if (artist.isNotEmpty) artist,
-        if (album.starred) '已收藏',
+        if (album.starred) loc.widgets_song_favorite,
       ].join('，'),
       onPressed: onPressed,
       onLongPress: onLongPress,
@@ -167,7 +170,7 @@ class MusicFlowAlbumRow extends StatelessWidget {
                 coverArtId: album.coverArt,
                 size: 72,
                 requestSize: 240,
-                semanticLabel: '${album.name} 封面',
+                semanticLabel: loc.discover_cover_semantics(album.name),
               ),
             ),
             SizedBox(width: context.musicFlowSpacing.sm),
@@ -232,11 +235,12 @@ class MusicFlowArtistRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final albumCount = artist.albumCount;
     return MusicFlowPressable(
       semanticLabel: <String>[
-        '歌手 ${artist.name}',
-        if (albumCount != null) '$albumCount 张专辑',
+        loc.library_artist_semantics(artist.name),
+        if (albumCount != null) loc.library_album_count(albumCount.toString()),
       ].join('，'),
       onPressed: onPressed,
       onLongPress: onLongPress,
@@ -266,7 +270,7 @@ class MusicFlowArtistRow extends StatelessWidget {
                   if (albumCount != null) ...<Widget>[
                     SizedBox(height: context.musicFlowSpacing.xxs),
                     Text(
-                      '$albumCount 张专辑',
+                      loc.library_album_count(albumCount.toString()),
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: context.musicFlowColors.muted,
                       ),
@@ -295,6 +299,7 @@ class _ArtistImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final coverArt = artist.coverArt?.trim() ?? '';
     if (coverArt.isEmpty) {
       return ColoredBox(
@@ -315,7 +320,7 @@ class _ArtistImage extends StatelessWidget {
       coverArtId: coverArt,
       size: 56,
       requestSize: 192,
-      semanticLabel: '${artist.name} 图片',
+      semanticLabel: loc.library_artist_image_semantics(artist.name),
     );
   }
 }

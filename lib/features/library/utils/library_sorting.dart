@@ -1,5 +1,6 @@
 import '../../../data/models/playlist.dart';
 import '../../../data/models/song.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../utils/pinyin_helper.dart';
 
 enum SongSortOption {
@@ -32,22 +33,22 @@ const selectableSongSortOptionsWithoutDefault = <SongSortOption>[
 ];
 
 extension SongSortOptionX on SongSortOption {
-  String get label {
+  String label(AppLocalizations loc) {
     switch (this) {
       case SongSortOption.defaultOrder:
-        return '默认顺序';
+        return loc.song_sort_default_order;
       case SongSortOption.alphabeticalAsc:
-        return '字母 A-Z';
+        return loc.song_sort_alphabetical_asc;
       case SongSortOption.alphabeticalDesc:
-        return '字母 Z-A';
+        return loc.song_sort_alphabetical_desc;
       case SongSortOption.durationAsc:
-        return '时长从短到长';
+        return loc.song_sort_duration_asc;
       case SongSortOption.durationDesc:
-        return '时长从长到短';
+        return loc.song_sort_duration_desc;
       case SongSortOption.updatedAsc:
-        return '时间从旧到新';
+        return loc.song_sort_updated_asc;
       case SongSortOption.updatedDesc:
-        return '时间从新到旧';
+        return loc.song_sort_updated_desc;
     }
   }
 
@@ -162,22 +163,22 @@ const selectablePlaylistSortOptions = <PlaylistSortOption>[
 ];
 
 extension PlaylistSortOptionX on PlaylistSortOption {
-  String get label {
+  String label(AppLocalizations loc) {
     switch (this) {
       case PlaylistSortOption.defaultOrder:
-        return '默认顺序';
+        return loc.song_sort_default_order;
       case PlaylistSortOption.alphabeticalAsc:
-        return '字母 A-Z';
+        return loc.song_sort_alphabetical_asc;
       case PlaylistSortOption.alphabeticalDesc:
-        return '字母 Z-A';
+        return loc.song_sort_alphabetical_desc;
       case PlaylistSortOption.durationAsc:
-        return '时长从短到长';
+        return loc.song_sort_duration_asc;
       case PlaylistSortOption.durationDesc:
-        return '时长从长到短';
+        return loc.song_sort_duration_desc;
       case PlaylistSortOption.updatedAsc:
-        return '更新时间从旧到新';
+        return loc.playlist_sort_updated_asc;
       case PlaylistSortOption.updatedDesc:
-        return '更新时间从新到旧';
+        return loc.playlist_sort_updated_desc;
     }
   }
 }

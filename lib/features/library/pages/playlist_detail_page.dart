@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../features/library/widgets/windowed_paginated_list.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
@@ -170,6 +171,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 监听歌单内容快照:外部刷新(惰性重建/其他端修改)导致内容变化时,
     // 在选歌状态下自动清空过期选择,避免用过期索引移除错误的歌曲。
     final currentPlaylist =
@@ -183,16 +185,16 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
     final topBar = _selectionMode
         ? MusicFlowTopBar(
-            title: '已选 ${_selectedSongIndexes.length} 首',
+            title: loc.library_selected_count('${_selectedSongIndexes.length}'),
             leading: MusicFlowIconButton(
               icon: AppIcons.close,
-              label: '退出歌曲管理',
+              label: loc.library_exit_song_management,
               onPressed: _isRemovingSongs ? null : _exitSelectionMode,
             ),
             actions: <Widget>[
               MusicFlowIconButton(
                 icon: allSongsSelected ? AppIcons.clearAll : AppIcons.selectAll,
-                label: allSongsSelected ? '取消全选歌曲' : '全选歌曲',
+                label: allSongsSelected ? loc.library_deselect_all : loc.library_select_all,
                 selected: allSongsSelected,
                 onPressed: currentSongCount == 0 || _isRemovingSongs
                     ? null
@@ -202,23 +204,23 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
           )
         : MusicFlowTopBar.back(
             context: context,
-            title: '歌单',
+            title: loc.library_playlist,
             actions: <Widget>[
               MusicFlowIconButton(
                 icon: AppIcons.selectAll,
-                label: '管理歌单歌曲',
+                label: loc.library_manage_playlist_songs,
                 onPressed: currentSongCount == 0 || _isRemovingSongs
                     ? null
                     : _enterSelectionMode,
               ),
               MusicFlowIconButton(
                 icon: AppIcons.sort,
-                label: '歌曲排序：${_sortOption.label}',
+                label: loc.library_song_sort_option(_sortOption.label(loc)),
                 onPressed: _isRemovingSongs ? null : _selectSortOption,
               ),
               MusicFlowIconButton(
                 icon: AppIcons.more,
-                label: '歌单操作',
+                label: loc.library_playlist_actions,
                 onPressed: _meta == null || _isRemovingSongs
                     ? null
                     : () => _showPlaylistActions(_meta!),
@@ -256,6 +258,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Widget _body(Playlist? displayMeta) {
+    final loc = AppLocalizations.of(context);
     // 当前播放来源：识别本歌单是否正在播放（封面叠加跳动竖条）。
     final queueOrigin = ref.watch(queueOriginProvider);
     final isNowPlaying = queueOrigin?.matchesPlaylist(widget.playlistId) ??
@@ -263,9 +266,9 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     if (displayMeta == null) {
       if (_metaFailed) {
         return MusicFlowErrorState(
-          title: '歌单加载失败',
-          description: '无法读取歌单详情。请检查网络后重试。',
-          actionLabel: '重试',
+          title: loc.library_playlist_load_failed,
+          description: loc.library_playlist_load_failed_desc,
+          actionLabel: loc.widgets_retry,
           onAction: _retry,
         );
       }
@@ -306,21 +309,21 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                       0,
                     ),
                     child: MediaLoadNotice(
-                      message: '网络连接异常，当前可能显示缓存的歌单内容。',
+                      message: loc.library_network_cached_content,
                       onRetry: _retry,
                     ),
                   ),
                 ),
               SliverToBoxAdapter(
                 child: MusicFlowSectionHeader(
-                  title: '歌曲',
+                  title: loc.library_songs,
                   description: _selectionMode
-                      ? '轻触歌曲选择要从歌单移除的条目'
+                      ? loc.library_select_songs_to_remove
                       : currentSongCount == 0
-                      ? '歌单中暂时没有歌曲'
-                      : '$currentSongCount 首 · ${_sortOption.label}',
+                      ? loc.library_playlist_no_songs
+                      : loc.library_track_count_sort('$currentSongCount', _sortOption.label(loc)),
                   trailing: MusicFlowButton.primary(
-                    label: '播放全部',
+                    label: loc.library_play_all,
                     leadingIcon: AppIcons.play,
                     // 播放全部按钮缩小为默认高度的 2/3。
                     height: context.musicFlowInteraction.buttonHeight * (2 / 3),
@@ -337,10 +340,10 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                 ),
               ),
               if (currentSongCount == 0)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: MusicFlowEmptyState(
-                    title: '歌单还是空的',
-                    description: '通过歌曲操作菜单把喜欢的内容加入这个歌单。',
+                    title: loc.library_playlist_empty,
+                    description: loc.library_playlist_empty_desc,
                     icon: AppIcons.playlistAdd,
                     padding: EdgeInsets.all(32),
                   ),
@@ -353,7 +356,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                     padding: const EdgeInsets.all(24),
                     child: Center(
                       child: MusicFlowButton.secondary(
-                        label: '加载失败，点击重试',
+                        label: loc.library_load_failed_retry,
                         onPressed: _retry,
                       ),
                     ),
@@ -423,6 +426,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   /// 非默认排序:使用一次拉取的全量列表本地排序后渲染。
   List<Widget> _buildFullListSlivers() {
+    final loc = AppLocalizations.of(context);
     if (_fullLoading) {
       return const <Widget>[
         SliverFillRemaining(
@@ -438,7 +442,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
             padding: const EdgeInsets.all(24),
             child: Center(
               child: MusicFlowButton.secondary(
-                label: '加载失败，点击重试',
+                label: loc.library_load_failed_retry,
                 onPressed: () => _applySortOption(_sortOption),
               ),
             ),
@@ -487,6 +491,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Future<void> _playAll() async {
+    final loc = AppLocalizations.of(context);
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) return;
     try {
@@ -499,7 +504,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         origin: QueueOrigin(QueueOriginKind.playlist, widget.playlistId),
       );
     } catch (_) {
-      if (mounted) NetworkErrorNotifier.show('网络异常，无法播放歌单');
+      if (mounted) NetworkErrorNotifier.show(loc.library_play_failed_network);
     }
   }
 
@@ -638,17 +643,18 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Future<void> _showSongActions(Song song, int originalIndex) {
+    final loc = AppLocalizations.of(context);
     return showSongOptionsSheet(
       context: context,
       song: song,
       extraActions: <SongOptionsExtraAction>[
         SongOptionsExtraAction(
           icon: AppIcons.removeCircle,
-          title: '从歌单移除',
+          title: loc.library_remove_from_playlist,
           isDestructive: true,
           onPressed: () => _removeSongEntries(
             originalIndexes: <int>[originalIndex],
-            successMessage: '已从歌单移除《${song.title}》',
+            successMessage: loc.library_removed_from_playlist(song.title),
           ),
         ),
       ],
@@ -656,6 +662,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Future<void> _confirmBatchRemoval() async {
+    final loc = AppLocalizations.of(context);
     if (_selectedSongIndexes.isEmpty || _isRemovingSongs) return;
     final playlist = _displayMeta;
     if (playlist == null) return;
@@ -664,14 +671,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '移除歌曲',
-        subtitle: '只会修改当前歌单，不会删除音乐文件。',
+        title: loc.library_remove_songs,
+        subtitle: loc.library_remove_songs_desc,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Text(
-              '确定从「${playlist.name}」中移除选中的 $count 首歌曲吗？',
+              loc.library_remove_songs_confirm(playlist.name, '$count'),
               style: sheetContext.musicFlowTypography.body.copyWith(
                 color: sheetContext.musicFlowColors.muted,
               ),
@@ -681,14 +688,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
               children: <Widget>[
                 Expanded(
                   child: MusicFlowButton.secondary(
-                    label: '取消',
+                    label: loc.settings_cancel,
                     onPressed: () => Navigator.of(sheetContext).pop(false),
                   ),
                 ),
                 SizedBox(width: sheetContext.musicFlowSpacing.sm),
                 Expanded(
                   child: MusicFlowButton.destructive(
-                    label: '移除',
+                    label: loc.common_remove,
                     onPressed: () => Navigator.of(sheetContext).pop(true),
                   ),
                 ),
@@ -702,7 +709,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     if (_selectedSongIndexes.isEmpty) return;
     await _removeSongEntries(
       originalIndexes: Set<int>.of(_selectedSongIndexes),
-      successMessage: '已移除 $count 首歌曲',
+      successMessage: loc.library_removed_count('$count'),
     );
   }
 
@@ -710,10 +717,11 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     required Iterable<int> originalIndexes,
     required String successMessage,
   }) async {
+    final loc = AppLocalizations.of(context);
     if (_isRemovingSongs) return;
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.library_no_library_selected);
       return;
     }
     final ensureAddress = ref.read(ensureActiveAddressProvider.future);
@@ -754,14 +762,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       if (!_isCurrentMutation(mutationToken)) return;
       setState(() => _isRemovingSongs = false);
       if (error is SubsonicException && error.code == 50) {
-        NetworkErrorNotifier.show('无权修改该歌单，或该歌单不支持移除歌曲');
+        NetworkErrorNotifier.show(loc.library_remove_no_permission);
       } else if (error is SubsonicException) {
         final message = error.message.trim();
         NetworkErrorNotifier.show(
-          message.isEmpty ? '服务器拒绝移除歌曲' : '移除失败：$message',
+          message.isEmpty ? loc.library_remove_server_refused : loc.library_remove_failed(message),
         );
       } else {
-        NetworkErrorNotifier.show('网络异常，移除失败');
+        NetworkErrorNotifier.show(loc.library_remove_failed_network);
       }
     }
   }
@@ -802,13 +810,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   void _resetStaleSelection() {
+    final loc = AppLocalizations.of(context);
     if (!mounted) return;
     setState(() {
       _selectionMode = false;
       _selectedSongIndexes.clear();
       _selectionRevision = null;
     });
-    ToastNotifier.show('歌单内容已更新，请重新选择');
+    ToastNotifier.show(loc.library_playlist_updated_reselect);
   }
 
   Future<void> _showPlaylistActions(Playlist playlist) async {
@@ -836,29 +845,31 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 
   Future<void> _addPlaylistToQueue() async {
+    final loc = AppLocalizations.of(context);
     final songs = await _loadAllSortedSongs();
     if (songs.isEmpty) {
-      NetworkErrorNotifier.show('歌单暂无可用歌曲');
+      NetworkErrorNotifier.show(loc.library_playlist_no_available_songs);
       return;
     }
     ref.read(playerProvider.notifier).addAllToQueue(songs);
     ToastNotifier.show(
-      '已添加 ${songs.length} 首到播放列表',
+      loc.library_added_to_queue('${songs.length}'),
       kind: MusicFlowMessageKind.success,
     );
   }
 
   Future<void> _editPlaylist(Playlist playlist) async {
+    final loc = AppLocalizations.of(context);
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.library_no_library_selected);
       return;
     }
 
     final formResult = await showPlaylistFormDialog(
       context: context,
-      title: '修改歌单',
-      confirmText: '保存',
+      title: loc.library_edit_playlist,
+      confirmText: loc.common_save,
       initialName: playlist.name,
       initialComment: playlist.comment ?? '',
       initialPublic: playlist.public,
@@ -883,19 +894,20 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       _loadMeta();
       if (mounted) {
         ToastNotifier.show(
-          '已更新歌单「${formResult.name}」',
+          loc.library_playlist_updated(formResult.name),
           kind: MusicFlowMessageKind.success,
         );
       }
     } catch (_) {
-      NetworkErrorNotifier.show('网络异常，修改失败');
+      NetworkErrorNotifier.show(loc.library_edit_failed_network);
     }
   }
 
   Future<void> _deletePlaylist(Playlist playlist) async {
+    final loc = AppLocalizations.of(context);
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.library_no_library_selected);
       return;
     }
 
@@ -912,12 +924,12 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       if (mounted) {
         Navigator.of(context).pop();
         ToastNotifier.show(
-          '已删除歌单「${playlist.name}」',
+          loc.library_playlist_deleted(playlist.name),
           kind: MusicFlowMessageKind.success,
         );
       }
     } catch (_) {
-      NetworkErrorNotifier.show('网络异常，删除失败');
+      NetworkErrorNotifier.show(loc.library_delete_failed_network);
     }
   }
 }
@@ -989,14 +1001,15 @@ class _PlaylistSelectionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final count = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text('从当前歌单移除', style: context.musicFlowTypography.title),
+        Text(loc.library_remove_from_current_playlist, style: context.musicFlowTypography.title),
         SizedBox(height: context.musicFlowSpacing.xxs),
         Text(
-          '已选择 $selectedCount 首，不会删除音乐文件',
+          loc.library_selected_count_rationale('$selectedCount'),
           style: context.musicFlowTypography.metadata.copyWith(
             color: context.musicFlowColors.muted,
           ),
@@ -1005,8 +1018,8 @@ class _PlaylistSelectionBar extends StatelessWidget {
     );
 
     MusicFlowButton removeButton({required bool expand}) => MusicFlowButton.destructive(
-      label: removing ? '移除中…' : '移除选中',
-      semanticLabel: '移除选中歌曲',
+      label: removing ? loc.library_removing : loc.library_remove_selected,
+      semanticLabel: loc.library_remove_selected_semantics,
       leadingIcon: AppIcons.removeCircle,
       expand: expand,
       onPressed: removing ? null : onRemove,
@@ -1066,6 +1079,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final comment = playlist.comment?.trim();
 
     return MediaDetailHeaderSurface(
@@ -1079,7 +1093,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
               dimension: wide ? 176 : 120,
               child: MediaDetailArtwork(
                 coverArtId: playlist.coverArt,
-                semanticLabel: '${playlist.name} 封面',
+                semanticLabel: loc.library_playlist_cover(playlist.name),
                 heroTag: 'playlist-cover-${playlist.id}',
                 requestSize: 480,
                 isNowPlaying: isNowPlaying,
@@ -1105,7 +1119,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                   runSpacing: context.musicFlowSpacing.xxs,
                   children: <Widget>[
                     Text(
-                      '$songCount 首',
+                      loc.library_song_count('$songCount'),
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: context.musicFlowColors.muted,
                       ),
@@ -1117,7 +1131,7 @@ class _PlaylistIdentityHeader extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      playlist.public ? '公开歌单' : '私人歌单',
+                      playlist.public ? loc.library_public_playlist : loc.library_private_playlist,
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: context.musicFlowColors.muted,
                       ),
@@ -1167,6 +1181,7 @@ class _PlaylistLoadingPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -1185,7 +1200,7 @@ class _PlaylistLoadingPreview extends StatelessWidget {
                         dimension: 120,
                         child: MediaDetailArtwork(
                           coverArtId: coverArt,
-                          semanticLabel: '$name 封面',
+                          semanticLabel: loc.library_playlist_cover(name),
                           heroTag: 'playlist-cover-$name',
                           requestSize: 480,
                         ),
@@ -1198,7 +1213,7 @@ class _PlaylistLoadingPreview extends StatelessWidget {
                             Text(name, style: context.musicFlowTypography.display),
                             SizedBox(height: context.musicFlowSpacing.sm),
                             Text(
-                              '$songCount 首',
+                              loc.library_song_count('$songCount'),
                               style: context.musicFlowTypography.metadata.copyWith(
                                 color: context.musicFlowColors.muted,
                               ),

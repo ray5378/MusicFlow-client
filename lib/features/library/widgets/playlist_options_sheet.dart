@@ -10,6 +10,7 @@ import '../../../data/models/playlist.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../providers/queue_origin_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 需要调用方继续处理的歌单操作（播放/喜欢在弹窗内直接执行）。
 enum PlaylistOptionsAction { addToQueue, edit, delete }
@@ -51,12 +52,13 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowBottomSheet(
       title: playlist.name,
       // 推荐歌单等无时长来源的场景(duration=0)只显示歌曲数,不追加「0分」。
       subtitle: playlist.duration > 0
-          ? '${playlist.songCount} 首 · ${playlist.durationString}'
-          : '${playlist.songCount} 首',
+          ? loc.library_playlist_count_duration('${playlist.songCount}', playlist.durationString)
+          : loc.discover_track_count('${playlist.songCount}'),
       showDragHandle: compactSheet,
       sceneRadius: !compactSheet,
       child: SingleChildScrollView(
@@ -65,8 +67,8 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
           children: <Widget>[
             MusicFlowActionRow(
               icon: AppIcons.play,
-              title: '播放歌单',
-              subtitle: hasSongs ? null : '歌单中暂无歌曲',
+              title: loc.discover_play_playlist,
+              subtitle: hasSongs ? null : loc.library_playlist_no_songs,
               onPressed: hasSongs
                   ? () => unawaited(_closeAndRun(context, ref, _playAll))
                   : null,
@@ -75,7 +77,7 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
               icon: playlist.favorite
                   ? AppIcons.heart
                   : AppIcons.heartOutline,
-              title: playlist.favorite ? '取消收藏歌单' : '收藏歌单',
+              title: playlist.favorite ? loc.library_unfavorite_playlist : loc.library_favorite_playlist,
               selected: playlist.favorite,
               onPressed: () => unawaited(
                 _closeAndRun(context, ref, _toggleFavorite),
@@ -83,8 +85,8 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
             ),
             MusicFlowActionRow(
               icon: AppIcons.queueAdd,
-              title: '添加到播放列表',
-              subtitle: hasSongs ? null : '歌单中暂无歌曲',
+              title: loc.library_add_to_queue,
+              subtitle: hasSongs ? null : loc.library_playlist_no_songs,
               onPressed: hasSongs
                   ? () => Navigator.of(
                       context,
@@ -93,13 +95,13 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
             ),
             MusicFlowActionRow(
               icon: AppIcons.edit,
-              title: '修改歌单',
+              title: loc.library_edit_playlist,
               onPressed: () =>
                   Navigator.of(context).pop(PlaylistOptionsAction.edit),
             ),
             MusicFlowActionRow(
               icon: AppIcons.delete,
-              title: '删除歌单',
+              title: loc.library_delete_playlist,
               destructive: true,
               onPressed: () =>
                   Navigator.of(context).pop(PlaylistOptionsAction.delete),
@@ -122,9 +124,10 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
   }
 
   Future<void> _playAll(WidgetRef ref) async {
+    final loc = AppLocalizations.of(hostContext);
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.discover_no_library_selected);
       return;
     }
     try {
@@ -138,15 +141,16 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
       );
     } catch (_) {
       if (hostContext.mounted) {
-        NetworkErrorNotifier.show('网络异常，无法播放歌单');
+        NetworkErrorNotifier.show(loc.discover_network_failed_play_playlist);
       }
     }
   }
 
   Future<void> _toggleFavorite(WidgetRef ref) async {
+    final loc = AppLocalizations.of(hostContext);
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.discover_no_library_selected);
       return;
     }
     final nextFavorite = !playlist.favorite;
@@ -158,11 +162,11 @@ class _PlaylistOptionsSheet extends ConsumerWidget {
       if (!ok || !hostContext.mounted) return;
       ref.invalidate(favoritePlaylistsProvider);
       ToastNotifier.show(
-        nextFavorite ? '已收藏「${playlist.name}」' : '已取消收藏「${playlist.name}」',
+        nextFavorite ? loc.library_favorited_playlist(playlist.name) : loc.library_unfavorited_playlist(playlist.name),
         kind: MusicFlowMessageKind.success,
       );
     } catch (_) {
-      if (hostContext.mounted) NetworkErrorNotifier.show('网络异常，操作失败');
+      if (hostContext.mounted) NetworkErrorNotifier.show(loc.library_network_op_failed);
     }
   }
 }

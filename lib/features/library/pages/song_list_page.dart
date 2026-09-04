@@ -17,6 +17,7 @@ import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../widgets/song_list_item.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 
 /// 歌曲库 —— 窗口化分页加载(对齐主项目前端 useInfiniteList):
@@ -59,13 +60,14 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   }
 
   Future<void> _showSortSheet() async {
+    final loc = AppLocalizations.of(context);
     final selected = await showMusicFlowBottomSheet<_SongSort>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '歌曲排序',
-        subtitle: '窗口化加载模式下支持以下排序',
+        title: loc.library_song_sort,
+        subtitle: loc.library_sort_sheet_subtitle,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -73,8 +75,8 @@ class _SongListPageState extends ConsumerState<SongListPage> {
               MusicFlowActionRow(
                 icon: option == _sort ? AppIcons.check : AppIcons.sort,
                 title: switch (option) {
-                  _SongSort.titleAsc => '标题 A-Z',
-                  _SongSort.recentAdded => '最近入库',
+                  _SongSort.titleAsc => loc.song_sort_title_asc,
+                  _SongSort.recentAdded => loc.song_sort_recent_added,
                 },
                 selected: option == _sort,
                 onPressed: () => Navigator.of(sheetContext).pop(option),
@@ -90,6 +92,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 标题下方只显示本页对应的计数（共多少首歌曲）。
     final countsText = ref
         .watch(libraryCountsProvider)
@@ -103,13 +106,13 @@ class _SongListPageState extends ConsumerState<SongListPage> {
       child: MusicFlowScaffold(
         topBar: MusicFlowTopBar.back(
           context: context,
-          title: '所有歌曲',
+          title: loc.library_all_songs,
           subtitle: countsText,
           actions: <Widget>[
             if (_searchQuery.isEmpty)
               MusicFlowIconButton(
                 icon: AppIcons.sort,
-                label: '歌曲排序',
+                label: loc.library_song_sort,
                 onPressed: () => unawaited(_showSortSheet()),
               ),
           ],
@@ -119,7 +122,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
           children: <Widget>[
             EntitySearchBar(
               query: _searchQuery,
-              hintText: '搜索歌曲',
+              hintText: loc.library_search_songs,
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
                 if (query.isEmpty) _reload();
@@ -134,6 +137,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   }
 
   Widget _body() {
+    final loc = AppLocalizations.of(context);
     if (_searchQuery.isNotEmpty) {
       // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
       return AggregateSearchResults(
@@ -148,7 +152,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             return repository.getSongsPage(1, 12, query: _searchQuery);
           },
           itemBuilder: (context, song, index) => _buildRow(index, song),
-          emptyText: '本地库无匹配歌曲',
+          emptyText: loc.library_local_no_match_songs,
         ),
       );
     }
@@ -169,8 +173,8 @@ class _SongListPageState extends ConsumerState<SongListPage> {
               bottom:
                   context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
-            emptyTitle: '暂无歌曲',
-            emptyDescription: '同步音乐库后，歌曲会显示在这里。',
+            emptyTitle: loc.library_empty_songs,
+            emptyDescription: loc.library_empty_songs_desc,
             itemBuilder: (context, index, item) =>
                 _buildRow(index, item!),
           ),

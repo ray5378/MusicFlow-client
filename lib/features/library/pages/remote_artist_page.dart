@@ -13,6 +13,7 @@ import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../player/widgets/song_options_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 远程平台艺术家预览页(对齐主项目前端 RemoteDetailDialog):
 /// 点击搜索结果**不直接入库**,而是先拉取该艺术家歌曲预览,可「播放全部」直接播。
@@ -59,6 +60,7 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final artist = widget.artist;
     return MusicFlowScaffold(
       topBar: MusicFlowTopBar.back(context: context, title: artist.name),
@@ -70,9 +72,9 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
           }
           if (snapshot.hasError) {
             return MusicFlowErrorState(
-              title: '加载失败',
-              description: '拉取艺术家歌曲时出错,可重试。',
-              actionLabel: '重试',
+              title: loc.library_remote_load_failed,
+              description: loc.library_remote_artist_load_failed_desc,
+              actionLabel: loc.widgets_retry,
               onAction: () => _reload(),
             );
           }
@@ -87,10 +89,10 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
                 ),
               ),
               if (songs.isEmpty)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: MusicFlowEmptyState(
-                    title: '没有可播放的歌曲',
-                    description: '该平台艺术家暂时拉取不到歌曲。',
+                    title: loc.library_no_playable_songs,
+                    description: loc.library_remote_artist_empty_desc,
                     icon: AppIcons.profile,
                     padding: EdgeInsets.all(32),
                   ),
@@ -154,6 +156,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final cover = artist.avatar.isNotEmpty
         ? ClipOval(
             child: CoverArtImage(
@@ -194,7 +197,7 @@ class _Header extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       <String>[
-                        if (songCount > 0) '$songCount 首',
+                        if (songCount > 0) loc.discover_track_count(songCount.toString()),
                         if (artist.platformLabel.isNotEmpty)
                           artist.platformLabel,
                       ].where((e) => e.isNotEmpty).join(' · '),
@@ -205,7 +208,7 @@ class _Header extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     MusicFlowButton.primary(
-                      label: '播放全部',
+                      label: loc.library_play_all,
                       leadingIcon: AppIcons.play,
                       onPressed: onPlayAll,
                     ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/music_library.dart';
 import '../../../data/models/server_address.dart';
 import '../../../providers/api_provider.dart';
@@ -49,6 +50,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final librariesAsync = ref.watch(librariesProvider);
     return librariesAsync.when(
       data: (libraries) {
@@ -57,9 +59,9 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
           orElse: () => null,
         );
         if (library == null) {
-          return const _LibraryLoadingPage(
-            title: '编辑音乐库',
-            message: '正在更新音乐库列表',
+          return _LibraryLoadingPage(
+            title: loc.library_edit_library,
+            message: loc.library_edit_library_updating,
           );
         }
 
@@ -67,12 +69,12 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
         return MusicFlowScaffold(
           topBar: MusicFlowTopBar.back(
             context: context,
-            title: '编辑音乐库',
+            title: loc.library_edit_library,
             subtitle: library.name,
             actions: <Widget>[
               MusicFlowIconButton(
                 icon: AppIcons.save,
-                label: '保存音乐库',
+                label: loc.library_save_library,
                 onPressed: () => _saveLibrary(library),
               ),
             ],
@@ -119,13 +121,13 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
         );
       },
       loading: () =>
-          const _LibraryLoadingPage(title: '编辑音乐库', message: '正在读取音乐库配置'),
+          _LibraryLoadingPage(title: loc.library_edit_library, message: loc.library_edit_library_loading),
       error: (error, stackTrace) => MusicFlowScaffold(
-        topBar: MusicFlowTopBar.back(context: context, title: '编辑音乐库'),
+        topBar: MusicFlowTopBar.back(context: context, title: loc.library_edit_library),
         body: MusicFlowErrorState(
-          title: '无法读取音乐库',
-          description: '音乐库配置暂时不可用，请重试。',
-          actionLabel: '重试',
+          title: loc.library_edit_load_failed,
+          description: loc.library_edit_load_failed_desc,
+          actionLabel: loc.widgets_retry,
           onAction: () => ref.invalidate(librariesProvider),
         ),
       ),
@@ -142,22 +144,23 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Widget _buildBasicInfoSection() {
+    final loc = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        const MusicFlowSectionHeader(
-          title: '基本信息',
-          description: '这个名称只用于在 MusicFlow 中区分不同的音乐库。',
+        MusicFlowSectionHeader(
+          title: loc.library_edit_basic_info,
+          description: loc.library_edit_basic_info_desc,
         ),
         SizedBox(height: context.musicFlowSpacing.md),
         MusicFlowTextField(
           controller: _nameController,
-          label: '库名称',
-          hintText: '例如：家庭音乐库',
+          label: loc.library_edit_library_name,
+          hintText: loc.library_edit_library_name_example,
           leadingIcon: AppIcons.library,
           textInputAction: TextInputAction.done,
           validator: (value) {
-            if (value == null || value.trim().isEmpty) return '请输入名称';
+            if (value == null || value.trim().isEmpty) return loc.library_edit_name_required;
             return null;
           },
         ),
@@ -166,6 +169,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Widget _buildAddressesSection(MusicLibrary library) {
+    final loc = AppLocalizations.of(context);
     final sortedAddresses = List<ServerAddress>.from(library.addresses)
       ..sort((first, second) => first.priority.compareTo(second.priority));
 
@@ -173,7 +177,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
       if (library.isActive)
         MusicFlowIconButton(
           icon: AppIcons.refresh,
-          label: '检测全部线路延迟',
+          label: loc.library_edit_probe_all,
           onPressed: () async {
             await ref.read(addressPoolProvider).probeAll();
             if (mounted) ref.invalidate(librariesProvider);
@@ -181,7 +185,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
         ),
       MusicFlowIconButton(
         icon: AppIcons.addCircle,
-        label: '添加服务器地址',
+        label: loc.library_edit_add_address,
         onPressed: () => _showAddressSheet(),
       ),
     ];
@@ -190,8 +194,8 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         MusicFlowSectionHeader(
-          title: '服务器地址',
-          description: '长按拖动手柄调整优先级；排在前面的线路优先使用。',
+          title: loc.library_edit_server_addresses,
+          description: loc.library_edit_addresses_desc,
           trailing: Wrap(
             spacing: context.musicFlowSpacing.xxs,
             runSpacing: context.musicFlowSpacing.xxs,
@@ -202,9 +206,9 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
         if (sortedAddresses.isEmpty)
           _InlineFormState(
             icon: AppIcons.route,
-            title: '还没有服务器地址',
-            description: '至少添加一条线路后才能连接这个音乐库。',
-            actionLabel: '添加地址',
+            title: loc.library_edit_no_addresses,
+            description: loc.library_edit_no_addresses_desc,
+            actionLabel: loc.library_edit_add_address_short,
             onAction: _showAddressSheet,
           )
         else
@@ -259,18 +263,19 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Widget _buildDeleteSection(MusicLibrary library) {
+    final loc = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        const MusicFlowSectionHeader(
-          title: '危险操作',
-          description: '删除音乐库会移除本机保存的连接信息，且无法恢复。',
+        MusicFlowSectionHeader(
+          title: loc.library_edit_danger_zone,
+          description: loc.library_edit_danger_zone_desc,
         ),
         SizedBox(height: context.musicFlowSpacing.md),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: MusicFlowButton.destructive(
-            label: '删除此音乐库',
+            label: loc.library_edit_delete_library_action,
             leadingIcon: AppIcons.delete,
             onPressed: () => _confirmDelete(library),
           ),
@@ -280,6 +285,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Future<void> _showAddressSheet({ServerAddress? address}) async {
+    final loc = AppLocalizations.of(context);
     final result = await showMusicFlowBottomSheet<ServerAddress>(
       context: context,
       useRootNavigator: true,
@@ -296,7 +302,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     if (address == null || address.url != result.url) {
       showMusicFlowMessage(
         context,
-        '正在验证服务器一致性…',
+        loc.library_edit_verifying_server,
         duration: const Duration(seconds: 1),
       );
       final isValid = await ref
@@ -323,24 +329,25 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Future<void> _showVerificationFailure() async {
+    final loc = AppLocalizations.of(context);
     await showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '验证失败',
+        title: loc.library_edit_verify_failed,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Text(
-              '新地址似乎指向了不同的服务器或验证失败。添加的线路必须属于同一个服务器，并提供相同的音乐库内容。',
+              loc.library_edit_verify_failed_desc,
               style: context.musicFlowTypography.body.copyWith(
                 color: context.musicFlowColors.muted,
               ),
             ),
             SizedBox(height: context.musicFlowSpacing.lg),
             MusicFlowButton.primary(
-              label: '知道了',
+              label: loc.library_got_it,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(),
             ),
@@ -351,10 +358,11 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Future<void> _deleteAddress(ServerAddress address) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await _confirmDestructiveAction(
-      title: '删除地址',
-      description: '确定要删除地址“${address.label}”吗？',
-      confirmLabel: '删除地址',
+      title: loc.library_edit_delete_address,
+      description: loc.library_edit_delete_address_confirm(address.label),
+      confirmLabel: loc.library_edit_delete_address,
     );
     if (!confirmed) return;
 
@@ -367,6 +375,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
   }
 
   Future<void> _saveLibrary(MusicLibrary original) async {
+    final loc = AppLocalizations.of(context);
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final repository = ref.read(libraryRepositoryProvider);
@@ -380,15 +389,16 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     );
     await repository.updateLibrary(updated);
     if (!mounted) return;
-    showMusicFlowMessage(context, '保存成功', kind: MusicFlowMessageKind.success);
+    showMusicFlowMessage(context, loc.library_edit_save_success, kind: MusicFlowMessageKind.success);
     context.pop();
   }
 
   Future<void> _confirmDelete(MusicLibrary library) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await _confirmDestructiveAction(
-      title: '删除音乐库',
-      description: '确定要删除音乐库“${library.name}”吗？此操作不可恢复。',
-      confirmLabel: '删除音乐库',
+      title: loc.library_edit_delete_library,
+      description: loc.library_edit_delete_library_confirm(library.name),
+      confirmLabel: loc.library_edit_delete_library,
     );
     if (!confirmed) return;
 
@@ -419,6 +429,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     required String description,
     required String confirmLabel,
   }) async {
+    final loc = AppLocalizations.of(context);
     final result = await showMusicFlowBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
@@ -436,7 +447,7 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
             ),
             SizedBox(height: context.musicFlowSpacing.xs),
             MusicFlowButton.ghost(
-              label: '取消',
+              label: loc.settings_cancel,
               expand: true,
               onPressed: () => Navigator.of(sheetContext).pop(false),
             ),
@@ -464,10 +475,11 @@ class _AddressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final status = _AddressStatusPresentation.from(context, address.status);
     final latency = address.lastLatencyMs == null
-        ? '延迟未知'
-        : '延迟 ${address.lastLatencyMs}ms';
+        ? loc.library_edit_latency_unknown
+        : loc.library_edit_latency('${address.lastLatencyMs}');
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final stackActions = scale > 1.3 || MediaQuery.sizeOf(context).width < 380;
 
@@ -477,12 +489,12 @@ class _AddressRow extends StatelessWidget {
       children: <Widget>[
         MusicFlowIconButton(
           icon: AppIcons.edit,
-          label: '编辑 ${address.label}',
+          label: loc.library_edit_edit_address(address.label),
           onPressed: onEdit,
         ),
         MusicFlowIconButton(
           icon: AppIcons.delete,
-          label: '删除 ${address.label}',
+          label: loc.library_edit_delete_address_short(address.label),
           foregroundColor: context.musicFlowColors.error,
           onPressed: onDelete,
         ),
@@ -490,7 +502,7 @@ class _AddressRow extends StatelessWidget {
           index: index,
           child: Semantics(
             button: true,
-            label: '长按拖动 ${address.label} 调整优先级',
+            label: loc.library_edit_drag_hint(address.label),
             child: SizedBox.square(
               dimension: context.musicFlowInteraction.minimumTouchTarget,
               child: Center(
@@ -592,19 +604,20 @@ class _AddressStatusPresentation {
     BuildContext context,
     ServerAddressStatus status,
   ) {
+    final loc = AppLocalizations.of(context);
     return switch (status) {
       ServerAddressStatus.ok => _AddressStatusPresentation(
-        label: '连接正常',
+        label: loc.library_edit_address_ok,
         icon: AppIcons.checkCircle,
         color: context.musicFlowColors.accent,
       ),
       ServerAddressStatus.failed => _AddressStatusPresentation(
-        label: '连接失败',
+        label: loc.library_edit_address_failed,
         icon: AppIcons.error,
         color: context.musicFlowColors.error,
       ),
       ServerAddressStatus.unknown => _AddressStatusPresentation(
-        label: '尚未检测',
+        label: loc.library_edit_address_unknown,
         icon: AppIcons.info,
         color: context.musicFlowColors.muted,
       ),

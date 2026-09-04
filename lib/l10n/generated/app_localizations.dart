@@ -2074,6 +2074,1513 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'专辑'**
   String get discover_category_albums;
+
+  /// action_collapse
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get action_collapse;
+
+  /// action_show_all
+  ///
+  /// In zh, this message translates to:
+  /// **'查看全部'**
+  String get action_show_all;
+
+  /// common_delete
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get common_delete;
+
+  /// common_remove
+  ///
+  /// In zh, this message translates to:
+  /// **'移除'**
+  String get common_remove;
+
+  /// common_save
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get common_save;
+
+  /// library_add_address
+  ///
+  /// In zh, this message translates to:
+  /// **'添加地址'**
+  String get library_add_address;
+
+  /// library_add_to_library
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到音乐库'**
+  String get library_add_to_library;
+
+  /// library_add_to_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到歌单'**
+  String get library_add_to_playlist;
+
+  /// library_add_to_queue
+  ///
+  /// In zh, this message translates to:
+  /// **'添加到播放队列'**
+  String get library_add_to_queue;
+
+  /// No description provided for @library_added_to_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加「{name}」到歌单「{playlist}」'**
+  String library_added_to_playlist(String name, String playlist);
+
+  /// No description provided for @library_added_to_queue.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加 {count} 首到播放队列'**
+  String library_added_to_queue(String count);
+
+  /// library_address_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器地址'**
+  String get library_address_subtitle;
+
+  /// library_album_actions
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑操作'**
+  String get library_album_actions;
+
+  /// No description provided for @library_album_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 张专辑'**
+  String library_album_count(String count);
+
+  /// No description provided for @library_album_count_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}，{count} 首'**
+  String library_album_count_semantics(String name, String count);
+
+  /// No description provided for @library_album_cover.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 封面'**
+  String library_album_cover(String name);
+
+  /// library_album_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑加载失败'**
+  String get library_album_load_failed;
+
+  /// library_album_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或服务器状态后重试。'**
+  String get library_album_load_failed_desc;
+
+  /// No description provided for @library_album_metadata_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}，{metadata}'**
+  String library_album_metadata_semantics(String name, String metadata);
+
+  /// library_album_no_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'这张专辑没有歌曲'**
+  String get library_album_no_songs;
+
+  /// library_album_no_tracks
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无曲目'**
+  String get library_album_no_tracks;
+
+  /// library_album_not_found
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到该专辑'**
+  String get library_album_not_found;
+
+  /// library_album_not_found_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'该专辑不存在或已被删除。'**
+  String get library_album_not_found_desc;
+
+  /// No description provided for @library_album_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}'**
+  String library_album_semantics(String name);
+
+  /// library_album_title
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑'**
+  String get library_album_title;
+
+  /// library_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑'**
+  String get library_albums;
+
+  /// library_all_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'全部专辑'**
+  String get library_all_albums;
+
+  /// library_all_artists
+  ///
+  /// In zh, this message translates to:
+  /// **'全部歌手'**
+  String get library_all_artists;
+
+  /// library_all_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'全部歌单'**
+  String get library_all_playlists;
+
+  /// library_all_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'全部歌曲'**
+  String get library_all_songs;
+
+  /// No description provided for @library_artist_counts.
+  ///
+  /// In zh, this message translates to:
+  /// **'{songCount} 首 · {albumCount} 张专辑'**
+  String library_artist_counts(String songCount, String albumCount);
+
+  /// No description provided for @library_artist_image_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 头像'**
+  String library_artist_image_semantics(String name);
+
+  /// library_artist_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手加载失败'**
+  String get library_artist_load_failed;
+
+  /// library_artist_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或服务器状态后重试。'**
+  String get library_artist_load_failed_desc;
+
+  /// library_artist_no_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'该歌手暂无专辑'**
+  String get library_artist_no_albums;
+
+  /// library_artist_no_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'该歌手暂无歌曲'**
+  String get library_artist_no_songs;
+
+  /// library_artist_not_found
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到该歌手'**
+  String get library_artist_not_found;
+
+  /// library_artist_not_found_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'该歌手不存在或已被删除。'**
+  String get library_artist_not_found_desc;
+
+  /// No description provided for @library_artist_photo.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 照片'**
+  String library_artist_photo(String name);
+
+  /// No description provided for @library_artist_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 歌手'**
+  String library_artist_semantics(String name);
+
+  /// library_artist_song_source
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲来源'**
+  String get library_artist_song_source;
+
+  /// library_artist_song_source_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'展示该歌手的歌曲来源信息。'**
+  String get library_artist_song_source_desc;
+
+  /// library_artist_title
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手'**
+  String get library_artist_title;
+
+  /// library_artists
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手'**
+  String get library_artists;
+
+  /// library_create_playlist_first
+  ///
+  /// In zh, this message translates to:
+  /// **'请先创建歌单'**
+  String get library_create_playlist_first;
+
+  /// library_delete_failed_network
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败，请检查网络。'**
+  String get library_delete_failed_network;
+
+  /// library_delete_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'删除歌单'**
+  String get library_delete_playlist;
+
+  /// No description provided for @library_delete_playlist_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除歌单「{name}」吗？'**
+  String library_delete_playlist_confirm(String name);
+
+  /// library_delete_playlist_irreversible
+  ///
+  /// In zh, this message translates to:
+  /// **'此操作不可撤销。'**
+  String get library_delete_playlist_irreversible;
+
+  /// library_deselect_all
+  ///
+  /// In zh, this message translates to:
+  /// **'取消全选'**
+  String get library_deselect_all;
+
+  /// library_edit_add_address
+  ///
+  /// In zh, this message translates to:
+  /// **'添加服务器地址'**
+  String get library_edit_add_address;
+
+  /// library_edit_add_address_short
+  ///
+  /// In zh, this message translates to:
+  /// **'添加地址'**
+  String get library_edit_add_address_short;
+
+  /// library_edit_address
+  ///
+  /// In zh, this message translates to:
+  /// **'地址'**
+  String get library_edit_address;
+
+  /// library_edit_address_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'地址无效'**
+  String get library_edit_address_failed;
+
+  /// library_edit_address_ok
+  ///
+  /// In zh, this message translates to:
+  /// **'地址有效'**
+  String get library_edit_address_ok;
+
+  /// library_edit_address_unknown
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get library_edit_address_unknown;
+
+  /// library_edit_addresses_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'管理该音乐库的服务器地址。'**
+  String get library_edit_addresses_desc;
+
+  /// library_edit_addresses
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器地址'**
+  String get library_edit_addresses;
+
+  /// library_edit_basic_info
+  ///
+  /// In zh, this message translates to:
+  /// **'基本信息'**
+  String get library_edit_basic_info;
+
+  /// library_edit_basic_info_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑音乐库的名称等信息。'**
+  String get library_edit_basic_info_desc;
+
+  /// library_edit_danger_zone
+  ///
+  /// In zh, this message translates to:
+  /// **'危险操作'**
+  String get library_edit_danger_zone;
+
+  /// library_edit_danger_zone_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'删除音乐库会移除本地配置，且不可恢复。'**
+  String get library_edit_danger_zone_desc;
+
+  /// library_edit_delete_address
+  ///
+  /// In zh, this message translates to:
+  /// **'删除地址'**
+  String get library_edit_delete_address;
+
+  /// No description provided for @library_edit_delete_address_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除地址「{label}」吗？'**
+  String library_edit_delete_address_confirm(String label);
+
+  /// No description provided for @library_edit_delete_address_short.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除「{label}」'**
+  String library_edit_delete_address_short(String label);
+
+  /// library_edit_delete_library
+  ///
+  /// In zh, this message translates to:
+  /// **'删除音乐库'**
+  String get library_edit_delete_library;
+
+  /// library_edit_delete_library_action
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get library_edit_delete_library_action;
+
+  /// No description provided for @library_edit_delete_library_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除音乐库「{name}」吗？'**
+  String library_edit_delete_library_confirm(String name);
+
+  /// No description provided for @library_edit_drag_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖动「{label}」调整优先级'**
+  String library_edit_drag_hint(String label);
+
+  /// No description provided for @library_edit_edit_address.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑「{label}」'**
+  String library_edit_edit_address(String label);
+
+  /// library_edit_failed_network
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败，请检查网络。'**
+  String get library_edit_failed_network;
+
+  /// No description provided for @library_edit_latency.
+  ///
+  /// In zh, this message translates to:
+  /// **'{ms} ms'**
+  String library_edit_latency(String ms);
+
+  /// library_edit_latency_unknown
+  ///
+  /// In zh, this message translates to:
+  /// **'延迟未知'**
+  String get library_edit_latency_unknown;
+
+  /// library_edit_library
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑音乐库'**
+  String get library_edit_library;
+
+  /// library_edit_library_loading
+  ///
+  /// In zh, this message translates to:
+  /// **'加载中…'**
+  String get library_edit_library_loading;
+
+  /// library_edit_library_name
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐库名称'**
+  String get library_edit_library_name;
+
+  /// library_edit_library_name_example
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：我的主音乐库'**
+  String get library_edit_library_name_example;
+
+  /// library_edit_library_updating
+  ///
+  /// In zh, this message translates to:
+  /// **'更新中…'**
+  String get library_edit_library_updating;
+
+  /// library_edit_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐库加载失败'**
+  String get library_edit_load_failed;
+
+  /// library_edit_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或服务器状态后重试。'**
+  String get library_edit_load_failed_desc;
+
+  /// library_edit_name_required
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入音乐库名称'**
+  String get library_edit_name_required;
+
+  /// library_edit_no_addresses
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无服务器地址'**
+  String get library_edit_no_addresses;
+
+  /// library_edit_no_addresses_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'添加一个服务器地址以连接音乐库。'**
+  String get library_edit_no_addresses_desc;
+
+  /// library_edit_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑歌单'**
+  String get library_edit_playlist;
+
+  /// library_edit_probe_all
+  ///
+  /// In zh, this message translates to:
+  /// **'全部测试'**
+  String get library_edit_probe_all;
+
+  /// library_edit_save_success
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存'**
+  String get library_edit_save_success;
+
+  /// library_edit_server_addresses
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器地址'**
+  String get library_edit_server_addresses;
+
+  /// library_edit_verify_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器验证失败'**
+  String get library_edit_verify_failed;
+
+  /// library_edit_verify_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'无法连接该服务器，请检查地址与网络。'**
+  String get library_edit_verify_failed_desc;
+
+  /// library_edit_verifying_server
+  ///
+  /// In zh, this message translates to:
+  /// **'正在验证服务器…'**
+  String get library_edit_verifying_server;
+
+  /// library_empty_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无专辑'**
+  String get library_empty_albums;
+
+  /// library_empty_albums_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'这里还没有任何专辑。'**
+  String get library_empty_albums_desc;
+
+  /// library_empty_artists
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌手'**
+  String get library_empty_artists;
+
+  /// library_empty_artists_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'这里还没有任何歌手。'**
+  String get library_empty_artists_desc;
+
+  /// library_empty_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌单'**
+  String get library_empty_playlists;
+
+  /// library_empty_playlists_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'这里还没有任何歌单。'**
+  String get library_empty_playlists_desc;
+
+  /// library_empty_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌曲'**
+  String get library_empty_songs;
+
+  /// library_empty_songs_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'这里还没有任何歌曲。'**
+  String get library_empty_songs_desc;
+
+  /// library_empty_tracks
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无曲目'**
+  String get library_empty_tracks;
+
+  /// library_empty_tracks_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'该音乐库暂无曲目。'**
+  String get library_empty_tracks_desc;
+
+  /// library_exit_song_management
+  ///
+  /// In zh, this message translates to:
+  /// **'退出歌曲管理'**
+  String get library_exit_song_management;
+
+  /// library_favorite_album
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏专辑'**
+  String get library_favorite_album;
+
+  /// library_favorite_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏歌手'**
+  String get library_favorite_artist;
+
+  /// library_favorite_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏歌单'**
+  String get library_favorite_playlist;
+
+  /// library_favorited_album
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏该专辑'**
+  String get library_favorited_album;
+
+  /// library_favorited_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏该歌手'**
+  String get library_favorited_artist;
+
+  /// No description provided for @library_favorited_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏歌单「{name}」'**
+  String library_favorited_playlist(String name);
+
+  /// library_got_it
+  ///
+  /// In zh, this message translates to:
+  /// **'知道了'**
+  String get library_got_it;
+
+  /// library_http_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'请使用 http:// 或 https:// 协议'**
+  String get library_http_hint;
+
+  /// library_http_insecure_warning
+  ///
+  /// In zh, this message translates to:
+  /// **'该服务器使用不安全的 HTTP 连接。'**
+  String get library_http_insecure_warning;
+
+  /// library_http_tip_title
+  ///
+  /// In zh, this message translates to:
+  /// **'连接不安全'**
+  String get library_http_tip_title;
+
+  /// library_label
+  ///
+  /// In zh, this message translates to:
+  /// **'标签'**
+  String get library_label;
+
+  /// library_label_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'为地址指定一个便于识别的标签'**
+  String get library_label_hint;
+
+  /// library_label_required
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入标签'**
+  String get library_label_required;
+
+  /// library_load_failed_retry
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败，点击重试'**
+  String get library_load_failed_retry;
+
+  /// library_local_no_match_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'本地未找到匹配的专辑'**
+  String get library_local_no_match_albums;
+
+  /// library_local_no_match_artists
+  ///
+  /// In zh, this message translates to:
+  /// **'本地未找到匹配的歌手'**
+  String get library_local_no_match_artists;
+
+  /// library_local_no_match_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'本地未找到匹配的歌单'**
+  String get library_local_no_match_playlists;
+
+  /// library_local_no_match_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'本地未找到匹配的歌曲'**
+  String get library_local_no_match_songs;
+
+  /// library_manage_playlist_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'管理歌单歌曲'**
+  String get library_manage_playlist_songs;
+
+  /// library_network_add_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'添加失败，请检查网络。'**
+  String get library_network_add_failed;
+
+  /// library_network_album_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑加载失败，请检查网络。'**
+  String get library_network_album_load_failed;
+
+  /// library_network_artist_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手加载失败，请检查网络。'**
+  String get library_network_artist_load_failed;
+
+  /// library_network_cached_content
+  ///
+  /// In zh, this message translates to:
+  /// **'当前正在使用缓存的离线内容。'**
+  String get library_network_cached_content;
+
+  /// library_network_op_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败，请检查网络。'**
+  String get library_network_op_failed;
+
+  /// library_no_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无专辑'**
+  String get library_no_albums;
+
+  /// library_no_library_selected
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择音乐库'**
+  String get library_no_library_selected;
+
+  /// library_no_playable_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可播放的歌曲'**
+  String get library_no_playable_songs;
+
+  /// library_no_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌单'**
+  String get library_no_playlists;
+
+  /// library_no_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌曲'**
+  String get library_no_songs;
+
+  /// No description provided for @library_operation_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败：{reason}'**
+  String library_operation_failed(String reason);
+
+  /// library_play_album
+  ///
+  /// In zh, this message translates to:
+  /// **'播放专辑'**
+  String get library_play_album;
+
+  /// library_play_all
+  ///
+  /// In zh, this message translates to:
+  /// **'播放全部'**
+  String get library_play_all;
+
+  /// library_play_artist_top
+  ///
+  /// In zh, this message translates to:
+  /// **'播放歌手热门歌曲'**
+  String get library_play_artist_top;
+
+  /// library_play_failed_network
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败，请检查网络。'**
+  String get library_play_failed_network;
+
+  /// library_play_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'播放歌曲'**
+  String get library_play_songs;
+
+  /// library_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单'**
+  String get library_playlist;
+
+  /// library_playlist_actions
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单操作'**
+  String get library_playlist_actions;
+
+  /// library_playlist_comment
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单评论'**
+  String get library_playlist_comment;
+
+  /// library_playlist_comment_example
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：我的晨练歌单'**
+  String get library_playlist_comment_example;
+
+  /// No description provided for @library_playlist_count_duration.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首 · {duration}'**
+  String library_playlist_count_duration(String count, String duration);
+
+  /// No description provided for @library_playlist_cover.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 封面'**
+  String library_playlist_cover(String name);
+
+  /// No description provided for @library_playlist_deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除歌单「{name}」'**
+  String library_playlist_deleted(String name);
+
+  /// library_playlist_empty
+  ///
+  /// In zh, this message translates to:
+  /// **'这个歌单是空的'**
+  String get library_playlist_empty;
+
+  /// library_playlist_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'尝试添加一些歌曲到歌单。'**
+  String get library_playlist_empty_desc;
+
+  /// library_playlist_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单加载失败'**
+  String get library_playlist_load_failed;
+
+  /// library_playlist_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或服务器状态后重试。'**
+  String get library_playlist_load_failed_desc;
+
+  /// library_playlist_name
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单名称'**
+  String get library_playlist_name;
+
+  /// library_playlist_name_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'给歌单起个名字'**
+  String get library_playlist_name_hint;
+
+  /// library_playlist_name_required
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入歌单名称'**
+  String get library_playlist_name_required;
+
+  /// library_playlist_no_available_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可添加的歌曲'**
+  String get library_playlist_no_available_songs;
+
+  /// library_playlist_no_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'该歌单暂无歌曲'**
+  String get library_playlist_no_songs;
+
+  /// library_playlist_private_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'仅自己可见'**
+  String get library_playlist_private_desc;
+
+  /// library_playlist_public_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'所有用户可见'**
+  String get library_playlist_public_desc;
+
+  /// library_playlist_public
+  ///
+  /// In zh, this message translates to:
+  /// **'公开'**
+  String get library_playlist_public;
+
+  /// No description provided for @library_playlist_updated.
+  ///
+  /// In zh, this message translates to:
+  /// **'已更新「{name}」'**
+  String library_playlist_updated(String name);
+
+  /// library_playlist_updated_reselect
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单内容已变化，请重新选择'**
+  String get library_playlist_updated_reselect;
+
+  /// library_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单'**
+  String get library_playlists;
+
+  /// library_playlists_unavailable
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单暂不可用'**
+  String get library_playlists_unavailable;
+
+  /// library_private_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'私有歌单'**
+  String get library_private_playlist;
+
+  /// library_public_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'公开歌单'**
+  String get library_public_playlist;
+
+  /// library_remote_album_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'远程音乐库暂无专辑。'**
+  String get library_remote_album_empty_desc;
+
+  /// library_remote_album_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'远程专辑加载失败，请检查网络。'**
+  String get library_remote_album_load_failed_desc;
+
+  /// library_remote_artist_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'远程音乐库暂无歌手。'**
+  String get library_remote_artist_empty_desc;
+
+  /// library_remote_artist_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'远程歌手加载失败，请检查网络。'**
+  String get library_remote_artist_load_failed_desc;
+
+  /// library_remote_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败'**
+  String get library_remote_load_failed;
+
+  /// library_remote_playlist_empty_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'远程音乐库暂无歌单。'**
+  String get library_remote_playlist_empty_desc;
+
+  /// library_remote_playlist_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'远程歌单加载失败，请检查网络。'**
+  String get library_remote_playlist_load_failed_desc;
+
+  /// No description provided for @library_remove_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除失败：{reason}'**
+  String library_remove_failed(String reason);
+
+  /// library_remove_failed_network
+  ///
+  /// In zh, this message translates to:
+  /// **'移除失败，请检查网络。'**
+  String get library_remove_failed_network;
+
+  /// library_remove_from_current_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'从当前歌单移除'**
+  String get library_remove_from_current_playlist;
+
+  /// library_remove_from_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'从歌单移除'**
+  String get library_remove_from_playlist;
+
+  /// library_remove_no_permission
+  ///
+  /// In zh, this message translates to:
+  /// **'没有权限移除歌曲，请检查账户权限。'**
+  String get library_remove_no_permission;
+
+  /// library_remove_selected
+  ///
+  /// In zh, this message translates to:
+  /// **'移除所选'**
+  String get library_remove_selected;
+
+  /// library_remove_selected_semantics
+  ///
+  /// In zh, this message translates to:
+  /// **'移除所选歌曲'**
+  String get library_remove_selected_semantics;
+
+  /// library_remove_server_refused
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器拒绝了移除请求。'**
+  String get library_remove_server_refused;
+
+  /// library_remove_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'移除歌曲'**
+  String get library_remove_songs;
+
+  /// No description provided for @library_remove_songs_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'将移除 {count} 首歌曲，确定从歌单「{name}」移除吗？'**
+  String library_remove_songs_confirm(String name, String count);
+
+  /// library_remove_songs_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择以下歌曲，执行后将从歌单移除。'**
+  String get library_remove_songs_desc;
+
+  /// No description provided for @library_removed_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移除 {count} 首'**
+  String library_removed_count(String count);
+
+  /// No description provided for @library_removed_from_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'已将「{title}」移出歌单'**
+  String library_removed_from_playlist(String title);
+
+  /// library_removing
+  ///
+  /// In zh, this message translates to:
+  /// **'移除中…'**
+  String get library_removing;
+
+  /// library_retry_on_network
+  ///
+  /// In zh, this message translates to:
+  /// **'点击重试'**
+  String get library_retry_on_network;
+
+  /// library_save_address
+  ///
+  /// In zh, this message translates to:
+  /// **'保存地址'**
+  String get library_save_address;
+
+  /// library_save_anyway
+  ///
+  /// In zh, this message translates to:
+  /// **'仍然保存'**
+  String get library_save_anyway;
+
+  /// library_save_insecure_http_title
+  ///
+  /// In zh, this message translates to:
+  /// **'保存不安全的地址？'**
+  String get library_save_insecure_http_title;
+
+  /// library_save_library
+  ///
+  /// In zh, this message translates to:
+  /// **'保存音乐库'**
+  String get library_save_library;
+
+  /// library_search_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索专辑'**
+  String get library_search_albums;
+
+  /// library_search_artists
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索歌手'**
+  String get library_search_artists;
+
+  /// library_search_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索歌单'**
+  String get library_search_playlists;
+
+  /// library_search_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索歌曲'**
+  String get library_search_songs;
+
+  /// library_select_all
+  ///
+  /// In zh, this message translates to:
+  /// **'全选'**
+  String get library_select_all;
+
+  /// library_select_songs_to_remove
+  ///
+  /// In zh, this message translates to:
+  /// **'选择要移除的歌曲'**
+  String get library_select_songs_to_remove;
+
+  /// No description provided for @library_selected_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择 {count} 项'**
+  String library_selected_count(String count);
+
+  /// No description provided for @library_selected_count_rationale.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择 {count} 首歌曲'**
+  String library_selected_count_rationale(String count);
+
+  /// library_server_address
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器地址'**
+  String get library_server_address;
+
+  /// library_server_required
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入服务器地址'**
+  String get library_server_required;
+
+  /// No description provided for @library_song_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首歌曲'**
+  String library_song_count(String count);
+
+  /// library_song_sort
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲排序'**
+  String get library_song_sort;
+
+  /// No description provided for @library_song_sort_current.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前排序：{sort}'**
+  String library_song_sort_current(String sort);
+
+  /// No description provided for @library_song_sort_option.
+  ///
+  /// In zh, this message translates to:
+  /// **'排序：{sort}'**
+  String library_song_sort_option(String sort);
+
+  /// library_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲'**
+  String get library_songs;
+
+  /// No description provided for @library_songs_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首歌曲'**
+  String library_songs_count(String count);
+
+  /// library_sort_sheet_subtitle
+  ///
+  /// In zh, this message translates to:
+  /// **'选择歌曲的排列顺序。'**
+  String get library_sort_sheet_subtitle;
+
+  /// No description provided for @library_starred_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label}（收藏）'**
+  String library_starred_label(String label);
+
+  /// library_starred_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏加载失败'**
+  String get library_starred_load_failed;
+
+  /// library_starred_load_failed_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或服务器状态后重试。'**
+  String get library_starred_load_failed_desc;
+
+  /// library_starred_no_albums
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无收藏专辑'**
+  String get library_starred_no_albums;
+
+  /// library_starred_no_albums_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'在专辑卡片点亮红心后，会显示在这里。'**
+  String get library_starred_no_albums_desc;
+
+  /// library_starred_no_artists
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无收藏歌手'**
+  String get library_starred_no_artists;
+
+  /// library_starred_no_artists_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'在歌手卡片点亮红心后，会显示在这里。'**
+  String get library_starred_no_artists_desc;
+
+  /// library_starred_no_playlists
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无收藏歌单'**
+  String get library_starred_no_playlists;
+
+  /// library_starred_no_playlists_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'在歌单卡片点亮红心后，会显示在这里。'**
+  String get library_starred_no_playlists_desc;
+
+  /// library_starred_no_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无收藏歌曲'**
+  String get library_starred_no_songs;
+
+  /// library_starred_no_songs_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'在歌曲列表点亮红心后，会显示在这里。'**
+  String get library_starred_no_songs_desc;
+
+  /// No description provided for @library_starred_playlist_cover_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 封面'**
+  String library_starred_playlist_cover_semantics(String name);
+
+  /// No description provided for @library_starred_playlist_favorited_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}，{count} 首，已收藏'**
+  String library_starred_playlist_favorited_semantics(
+    String name,
+    String count,
+  );
+
+  /// No description provided for @library_starred_playlist_meta.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首 · {duration}'**
+  String library_starred_playlist_meta(String count, String duration);
+
+  /// library_starred_playlists_load_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单加载失败'**
+  String get library_starred_playlists_load_failed;
+
+  /// library_starred_title
+  ///
+  /// In zh, this message translates to:
+  /// **'我喜欢'**
+  String get library_starred_title;
+
+  /// No description provided for @library_starred_total.
+  ///
+  /// In zh, this message translates to:
+  /// **'共收藏 {count} 项'**
+  String library_starred_total(String count);
+
+  /// No description provided for @library_toggle_accessibility.
+  ///
+  /// In zh, this message translates to:
+  /// **'{title}，{state}，{description}'**
+  String library_toggle_accessibility(
+    String title,
+    String state,
+    String description,
+  );
+
+  /// library_top_songs
+  ///
+  /// In zh, this message translates to:
+  /// **'热门歌曲'**
+  String get library_top_songs;
+
+  /// No description provided for @library_top_songs_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'热门歌曲 {count} 首'**
+  String library_top_songs_count(String count);
+
+  /// library_top_songs_unavailable
+  ///
+  /// In zh, this message translates to:
+  /// **'热门歌曲不可用'**
+  String get library_top_songs_unavailable;
+
+  /// No description provided for @library_track_count_sort.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首 · {sort}'**
+  String library_track_count_sort(String count, String sort);
+
+  /// library_tracks
+  ///
+  /// In zh, this message translates to:
+  /// **'曲目'**
+  String get library_tracks;
+
+  /// library_unfavorite_album
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏专辑'**
+  String get library_unfavorite_album;
+
+  /// library_unfavorite_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏歌手'**
+  String get library_unfavorite_artist;
+
+  /// library_unfavorite_playlist
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏歌单'**
+  String get library_unfavorite_playlist;
+
+  /// library_unfavorited_album
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏该专辑'**
+  String get library_unfavorited_album;
+
+  /// library_unfavorited_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏该歌手'**
+  String get library_unfavorited_artist;
+
+  /// No description provided for @library_unfavorited_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏歌单「{name}」'**
+  String library_unfavorited_playlist(String name);
+
+  /// library_unfavorited_short
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏'**
+  String get library_unfavorited_short;
+
+  /// library_unknown_artist
+  ///
+  /// In zh, this message translates to:
+  /// **'未知歌手'**
+  String get library_unknown_artist;
+
+  /// library_url_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：http://192.168.1.100:4533'**
+  String get library_url_hint;
+
+  /// library_url_invalid
+  ///
+  /// In zh, this message translates to:
+  /// **'地址格式无效'**
+  String get library_url_invalid;
+
+  /// playlist_sort_updated_asc
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新（升序）'**
+  String get playlist_sort_updated_asc;
+
+  /// playlist_sort_updated_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新'**
+  String get playlist_sort_updated_desc;
+
+  /// song_sort_alphabetical_asc
+  ///
+  /// In zh, this message translates to:
+  /// **'按标题（升序）'**
+  String get song_sort_alphabetical_asc;
+
+  /// song_sort_alphabetical_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'按标题（降序）'**
+  String get song_sort_alphabetical_desc;
+
+  /// song_sort_default_order
+  ///
+  /// In zh, this message translates to:
+  /// **'默认排序'**
+  String get song_sort_default_order;
+
+  /// song_sort_duration_asc
+  ///
+  /// In zh, this message translates to:
+  /// **'按时长（升序）'**
+  String get song_sort_duration_asc;
+
+  /// song_sort_duration_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'按时长（降序）'**
+  String get song_sort_duration_desc;
+
+  /// song_sort_recent_added
+  ///
+  /// In zh, this message translates to:
+  /// **'最近添加'**
+  String get song_sort_recent_added;
+
+  /// song_sort_title_asc
+  ///
+  /// In zh, this message translates to:
+  /// **'按标题（升序）'**
+  String get song_sort_title_asc;
+
+  /// song_sort_updated_asc
+  ///
+  /// In zh, this message translates to:
+  /// **'按更新时间（升序）'**
+  String get song_sort_updated_asc;
+
+  /// song_sort_updated_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'按更新时间（降序）'**
+  String get song_sort_updated_desc;
+
+  /// state_disabled
+  ///
+  /// In zh, this message translates to:
+  /// **'已关闭'**
+  String get state_disabled;
+
+  /// state_enabled
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启'**
+  String get state_enabled;
 }
 
 class _AppLocalizationsDelegate

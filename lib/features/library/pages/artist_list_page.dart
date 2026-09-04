@@ -15,6 +15,7 @@ import '../../../providers/library_stats_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../widgets/artist_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
 import '../widgets/windowed_list_view.dart';
@@ -57,6 +58,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 标题下方只显示本页对应的计数（共多少名艺人）。
     final countsText = ref
         .watch(libraryCountsProvider)
@@ -70,7 +72,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
       child: MusicFlowScaffold(
         topBar: MusicFlowTopBar.back(
           context: context,
-          title: '所有艺术家',
+          title: loc.library_all_artists,
           subtitle: countsText,
         ),
         body: Column(
@@ -78,7 +80,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
           children: <Widget>[
             EntitySearchBar(
               query: _searchQuery,
-              hintText: '搜索歌手',
+              hintText: loc.library_search_artists,
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
                 if (query.isEmpty) _list.load('');
@@ -93,6 +95,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
   }
 
   Widget _body() {
+    final loc = AppLocalizations.of(context);
     if (_searchQuery.isNotEmpty) {
       // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
       return AggregateSearchResults(
@@ -117,7 +120,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
               ),
             ),
           ),
-          emptyText: '本地库无匹配歌手',
+          emptyText: loc.library_local_no_match_artists,
         ),
       );
     }
@@ -138,8 +141,8 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
               bottom: context.musicFlowSpacing.xxl +
                   context.musicFlowShellBottomObstruction,
             ),
-            emptyTitle: '暂无歌手',
-            emptyDescription: '同步音乐库后，歌手会显示在这里。',
+            emptyTitle: loc.library_empty_artists,
+            emptyDescription: loc.library_empty_artists_desc,
             emptyIcon: AppIcons.profile,
             itemBuilder: (context, index, artist) => MusicFlowArtistRow(
               key: ValueKey('artist-row-${artist!.id}'),

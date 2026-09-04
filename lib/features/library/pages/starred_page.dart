@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/playlist.dart';
 import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
@@ -38,6 +39,7 @@ class StarredPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final starredAsync = ref.watch(starredProvider);
     final playlistsAsync = ref.watch(favoritePlaylistsProvider);
     final loadFailed = ref.watch(starredLoadFailedProvider);
@@ -50,7 +52,7 @@ class StarredPage extends ConsumerWidget {
               value.artists.length +
               (playlistsAsync.valueOrNull?.length ?? 0);
     // 标题下方只显示收藏总数。
-    final subtitleText = total == null ? null : '$total 项收藏';
+    final subtitleText = total == null ? null : loc.library_starred_total('$total');
 
     return VisibleRemoteRetryScope(
       branchIndex: libraryBranchIndex,
@@ -73,7 +75,7 @@ class StarredPage extends ConsumerWidget {
                 children: <Widget>[
                   MusicFlowTopBar.back(
                     context: tabContext,
-                    title: '收藏夹',
+                    title: loc.library_starred_title,
                     subtitle: subtitleText,
                   ),
                   _StarredTabStrip(controller: controller),
@@ -103,6 +105,7 @@ class StarredPage extends ConsumerWidget {
   }
 
   Widget _buildPlaylistsTab(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final playlistsAsync = ref.watch(favoritePlaylistsProvider);
     final loadFailed = ref.watch(favoritePlaylistsLoadFailedProvider);
 
@@ -110,9 +113,9 @@ class StarredPage extends ConsumerWidget {
       data: (playlists) {
         if (loadFailed && playlists.isEmpty) {
           return MusicFlowErrorState(
-            title: '收藏歌单加载失败',
-            description: '请检查网络或服务器状态后重试。',
-            actionLabel: '重试',
+            title: loc.library_starred_playlists_load_failed,
+            description: loc.library_starred_load_failed_desc,
+            actionLabel: loc.widgets_retry,
             onAction: () => ref.invalidate(favoritePlaylistsProvider),
           );
         }
@@ -120,8 +123,8 @@ class StarredPage extends ConsumerWidget {
           return _refreshableEmpty(
             context: context,
             ref: ref,
-            title: '暂无收藏歌单',
-            description: '在歌单卡片点亮红心后，会显示在这里。',
+            title: loc.library_starred_no_playlists,
+            description: loc.library_starred_no_playlists_desc,
             icon: AppIcons.playlist,
           );
         }
@@ -183,9 +186,9 @@ class StarredPage extends ConsumerWidget {
       },
       loading: () => const MusicFlowAlbumGridSkeleton(count: 6),
       error: (error, stackTrace) => MusicFlowErrorState(
-        title: '收藏歌单加载失败',
-        description: '请检查网络或服务器状态后重试。',
-        actionLabel: '重试',
+        title: loc.library_starred_playlists_load_failed,
+        description: loc.library_starred_load_failed_desc,
+        actionLabel: loc.widgets_retry,
         onAction: () => ref.invalidate(favoritePlaylistsProvider),
       ),
     );
@@ -211,6 +214,7 @@ class StarredPage extends ConsumerWidget {
   }
 
   Widget _buildSongsTab(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final starredAsync = ref.watch(starredProvider);
     return starredAsync.when(
       data: (starred) {
@@ -219,8 +223,8 @@ class StarredPage extends ConsumerWidget {
           return _refreshableEmpty(
             context: context,
             ref: ref,
-            title: '暂无收藏歌曲',
-            description: '在歌曲操作中点亮红心后，会显示在这里。',
+            title: loc.library_starred_no_songs,
+            description: loc.library_starred_no_songs_desc,
             icon: AppIcons.heartOutline,
           );
         }
@@ -250,11 +254,11 @@ class StarredPage extends ConsumerWidget {
                     runSpacing: context.musicFlowSpacing.xs,
                     children: <Widget>[
                       Text(
-                        '歌曲 (${songs.length})',
+                        loc.library_songs_count('${songs.length}'),
                         style: context.musicFlowTypography.headline,
                       ),
                       MusicFlowButton.ghost(
-                        label: '播放全部',
+                        label: loc.library_play_all,
                         leadingIcon: AppIcons.play,
                         onPressed: () => playEffectiveQueue(ref, songs),
                       ),
@@ -292,15 +296,16 @@ class StarredPage extends ConsumerWidget {
       },
       loading: () => const MusicFlowMediaListSkeleton(count: 7),
       error: (error, stackTrace) => MusicFlowErrorState(
-        title: '收藏加载失败',
-        description: '请检查网络或服务器状态后重试。',
-        actionLabel: '重试',
+        title: loc.library_starred_load_failed,
+        description: loc.library_starred_load_failed_desc,
+        actionLabel: loc.widgets_retry,
         onAction: () => ref.invalidate(starredProvider),
       ),
     );
   }
 
   Widget _buildAlbumsTab(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     // 当前播放来源：识别正在播放的专辑（封面叠加跳动竖条）。
     final queueOrigin = ref.watch(queueOriginProvider);
     final starredAsync = ref.watch(starredProvider);
@@ -311,8 +316,8 @@ class StarredPage extends ConsumerWidget {
           return _refreshableEmpty(
             context: context,
             ref: ref,
-            title: '暂无收藏专辑',
-            description: '长按专辑并点亮收藏后，会显示在这里。',
+            title: loc.library_starred_no_albums,
+            description: loc.library_starred_no_albums_desc,
             icon: AppIcons.albumOutline,
           );
         }
@@ -380,15 +385,16 @@ class StarredPage extends ConsumerWidget {
       },
       loading: () => const MusicFlowAlbumGridSkeleton(count: 6),
       error: (error, stackTrace) => MusicFlowErrorState(
-        title: '收藏加载失败',
-        description: '请检查网络或服务器状态后重试。',
-        actionLabel: '重试',
+        title: loc.library_starred_load_failed,
+        description: loc.library_starred_load_failed_desc,
+        actionLabel: loc.widgets_retry,
         onAction: () => ref.invalidate(starredProvider),
       ),
     );
   }
 
   Widget _buildArtistsTab(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final starredAsync = ref.watch(starredProvider);
     return starredAsync.when(
       data: (starred) {
@@ -397,8 +403,8 @@ class StarredPage extends ConsumerWidget {
           return _refreshableEmpty(
             context: context,
             ref: ref,
-            title: '暂无收藏歌手',
-            description: '收藏的歌手会集中显示在这里。',
+            title: loc.library_starred_no_artists,
+            description: loc.library_starred_no_artists_desc,
             icon: AppIcons.profile,
           );
         }
@@ -434,9 +440,9 @@ class StarredPage extends ConsumerWidget {
       },
       loading: () => const MusicFlowMediaListSkeleton(count: 5),
       error: (error, stackTrace) => MusicFlowErrorState(
-        title: '收藏加载失败',
-        description: '请检查网络或服务器状态后重试。',
-        actionLabel: '重试',
+        title: loc.library_starred_load_failed,
+        description: loc.library_starred_load_failed_desc,
+        actionLabel: loc.widgets_retry,
         onAction: () => ref.invalidate(starredProvider),
       ),
     );
@@ -519,7 +525,13 @@ class _StarredTabStripState extends State<_StarredTabStrip> {
 
   @override
   Widget build(BuildContext context) {
-    const labels = <String>['歌单', '歌曲', '专辑', '歌手'];
+    final loc = AppLocalizations.of(context);
+    final labels = <String>[
+      loc.library_playlists,
+      loc.library_songs,
+      loc.library_albums,
+      loc.library_artists,
+    ];
     return Padding(
       padding: EdgeInsets.fromLTRB(
         context.musicFlowPageHorizontalPadding,
@@ -537,7 +549,7 @@ class _StarredTabStripState extends State<_StarredTabStrip> {
             for (var index = 0; index < labels.length; index++)
               Expanded(
                 child: MusicFlowPressable(
-                  semanticLabel: '${labels[index]}收藏',
+                  semanticLabel: loc.library_starred_label(labels[index]),
                   selected: widget.controller.index == index,
                   onPressed: () => widget.controller.animateTo(
                     index,
@@ -598,8 +610,10 @@ class _StarredPlaylistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
-      semanticLabel: '${playlist.name}，${playlist.songCount} 首，已收藏',
+      semanticLabel: loc.library_starred_playlist_favorited_semantics(
+          playlist.name, '${playlist.songCount}'),
       onPressed: onPressed,
       onLongPress: onLongPress,
       minimumSize: const Size(96, 96),
@@ -623,7 +637,7 @@ class _StarredPlaylistTile extends StatelessWidget {
                             coverArtId: playlist.coverArt,
                             requestSize: 420,
                             fit: BoxFit.cover,
-                            semanticLabel: '${playlist.name} 封面',
+                            semanticLabel: loc.library_starred_playlist_cover_semantics(playlist.name),
                           )
                         : Container(
                             color: context.musicFlowColors.surface,
@@ -669,7 +683,7 @@ class _StarredPlaylistTile extends StatelessWidget {
             ),
             SizedBox(height: context.musicFlowSpacing.xxs),
             Text(
-              '${playlist.songCount} 首 · ${playlist.durationString}',
+              loc.library_starred_playlist_meta('${playlist.songCount}', playlist.durationString),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: context.musicFlowTypography.metadata.copyWith(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/utils/toast_notifier.dart';
 import '../../../data/models/album.dart';
 import '../../../data/models/song.dart';
@@ -40,6 +41,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final detailAsync = ref.watch(artistDetailProvider(widget.artistId));
     final loadFailed = ref.watch(
       artistDetailLoadFailedProvider(widget.artistId),
@@ -63,11 +65,11 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
       child: MusicFlowScaffold(
         topBar: MusicFlowTopBar.back(
           context: context,
-          title: '歌手',
+          title: loc.library_artist_title,
           actions: <Widget>[
             MusicFlowIconButton(
               icon: AppIcons.info,
-              label: '歌曲来源说明',
+              label: loc.library_artist_song_source,
               onPressed: _showSongSourceInfo,
             ),
           ],
@@ -77,14 +79,14 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
             if (detail == null) {
               return loadFailed
                   ? MusicFlowErrorState(
-                      title: '歌手加载失败',
-                      description: '无法读取歌手详情。请检查网络后重试。',
-                      actionLabel: '重试',
+                      title: loc.library_artist_load_failed,
+                      description: loc.library_artist_load_failed_desc,
+                      actionLabel: loc.widgets_retry,
                       onAction: _retryArtist,
                     )
-                  : const MusicFlowEmptyState(
-                      title: '歌手不存在',
-                      description: '服务器没有返回这位歌手，内容可能已经被移动或删除。',
+                  : MusicFlowEmptyState(
+                      title: loc.library_artist_not_found,
+                      description: loc.library_artist_not_found_desc,
                       icon: AppIcons.people,
                     );
             }
@@ -131,7 +133,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                             0,
                           ),
                           child: MediaLoadNotice(
-                            message: '网络连接异常，当前可能显示缓存的歌手内容。',
+                            message: loc.library_network_cached_content,
                             onRetry: _retryArtist,
                           ),
                         ),
@@ -167,9 +169,9 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
           },
           loading: () => const MediaDetailLoadingView(circularArtwork: true),
           error: (error, stackTrace) => MusicFlowErrorState(
-            title: '歌手加载失败',
-            description: '无法读取歌手详情。请检查网络后重试。',
-            actionLabel: '重试',
+            title: loc.library_artist_load_failed,
+            description: loc.library_artist_load_failed_desc,
+            actionLabel: loc.widgets_retry,
             onAction: _retryArtist,
           ),
         ),
@@ -182,6 +184,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
     List<Song> songs,
     AsyncValue<List<Song>> topSongsAsync,
   ) {
+    final loc = AppLocalizations.of(context);
     final slivers = <Widget>[
       SliverToBoxAdapter(
         child: topSongsAsync.when(
@@ -201,10 +204,10 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   MusicFlowSectionHeader(
-                    title: '热门歌曲',
-                    description: '${topSongs.length} 首来自远程热门结果',
+                    title: loc.library_top_songs,
+                    description: loc.library_top_songs_count('${topSongs.length}'),
                     actionLabel: topSongs.length > _topSongsPreviewCount
-                        ? (_showAllTopSongs ? '收起' : '显示所有')
+                        ? (_showAllTopSongs ? loc.action_collapse : loc.action_show_all)
                         : null,
                     onAction: () {
                       setState(() => _showAllTopSongs = !_showAllTopSongs);
@@ -226,7 +229,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
               0,
             ),
             child: MediaLoadNotice(
-              message: '热门歌曲暂时不可用。',
+              message: loc.library_top_songs_unavailable,
               onRetry: () =>
                   ref.invalidate(topSongsByArtistProvider(artistName)),
             ),
@@ -235,9 +238,9 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
       ),
       SliverToBoxAdapter(
         child: MusicFlowSectionHeader(
-          title: '所有歌曲',
-          description: songs.isEmpty ? '没有可播放歌曲' : '${songs.length} 首',
-          actionLabel: songs.isEmpty ? null : '播放全部',
+          title: loc.library_all_songs,
+          description: songs.isEmpty ? loc.library_no_playable_songs : loc.library_song_count('${songs.length}'),
+          actionLabel: songs.isEmpty ? null : loc.library_play_all,
           onAction: songs.isEmpty
               ? null
               : () => playEffectiveQueue(ref, songs),
@@ -253,10 +256,10 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
 
     if (songs.isEmpty) {
       slivers.add(
-        const SliverToBoxAdapter(
+        SliverToBoxAdapter(
           child: MusicFlowEmptyState(
-            title: '暂无歌曲',
-            description: '服务器没有为这位歌手返回可播放歌曲。',
+            title: loc.library_no_songs,
+            description: loc.library_artist_no_songs,
             icon: AppIcons.music,
             padding: EdgeInsets.all(32),
           ),
@@ -313,12 +316,13 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
   }
 
   List<Widget> _buildAlbumSlivers(List<Album> albums) {
+    final loc = AppLocalizations.of(context);
     if (albums.isEmpty) {
-      return const <Widget>[
+      return <Widget>[
         SliverToBoxAdapter(
           child: MusicFlowEmptyState(
-            title: '暂无专辑',
-            description: '服务器没有为这位歌手返回专辑。',
+            title: loc.library_no_albums,
+            description: loc.library_artist_no_albums,
             icon: AppIcons.albumOutline,
           ),
         ),
@@ -406,6 +410,7 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
     String artistId,
     bool currentStarred,
   ) async {
+    final loc = AppLocalizations.of(context);
     final repository = ref.read(musicRepositoryProvider);
     if (repository == null) return;
     final nextStarred = !currentStarred;
@@ -417,35 +422,36 @@ class _ArtistDetailPageState extends ConsumerState<ArtistDetailPage> {
       ref.invalidate(starredProvider);
       if (mounted) {
         ToastNotifier.show(
-          nextStarred ? '已收藏歌手' : '已取消收藏歌手',
+          nextStarred ? loc.library_favorited_artist : loc.library_unfavorited_artist,
           kind: MusicFlowMessageKind.success,
         );
       }
     } catch (error) {
       if (mounted) {
-        ToastNotifier.show('操作失败: $error', kind: MusicFlowMessageKind.error);
+        ToastNotifier.show(loc.library_operation_failed('$error'), kind: MusicFlowMessageKind.error);
       }
     }
   }
 
   Future<void> _showSongSourceInfo() {
+    final loc = AppLocalizations.of(context);
     return showMusicFlowBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (sheetContext) => MusicFlowBottomSheet(
-        title: '歌曲来源说明',
+        title: loc.library_artist_song_source,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Text(
-                '当前歌手歌曲来源为该歌手作为专辑艺术家的专辑下的所有歌曲，可能出现错漏。',
+                loc.library_artist_song_source_desc,
                 style: sheetContext.musicFlowTypography.body,
               ),
               SizedBox(height: sheetContext.musicFlowSpacing.lg),
               MusicFlowButton.secondary(
-                label: '知道了',
+                label: loc.library_got_it,
                 expand: true,
                 onPressed: () => Navigator.of(sheetContext).pop(),
               ),
@@ -478,6 +484,7 @@ class _ArtistIdentityHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MediaDetailHeaderSurface(
       coverArtId: coverArtId,
       child: Padding(
@@ -489,7 +496,7 @@ class _ArtistIdentityHeader extends StatelessWidget {
               dimension: wide ? 200 : 160,
               child: MediaDetailArtwork(
                 coverArtId: coverArtId,
-                semanticLabel: '$artistName 照片',
+                semanticLabel: loc.library_artist_photo(artistName),
                 heroTag: 'artist-cover-$artistName',
                 circular: true,
                 requestSize: 480,
@@ -510,7 +517,7 @@ class _ArtistIdentityHeader extends StatelessWidget {
                 ),
                 SizedBox(height: context.musicFlowSpacing.sm),
                 Text(
-                  '$songCount 首歌曲 · $albumCount 张专辑',
+                  loc.library_artist_counts('$songCount', '$albumCount'),
                   textAlign: wide ? TextAlign.start : TextAlign.center,
                   style: context.musicFlowTypography.body.copyWith(
                     color: context.musicFlowColors.muted,
@@ -523,13 +530,13 @@ class _ArtistIdentityHeader extends StatelessWidget {
                   runSpacing: context.musicFlowSpacing.xs,
                   children: <Widget>[
                     MusicFlowButton.primary(
-                      label: '播放歌曲',
+                      label: loc.library_play_songs,
                       leadingIcon: AppIcons.play,
                       onPressed: onPlay,
                     ),
                     MusicFlowIconButton(
                       icon: starred ? AppIcons.heart : AppIcons.heartOutline,
-                      label: starred ? '取消收藏歌手' : '收藏歌手',
+                      label: starred ? loc.library_unfavorite_artist : loc.library_favorite_artist,
                       selected: starred,
                       onPressed: onToggleStarred,
                     ),
@@ -582,8 +589,9 @@ class _ArtistSectionHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
+    final loc = AppLocalizations.of(context);
     return MediaDetailSectionSwitcher(
-      labels: const <String>['歌曲', '专辑'],
+      labels: <String>[loc.library_songs, loc.library_albums],
       selectedIndex: selectedIndex,
       onSelected: onSelected,
     );
@@ -609,8 +617,9 @@ class _ArtistAlbumRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowPressable(
-      semanticLabel: '${album.name}，${album.songCount} 首',
+      semanticLabel: loc.library_album_count_semantics(album.name, '${album.songCount}'),
       onPressed: onPressed,
       onLongPress: onLongPress,
       minimumSize: const Size(double.infinity, 104),
@@ -622,7 +631,7 @@ class _ArtistAlbumRow extends StatelessWidget {
               dimension: 88,
               child: MediaDetailArtwork(
                 coverArtId: album.coverArt,
-                semanticLabel: '${album.name} 封面',
+                semanticLabel: loc.library_album_cover(album.name),
                 heroTag: 'album-cover-${album.id}',
                 requestSize: 320,
               ),
@@ -638,7 +647,7 @@ class _ArtistAlbumRow extends StatelessWidget {
                   Text(
                     <String>[
                       if (album.year != null) '${album.year}',
-                      '${album.songCount} 首',
+                      loc.library_song_count('${album.songCount}'),
                     ].join(' · '),
                     style: context.musicFlowTypography.body.copyWith(
                       color: context.musicFlowColors.muted,

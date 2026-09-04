@@ -17,6 +17,7 @@ import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
 import '../../../providers/queue_origin_provider.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../widgets/album_options_sheet.dart';
 import '../widgets/library_collection_components.dart';
 import '../widgets/windowed_list_view.dart';
@@ -65,6 +66,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 标题下方只显示本页对应的计数（共多少张专辑）。
     final countsText = ref
         .watch(libraryCountsProvider)
@@ -78,7 +80,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
       child: MusicFlowScaffold(
         topBar: MusicFlowTopBar.back(
           context: context,
-          title: '所有专辑',
+          title: loc.library_all_albums,
           subtitle: countsText,
         ),
         body: Column(
@@ -86,7 +88,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
           children: <Widget>[
             EntitySearchBar(
               query: _searchQuery,
-              hintText: '搜索专辑',
+              hintText: loc.library_search_albums,
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
                 if (query.isEmpty) _reload();
@@ -101,6 +103,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
   }
 
   Widget _body() {
+    final loc = AppLocalizations.of(context);
     if (_searchQuery.isNotEmpty) {
       // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
       return AggregateSearchResults(
@@ -127,7 +130,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
             ),
             showImport: false, // 本地专辑无需入库
           ),
-          emptyText: '本地库无匹配专辑',
+          emptyText: loc.library_local_no_match_albums,
         ),
       );
     }
@@ -159,8 +162,8 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
               bottom: context.musicFlowSpacing.xxl +
                   context.musicFlowShellBottomObstruction,
             ),
-            emptyTitle: '暂无专辑',
-            emptyDescription: '同步音乐库后，专辑会显示在这里。',
+            emptyTitle: loc.library_empty_albums,
+            emptyDescription: loc.library_empty_albums_desc,
             emptyIcon: AppIcons.albumOutline,
             itemBuilder: (context, index, album) =>
                 _buildTile(index, album!),

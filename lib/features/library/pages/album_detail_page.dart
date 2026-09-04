@@ -12,6 +12,7 @@ import '../../../providers/queue_origin_provider.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 import '../../player/widgets/song_options_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../utils/library_sorting.dart';
 import '../widgets/album_options_sheet.dart';
 import '../widgets/media_detail_components.dart';
@@ -30,6 +31,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final detailAsync = ref.watch(albumDetailProvider(widget.albumId));
     final loadFailed = ref.watch(albumDetailLoadFailedProvider(widget.albumId));
     final currentAlbum = detailAsync.valueOrNull?.album;
@@ -45,16 +47,16 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       child: MusicFlowScaffold(
         topBar: MusicFlowTopBar.back(
           context: context,
-          title: '专辑',
+          title: loc.library_album_title,
           actions: <Widget>[
             MusicFlowIconButton(
               icon: AppIcons.sort,
-              label: '歌曲排序：${_sortOption.label}',
+              label: loc.library_song_sort_option(_sortOption.label(loc)),
               onPressed: currentAlbum == null ? null : _selectSortOption,
             ),
             MusicFlowIconButton(
               icon: AppIcons.more,
-              label: '专辑操作',
+              label: loc.library_album_actions,
               onPressed: currentAlbum == null
                   ? null
                   : () => showAlbumOptionsSheet(
@@ -70,14 +72,14 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             if (detail == null) {
               return loadFailed
                   ? MusicFlowErrorState(
-                      title: '专辑加载失败',
-                      description: '无法读取专辑详情。请检查网络后重试。',
-                      actionLabel: '重试',
+                      title: loc.library_album_load_failed,
+                      description: loc.library_album_load_failed_desc,
+                      actionLabel: loc.widgets_retry,
                       onAction: _retry,
                     )
-                  : const MusicFlowEmptyState(
-                      title: '专辑不存在',
-                      description: '服务器没有返回这张专辑，内容可能已经被移动或删除。',
+                  : MusicFlowEmptyState(
+                      title: loc.library_album_not_found,
+                      description: loc.library_album_not_found_desc,
                       icon: AppIcons.albumOutline,
                     );
             }
@@ -121,17 +123,17 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                             0,
                           ),
                           child: MediaLoadNotice(
-                            message: '网络连接异常，当前可能显示缓存的专辑内容。',
+                            message: loc.library_network_cached_content,
                             onRetry: _retry,
                           ),
                         ),
                       ),
                     SliverToBoxAdapter(
                       child: MusicFlowSectionHeader(
-                        title: '曲目',
+                        title: loc.library_tracks,
                         description: songs.isEmpty
-                            ? '这张专辑暂时没有可播放曲目'
-                            : '${songs.length} 首 · ${_sortOption.label}',
+                            ? loc.library_album_no_tracks
+                            : loc.library_track_count_sort('${songs.length}', _sortOption.label(loc)),
                         padding: EdgeInsets.fromLTRB(
                           context.musicFlowSpacing.md,
                           compact
@@ -143,10 +145,10 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                       ),
                     ),
                     if (songs.isEmpty)
-                      const SliverToBoxAdapter(
+                      SliverToBoxAdapter(
                         child: MusicFlowEmptyState(
-                          title: '暂无曲目',
-                          description: '服务器没有为这张专辑返回可播放歌曲。',
+                          title: loc.library_empty_tracks,
+                          description: loc.library_empty_tracks_desc,
                           icon: AppIcons.music,
                           padding: EdgeInsets.all(32),
                         ),
@@ -192,9 +194,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
           },
           loading: () => const MediaDetailLoadingView(),
           error: (error, stackTrace) => MusicFlowErrorState(
-            title: '专辑加载失败',
-            description: '无法读取专辑详情。请检查网络后重试。',
-            actionLabel: '重试',
+            title: loc.library_album_load_failed,
+            description: loc.library_album_load_failed_desc,
+            actionLabel: loc.widgets_retry,
             onAction: _retry,
           ),
         ),
@@ -216,6 +218,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
   }
 
   Future<void> _toggleStarred(Album album) async {
+    final loc = AppLocalizations.of(context);
     final repository = ref.read(musicRepositoryProvider);
     if (repository == null) return;
 
@@ -228,13 +231,13 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       ref.invalidate(frequentAlbumsProvider);
       if (mounted) {
         ToastNotifier.show(
-          nextStarred ? '已收藏专辑' : '已取消收藏专辑',
+          nextStarred ? loc.library_favorited_album : loc.library_unfavorited_album,
           kind: MusicFlowMessageKind.success,
         );
       }
     } catch (error) {
       if (mounted) {
-        ToastNotifier.show('操作失败: $error', kind: MusicFlowMessageKind.error);
+        ToastNotifier.show(loc.library_operation_failed('$error'), kind: MusicFlowMessageKind.error);
       }
     }
   }
@@ -259,6 +262,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return MediaDetailHeaderSurface(
       coverArtId: album.coverArt,
       child: LayoutBuilder(
@@ -277,7 +281,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
               dimension: 112,
               child: MediaDetailArtwork(
                 coverArtId: album.coverArt,
-                semanticLabel: '${album.name} 封面',
+                semanticLabel: loc.discover_cover_semantics(album.name),
                 heroTag: 'album-cover-${album.id}',
                 requestSize: 480,
                 isNowPlaying: isNowPlaying,
@@ -315,7 +319,7 @@ class _AlbumIdentityHeader extends StatelessWidget {
               aspectRatio: 1,
               child: MediaDetailArtwork(
                 coverArtId: album.coverArt,
-                semanticLabel: '${album.name} 封面',
+                semanticLabel: loc.discover_cover_semantics(album.name),
                 heroTag: 'album-cover-${album.id}',
                 isNowPlaying: isNowPlaying,
               ),
@@ -372,12 +376,13 @@ class _AlbumInformation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final artist = album.artist?.trim();
     final showFullText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     final metadata = <String>[
       if (album.year != null) '${album.year}',
       if (album.genre?.trim().isNotEmpty == true) album.genre!.trim(),
-      '${songs.length} 首',
+      loc.discover_track_count(songs.length.toString()),
       album.durationString,
     ];
 
@@ -456,19 +461,20 @@ class _AlbumActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Wrap(
       spacing: context.musicFlowSpacing.xs,
       runSpacing: context.musicFlowSpacing.xs,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
         MusicFlowButton.primary(
-          label: '播放全部',
+          label: loc.library_play_all,
           leadingIcon: AppIcons.play,
           onPressed: onPlay,
         ),
         MusicFlowIconButton(
           icon: album.starred ? AppIcons.heart : AppIcons.heartOutline,
-          label: album.starred ? '取消收藏专辑' : '收藏专辑',
+          label: album.starred ? loc.library_unfavorite_album : loc.library_favorite_album,
           selected: album.starred,
           onPressed: onToggleStarred,
         ),

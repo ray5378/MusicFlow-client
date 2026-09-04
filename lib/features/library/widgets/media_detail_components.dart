@@ -6,19 +6,21 @@ import '../../../data/models/album.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/now_playing_bars.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../utils/library_sorting.dart';
 
 Future<SongSortOption?> showMediaSongSortSheet({
   required BuildContext context,
   required SongSortOption current,
 }) {
-  return showMusicFlowBottomSheet<SongSortOption>(
+    final loc = AppLocalizations.of(context);
+    return showMusicFlowBottomSheet<SongSortOption>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
     builder: (sheetContext) => MusicFlowBottomSheet(
-      title: '歌曲排序',
-      subtitle: '当前：${current.label}',
+      title: loc.library_song_sort,
+      subtitle: loc.library_song_sort_current(current.label(loc)),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -26,7 +28,7 @@ Future<SongSortOption?> showMediaSongSortSheet({
             for (final option in selectableSongSortOptions)
               MusicFlowActionRow(
                 icon: AppIcons.sort,
-                title: option.label,
+                title: option.label(loc),
                 selected: option == current,
                 trailing: option == current
                     ? Icon(
@@ -246,13 +248,14 @@ class MediaDetailAlbumTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final metadata = <String>[
       if (album.year != null) '${album.year}',
-      '${album.songCount} 首',
+      loc.discover_track_count(album.songCount.toString()),
     ].join(' · ');
 
     return MusicFlowPressable(
-      semanticLabel: '${album.name}，$metadata',
+      semanticLabel: loc.library_album_metadata_semantics(album.name, metadata),
       onPressed: onPressed,
       onLongPress: onLongPress,
       minimumSize: const Size(double.infinity, 64),
@@ -263,7 +266,7 @@ class MediaDetailAlbumTile extends StatelessWidget {
             aspectRatio: 1,
             child: MediaDetailArtwork(
               coverArtId: album.coverArt,
-              semanticLabel: '${album.name} 封面',
+              semanticLabel: loc.discover_cover_semantics(album.name),
               heroTag: 'album-cover-${album.id}',
               requestSize: 480,
             ),
@@ -337,6 +340,7 @@ class MediaLoadNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Semantics(
       container: true,
       label: message,
@@ -360,7 +364,7 @@ class MediaLoadNotice extends StatelessWidget {
                 child: Text(message, style: context.musicFlowTypography.body),
               ),
               SizedBox(width: context.musicFlowSpacing.xs),
-              MusicFlowButton.ghost(label: '重试', onPressed: onRetry),
+              MusicFlowButton.ghost(label: loc.widgets_retry, onPressed: onRetry),
             ],
           ),
         ),

@@ -19,6 +19,7 @@ import '../../../providers/navigation_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../library/pages/playlist_detail_page.dart';
 import '../widgets/playlist_options_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../widgets/visible_remote_retry_scope.dart';
 
 /// 歌单类目 —— 窗口化分页列表(本地歌单走 /v1/playlists 分页;
@@ -58,6 +59,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 标题下方只显示本页对应的计数（共多少个歌单）。
     final countsText = ref
         .watch(libraryCountsProvider)
@@ -74,7 +76,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
       child: MusicFlowScaffold(
         topBar: MusicFlowTopBar.back(
           context: context,
-          title: '所有歌单',
+          title: loc.library_all_playlists,
           subtitle: countsText,
         ),
         body: Column(
@@ -82,7 +84,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
           children: <Widget>[
             EntitySearchBar(
               query: _searchQuery,
-              hintText: '搜索歌单',
+              hintText: loc.library_search_playlists,
               onQueryChanged: (query) {
                 setState(() => _searchQuery = query);
                 if (query.isEmpty) _list.load('');
@@ -97,6 +99,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
   }
 
   Widget _body() {
+    final loc = AppLocalizations.of(context);
     if (_searchQuery.isNotEmpty) {
       // 聚合搜索:本地结果 + 全网结果分块展示(强制聚合,无来源切换)。
       return AggregateSearchResults(
@@ -126,7 +129,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
               ),
             ),
           ),
-          emptyText: '本地库无匹配歌单',
+          emptyText: loc.library_local_no_match_playlists,
         ),
       );
     }
@@ -147,8 +150,8 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
               bottom:
                   context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
             ),
-            emptyTitle: '暂无歌单',
-            emptyDescription: '创建歌单，把想连续听的音乐整理在一起。',
+            emptyTitle: loc.library_empty_playlists,
+            emptyDescription: loc.library_empty_playlists_desc,
             emptyIcon: AppIcons.playlist,
             itemBuilder: (context, index, playlist) =>
                 DiscoverPlaylistTile(

@@ -720,5 +720,1210 @@
   "discover_category_playlists": "歌单",
   "discover_category_songs": "歌曲",
   "discover_category_artists": "艺术家",
-  "discover_category_albums": "专辑"
+  "discover_category_albums": "专辑",
+  "action_collapse": "收起",
+  "@action_collapse": {
+    "description": "action_collapse"
+  },
+  "action_show_all": "查看全部",
+  "@action_show_all": {
+    "description": "action_show_all"
+  },
+  "common_delete": "删除",
+  "@common_delete": {
+    "description": "common_delete"
+  },
+  "common_remove": "移除",
+  "@common_remove": {
+    "description": "common_remove"
+  },
+  "common_save": "保存",
+  "@common_save": {
+    "description": "common_save"
+  },
+  "library_add_address": "添加地址",
+  "@library_add_address": {
+    "description": "library_add_address"
+  },
+  "library_add_to_library": "添加到音乐库",
+  "@library_add_to_library": {
+    "description": "library_add_to_library"
+  },
+  "library_add_to_playlist": "添加到歌单",
+  "@library_add_to_playlist": {
+    "description": "library_add_to_playlist"
+  },
+  "library_add_to_queue": "添加到播放队列",
+  "@library_add_to_queue": {
+    "description": "library_add_to_queue"
+  },
+  "library_added_to_playlist": "已添加「{name}」到歌单「{playlist}」",
+  "@library_added_to_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "playlist": {
+        "type": "String"
+      }
+    }
+  },
+  "library_added_to_queue": "已添加 {count} 首到播放队列",
+  "@library_added_to_queue": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_address_subtitle": "服务器地址",
+  "@library_address_subtitle": {
+    "description": "library_address_subtitle"
+  },
+  "library_album_actions": "专辑操作",
+  "@library_album_actions": {
+    "description": "library_album_actions"
+  },
+  "library_album_count": "{count} 张专辑",
+  "@library_album_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_count_semantics": "{name}，{count} 首",
+  "@library_album_count_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_cover": "{name} 封面",
+  "@library_album_cover": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_load_failed": "专辑加载失败",
+  "@library_album_load_failed": {
+    "description": "library_album_load_failed"
+  },
+  "library_album_load_failed_desc": "请检查网络或服务器状态后重试。",
+  "@library_album_load_failed_desc": {
+    "description": "library_album_load_failed_desc"
+  },
+  "library_album_metadata_semantics": "{name}，{metadata}",
+  "@library_album_metadata_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "metadata": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_no_songs": "这张专辑没有歌曲",
+  "@library_album_no_songs": {
+    "description": "library_album_no_songs"
+  },
+  "library_album_no_tracks": "暂无曲目",
+  "@library_album_no_tracks": {
+    "description": "library_album_no_tracks"
+  },
+  "library_album_not_found": "未找到该专辑",
+  "@library_album_not_found": {
+    "description": "library_album_not_found"
+  },
+  "library_album_not_found_desc": "该专辑不存在或已被删除。",
+  "@library_album_not_found_desc": {
+    "description": "library_album_not_found_desc"
+  },
+  "library_album_semantics": "{name}",
+  "@library_album_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_album_title": "专辑",
+  "@library_album_title": {
+    "description": "library_album_title"
+  },
+  "library_albums": "专辑",
+  "@library_albums": {
+    "description": "library_albums"
+  },
+  "library_all_albums": "全部专辑",
+  "@library_all_albums": {
+    "description": "library_all_albums"
+  },
+  "library_all_artists": "全部歌手",
+  "@library_all_artists": {
+    "description": "library_all_artists"
+  },
+  "library_all_playlists": "全部歌单",
+  "@library_all_playlists": {
+    "description": "library_all_playlists"
+  },
+  "library_all_songs": "全部歌曲",
+  "@library_all_songs": {
+    "description": "library_all_songs"
+  },
+  "library_artist_counts": "{songCount} 首 · {albumCount} 张专辑",
+  "@library_artist_counts": {
+    "placeholders": {
+      "songCount": {
+        "type": "String"
+      },
+      "albumCount": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_image_semantics": "{name} 头像",
+  "@library_artist_image_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_load_failed": "歌手加载失败",
+  "@library_artist_load_failed": {
+    "description": "library_artist_load_failed"
+  },
+  "library_artist_load_failed_desc": "请检查网络或服务器状态后重试。",
+  "@library_artist_load_failed_desc": {
+    "description": "library_artist_load_failed_desc"
+  },
+  "library_artist_no_albums": "该歌手暂无专辑",
+  "@library_artist_no_albums": {
+    "description": "library_artist_no_albums"
+  },
+  "library_artist_no_songs": "该歌手暂无歌曲",
+  "@library_artist_no_songs": {
+    "description": "library_artist_no_songs"
+  },
+  "library_artist_not_found": "未找到该歌手",
+  "@library_artist_not_found": {
+    "description": "library_artist_not_found"
+  },
+  "library_artist_not_found_desc": "该歌手不存在或已被删除。",
+  "@library_artist_not_found_desc": {
+    "description": "library_artist_not_found_desc"
+  },
+  "library_artist_photo": "{name} 照片",
+  "@library_artist_photo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_semantics": "{name} 歌手",
+  "@library_artist_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_artist_song_source": "歌曲来源",
+  "@library_artist_song_source": {
+    "description": "library_artist_song_source"
+  },
+  "library_artist_song_source_desc": "展示该歌手的歌曲来源信息。",
+  "@library_artist_song_source_desc": {
+    "description": "library_artist_song_source_desc"
+  },
+  "library_artist_title": "歌手",
+  "@library_artist_title": {
+    "description": "library_artist_title"
+  },
+  "library_artists": "歌手",
+  "@library_artists": {
+    "description": "library_artists"
+  },
+  "library_create_playlist_first": "请先创建歌单",
+  "@library_create_playlist_first": {
+    "description": "library_create_playlist_first"
+  },
+  "library_delete_failed_network": "删除失败，请检查网络。",
+  "@library_delete_failed_network": {
+    "description": "library_delete_failed_network"
+  },
+  "library_delete_playlist": "删除歌单",
+  "@library_delete_playlist": {
+    "description": "library_delete_playlist"
+  },
+  "library_delete_playlist_confirm": "确定删除歌单「{name}」吗？",
+  "@library_delete_playlist_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_delete_playlist_irreversible": "此操作不可撤销。",
+  "@library_delete_playlist_irreversible": {
+    "description": "library_delete_playlist_irreversible"
+  },
+  "library_deselect_all": "取消全选",
+  "@library_deselect_all": {
+    "description": "library_deselect_all"
+  },
+  "library_edit_add_address": "添加服务器地址",
+  "@library_edit_add_address": {
+    "description": "library_edit_add_address"
+  },
+  "library_edit_add_address_short": "添加地址",
+  "@library_edit_add_address_short": {
+    "description": "library_edit_add_address_short"
+  },
+  "library_edit_address": "地址",
+  "@library_edit_address": {
+    "description": "library_edit_address"
+  },
+  "library_edit_address_failed": "地址无效",
+  "@library_edit_address_failed": {
+    "description": "library_edit_address_failed"
+  },
+  "library_edit_address_ok": "地址有效",
+  "@library_edit_address_ok": {
+    "description": "library_edit_address_ok"
+  },
+  "library_edit_address_unknown": "未知",
+  "@library_edit_address_unknown": {
+    "description": "library_edit_address_unknown"
+  },
+  "library_edit_addresses_desc": "管理该音乐库的服务器地址。",
+  "@library_edit_addresses_desc": {
+    "description": "library_edit_addresses_desc"
+  },
+  "library_edit_addresses": "服务器地址",
+  "@library_edit_addresses": {
+    "description": "library_edit_addresses"
+  },
+  "library_edit_basic_info": "基本信息",
+  "@library_edit_basic_info": {
+    "description": "library_edit_basic_info"
+  },
+  "library_edit_basic_info_desc": "编辑音乐库的名称等信息。",
+  "@library_edit_basic_info_desc": {
+    "description": "library_edit_basic_info_desc"
+  },
+  "library_edit_danger_zone": "危险操作",
+  "@library_edit_danger_zone": {
+    "description": "library_edit_danger_zone"
+  },
+  "library_edit_danger_zone_desc": "删除音乐库会移除本地配置，且不可恢复。",
+  "@library_edit_danger_zone_desc": {
+    "description": "library_edit_danger_zone_desc"
+  },
+  "library_edit_delete_address": "删除地址",
+  "@library_edit_delete_address": {
+    "description": "library_edit_delete_address"
+  },
+  "library_edit_delete_address_confirm": "确定删除地址「{label}」吗？",
+  "@library_edit_delete_address_confirm": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_delete_address_short": "删除「{label}」",
+  "@library_edit_delete_address_short": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_delete_library": "删除音乐库",
+  "@library_edit_delete_library": {
+    "description": "library_edit_delete_library"
+  },
+  "library_edit_delete_library_action": "删除",
+  "@library_edit_delete_library_action": {
+    "description": "library_edit_delete_library_action"
+  },
+  "library_edit_delete_library_confirm": "确定删除音乐库「{name}」吗？",
+  "@library_edit_delete_library_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_drag_hint": "拖动「{label}」调整优先级",
+  "@library_edit_drag_hint": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_edit_address": "编辑「{label}」",
+  "@library_edit_edit_address": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_failed_network": "保存失败，请检查网络。",
+  "@library_edit_failed_network": {
+    "description": "library_edit_failed_network"
+  },
+  "library_edit_latency": "{ms} ms",
+  "@library_edit_latency": {
+    "placeholders": {
+      "ms": {
+        "type": "String"
+      }
+    }
+  },
+  "library_edit_latency_unknown": "延迟未知",
+  "@library_edit_latency_unknown": {
+    "description": "library_edit_latency_unknown"
+  },
+  "library_edit_library": "编辑音乐库",
+  "@library_edit_library": {
+    "description": "library_edit_library"
+  },
+  "library_edit_library_loading": "加载中…",
+  "@library_edit_library_loading": {
+    "description": "library_edit_library_loading"
+  },
+  "library_edit_library_name": "音乐库名称",
+  "@library_edit_library_name": {
+    "description": "library_edit_library_name"
+  },
+  "library_edit_library_name_example": "例如：我的主音乐库",
+  "@library_edit_library_name_example": {
+    "description": "library_edit_library_name_example"
+  },
+  "library_edit_library_updating": "更新中…",
+  "@library_edit_library_updating": {
+    "description": "library_edit_library_updating"
+  },
+  "library_edit_load_failed": "音乐库加载失败",
+  "@library_edit_load_failed": {
+    "description": "library_edit_load_failed"
+  },
+  "library_edit_load_failed_desc": "请检查网络或服务器状态后重试。",
+  "@library_edit_load_failed_desc": {
+    "description": "library_edit_load_failed_desc"
+  },
+  "library_edit_name_required": "请输入音乐库名称",
+  "@library_edit_name_required": {
+    "description": "library_edit_name_required"
+  },
+  "library_edit_no_addresses": "暂无服务器地址",
+  "@library_edit_no_addresses": {
+    "description": "library_edit_no_addresses"
+  },
+  "library_edit_no_addresses_desc": "添加一个服务器地址以连接音乐库。",
+  "@library_edit_no_addresses_desc": {
+    "description": "library_edit_no_addresses_desc"
+  },
+  "library_edit_playlist": "编辑歌单",
+  "@library_edit_playlist": {
+    "description": "library_edit_playlist"
+  },
+  "library_edit_probe_all": "全部测试",
+  "@library_edit_probe_all": {
+    "description": "library_edit_probe_all"
+  },
+  "library_edit_save_success": "已保存",
+  "@library_edit_save_success": {
+    "description": "library_edit_save_success"
+  },
+  "library_edit_server_addresses": "服务器地址",
+  "@library_edit_server_addresses": {
+    "description": "library_edit_server_addresses"
+  },
+  "library_edit_verify_failed": "服务器验证失败",
+  "@library_edit_verify_failed": {
+    "description": "library_edit_verify_failed"
+  },
+  "library_edit_verify_failed_desc": "无法连接该服务器，请检查地址与网络。",
+  "@library_edit_verify_failed_desc": {
+    "description": "library_edit_verify_failed_desc"
+  },
+  "library_edit_verifying_server": "正在验证服务器…",
+  "@library_edit_verifying_server": {
+    "description": "library_edit_verifying_server"
+  },
+  "library_empty_albums": "暂无专辑",
+  "@library_empty_albums": {
+    "description": "library_empty_albums"
+  },
+  "library_empty_albums_desc": "这里还没有任何专辑。",
+  "@library_empty_albums_desc": {
+    "description": "library_empty_albums_desc"
+  },
+  "library_empty_artists": "暂无歌手",
+  "@library_empty_artists": {
+    "description": "library_empty_artists"
+  },
+  "library_empty_artists_desc": "这里还没有任何歌手。",
+  "@library_empty_artists_desc": {
+    "description": "library_empty_artists_desc"
+  },
+  "library_empty_playlists": "暂无歌单",
+  "@library_empty_playlists": {
+    "description": "library_empty_playlists"
+  },
+  "library_empty_playlists_desc": "这里还没有任何歌单。",
+  "@library_empty_playlists_desc": {
+    "description": "library_empty_playlists_desc"
+  },
+  "library_empty_songs": "暂无歌曲",
+  "@library_empty_songs": {
+    "description": "library_empty_songs"
+  },
+  "library_empty_songs_desc": "这里还没有任何歌曲。",
+  "@library_empty_songs_desc": {
+    "description": "library_empty_songs_desc"
+  },
+  "library_empty_tracks": "暂无曲目",
+  "@library_empty_tracks": {
+    "description": "library_empty_tracks"
+  },
+  "library_empty_tracks_desc": "该音乐库暂无曲目。",
+  "@library_empty_tracks_desc": {
+    "description": "library_empty_tracks_desc"
+  },
+  "library_exit_song_management": "退出歌曲管理",
+  "@library_exit_song_management": {
+    "description": "library_exit_song_management"
+  },
+  "library_favorite_album": "收藏专辑",
+  "@library_favorite_album": {
+    "description": "library_favorite_album"
+  },
+  "library_favorite_artist": "收藏歌手",
+  "@library_favorite_artist": {
+    "description": "library_favorite_artist"
+  },
+  "library_favorite_playlist": "收藏歌单",
+  "@library_favorite_playlist": {
+    "description": "library_favorite_playlist"
+  },
+  "library_favorited_album": "已收藏该专辑",
+  "@library_favorited_album": {
+    "description": "library_favorited_album"
+  },
+  "library_favorited_artist": "已收藏该歌手",
+  "@library_favorited_artist": {
+    "description": "library_favorited_artist"
+  },
+  "library_favorited_playlist": "已收藏歌单「{name}」",
+  "@library_favorited_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_got_it": "知道了",
+  "@library_got_it": {
+    "description": "library_got_it"
+  },
+  "library_http_hint": "请使用 http:// 或 https:// 协议",
+  "@library_http_hint": {
+    "description": "library_http_hint"
+  },
+  "library_http_insecure_warning": "该服务器使用不安全的 HTTP 连接。",
+  "@library_http_insecure_warning": {
+    "description": "library_http_insecure_warning"
+  },
+  "library_http_tip_title": "连接不安全",
+  "@library_http_tip_title": {
+    "description": "library_http_tip_title"
+  },
+  "library_label": "标签",
+  "@library_label": {
+    "description": "library_label"
+  },
+  "library_label_hint": "为地址指定一个便于识别的标签",
+  "@library_label_hint": {
+    "description": "library_label_hint"
+  },
+  "library_label_required": "请输入标签",
+  "@library_label_required": {
+    "description": "library_label_required"
+  },
+  "library_load_failed_retry": "加载失败，点击重试",
+  "@library_load_failed_retry": {
+    "description": "library_load_failed_retry"
+  },
+  "library_local_no_match_albums": "本地未找到匹配的专辑",
+  "@library_local_no_match_albums": {
+    "description": "library_local_no_match_albums"
+  },
+  "library_local_no_match_artists": "本地未找到匹配的歌手",
+  "@library_local_no_match_artists": {
+    "description": "library_local_no_match_artists"
+  },
+  "library_local_no_match_playlists": "本地未找到匹配的歌单",
+  "@library_local_no_match_playlists": {
+    "description": "library_local_no_match_playlists"
+  },
+  "library_local_no_match_songs": "本地未找到匹配的歌曲",
+  "@library_local_no_match_songs": {
+    "description": "library_local_no_match_songs"
+  },
+  "library_manage_playlist_songs": "管理歌单歌曲",
+  "@library_manage_playlist_songs": {
+    "description": "library_manage_playlist_songs"
+  },
+  "library_network_add_failed": "添加失败，请检查网络。",
+  "@library_network_add_failed": {
+    "description": "library_network_add_failed"
+  },
+  "library_network_album_load_failed": "专辑加载失败，请检查网络。",
+  "@library_network_album_load_failed": {
+    "description": "library_network_album_load_failed"
+  },
+  "library_network_artist_load_failed": "歌手加载失败，请检查网络。",
+  "@library_network_artist_load_failed": {
+    "description": "library_network_artist_load_failed"
+  },
+  "library_network_cached_content": "当前正在使用缓存的离线内容。",
+  "@library_network_cached_content": {
+    "description": "library_network_cached_content"
+  },
+  "library_network_op_failed": "操作失败，请检查网络。",
+  "@library_network_op_failed": {
+    "description": "library_network_op_failed"
+  },
+  "library_no_albums": "暂无专辑",
+  "@library_no_albums": {
+    "description": "library_no_albums"
+  },
+  "library_no_library_selected": "未选择音乐库",
+  "@library_no_library_selected": {
+    "description": "library_no_library_selected"
+  },
+  "library_no_playable_songs": "没有可播放的歌曲",
+  "@library_no_playable_songs": {
+    "description": "library_no_playable_songs"
+  },
+  "library_no_playlists": "暂无歌单",
+  "@library_no_playlists": {
+    "description": "library_no_playlists"
+  },
+  "library_no_songs": "暂无歌曲",
+  "@library_no_songs": {
+    "description": "library_no_songs"
+  },
+  "library_operation_failed": "操作失败：{reason}",
+  "@library_operation_failed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "library_play_album": "播放专辑",
+  "@library_play_album": {
+    "description": "library_play_album"
+  },
+  "library_play_all": "播放全部",
+  "@library_play_all": {
+    "description": "library_play_all"
+  },
+  "library_play_artist_top": "播放歌手热门歌曲",
+  "@library_play_artist_top": {
+    "description": "library_play_artist_top"
+  },
+  "library_play_failed_network": "播放失败，请检查网络。",
+  "@library_play_failed_network": {
+    "description": "library_play_failed_network"
+  },
+  "library_play_songs": "播放歌曲",
+  "@library_play_songs": {
+    "description": "library_play_songs"
+  },
+  "library_playlist": "歌单",
+  "@library_playlist": {
+    "description": "library_playlist"
+  },
+  "library_playlist_actions": "歌单操作",
+  "@library_playlist_actions": {
+    "description": "library_playlist_actions"
+  },
+  "library_playlist_comment": "歌单评论",
+  "@library_playlist_comment": {
+    "description": "library_playlist_comment"
+  },
+  "library_playlist_comment_example": "例如：我的晨练歌单",
+  "@library_playlist_comment_example": {
+    "description": "library_playlist_comment_example"
+  },
+  "library_playlist_count_duration": "{count} 首 · {duration}",
+  "@library_playlist_count_duration": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_cover": "{name} 封面",
+  "@library_playlist_cover": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_deleted": "已删除歌单「{name}」",
+  "@library_playlist_deleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_empty": "这个歌单是空的",
+  "@library_playlist_empty": {
+    "description": "library_playlist_empty"
+  },
+  "library_playlist_empty_desc": "尝试添加一些歌曲到歌单。",
+  "@library_playlist_empty_desc": {
+    "description": "library_playlist_empty_desc"
+  },
+  "library_playlist_load_failed": "歌单加载失败",
+  "@library_playlist_load_failed": {
+    "description": "library_playlist_load_failed"
+  },
+  "library_playlist_load_failed_desc": "请检查网络或服务器状态后重试。",
+  "@library_playlist_load_failed_desc": {
+    "description": "library_playlist_load_failed_desc"
+  },
+  "library_playlist_name": "歌单名称",
+  "@library_playlist_name": {
+    "description": "library_playlist_name"
+  },
+  "library_playlist_name_hint": "给歌单起个名字",
+  "@library_playlist_name_hint": {
+    "description": "library_playlist_name_hint"
+  },
+  "library_playlist_name_required": "请输入歌单名称",
+  "@library_playlist_name_required": {
+    "description": "library_playlist_name_required"
+  },
+  "library_playlist_no_available_songs": "没有可添加的歌曲",
+  "@library_playlist_no_available_songs": {
+    "description": "library_playlist_no_available_songs"
+  },
+  "library_playlist_no_songs": "该歌单暂无歌曲",
+  "@library_playlist_no_songs": {
+    "description": "library_playlist_no_songs"
+  },
+  "library_playlist_private_desc": "仅自己可见",
+  "@library_playlist_private_desc": {
+    "description": "library_playlist_private_desc"
+  },
+  "library_playlist_public_desc": "所有用户可见",
+  "@library_playlist_public_desc": {
+    "description": "library_playlist_public_desc"
+  },
+  "library_playlist_public": "公开",
+  "@library_playlist_public": {
+    "description": "library_playlist_public"
+  },
+  "library_playlist_updated": "已更新「{name}」",
+  "@library_playlist_updated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_playlist_updated_reselect": "歌单内容已变化，请重新选择",
+  "@library_playlist_updated_reselect": {
+    "description": "library_playlist_updated_reselect"
+  },
+  "library_playlists": "歌单",
+  "@library_playlists": {
+    "description": "library_playlists"
+  },
+  "library_playlists_unavailable": "歌单暂不可用",
+  "@library_playlists_unavailable": {
+    "description": "library_playlists_unavailable"
+  },
+  "library_private_playlist": "私有歌单",
+  "@library_private_playlist": {
+    "description": "library_private_playlist"
+  },
+  "library_public_playlist": "公开歌单",
+  "@library_public_playlist": {
+    "description": "library_public_playlist"
+  },
+  "library_remote_album_empty_desc": "远程音乐库暂无专辑。",
+  "@library_remote_album_empty_desc": {
+    "description": "library_remote_album_empty_desc"
+  },
+  "library_remote_album_load_failed_desc": "远程专辑加载失败，请检查网络。",
+  "@library_remote_album_load_failed_desc": {
+    "description": "library_remote_album_load_failed_desc"
+  },
+  "library_remote_artist_empty_desc": "远程音乐库暂无歌手。",
+  "@library_remote_artist_empty_desc": {
+    "description": "library_remote_artist_empty_desc"
+  },
+  "library_remote_artist_load_failed_desc": "远程歌手加载失败，请检查网络。",
+  "@library_remote_artist_load_failed_desc": {
+    "description": "library_remote_artist_load_failed_desc"
+  },
+  "library_remote_load_failed": "加载失败",
+  "@library_remote_load_failed": {
+    "description": "library_remote_load_failed"
+  },
+  "library_remote_playlist_empty_desc": "远程音乐库暂无歌单。",
+  "@library_remote_playlist_empty_desc": {
+    "description": "library_remote_playlist_empty_desc"
+  },
+  "library_remote_playlist_load_failed_desc": "远程歌单加载失败，请检查网络。",
+  "@library_remote_playlist_load_failed_desc": {
+    "description": "library_remote_playlist_load_failed_desc"
+  },
+  "library_remove_failed": "移除失败：{reason}",
+  "@library_remove_failed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "library_remove_failed_network": "移除失败，请检查网络。",
+  "@library_remove_failed_network": {
+    "description": "library_remove_failed_network"
+  },
+  "library_remove_from_current_playlist": "从当前歌单移除",
+  "@library_remove_from_current_playlist": {
+    "description": "library_remove_from_current_playlist"
+  },
+  "library_remove_from_playlist": "从歌单移除",
+  "@library_remove_from_playlist": {
+    "description": "library_remove_from_playlist"
+  },
+  "library_remove_no_permission": "没有权限移除歌曲，请检查账户权限。",
+  "@library_remove_no_permission": {
+    "description": "library_remove_no_permission"
+  },
+  "library_remove_selected": "移除所选",
+  "@library_remove_selected": {
+    "description": "library_remove_selected"
+  },
+  "library_remove_selected_semantics": "移除所选歌曲",
+  "@library_remove_selected_semantics": {
+    "description": "library_remove_selected_semantics"
+  },
+  "library_remove_server_refused": "服务器拒绝了移除请求。",
+  "@library_remove_server_refused": {
+    "description": "library_remove_server_refused"
+  },
+  "library_remove_songs": "移除歌曲",
+  "@library_remove_songs": {
+    "description": "library_remove_songs"
+  },
+  "library_remove_songs_confirm": "将移除 {count} 首歌曲，确定从歌单「{name}」移除吗？",
+  "@library_remove_songs_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_remove_songs_desc": "已选择以下歌曲，执行后将从歌单移除。",
+  "@library_remove_songs_desc": {
+    "description": "library_remove_songs_desc"
+  },
+  "library_removed_count": "已移除 {count} 首",
+  "@library_removed_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_removed_from_playlist": "已将「{title}」移出歌单",
+  "@library_removed_from_playlist": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "library_removing": "移除中…",
+  "@library_removing": {
+    "description": "library_removing"
+  },
+  "library_retry_on_network": "点击重试",
+  "@library_retry_on_network": {
+    "description": "library_retry_on_network"
+  },
+  "library_save_address": "保存地址",
+  "@library_save_address": {
+    "description": "library_save_address"
+  },
+  "library_save_anyway": "仍然保存",
+  "@library_save_anyway": {
+    "description": "library_save_anyway"
+  },
+  "library_save_insecure_http_title": "保存不安全的地址？",
+  "@library_save_insecure_http_title": {
+    "description": "library_save_insecure_http_title"
+  },
+  "library_save_library": "保存音乐库",
+  "@library_save_library": {
+    "description": "library_save_library"
+  },
+  "library_search_albums": "搜索专辑",
+  "@library_search_albums": {
+    "description": "library_search_albums"
+  },
+  "library_search_artists": "搜索歌手",
+  "@library_search_artists": {
+    "description": "library_search_artists"
+  },
+  "library_search_playlists": "搜索歌单",
+  "@library_search_playlists": {
+    "description": "library_search_playlists"
+  },
+  "library_search_songs": "搜索歌曲",
+  "@library_search_songs": {
+    "description": "library_search_songs"
+  },
+  "library_select_all": "全选",
+  "@library_select_all": {
+    "description": "library_select_all"
+  },
+  "library_select_songs_to_remove": "选择要移除的歌曲",
+  "@library_select_songs_to_remove": {
+    "description": "library_select_songs_to_remove"
+  },
+  "library_selected_count": "已选择 {count} 项",
+  "@library_selected_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_selected_count_rationale": "已选择 {count} 首歌曲",
+  "@library_selected_count_rationale": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_server_address": "服务器地址",
+  "@library_server_address": {
+    "description": "library_server_address"
+  },
+  "library_server_required": "请输入服务器地址",
+  "@library_server_required": {
+    "description": "library_server_required"
+  },
+  "library_song_count": "{count} 首歌曲",
+  "@library_song_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_song_sort": "歌曲排序",
+  "@library_song_sort": {
+    "description": "library_song_sort"
+  },
+  "library_song_sort_current": "当前排序：{sort}",
+  "@library_song_sort_current": {
+    "placeholders": {
+      "sort": {
+        "type": "String"
+      }
+    }
+  },
+  "library_song_sort_option": "排序：{sort}",
+  "@library_song_sort_option": {
+    "placeholders": {
+      "sort": {
+        "type": "String"
+      }
+    }
+  },
+  "library_songs": "歌曲",
+  "@library_songs": {
+    "description": "library_songs"
+  },
+  "library_songs_count": "{count} 首歌曲",
+  "@library_songs_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_sort_sheet_subtitle": "选择歌曲的排列顺序。",
+  "@library_sort_sheet_subtitle": {
+    "description": "library_sort_sheet_subtitle"
+  },
+  "library_starred_label": "{label}（收藏）",
+  "@library_starred_label": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_load_failed": "收藏加载失败",
+  "@library_starred_load_failed": {
+    "description": "library_starred_load_failed"
+  },
+  "library_starred_load_failed_desc": "请检查网络或服务器状态后重试。",
+  "@library_starred_load_failed_desc": {
+    "description": "library_starred_load_failed_desc"
+  },
+  "library_starred_no_albums": "暂无收藏专辑",
+  "@library_starred_no_albums": {
+    "description": "library_starred_no_albums"
+  },
+  "library_starred_no_albums_desc": "在专辑卡片点亮红心后，会显示在这里。",
+  "@library_starred_no_albums_desc": {
+    "description": "library_starred_no_albums_desc"
+  },
+  "library_starred_no_artists": "暂无收藏歌手",
+  "@library_starred_no_artists": {
+    "description": "library_starred_no_artists"
+  },
+  "library_starred_no_artists_desc": "在歌手卡片点亮红心后，会显示在这里。",
+  "@library_starred_no_artists_desc": {
+    "description": "library_starred_no_artists_desc"
+  },
+  "library_starred_no_playlists": "暂无收藏歌单",
+  "@library_starred_no_playlists": {
+    "description": "library_starred_no_playlists"
+  },
+  "library_starred_no_playlists_desc": "在歌单卡片点亮红心后，会显示在这里。",
+  "@library_starred_no_playlists_desc": {
+    "description": "library_starred_no_playlists_desc"
+  },
+  "library_starred_no_songs": "暂无收藏歌曲",
+  "@library_starred_no_songs": {
+    "description": "library_starred_no_songs"
+  },
+  "library_starred_no_songs_desc": "在歌曲列表点亮红心后，会显示在这里。",
+  "@library_starred_no_songs_desc": {
+    "description": "library_starred_no_songs_desc"
+  },
+  "library_starred_playlist_cover_semantics": "{name} 封面",
+  "@library_starred_playlist_cover_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_playlist_favorited_semantics": "{name}，{count} 首，已收藏",
+  "@library_starred_playlist_favorited_semantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_playlist_meta": "{count} 首 · {duration}",
+  "@library_starred_playlist_meta": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "library_starred_playlists_load_failed": "歌单加载失败",
+  "@library_starred_playlists_load_failed": {
+    "description": "library_starred_playlists_load_failed"
+  },
+  "library_starred_title": "我喜欢",
+  "@library_starred_title": {
+    "description": "library_starred_title"
+  },
+  "library_starred_total": "共收藏 {count} 项",
+  "@library_starred_total": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_toggle_accessibility": "{title}，{state}，{description}",
+  "@library_toggle_accessibility": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "library_top_songs": "热门歌曲",
+  "@library_top_songs": {
+    "description": "library_top_songs"
+  },
+  "library_top_songs_count": "热门歌曲 {count} 首",
+  "@library_top_songs_count": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "library_top_songs_unavailable": "热门歌曲不可用",
+  "@library_top_songs_unavailable": {
+    "description": "library_top_songs_unavailable"
+  },
+  "library_track_count_sort": "{count} 首 · {sort}",
+  "@library_track_count_sort": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "sort": {
+        "type": "String"
+      }
+    }
+  },
+  "library_tracks": "曲目",
+  "@library_tracks": {
+    "description": "library_tracks"
+  },
+  "library_unfavorite_album": "取消收藏专辑",
+  "@library_unfavorite_album": {
+    "description": "library_unfavorite_album"
+  },
+  "library_unfavorite_artist": "取消收藏歌手",
+  "@library_unfavorite_artist": {
+    "description": "library_unfavorite_artist"
+  },
+  "library_unfavorite_playlist": "取消收藏歌单",
+  "@library_unfavorite_playlist": {
+    "description": "library_unfavorite_playlist"
+  },
+  "library_unfavorited_album": "已取消收藏该专辑",
+  "@library_unfavorited_album": {
+    "description": "library_unfavorited_album"
+  },
+  "library_unfavorited_artist": "已取消收藏该歌手",
+  "@library_unfavorited_artist": {
+    "description": "library_unfavorited_artist"
+  },
+  "library_unfavorited_playlist": "已取消收藏歌单「{name}」",
+  "@library_unfavorited_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "library_unfavorited_short": "已取消收藏",
+  "@library_unfavorited_short": {
+    "description": "library_unfavorited_short"
+  },
+  "library_unknown_artist": "未知歌手",
+  "@library_unknown_artist": {
+    "description": "library_unknown_artist"
+  },
+  "library_url_hint": "例如：http://192.168.1.100:4533",
+  "@library_url_hint": {
+    "description": "library_url_hint"
+  },
+  "library_url_invalid": "地址格式无效",
+  "@library_url_invalid": {
+    "description": "library_url_invalid"
+  },
+  "playlist_sort_updated_asc": "最近更新（升序）",
+  "@playlist_sort_updated_asc": {
+    "description": "playlist_sort_updated_asc"
+  },
+  "playlist_sort_updated_desc": "最近更新",
+  "@playlist_sort_updated_desc": {
+    "description": "playlist_sort_updated_desc"
+  },
+  "song_sort_alphabetical_asc": "按标题（升序）",
+  "@song_sort_alphabetical_asc": {
+    "description": "song_sort_alphabetical_asc"
+  },
+  "song_sort_alphabetical_desc": "按标题（降序）",
+  "@song_sort_alphabetical_desc": {
+    "description": "song_sort_alphabetical_desc"
+  },
+  "song_sort_default_order": "默认排序",
+  "@song_sort_default_order": {
+    "description": "song_sort_default_order"
+  },
+  "song_sort_duration_asc": "按时长（升序）",
+  "@song_sort_duration_asc": {
+    "description": "song_sort_duration_asc"
+  },
+  "song_sort_duration_desc": "按时长（降序）",
+  "@song_sort_duration_desc": {
+    "description": "song_sort_duration_desc"
+  },
+  "song_sort_recent_added": "最近添加",
+  "@song_sort_recent_added": {
+    "description": "song_sort_recent_added"
+  },
+  "song_sort_title_asc": "按标题（升序）",
+  "@song_sort_title_asc": {
+    "description": "song_sort_title_asc"
+  },
+  "song_sort_updated_asc": "按更新时间（升序）",
+  "@song_sort_updated_asc": {
+    "description": "song_sort_updated_asc"
+  },
+  "song_sort_updated_desc": "按更新时间（降序）",
+  "@song_sort_updated_desc": {
+    "description": "song_sort_updated_desc"
+  },
+  "state_disabled": "已关闭",
+  "@state_disabled": {
+    "description": "state_disabled"
+  },
+  "state_enabled": "已开启",
+  "@state_enabled": {
+    "description": "state_enabled"
+  }
 }

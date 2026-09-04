@@ -1173,4 +1173,889 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discover_category_albums => 'Albums';
+
+  @override
+  String get action_collapse => 'Collapse';
+
+  @override
+  String get action_show_all => 'Show all';
+
+  @override
+  String get common_delete => 'Delete';
+
+  @override
+  String get common_remove => 'Remove';
+
+  @override
+  String get common_save => 'Save';
+
+  @override
+  String get library_add_address => 'Add address';
+
+  @override
+  String get library_add_to_library => 'Add to library';
+
+  @override
+  String get library_add_to_playlist => 'Add to playlist';
+
+  @override
+  String get library_add_to_queue => 'Add to queue';
+
+  @override
+  String library_added_to_playlist(String name, String playlist) {
+    return 'Added “$name” to playlist “$playlist”';
+  }
+
+  @override
+  String library_added_to_queue(String count) {
+    return 'Added $count songs to the queue';
+  }
+
+  @override
+  String get library_address_subtitle => 'Server address';
+
+  @override
+  String get library_album_actions => 'Album actions';
+
+  @override
+  String library_album_count(String count) {
+    return '$count albums';
+  }
+
+  @override
+  String library_album_count_semantics(String name, String count) {
+    return '$name, $count songs';
+  }
+
+  @override
+  String library_album_cover(String name) {
+    return '$name cover';
+  }
+
+  @override
+  String get library_album_load_failed => 'Album load failed';
+
+  @override
+  String get library_album_load_failed_desc =>
+      'Please check your network or server status and try again.';
+
+  @override
+  String library_album_metadata_semantics(String name, String metadata) {
+    return '$name, $metadata';
+  }
+
+  @override
+  String get library_album_no_songs => 'This album has no songs';
+
+  @override
+  String get library_album_no_tracks => 'No tracks';
+
+  @override
+  String get library_album_not_found => 'Album not found';
+
+  @override
+  String get library_album_not_found_desc =>
+      'The album does not exist or has been deleted.';
+
+  @override
+  String library_album_semantics(String name) {
+    return '$name';
+  }
+
+  @override
+  String get library_album_title => 'Album';
+
+  @override
+  String get library_albums => 'Albums';
+
+  @override
+  String get library_all_albums => 'All albums';
+
+  @override
+  String get library_all_artists => 'All artists';
+
+  @override
+  String get library_all_playlists => 'All playlists';
+
+  @override
+  String get library_all_songs => 'All songs';
+
+  @override
+  String library_artist_counts(String songCount, String albumCount) {
+    return '$songCount songs · $albumCount albums';
+  }
+
+  @override
+  String library_artist_image_semantics(String name) {
+    return '$name avatar';
+  }
+
+  @override
+  String get library_artist_load_failed => 'Artist load failed';
+
+  @override
+  String get library_artist_load_failed_desc =>
+      'Please check your network or server status and try again.';
+
+  @override
+  String get library_artist_no_albums => 'No albums for this artist';
+
+  @override
+  String get library_artist_no_songs => 'No songs for this artist';
+
+  @override
+  String get library_artist_not_found => 'Artist not found';
+
+  @override
+  String get library_artist_not_found_desc =>
+      'The artist does not exist or has been deleted.';
+
+  @override
+  String library_artist_photo(String name) {
+    return '$name photo';
+  }
+
+  @override
+  String library_artist_semantics(String name) {
+    return '$name artist';
+  }
+
+  @override
+  String get library_artist_song_source => 'Song source';
+
+  @override
+  String get library_artist_song_source_desc =>
+      'Shows the source information of this artist’s songs.';
+
+  @override
+  String get library_artist_title => 'Artist';
+
+  @override
+  String get library_artists => 'Artists';
+
+  @override
+  String get library_create_playlist_first => 'Create a playlist first';
+
+  @override
+  String get library_delete_failed_network =>
+      'Delete failed. Please check your network.';
+
+  @override
+  String get library_delete_playlist => 'Delete playlist';
+
+  @override
+  String library_delete_playlist_confirm(String name) {
+    return 'Delete playlist “$name”?';
+  }
+
+  @override
+  String get library_delete_playlist_irreversible =>
+      'This action cannot be undone.';
+
+  @override
+  String get library_deselect_all => 'Deselect all';
+
+  @override
+  String get library_edit_add_address => 'Add server address';
+
+  @override
+  String get library_edit_add_address_short => 'Add address';
+
+  @override
+  String get library_edit_address => 'Address';
+
+  @override
+  String get library_edit_address_failed => 'Invalid address';
+
+  @override
+  String get library_edit_address_ok => 'Address is valid';
+
+  @override
+  String get library_edit_address_unknown => 'Unknown';
+
+  @override
+  String get library_edit_addresses_desc =>
+      'Manage the server addresses for this library.';
+
+  @override
+  String get library_edit_addresses => 'Server addresses';
+
+  @override
+  String get library_edit_basic_info => 'Basic information';
+
+  @override
+  String get library_edit_basic_info_desc =>
+      'Edit the library name and other details.';
+
+  @override
+  String get library_edit_danger_zone => 'Danger zone';
+
+  @override
+  String get library_edit_danger_zone_desc =>
+      'Deleting a library removes local configuration and cannot be undone.';
+
+  @override
+  String get library_edit_delete_address => 'Delete address';
+
+  @override
+  String library_edit_delete_address_confirm(String label) {
+    return 'Delete address “$label”?';
+  }
+
+  @override
+  String library_edit_delete_address_short(String label) {
+    return 'Delete “$label”';
+  }
+
+  @override
+  String get library_edit_delete_library => 'Delete library';
+
+  @override
+  String get library_edit_delete_library_action => 'Delete';
+
+  @override
+  String library_edit_delete_library_confirm(String name) {
+    return 'Delete library “$name”?';
+  }
+
+  @override
+  String library_edit_drag_hint(String label) {
+    return 'Drag “$label” to change priority';
+  }
+
+  @override
+  String library_edit_edit_address(String label) {
+    return 'Edit “$label”';
+  }
+
+  @override
+  String get library_edit_failed_network =>
+      'Save failed. Please check your network.';
+
+  @override
+  String library_edit_latency(String ms) {
+    return '$ms ms';
+  }
+
+  @override
+  String get library_edit_latency_unknown => 'Latency unknown';
+
+  @override
+  String get library_edit_library => 'Edit library';
+
+  @override
+  String get library_edit_library_loading => 'Loading…';
+
+  @override
+  String get library_edit_library_name => 'Library name';
+
+  @override
+  String get library_edit_library_name_example => 'e.g. My main library';
+
+  @override
+  String get library_edit_library_updating => 'Updating…';
+
+  @override
+  String get library_edit_load_failed => 'Library load failed';
+
+  @override
+  String get library_edit_load_failed_desc =>
+      'Please check your network or server status and try again.';
+
+  @override
+  String get library_edit_name_required => 'Please enter a library name';
+
+  @override
+  String get library_edit_no_addresses => 'No server addresses yet';
+
+  @override
+  String get library_edit_no_addresses_desc =>
+      'Add a server address to connect to the library.';
+
+  @override
+  String get library_edit_playlist => 'Edit playlist';
+
+  @override
+  String get library_edit_probe_all => 'Test all';
+
+  @override
+  String get library_edit_save_success => 'Saved';
+
+  @override
+  String get library_edit_server_addresses => 'Server addresses';
+
+  @override
+  String get library_edit_verify_failed => 'Server verification failed';
+
+  @override
+  String get library_edit_verify_failed_desc =>
+      'Cannot reach this server. Please check the address and network.';
+
+  @override
+  String get library_edit_verifying_server => 'Verifying server…';
+
+  @override
+  String get library_empty_albums => 'No albums';
+
+  @override
+  String get library_empty_albums_desc => 'There are no albums here yet.';
+
+  @override
+  String get library_empty_artists => 'No artists';
+
+  @override
+  String get library_empty_artists_desc => 'There are no artists here yet.';
+
+  @override
+  String get library_empty_playlists => 'No playlists';
+
+  @override
+  String get library_empty_playlists_desc => 'There are no playlists here yet.';
+
+  @override
+  String get library_empty_songs => 'No songs';
+
+  @override
+  String get library_empty_songs_desc => 'There are no songs here yet.';
+
+  @override
+  String get library_empty_tracks => 'No tracks';
+
+  @override
+  String get library_empty_tracks_desc => 'This library has no tracks.';
+
+  @override
+  String get library_exit_song_management => 'Exit song management';
+
+  @override
+  String get library_favorite_album => 'Favorite album';
+
+  @override
+  String get library_favorite_artist => 'Favorite artist';
+
+  @override
+  String get library_favorite_playlist => 'Favorite playlist';
+
+  @override
+  String get library_favorited_album => 'Album favorited';
+
+  @override
+  String get library_favorited_artist => 'Artist favorited';
+
+  @override
+  String library_favorited_playlist(String name) {
+    return 'Favorited playlist “$name”';
+  }
+
+  @override
+  String get library_got_it => 'Got it';
+
+  @override
+  String get library_http_hint => 'Use the http:// or https:// protocol';
+
+  @override
+  String get library_http_insecure_warning =>
+      'This server uses an insecure HTTP connection.';
+
+  @override
+  String get library_http_tip_title => 'Insecure connection';
+
+  @override
+  String get library_label => 'Label';
+
+  @override
+  String get library_label_hint => 'Give the address an easy-to-identify label';
+
+  @override
+  String get library_label_required => 'Please enter a label';
+
+  @override
+  String get library_load_failed_retry => 'Load failed. Tap to retry';
+
+  @override
+  String get library_local_no_match_albums => 'No matching albums locally';
+
+  @override
+  String get library_local_no_match_artists => 'No matching artists locally';
+
+  @override
+  String get library_local_no_match_playlists =>
+      'No matching playlists locally';
+
+  @override
+  String get library_local_no_match_songs => 'No matching songs locally';
+
+  @override
+  String get library_manage_playlist_songs => 'Manage playwright songs';
+
+  @override
+  String get library_network_add_failed =>
+      'Add failed. Please check your network.';
+
+  @override
+  String get library_network_album_load_failed =>
+      'Album load failed. Please check your network.';
+
+  @override
+  String get library_network_artist_load_failed =>
+      'Artist load failed. Please check your network.';
+
+  @override
+  String get library_network_cached_content =>
+      'Showing cached offline content.';
+
+  @override
+  String get library_network_op_failed =>
+      'Operation failed. Please check your network.';
+
+  @override
+  String get library_no_albums => 'No albums';
+
+  @override
+  String get library_no_library_selected => 'No library selected';
+
+  @override
+  String get library_no_playable_songs => 'No playable songs';
+
+  @override
+  String get library_no_playlists => 'No playlists';
+
+  @override
+  String get library_no_songs => 'No songs';
+
+  @override
+  String library_operation_failed(String reason) {
+    return 'Operation failed: $reason';
+  }
+
+  @override
+  String get library_play_album => 'Play album';
+
+  @override
+  String get library_play_all => 'Play all';
+
+  @override
+  String get library_play_artist_top => 'Play top songs';
+
+  @override
+  String get library_play_failed_network =>
+      'Playback failed. Please check your network.';
+
+  @override
+  String get library_play_songs => 'Play songs';
+
+  @override
+  String get library_playlist => 'Playlist';
+
+  @override
+  String get library_playlist_actions => 'Playlist actions';
+
+  @override
+  String get library_playlist_comment => 'Playlist comment';
+
+  @override
+  String get library_playlist_comment_example =>
+      'e.g. My morning workout playlist';
+
+  @override
+  String library_playlist_count_duration(String count, String duration) {
+    return '$count songs · $duration';
+  }
+
+  @override
+  String library_playlist_cover(String name) {
+    return '$name cover';
+  }
+
+  @override
+  String library_playlist_deleted(String name) {
+    return 'Deleted playlist “$name”';
+  }
+
+  @override
+  String get library_playlist_empty => 'This playlist is empty';
+
+  @override
+  String get library_playlist_empty_desc =>
+      'Try adding some songs to the playlist.';
+
+  @override
+  String get library_playlist_load_failed => 'Playlist load failed';
+
+  @override
+  String get library_playlist_load_failed_desc =>
+      'Please check your network or server status and try again.';
+
+  @override
+  String get library_playlist_name => 'Playlist name';
+
+  @override
+  String get library_playlist_name_hint => 'Name your playlist';
+
+  @override
+  String get library_playlist_name_required => 'Please enter a playlist name';
+
+  @override
+  String get library_playlist_no_available_songs => 'No songs available to add';
+
+  @override
+  String get library_playlist_no_songs => 'This playlist has no songs';
+
+  @override
+  String get library_playlist_private_desc => 'Visible only to you';
+
+  @override
+  String get library_playlist_public_desc => 'Visible to all users';
+
+  @override
+  String get library_playlist_public => 'Public';
+
+  @override
+  String library_playlist_updated(String name) {
+    return '“$name” updated';
+  }
+
+  @override
+  String get library_playlist_updated_reselect =>
+      'The playlist changed. Please select again';
+
+  @override
+  String get library_playlists => 'Playlists';
+
+  @override
+  String get library_playlists_unavailable => 'Playlists unavailable';
+
+  @override
+  String get library_private_playlist => 'Private playlist';
+
+  @override
+  String get library_public_playlist => 'Public playlist';
+
+  @override
+  String get library_remote_album_empty_desc =>
+      'No albums in the remote library.';
+
+  @override
+  String get library_remote_album_load_failed_desc =>
+      'Remote album load failed. Please check your network.';
+
+  @override
+  String get library_remote_artist_empty_desc =>
+      'No artists in the remote library.';
+
+  @override
+  String get library_remote_artist_load_failed_desc =>
+      'Remote artist load failed. Please check your network.';
+
+  @override
+  String get library_remote_load_failed => 'Load failed';
+
+  @override
+  String get library_remote_playlist_empty_desc =>
+      'No playlists in the remote library.';
+
+  @override
+  String get library_remote_playlist_load_failed_desc =>
+      'Remote playlist load failed. Please check your network.';
+
+  @override
+  String library_remove_failed(String reason) {
+    return 'Failed to remove: $reason';
+  }
+
+  @override
+  String get library_remove_failed_network =>
+      'Remove failed. Please check your network.';
+
+  @override
+  String get library_remove_from_current_playlist =>
+      'Remove from current playlist';
+
+  @override
+  String get library_remove_from_playlist => 'Remove from playlist';
+
+  @override
+  String get library_remove_no_permission =>
+      'No permission to remove songs. Please check your account permissions.';
+
+  @override
+  String get library_remove_selected => 'Remove selected';
+
+  @override
+  String get library_remove_selected_semantics => 'Remove selected songs';
+
+  @override
+  String get library_remove_server_refused =>
+      'The server refused the remove request.';
+
+  @override
+  String get library_remove_songs => 'Remove songs';
+
+  @override
+  String library_remove_songs_confirm(String name, String count) {
+    return 'Remove $count songs from playlist “$name”?';
+  }
+
+  @override
+  String get library_remove_songs_desc =>
+      'The following songs will be removed from the playlist.';
+
+  @override
+  String library_removed_count(String count) {
+    return 'Removed $count songs';
+  }
+
+  @override
+  String library_removed_from_playlist(String title) {
+    return 'Removed “$title” from the playlist';
+  }
+
+  @override
+  String get library_removing => 'Removing…';
+
+  @override
+  String get library_retry_on_network => 'Tap to retry';
+
+  @override
+  String get library_save_address => 'Save address';
+
+  @override
+  String get library_save_anyway => 'Save anyway';
+
+  @override
+  String get library_save_insecure_http_title => 'Save an insecure address?';
+
+  @override
+  String get library_save_library => 'Save library';
+
+  @override
+  String get library_search_albums => 'Search albums';
+
+  @override
+  String get library_search_artists => 'Search artists';
+
+  @override
+  String get library_search_playlists => 'Search playlists';
+
+  @override
+  String get library_search_songs => 'Search songs';
+
+  @override
+  String get library_select_all => 'Select all';
+
+  @override
+  String get library_select_songs_to_remove => 'Select songs to remove';
+
+  @override
+  String library_selected_count(String count) {
+    return '$count selected';
+  }
+
+  @override
+  String library_selected_count_rationale(String count) {
+    return '$count songs selected';
+  }
+
+  @override
+  String get library_server_address => 'Server address';
+
+  @override
+  String get library_server_required => 'Please enter a server address';
+
+  @override
+  String library_song_count(String count) {
+    return '$count songs';
+  }
+
+  @override
+  String get library_song_sort => 'Song order';
+
+  @override
+  String library_song_sort_current(String sort) {
+    return 'Current order: $sort';
+  }
+
+  @override
+  String library_song_sort_option(String sort) {
+    return 'Order: $sort';
+  }
+
+  @override
+  String get library_songs => 'Songs';
+
+  @override
+  String library_songs_count(String count) {
+    return '$count songs';
+  }
+
+  @override
+  String get library_sort_sheet_subtitle => 'Choose the order of songs.';
+
+  @override
+  String library_starred_label(String label) {
+    return '$label (favorites)';
+  }
+
+  @override
+  String get library_starred_load_failed => 'Favorites load failed';
+
+  @override
+  String get library_starred_load_failed_desc =>
+      'Please check your network or server status and try again.';
+
+  @override
+  String get library_starred_no_albums => 'No favorited albums';
+
+  @override
+  String get library_starred_no_albums_desc =>
+      'Albums you favorite will show up here.';
+
+  @override
+  String get library_starred_no_artists => 'No favorited artists';
+
+  @override
+  String get library_starred_no_artists_desc =>
+      'Artists you favorite will show up here.';
+
+  @override
+  String get library_starred_no_playlists => 'No favorited playlists';
+
+  @override
+  String get library_starred_no_playlists_desc =>
+      'Playlists you favorite will show up here.';
+
+  @override
+  String get library_starred_no_songs => 'No favorited songs';
+
+  @override
+  String get library_starred_no_songs_desc =>
+      'Songs you favorite will show up here.';
+
+  @override
+  String library_starred_playlist_cover_semantics(String name) {
+    return '$name cover';
+  }
+
+  @override
+  String library_starred_playlist_favorited_semantics(
+    String name,
+    String count,
+  ) {
+    return '$name, $count songs, favorited';
+  }
+
+  @override
+  String library_starred_playlist_meta(String count, String duration) {
+    return '$count songs · $duration';
+  }
+
+  @override
+  String get library_starred_playlists_load_failed => 'Playlist load failed';
+
+  @override
+  String get library_starred_title => 'Favorites';
+
+  @override
+  String library_starred_total(String count) {
+    return '$count favorites';
+  }
+
+  @override
+  String library_toggle_accessibility(
+    String title,
+    String state,
+    String description,
+  ) {
+    return '$title, $state, $description';
+  }
+
+  @override
+  String get library_top_songs => 'Top songs';
+
+  @override
+  String library_top_songs_count(String count) {
+    return '$count top songs';
+  }
+
+  @override
+  String get library_top_songs_unavailable => 'Top songs unavailable';
+
+  @override
+  String library_track_count_sort(String count, String sort) {
+    return '$count songs · $sort';
+  }
+
+  @override
+  String get library_tracks => 'Tracks';
+
+  @override
+  String get library_unfavorite_album => 'Unfavorite album';
+
+  @override
+  String get library_unfavorite_artist => 'Unfavorite artist';
+
+  @override
+  String get library_unfavorite_playlist => 'Unfavorite playlist';
+
+  @override
+  String get library_unfavorited_album => 'Album unfavorited';
+
+  @override
+  String get library_unfavorited_artist => 'Artist unfavorited';
+
+  @override
+  String library_unfavorited_playlist(String name) {
+    return 'Unfavorited playlist “$name”';
+  }
+
+  @override
+  String get library_unfavorited_short => 'Unfavorited';
+
+  @override
+  String get library_unknown_artist => 'Unknown artist';
+
+  @override
+  String get library_url_hint => 'e.g. http://192.168.1.100:4533';
+
+  @override
+  String get library_url_invalid => 'Invalid address format';
+
+  @override
+  String get playlist_sort_updated_asc => 'Recently updated (ascending)';
+
+  @override
+  String get playlist_sort_updated_desc => 'Recently updated';
+
+  @override
+  String get song_sort_alphabetical_asc => 'By title (ascending)';
+
+  @override
+  String get song_sort_alphabetical_desc => 'By title (descending)';
+
+  @override
+  String get song_sort_default_order => 'Default order';
+
+  @override
+  String get song_sort_duration_asc => 'By duration (ascending)';
+
+  @override
+  String get song_sort_duration_desc => 'By duration (descending)';
+
+  @override
+  String get song_sort_recent_added => 'Recently added';
+
+  @override
+  String get song_sort_title_asc => 'By title (ascending)';
+
+  @override
+  String get song_sort_updated_asc => 'By update time (ascending)';
+
+  @override
+  String get song_sort_updated_desc => 'By update time (descending)';
+
+  @override
+  String get state_disabled => 'Off';
+
+  @override
+  String get state_enabled => 'On';
 }

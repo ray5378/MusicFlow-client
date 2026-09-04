@@ -1099,4 +1099,847 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get discover_category_albums => '专辑';
+
+  @override
+  String get action_collapse => '收起';
+
+  @override
+  String get action_show_all => '查看全部';
+
+  @override
+  String get common_delete => '删除';
+
+  @override
+  String get common_remove => '移除';
+
+  @override
+  String get common_save => '保存';
+
+  @override
+  String get library_add_address => '添加地址';
+
+  @override
+  String get library_add_to_library => '添加到音乐库';
+
+  @override
+  String get library_add_to_playlist => '添加到歌单';
+
+  @override
+  String get library_add_to_queue => '添加到播放队列';
+
+  @override
+  String library_added_to_playlist(String name, String playlist) {
+    return '已添加「$name」到歌单「$playlist」';
+  }
+
+  @override
+  String library_added_to_queue(String count) {
+    return '已添加 $count 首到播放队列';
+  }
+
+  @override
+  String get library_address_subtitle => '服务器地址';
+
+  @override
+  String get library_album_actions => '专辑操作';
+
+  @override
+  String library_album_count(String count) {
+    return '$count 张专辑';
+  }
+
+  @override
+  String library_album_count_semantics(String name, String count) {
+    return '$name，$count 首';
+  }
+
+  @override
+  String library_album_cover(String name) {
+    return '$name 封面';
+  }
+
+  @override
+  String get library_album_load_failed => '专辑加载失败';
+
+  @override
+  String get library_album_load_failed_desc => '请检查网络或服务器状态后重试。';
+
+  @override
+  String library_album_metadata_semantics(String name, String metadata) {
+    return '$name，$metadata';
+  }
+
+  @override
+  String get library_album_no_songs => '这张专辑没有歌曲';
+
+  @override
+  String get library_album_no_tracks => '暂无曲目';
+
+  @override
+  String get library_album_not_found => '未找到该专辑';
+
+  @override
+  String get library_album_not_found_desc => '该专辑不存在或已被删除。';
+
+  @override
+  String library_album_semantics(String name) {
+    return '$name';
+  }
+
+  @override
+  String get library_album_title => '专辑';
+
+  @override
+  String get library_albums => '专辑';
+
+  @override
+  String get library_all_albums => '全部专辑';
+
+  @override
+  String get library_all_artists => '全部歌手';
+
+  @override
+  String get library_all_playlists => '全部歌单';
+
+  @override
+  String get library_all_songs => '全部歌曲';
+
+  @override
+  String library_artist_counts(String songCount, String albumCount) {
+    return '$songCount 首 · $albumCount 张专辑';
+  }
+
+  @override
+  String library_artist_image_semantics(String name) {
+    return '$name 头像';
+  }
+
+  @override
+  String get library_artist_load_failed => '歌手加载失败';
+
+  @override
+  String get library_artist_load_failed_desc => '请检查网络或服务器状态后重试。';
+
+  @override
+  String get library_artist_no_albums => '该歌手暂无专辑';
+
+  @override
+  String get library_artist_no_songs => '该歌手暂无歌曲';
+
+  @override
+  String get library_artist_not_found => '未找到该歌手';
+
+  @override
+  String get library_artist_not_found_desc => '该歌手不存在或已被删除。';
+
+  @override
+  String library_artist_photo(String name) {
+    return '$name 照片';
+  }
+
+  @override
+  String library_artist_semantics(String name) {
+    return '$name 歌手';
+  }
+
+  @override
+  String get library_artist_song_source => '歌曲来源';
+
+  @override
+  String get library_artist_song_source_desc => '展示该歌手的歌曲来源信息。';
+
+  @override
+  String get library_artist_title => '歌手';
+
+  @override
+  String get library_artists => '歌手';
+
+  @override
+  String get library_create_playlist_first => '请先创建歌单';
+
+  @override
+  String get library_delete_failed_network => '删除失败，请检查网络。';
+
+  @override
+  String get library_delete_playlist => '删除歌单';
+
+  @override
+  String library_delete_playlist_confirm(String name) {
+    return '确定删除歌单「$name」吗？';
+  }
+
+  @override
+  String get library_delete_playlist_irreversible => '此操作不可撤销。';
+
+  @override
+  String get library_deselect_all => '取消全选';
+
+  @override
+  String get library_edit_add_address => '添加服务器地址';
+
+  @override
+  String get library_edit_add_address_short => '添加地址';
+
+  @override
+  String get library_edit_address => '地址';
+
+  @override
+  String get library_edit_address_failed => '地址无效';
+
+  @override
+  String get library_edit_address_ok => '地址有效';
+
+  @override
+  String get library_edit_address_unknown => '未知';
+
+  @override
+  String get library_edit_addresses_desc => '管理该音乐库的服务器地址。';
+
+  @override
+  String get library_edit_addresses => '服务器地址';
+
+  @override
+  String get library_edit_basic_info => '基本信息';
+
+  @override
+  String get library_edit_basic_info_desc => '编辑音乐库的名称等信息。';
+
+  @override
+  String get library_edit_danger_zone => '危险操作';
+
+  @override
+  String get library_edit_danger_zone_desc => '删除音乐库会移除本地配置，且不可恢复。';
+
+  @override
+  String get library_edit_delete_address => '删除地址';
+
+  @override
+  String library_edit_delete_address_confirm(String label) {
+    return '确定删除地址「$label」吗？';
+  }
+
+  @override
+  String library_edit_delete_address_short(String label) {
+    return '删除「$label」';
+  }
+
+  @override
+  String get library_edit_delete_library => '删除音乐库';
+
+  @override
+  String get library_edit_delete_library_action => '删除';
+
+  @override
+  String library_edit_delete_library_confirm(String name) {
+    return '确定删除音乐库「$name」吗？';
+  }
+
+  @override
+  String library_edit_drag_hint(String label) {
+    return '拖动「$label」调整优先级';
+  }
+
+  @override
+  String library_edit_edit_address(String label) {
+    return '编辑「$label」';
+  }
+
+  @override
+  String get library_edit_failed_network => '保存失败，请检查网络。';
+
+  @override
+  String library_edit_latency(String ms) {
+    return '$ms ms';
+  }
+
+  @override
+  String get library_edit_latency_unknown => '延迟未知';
+
+  @override
+  String get library_edit_library => '编辑音乐库';
+
+  @override
+  String get library_edit_library_loading => '加载中…';
+
+  @override
+  String get library_edit_library_name => '音乐库名称';
+
+  @override
+  String get library_edit_library_name_example => '例如：我的主音乐库';
+
+  @override
+  String get library_edit_library_updating => '更新中…';
+
+  @override
+  String get library_edit_load_failed => '音乐库加载失败';
+
+  @override
+  String get library_edit_load_failed_desc => '请检查网络或服务器状态后重试。';
+
+  @override
+  String get library_edit_name_required => '请输入音乐库名称';
+
+  @override
+  String get library_edit_no_addresses => '暂无服务器地址';
+
+  @override
+  String get library_edit_no_addresses_desc => '添加一个服务器地址以连接音乐库。';
+
+  @override
+  String get library_edit_playlist => '编辑歌单';
+
+  @override
+  String get library_edit_probe_all => '全部测试';
+
+  @override
+  String get library_edit_save_success => '已保存';
+
+  @override
+  String get library_edit_server_addresses => '服务器地址';
+
+  @override
+  String get library_edit_verify_failed => '服务器验证失败';
+
+  @override
+  String get library_edit_verify_failed_desc => '无法连接该服务器，请检查地址与网络。';
+
+  @override
+  String get library_edit_verifying_server => '正在验证服务器…';
+
+  @override
+  String get library_empty_albums => '暂无专辑';
+
+  @override
+  String get library_empty_albums_desc => '这里还没有任何专辑。';
+
+  @override
+  String get library_empty_artists => '暂无歌手';
+
+  @override
+  String get library_empty_artists_desc => '这里还没有任何歌手。';
+
+  @override
+  String get library_empty_playlists => '暂无歌单';
+
+  @override
+  String get library_empty_playlists_desc => '这里还没有任何歌单。';
+
+  @override
+  String get library_empty_songs => '暂无歌曲';
+
+  @override
+  String get library_empty_songs_desc => '这里还没有任何歌曲。';
+
+  @override
+  String get library_empty_tracks => '暂无曲目';
+
+  @override
+  String get library_empty_tracks_desc => '该音乐库暂无曲目。';
+
+  @override
+  String get library_exit_song_management => '退出歌曲管理';
+
+  @override
+  String get library_favorite_album => '收藏专辑';
+
+  @override
+  String get library_favorite_artist => '收藏歌手';
+
+  @override
+  String get library_favorite_playlist => '收藏歌单';
+
+  @override
+  String get library_favorited_album => '已收藏该专辑';
+
+  @override
+  String get library_favorited_artist => '已收藏该歌手';
+
+  @override
+  String library_favorited_playlist(String name) {
+    return '已收藏歌单「$name」';
+  }
+
+  @override
+  String get library_got_it => '知道了';
+
+  @override
+  String get library_http_hint => '请使用 http:// 或 https:// 协议';
+
+  @override
+  String get library_http_insecure_warning => '该服务器使用不安全的 HTTP 连接。';
+
+  @override
+  String get library_http_tip_title => '连接不安全';
+
+  @override
+  String get library_label => '标签';
+
+  @override
+  String get library_label_hint => '为地址指定一个便于识别的标签';
+
+  @override
+  String get library_label_required => '请输入标签';
+
+  @override
+  String get library_load_failed_retry => '加载失败，点击重试';
+
+  @override
+  String get library_local_no_match_albums => '本地未找到匹配的专辑';
+
+  @override
+  String get library_local_no_match_artists => '本地未找到匹配的歌手';
+
+  @override
+  String get library_local_no_match_playlists => '本地未找到匹配的歌单';
+
+  @override
+  String get library_local_no_match_songs => '本地未找到匹配的歌曲';
+
+  @override
+  String get library_manage_playlist_songs => '管理歌单歌曲';
+
+  @override
+  String get library_network_add_failed => '添加失败，请检查网络。';
+
+  @override
+  String get library_network_album_load_failed => '专辑加载失败，请检查网络。';
+
+  @override
+  String get library_network_artist_load_failed => '歌手加载失败，请检查网络。';
+
+  @override
+  String get library_network_cached_content => '当前正在使用缓存的离线内容。';
+
+  @override
+  String get library_network_op_failed => '操作失败，请检查网络。';
+
+  @override
+  String get library_no_albums => '暂无专辑';
+
+  @override
+  String get library_no_library_selected => '未选择音乐库';
+
+  @override
+  String get library_no_playable_songs => '没有可播放的歌曲';
+
+  @override
+  String get library_no_playlists => '暂无歌单';
+
+  @override
+  String get library_no_songs => '暂无歌曲';
+
+  @override
+  String library_operation_failed(String reason) {
+    return '操作失败：$reason';
+  }
+
+  @override
+  String get library_play_album => '播放专辑';
+
+  @override
+  String get library_play_all => '播放全部';
+
+  @override
+  String get library_play_artist_top => '播放歌手热门歌曲';
+
+  @override
+  String get library_play_failed_network => '播放失败，请检查网络。';
+
+  @override
+  String get library_play_songs => '播放歌曲';
+
+  @override
+  String get library_playlist => '歌单';
+
+  @override
+  String get library_playlist_actions => '歌单操作';
+
+  @override
+  String get library_playlist_comment => '歌单评论';
+
+  @override
+  String get library_playlist_comment_example => '例如：我的晨练歌单';
+
+  @override
+  String library_playlist_count_duration(String count, String duration) {
+    return '$count 首 · $duration';
+  }
+
+  @override
+  String library_playlist_cover(String name) {
+    return '$name 封面';
+  }
+
+  @override
+  String library_playlist_deleted(String name) {
+    return '已删除歌单「$name」';
+  }
+
+  @override
+  String get library_playlist_empty => '这个歌单是空的';
+
+  @override
+  String get library_playlist_empty_desc => '尝试添加一些歌曲到歌单。';
+
+  @override
+  String get library_playlist_load_failed => '歌单加载失败';
+
+  @override
+  String get library_playlist_load_failed_desc => '请检查网络或服务器状态后重试。';
+
+  @override
+  String get library_playlist_name => '歌单名称';
+
+  @override
+  String get library_playlist_name_hint => '给歌单起个名字';
+
+  @override
+  String get library_playlist_name_required => '请输入歌单名称';
+
+  @override
+  String get library_playlist_no_available_songs => '没有可添加的歌曲';
+
+  @override
+  String get library_playlist_no_songs => '该歌单暂无歌曲';
+
+  @override
+  String get library_playlist_private_desc => '仅自己可见';
+
+  @override
+  String get library_playlist_public_desc => '所有用户可见';
+
+  @override
+  String get library_playlist_public => '公开';
+
+  @override
+  String library_playlist_updated(String name) {
+    return '已更新「$name」';
+  }
+
+  @override
+  String get library_playlist_updated_reselect => '歌单内容已变化，请重新选择';
+
+  @override
+  String get library_playlists => '歌单';
+
+  @override
+  String get library_playlists_unavailable => '歌单暂不可用';
+
+  @override
+  String get library_private_playlist => '私有歌单';
+
+  @override
+  String get library_public_playlist => '公开歌单';
+
+  @override
+  String get library_remote_album_empty_desc => '远程音乐库暂无专辑。';
+
+  @override
+  String get library_remote_album_load_failed_desc => '远程专辑加载失败，请检查网络。';
+
+  @override
+  String get library_remote_artist_empty_desc => '远程音乐库暂无歌手。';
+
+  @override
+  String get library_remote_artist_load_failed_desc => '远程歌手加载失败，请检查网络。';
+
+  @override
+  String get library_remote_load_failed => '加载失败';
+
+  @override
+  String get library_remote_playlist_empty_desc => '远程音乐库暂无歌单。';
+
+  @override
+  String get library_remote_playlist_load_failed_desc => '远程歌单加载失败，请检查网络。';
+
+  @override
+  String library_remove_failed(String reason) {
+    return '移除失败：$reason';
+  }
+
+  @override
+  String get library_remove_failed_network => '移除失败，请检查网络。';
+
+  @override
+  String get library_remove_from_current_playlist => '从当前歌单移除';
+
+  @override
+  String get library_remove_from_playlist => '从歌单移除';
+
+  @override
+  String get library_remove_no_permission => '没有权限移除歌曲，请检查账户权限。';
+
+  @override
+  String get library_remove_selected => '移除所选';
+
+  @override
+  String get library_remove_selected_semantics => '移除所选歌曲';
+
+  @override
+  String get library_remove_server_refused => '服务器拒绝了移除请求。';
+
+  @override
+  String get library_remove_songs => '移除歌曲';
+
+  @override
+  String library_remove_songs_confirm(String name, String count) {
+    return '将移除 $count 首歌曲，确定从歌单「$name」移除吗？';
+  }
+
+  @override
+  String get library_remove_songs_desc => '已选择以下歌曲，执行后将从歌单移除。';
+
+  @override
+  String library_removed_count(String count) {
+    return '已移除 $count 首';
+  }
+
+  @override
+  String library_removed_from_playlist(String title) {
+    return '已将「$title」移出歌单';
+  }
+
+  @override
+  String get library_removing => '移除中…';
+
+  @override
+  String get library_retry_on_network => '点击重试';
+
+  @override
+  String get library_save_address => '保存地址';
+
+  @override
+  String get library_save_anyway => '仍然保存';
+
+  @override
+  String get library_save_insecure_http_title => '保存不安全的地址？';
+
+  @override
+  String get library_save_library => '保存音乐库';
+
+  @override
+  String get library_search_albums => '搜索专辑';
+
+  @override
+  String get library_search_artists => '搜索歌手';
+
+  @override
+  String get library_search_playlists => '搜索歌单';
+
+  @override
+  String get library_search_songs => '搜索歌曲';
+
+  @override
+  String get library_select_all => '全选';
+
+  @override
+  String get library_select_songs_to_remove => '选择要移除的歌曲';
+
+  @override
+  String library_selected_count(String count) {
+    return '已选择 $count 项';
+  }
+
+  @override
+  String library_selected_count_rationale(String count) {
+    return '已选择 $count 首歌曲';
+  }
+
+  @override
+  String get library_server_address => '服务器地址';
+
+  @override
+  String get library_server_required => '请输入服务器地址';
+
+  @override
+  String library_song_count(String count) {
+    return '$count 首歌曲';
+  }
+
+  @override
+  String get library_song_sort => '歌曲排序';
+
+  @override
+  String library_song_sort_current(String sort) {
+    return '当前排序：$sort';
+  }
+
+  @override
+  String library_song_sort_option(String sort) {
+    return '排序：$sort';
+  }
+
+  @override
+  String get library_songs => '歌曲';
+
+  @override
+  String library_songs_count(String count) {
+    return '$count 首歌曲';
+  }
+
+  @override
+  String get library_sort_sheet_subtitle => '选择歌曲的排列顺序。';
+
+  @override
+  String library_starred_label(String label) {
+    return '$label（收藏）';
+  }
+
+  @override
+  String get library_starred_load_failed => '收藏加载失败';
+
+  @override
+  String get library_starred_load_failed_desc => '请检查网络或服务器状态后重试。';
+
+  @override
+  String get library_starred_no_albums => '暂无收藏专辑';
+
+  @override
+  String get library_starred_no_albums_desc => '在专辑卡片点亮红心后，会显示在这里。';
+
+  @override
+  String get library_starred_no_artists => '暂无收藏歌手';
+
+  @override
+  String get library_starred_no_artists_desc => '在歌手卡片点亮红心后，会显示在这里。';
+
+  @override
+  String get library_starred_no_playlists => '暂无收藏歌单';
+
+  @override
+  String get library_starred_no_playlists_desc => '在歌单卡片点亮红心后，会显示在这里。';
+
+  @override
+  String get library_starred_no_songs => '暂无收藏歌曲';
+
+  @override
+  String get library_starred_no_songs_desc => '在歌曲列表点亮红心后，会显示在这里。';
+
+  @override
+  String library_starred_playlist_cover_semantics(String name) {
+    return '$name 封面';
+  }
+
+  @override
+  String library_starred_playlist_favorited_semantics(
+    String name,
+    String count,
+  ) {
+    return '$name，$count 首，已收藏';
+  }
+
+  @override
+  String library_starred_playlist_meta(String count, String duration) {
+    return '$count 首 · $duration';
+  }
+
+  @override
+  String get library_starred_playlists_load_failed => '歌单加载失败';
+
+  @override
+  String get library_starred_title => '我喜欢';
+
+  @override
+  String library_starred_total(String count) {
+    return '共收藏 $count 项';
+  }
+
+  @override
+  String library_toggle_accessibility(
+    String title,
+    String state,
+    String description,
+  ) {
+    return '$title，$state，$description';
+  }
+
+  @override
+  String get library_top_songs => '热门歌曲';
+
+  @override
+  String library_top_songs_count(String count) {
+    return '热门歌曲 $count 首';
+  }
+
+  @override
+  String get library_top_songs_unavailable => '热门歌曲不可用';
+
+  @override
+  String library_track_count_sort(String count, String sort) {
+    return '$count 首 · $sort';
+  }
+
+  @override
+  String get library_tracks => '曲目';
+
+  @override
+  String get library_unfavorite_album => '取消收藏专辑';
+
+  @override
+  String get library_unfavorite_artist => '取消收藏歌手';
+
+  @override
+  String get library_unfavorite_playlist => '取消收藏歌单';
+
+  @override
+  String get library_unfavorited_album => '已取消收藏该专辑';
+
+  @override
+  String get library_unfavorited_artist => '已取消收藏该歌手';
+
+  @override
+  String library_unfavorited_playlist(String name) {
+    return '已取消收藏歌单「$name」';
+  }
+
+  @override
+  String get library_unfavorited_short => '已取消收藏';
+
+  @override
+  String get library_unknown_artist => '未知歌手';
+
+  @override
+  String get library_url_hint => '例如：http://192.168.1.100:4533';
+
+  @override
+  String get library_url_invalid => '地址格式无效';
+
+  @override
+  String get playlist_sort_updated_asc => '最近更新（升序）';
+
+  @override
+  String get playlist_sort_updated_desc => '最近更新';
+
+  @override
+  String get song_sort_alphabetical_asc => '按标题（升序）';
+
+  @override
+  String get song_sort_alphabetical_desc => '按标题（降序）';
+
+  @override
+  String get song_sort_default_order => '默认排序';
+
+  @override
+  String get song_sort_duration_asc => '按时长（升序）';
+
+  @override
+  String get song_sort_duration_desc => '按时长（降序）';
+
+  @override
+  String get song_sort_recent_added => '最近添加';
+
+  @override
+  String get song_sort_title_asc => '按标题（升序）';
+
+  @override
+  String get song_sort_updated_asc => '按更新时间（升序）';
+
+  @override
+  String get song_sort_updated_desc => '按更新时间（降序）';
+
+  @override
+  String get state_disabled => '已关闭';
+
+  @override
+  String get state_enabled => '已开启';
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/music_flow_design.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import 'windowed_paginated_list.dart';
 
 /// 全库统一的「窗口化 + 视口渐进式加载」列表渲染层。
@@ -17,7 +18,7 @@ class WindowedListView<T> extends StatefulWidget {
     required this.itemBuilder,
     this.placeholderExtent = 72,
     this.padding,
-    this.emptyTitle = '暂无内容',
+    this.emptyTitle = '',
     this.emptyDescription = '',
     this.emptyIcon,
     this.gridDelegate,
@@ -113,6 +114,7 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final controller = widget.controller;
 
     if (controller.hasError && controller.total == 0) {
@@ -120,7 +122,7 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('加载失败', style: Theme.of(context).textTheme.titleMedium),
+            Text(loc.library_remote_load_failed, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
               '${controller.error}',
@@ -130,7 +132,7 @@ class _WindowedListViewState<T> extends State<WindowedListView<T>> {
             const SizedBox(height: 12),
             FilledButton.tonal(
               onPressed: controller.retry,
-              child: const Text('重试'),
+              child: Text(loc.widgets_retry),
             ),
           ],
         ),

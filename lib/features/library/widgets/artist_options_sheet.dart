@@ -13,6 +13,7 @@ import '../../../providers/effective_playback_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/queue_origin_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 歌手长按/右键菜单:播放歌手热门歌曲、收藏/取消收藏、添加到播放列表。
 Future<void> showArtistOptionsSheet({
@@ -52,9 +53,10 @@ class _ArtistOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowBottomSheet(
       title: artist.name,
-      subtitle: artist.albumCount != null ? '${artist.albumCount} 张专辑' : null,
+      subtitle: artist.albumCount != null ? loc.library_album_count(artist.albumCount.toString()) : null,
       showDragHandle: compactSheet,
       sceneRadius: !compactSheet,
       child: SingleChildScrollView(
@@ -63,23 +65,23 @@ class _ArtistOptionsSheet extends ConsumerWidget {
           children: <Widget>[
             MusicFlowActionRow(
               icon: AppIcons.play,
-              title: '播放歌手热门歌曲',
+              title: loc.library_play_artist_top,
               onPressed: () => _closeAndRun(context, _playTopSongs),
             ),
             MusicFlowActionRow(
               icon: artist.starred ? AppIcons.heart : AppIcons.heartOutline,
-              title: artist.starred ? '取消收藏歌手' : '收藏歌手',
+              title: artist.starred ? loc.library_unfavorited_artist : loc.library_favorite_artist,
               selected: artist.starred,
               onPressed: () => _closeAndRun(context, _toggleStarred),
             ),
             MusicFlowActionRow(
               icon: AppIcons.queueAdd,
-              title: '添加到播放列表',
+              title: loc.library_add_to_queue,
               onPressed: () => _closeAndRun(context, () async {
                 final songs = await _loadTopSongs();
                 if (songs == null || songs.isEmpty) return;
                 hostRef.read(playerProvider.notifier).addAllToQueue(songs);
-                _showMessage('已添加 ${songs.length} 首到播放列表');
+                _showMessage(loc.library_added_to_queue('${songs.length}'));
               }),
             ),
           ],
@@ -100,9 +102,10 @@ class _ArtistOptionsSheet extends ConsumerWidget {
   }
 
   Future<List<Song>?> _loadTopSongs() async {
+    final loc = AppLocalizations.of(hostContext);
     final repository = hostRef.read(musicRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.discover_no_library_selected);
       return null;
     }
 
@@ -110,20 +113,21 @@ class _ArtistOptionsSheet extends ConsumerWidget {
       await hostRef.read(ensureActiveAddressProvider.future);
       final songs = await repository.getTopSongs(artist.name);
       if (songs.isEmpty) {
-        NetworkErrorNotifier.show('歌手暂无可用歌曲');
+        NetworkErrorNotifier.show(loc.library_artist_no_songs);
         return null;
       }
       return songs;
     } catch (_) {
-      NetworkErrorNotifier.show('网络异常，歌手歌曲加载失败');
+      NetworkErrorNotifier.show(loc.library_network_artist_load_failed);
       return null;
     }
   }
 
   Future<void> _toggleStarred() async {
+    final loc = AppLocalizations.of(hostContext);
     final repository = hostRef.read(musicRepositoryProvider);
     if (repository == null) {
-      NetworkErrorNotifier.show('未选择音乐库');
+      NetworkErrorNotifier.show(loc.discover_no_library_selected);
       return;
     }
 
@@ -132,9 +136,9 @@ class _ArtistOptionsSheet extends ConsumerWidget {
       final nextStarred = !artist.starred;
       await repository.setArtistStarred(artist.id, nextStarred);
       hostRef.invalidate(starredProvider);
-      _showMessage(nextStarred ? '已收藏歌手' : '已取消收藏');
+      _showMessage(nextStarred ? loc.library_favorited_artist : loc.library_unfavorited_short);
     } catch (_) {
-      NetworkErrorNotifier.show('网络异常，操作失败');
+      NetworkErrorNotifier.show(loc.library_network_op_failed);
     }
   }
 

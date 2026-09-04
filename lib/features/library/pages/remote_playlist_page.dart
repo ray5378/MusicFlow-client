@@ -12,6 +12,7 @@ import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../player/widgets/song_options_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../search/search_actions.dart';
 
 /// 远程平台歌单预览页(对齐主项目前端 RemoteDetailDialog):
@@ -59,6 +60,7 @@ class _RemotePlaylistPageState extends ConsumerState<RemotePlaylistPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final playlist = widget.playlist;
     return MusicFlowScaffold(
       topBar: MusicFlowTopBar.back(context: context, title: playlist.name),
@@ -70,9 +72,9 @@ class _RemotePlaylistPageState extends ConsumerState<RemotePlaylistPage> {
           }
           if (snapshot.hasError) {
             return MusicFlowErrorState(
-              title: '加载失败',
-              description: '拉取歌单歌曲时出错,可重试。',
-              actionLabel: '重试',
+              title: loc.library_remote_load_failed,
+              description: loc.library_remote_playlist_load_failed_desc,
+              actionLabel: loc.widgets_retry,
               onAction: _reload,
             );
           }
@@ -88,10 +90,10 @@ class _RemotePlaylistPageState extends ConsumerState<RemotePlaylistPage> {
                 ),
               ),
               if (songs.isEmpty)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: MusicFlowEmptyState(
-                    title: '没有可播放的歌曲',
-                    description: '该平台歌单暂时拉取不到歌曲。',
+                    title: loc.library_no_playable_songs,
+                    description: loc.library_remote_playlist_empty_desc,
                     icon: AppIcons.playlist,
                     padding: EdgeInsets.all(32),
                   ),
@@ -150,6 +152,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final cover = playlist.cover.isNotEmpty
         ? ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -192,9 +195,9 @@ class _Header extends StatelessWidget {
                     Text(
                       <String>[
                         if (playlist.trackCount.isNotEmpty)
-                          '${playlist.trackCount} 首'
+                          loc.discover_track_count(playlist.trackCount)
                         else if (songCount > 0)
-                          '$songCount 首',
+                          loc.discover_track_count(songCount.toString()),
                         if (playlist.platformLabel.isNotEmpty)
                           playlist.platformLabel,
                       ].where((e) => e.isNotEmpty).join(' · '),
@@ -218,13 +221,13 @@ class _Header extends StatelessWidget {
                         final stackActions = constraints.maxWidth < 340 ||
                             scaledLabelSize >= 20;
                         final playAll = MusicFlowButton.primary(
-                          label: '播放全部',
+                          label: loc.library_play_all,
                           leadingIcon: AppIcons.play,
                           expand: true,
                           onPressed: onPlayAll,
                         );
                         final addToLib = MusicFlowButton.secondary(
-                          label: '加入库',
+                          label: loc.library_add_to_library,
                           leadingIcon: AppIcons.playlistAdd,
                           expand: true,
                           onPressed: onAddToLibrary,

@@ -13,6 +13,7 @@ import '../../../providers/search_provider.dart';
 import '../../../widgets/cover_art_image.dart';
 import '../../../widgets/song_list_item.dart';
 import '../../player/widgets/song_options_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../search/search_actions.dart';
 
 /// 远程平台专辑预览页(对齐主项目前端 RemoteDetailDialog):
@@ -64,6 +65,7 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final album = widget.album;
     return MusicFlowScaffold(
       topBar: MusicFlowTopBar.back(context: context, title: album.name),
@@ -75,9 +77,9 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
           }
           if (snapshot.hasError) {
             return MusicFlowErrorState(
-              title: '加载失败',
-              description: '拉取专辑歌曲时出错,可重试。',
-              actionLabel: '重试',
+              title: loc.library_remote_load_failed,
+              description: loc.library_remote_album_load_failed_desc,
+              actionLabel: loc.widgets_retry,
               onAction: () => _reload(),
             );
           }
@@ -93,10 +95,10 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
                 ),
               ),
               if (songs.isEmpty)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: MusicFlowEmptyState(
-                    title: '没有可播放的歌曲',
-                    description: '该平台专辑暂时拉取不到歌曲。',
+                    title: loc.library_no_playable_songs,
+                    description: loc.library_remote_album_empty_desc,
                     icon: AppIcons.album,
                     padding: EdgeInsets.all(32),
                   ),
@@ -162,6 +164,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final cover = album.cover.isNotEmpty
         ? ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -204,7 +207,7 @@ class _Header extends StatelessWidget {
                     Text(
                       <String>[
                         if (album.artist.isNotEmpty) album.artist,
-                        if (songCount > 0) '$songCount 首',
+                        if (songCount > 0) loc.discover_track_count(songCount.toString()),
                         if (album.platformLabel.isNotEmpty) album.platformLabel,
                       ].where((e) => e.isNotEmpty).join(' · '),
                       maxLines: 2,
@@ -226,13 +229,13 @@ class _Header extends StatelessWidget {
                         final stackActions = constraints.maxWidth < 340 ||
                             scaledLabelSize >= 20;
                         final playAll = MusicFlowButton.primary(
-                          label: '播放全部',
+                          label: loc.library_play_all,
                           leadingIcon: AppIcons.play,
                           expand: true,
                           onPressed: onPlayAll,
                         );
                         final addToLib = MusicFlowButton.secondary(
-                          label: '加入库',
+                          label: loc.library_add_to_library,
                           leadingIcon: AppIcons.playlistAdd,
                           expand: true,
                           onPressed: onAddToLibrary,
