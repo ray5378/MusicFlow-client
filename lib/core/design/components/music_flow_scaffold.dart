@@ -5,6 +5,7 @@ import '../music_flow_context.dart';
 import '../layout/music_flow_shell_obstruction.dart';
 import 'music_flow_icon_button.dart';
 // Windows 桌面端为右上角系统窗口按钮（最小化/最大化/关闭）预留空间。
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import '../../../widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
 
@@ -76,13 +77,14 @@ class MusicFlowTopBar extends StatelessWidget {
     String? subtitle,
     List<Widget> actions = const <Widget>[],
   }) {
+    final loc = AppLocalizations.of(context);
     return MusicFlowTopBar(
       key: key,
       title: title,
       subtitle: subtitle,
       leading: MusicFlowIconButton(
         icon: AppIcons.back,
-        label: '返回',
+        label: loc.core_back,
         onPressed: () => Navigator.maybePop(context),
       ),
       actions: actions,

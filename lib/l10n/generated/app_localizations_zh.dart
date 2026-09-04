@@ -2600,4 +2600,53 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get search_scope_select_title => '选择搜索范围';
+
+  @override
+  String get core_back => '返回';
+
+  @override
+  String get core_close => '关闭';
+
+  @override
+  String get core_close_menu => '关闭菜单';
+
+  @override
+  String get core_close_notification => '关闭通知';
+
+  @override
+  String get core_dlna_cast_required_hint => '直投功能必须在媒体库中先添加http连接';
+
+  @override
+  String core_field_error(String message) {
+    return '错误：$message';
+  }
+
+  @override
+  String get core_network_error => '网络异常';
+
+  @override
+  String core_network_switched_notice(String name) {
+    return '已切换线路：$name';
+  }
+
+  @override
+  String get core_pull_to_refresh => '下拉刷新';
+
+  @override
+  String get core_refresh_complete => '刷新完成';
+
+  @override
+  String get core_refresh_failed => '刷新失败';
+
+  @override
+  String get core_refreshing => '正在刷新';
+
+  @override
+  String get core_release_to_refresh => '松开刷新';
+
+  @override
+  String get core_selected => '已选择';
+
+  @override
+  String get core_unknown_device => '未知设备';
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_icons.dart';
 import '../music_flow_context.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class MusicFlowRefreshView extends StatefulWidget {
   const MusicFlowRefreshView({
@@ -96,6 +97,7 @@ class _MusicFlowRefreshViewState extends State<MusicFlowRefreshView> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     // 安卓触屏端:恢复下拉刷新手势(可整页下拉刷新),但不再弹出文字气泡,
     // 避免与正常向下滚动冲突时出现的"下拉刷新"文字提示干扰。
     final isAndroidTouch =
@@ -103,7 +105,7 @@ class _MusicFlowRefreshViewState extends State<MusicFlowRefreshView> {
 
     final motion = context.musicFlowMotion;
     final colors = context.musicFlowColors;
-    final feedback = _RefreshFeedback.from(_phase);
+    final feedback = _RefreshFeedback.from(_phase, loc);
     final visible = !isAndroidTouch && feedback != null;
     final emphasisColor = feedback?.kind == _RefreshFeedbackKind.failed
         ? colors.error
@@ -116,7 +118,7 @@ class _MusicFlowRefreshViewState extends State<MusicFlowRefreshView> {
             onRefresh: _performRefresh,
             onStatusChange: _handleStatusChange,
             elevation: 0,
-            semanticsLabel: '下拉刷新',
+            semanticsLabel: loc.core_pull_to_refresh,
             child: widget.child,
           ),
         ),
@@ -211,36 +213,36 @@ class _RefreshFeedback {
   final bool announce;
   final bool emphasized;
 
-  static _RefreshFeedback? from(_RefreshPhase phase) {
+  static _RefreshFeedback? from(_RefreshPhase phase, AppLocalizations loc) {
     return switch (phase) {
       _RefreshPhase.idle => null,
-      _RefreshPhase.pulling => const _RefreshFeedback(
+      _RefreshPhase.pulling => _RefreshFeedback(
         kind: _RefreshFeedbackKind.pull,
-        label: '下拉刷新',
+        label: loc.core_pull_to_refresh,
         announce: false,
         emphasized: false,
       ),
-      _RefreshPhase.armed => const _RefreshFeedback(
+      _RefreshPhase.armed => _RefreshFeedback(
         kind: _RefreshFeedbackKind.release,
-        label: '松开刷新',
+        label: loc.core_release_to_refresh,
         announce: true,
         emphasized: true,
       ),
-      _RefreshPhase.refreshing => const _RefreshFeedback(
+      _RefreshPhase.refreshing => _RefreshFeedback(
         kind: _RefreshFeedbackKind.refreshing,
-        label: '正在刷新',
+        label: loc.core_refreshing,
         announce: true,
         emphasized: true,
       ),
-      _RefreshPhase.completed => const _RefreshFeedback(
+      _RefreshPhase.completed => _RefreshFeedback(
         kind: _RefreshFeedbackKind.done,
-        label: '刷新完成',
+        label: loc.core_refresh_complete,
         announce: true,
         emphasized: true,
       ),
-      _RefreshPhase.failed => const _RefreshFeedback(
+      _RefreshPhase.failed => _RefreshFeedback(
         kind: _RefreshFeedbackKind.failed,
-        label: '刷新失败',
+        label: loc.core_refresh_failed,
         announce: true,
         emphasized: true,
       ),

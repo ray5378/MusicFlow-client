@@ -8,6 +8,7 @@ import '../music_flow_context.dart';
 import '../tokens/music_flow_colors.dart';
 import 'music_flow_icon_button.dart';
 import 'music_flow_surface.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 enum MusicFlowMessageKind { info, success, warning, error }
 
@@ -25,6 +26,7 @@ class MusicFlowMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final accent = switch (kind) {
       MusicFlowMessageKind.info => colors.accent,
@@ -82,7 +84,7 @@ class MusicFlowMessage extends StatelessWidget {
               SizedBox(width: context.musicFlowSpacing.xs),
               MusicFlowIconButton(
                 icon: AppIcons.close,
-                label: '关闭通知',
+                label: loc.core_close_notification,
                 foregroundColor: foreground,
                 backgroundColor: Colors.transparent,
                 onPressed: onDismiss,

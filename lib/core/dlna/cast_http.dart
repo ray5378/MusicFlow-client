@@ -1,6 +1,7 @@
 import '../../data/models/music_library.dart';
 import '../../data/models/server_address.dart';
 import '../utils/server_url_security.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// DLNA 直投强制 http 拉流的共用工具。
 ///
@@ -18,14 +19,14 @@ import '../utils/server_url_security.dart';
 /// 5. 交给设备的所有资源 URL（流、封面等）一起换 http。
 
 /// 直投面板在无可用 http 地址时展示的提示文案（ray 指定措辞）。
-const String kDlnaCastHttpRequiredHint = '直投功能必须在媒体库中先添加http连接';
+String kDlnaCastHttpRequiredHint(AppLocalizations loc) => loc.core_dlna_cast_required_hint;
 
 /// 直投专用 http 基地址不存在时抛出，供上层区分「缺 http 配置」与一般失败。
 class DlnaCastHttpUnavailableException implements Exception {
   const DlnaCastHttpUnavailableException();
 
   @override
-  String toString() => 'DlnaCastHttpUnavailable: $kDlnaCastHttpRequiredHint';
+  String toString() => 'DlnaCastHttpUnavailable: no http cast base (add an http connection in the music library)';
 }
 
 /// 判断服务器地址是否为明文 http。

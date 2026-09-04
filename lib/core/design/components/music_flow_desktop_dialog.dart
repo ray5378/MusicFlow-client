@@ -4,6 +4,7 @@ import '../music_flow_context.dart';
 import '../../theme/app_icons.dart';
 import 'music_flow_icon_button.dart';
 import 'music_flow_surface.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// 在 Windows/桌面端显示「窗户」样式的模态弹窗。
 ///
@@ -80,6 +81,7 @@ class MusicFlowDesktopDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     final colors = context.musicFlowColors;
     final radius = context.musicFlowRadii.scene;
@@ -135,7 +137,7 @@ class MusicFlowDesktopDialog extends StatelessWidget {
                     SizedBox(width: spacing.xs),
                     MusicFlowIconButton(
                       icon: AppIcons.close,
-                      label: '关闭',
+                      label: loc.core_close,
                       onPressed: () => Navigator.maybePop(context),
                     ),
                   ],

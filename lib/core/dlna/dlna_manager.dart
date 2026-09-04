@@ -301,7 +301,7 @@ class DlnaManager {
       // 此处不重复持有，避免多路唤醒锁/资源互相干扰。
       return true;
     } catch (e) {
-      debugPrint('DLNA 投屏启动失败: $_queueIndex $e');
+      debugPrint('DLNA cast start failed: $_queueIndex $e');
       _stopStatusPolling();
       await _stopDevice(_currentDevice);
       _clearCastState();
@@ -384,12 +384,12 @@ class DlnaManager {
     try {
       await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
     } catch (e) {
-      debugPrint('DLNA 设置 URI 失败: ${track.title} $e');
+      debugPrint('DLNA setUri failed: ${track.title} $e');
     }
     try {
       await SoapControl.play(device.avTransportUrl!);
     } catch (e) {
-      debugPrint('DLNA Play 失败: ${track.title} $e');
+      debugPrint('DLNA Play failed: ${track.title} $e');
     }
     // 记录本次(主动/自动)切歌时刻，供轮询续播检测 1.5s 内互斥，避免切歌后
     // 设备短暂处于非播态时被 deviceEnded/曲末定时重复推进到下一首。
@@ -860,7 +860,7 @@ class DlnaManager {
             (nearEnd || wallDone || deviceEnded || positionStuck)) {
           // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
           Logger.infoWithTag('DLNA-AUTO',
-              '-> 触发续播 advance($_queueIndex) '
+              '-> resume advance($_queueIndex) '
               'triggers: near=$nearEnd wall=$wallDone devEnd=$deviceEnded '
               'stuck=$positionStuck');
           await _advanceAfterCompletion();
@@ -882,13 +882,13 @@ class DlnaManager {
           _stallCount = 0;
         }
       } catch (e) {
-        Logger.errorWithTag('DLNA-AUTO', '续播动作异常', e);
+        Logger.errorWithTag('DLNA-AUTO', 'resume action error', e);
       }
 
       onStatusChanged?.call(_currentStatus);
     } catch (e) {
       // 设备可能离线
-      debugPrint('DLNA 状态轮询失败: $e');
+      debugPrint('DLNA state poll failed: $e');
     } finally {
       _polling = false;
     }

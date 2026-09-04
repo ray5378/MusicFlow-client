@@ -78,7 +78,7 @@ class SsdpDiscovery {
     final probe = bindAddresses ?? await _probeExplicitIpv4Addresses();
     // 无任何明确地址时回退到「任意地址」兜底拨号一次，保证始终至少一次探测机会。
     final addrs = probe.isEmpty ? [_anyAddressSentinel] : probe;
-    Logger.debugWithTag('SSDP', '扫描开始: 拨号地址=$addrs 超时=${timeout.inMilliseconds}ms');
+    Logger.debugWithTag('SSDP', 'scan start: dial addresses=$addrs timeout=${timeout.inMilliseconds}ms');
 
     final msearch = [
       'M-SEARCH * HTTP/1.1',
@@ -197,7 +197,7 @@ class SsdpDiscovery {
       }
     }
 
-    Logger.debugWithTag('SSDP', '扫描结束: 拨号地址=$addrs 收到 ${locations.length} 个 LOCATION 响应');
+    Logger.debugWithTag('SSDP', 'scan end: dial addresses=$addrs got ${locations.length} LOCATION responses');
     return locations.toList();
   }
 

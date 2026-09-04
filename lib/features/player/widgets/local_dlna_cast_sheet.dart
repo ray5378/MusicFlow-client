@@ -41,7 +41,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
     if (ref.read(dlnaCastHttpBaseProvider) == null) {
       showMusicFlowMessage(
         context,
-        kDlnaCastHttpRequiredHint,
+        kDlnaCastHttpRequiredHint(loc),
         kind: MusicFlowMessageKind.warning,
       );
       return;
@@ -138,6 +138,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
 
   /// 无可用 http 地址时的提示（替代设备列表，禁止发起投流）。
   Widget _buildHttpRequiredHint() {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final typography = context.musicFlowTypography;
     return Padding(
@@ -149,7 +150,7 @@ class _LocalDlnaCastSheetState extends ConsumerState<LocalDlnaCastSheet> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              kDlnaCastHttpRequiredHint,
+              kDlnaCastHttpRequiredHint(loc),
               style: typography.body.copyWith(color: colors.ink),
             ),
           ),

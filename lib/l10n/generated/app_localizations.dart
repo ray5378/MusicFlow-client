@@ -4743,6 +4743,96 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'选择搜索范围'**
   String get search_scope_select_title;
+
+  /// core_back
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get core_back;
+
+  /// core_close
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get core_close;
+
+  /// core_close_menu
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭菜单'**
+  String get core_close_menu;
+
+  /// core_close_notification
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭通知'**
+  String get core_close_notification;
+
+  /// core_dlna_cast_required_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'直投功能必须在媒体库中先添加http连接'**
+  String get core_dlna_cast_required_hint;
+
+  /// core_field_error
+  ///
+  /// In zh, this message translates to:
+  /// **'错误：{message}'**
+  String core_field_error(String message);
+
+  /// core_network_error
+  ///
+  /// In zh, this message translates to:
+  /// **'网络异常'**
+  String get core_network_error;
+
+  /// core_network_switched_notice
+  ///
+  /// In zh, this message translates to:
+  /// **'已切换线路：{name}'**
+  String core_network_switched_notice(String name);
+
+  /// core_pull_to_refresh
+  ///
+  /// In zh, this message translates to:
+  /// **'下拉刷新'**
+  String get core_pull_to_refresh;
+
+  /// core_refresh_complete
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新完成'**
+  String get core_refresh_complete;
+
+  /// core_refresh_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败'**
+  String get core_refresh_failed;
+
+  /// core_refreshing
+  ///
+  /// In zh, this message translates to:
+  /// **'正在刷新'**
+  String get core_refreshing;
+
+  /// core_release_to_refresh
+  ///
+  /// In zh, this message translates to:
+  /// **'松开刷新'**
+  String get core_release_to_refresh;
+
+  /// core_selected
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择'**
+  String get core_selected;
+
+  /// core_unknown_device
+  ///
+  /// In zh, this message translates to:
+  /// **'未知设备'**
+  String get core_unknown_device;
 }
 
 class _AppLocalizationsDelegate

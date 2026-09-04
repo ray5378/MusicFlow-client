@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
@@ -91,7 +92,7 @@ class FallbackInterceptor extends Interceptor {
             final success = await _addressPool.switchTo(next, manual: false);
             if (success) {
               _consecutiveFailures = 0;
-              ToastNotifier.show('已切换线路：${next.label}');
+              ToastNotifier.show(l10nNowCurrent().core_network_switched_notice(next.label));
 
               // Retry with new address
               final opts = err.requestOptions;

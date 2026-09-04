@@ -78,9 +78,9 @@ class SoapControl {
 
       return text;
     } on SocketException catch (e) {
-      throw SoapException(action, '网络错误: ${e.message}');
+      throw SoapException(action, 'network error: ${e.message}');
     } on TimeoutException {
-      throw SoapException(action, '请求超时');
+      throw SoapException(action, 'request timed out');
     } finally {
       client.close(force: true);
     }

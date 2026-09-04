@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/design/music_flow_design.dart';
+import 'core/l10n/localizations.dart';
 import 'core/utils/logger.dart';
 import 'core/utils/toast_notifier.dart';
 import 'core/theme/app_theme.dart';
@@ -85,6 +86,8 @@ class App extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final themeSettings = ref.watch(themeSettingsProvider);
     final languageSettings = ref.watch(appLanguageProvider);
+    // 同步当前语言偏好到无 BuildContext 的 l10n 通道（拦截器/通知器/解析器用）。
+    updateCurrentAppLanguage(languageSettings.preference);
 
     return MaterialApp.router(
       theme: AppTheme.light(seedColor: themeSettings.seedColor),

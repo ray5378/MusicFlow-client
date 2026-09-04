@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import '../utils/logger.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'dlna_models.dart';
 
 /// 设备描述 XML 解析器
@@ -21,10 +22,10 @@ class DeviceDescriptionParser {
       client.close(force: true);
 
       final device = _parseXml(xml, location);
-      Logger.debugWithTag('SSDP-DESC', '拉取 $location -> ${device != null ? '成功(${device.name})' : '解析失败(无AVTransport/无UDN)'}');
+      Logger.debugWithTag('SSDP-DESC', 'fetch $location -> ${device != null ? 'ok(${device.name})' : 'parse failed (no AVTransport / no UDN)'}');
       return device;
     } catch (e) {
-      Logger.errorWithTag('SSDP-DESC', '拉取失败 $location: $e');
+      Logger.errorWithTag('SSDP-DESC', 'fetch failed $location: $e');
       return null;
     }
   }
@@ -32,7 +33,7 @@ class DeviceDescriptionParser {
   /// 解析 description.xml 内容
   static DlnaDevice? _parseXml(String xml, String location) {
     // 提取 friendlyName
-    final friendlyName = _extractTag(xml, 'friendlyName') ?? '未知设备';
+    final friendlyName = _extractTag(xml, 'friendlyName') ?? l10nNowCurrent().core_unknown_device;
 
     // 提取 UDN
     final udn = _extractTag(xml, 'UDN') ?? '';

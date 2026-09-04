@@ -2736,4 +2736,54 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get search_scope_select_title => 'Select a search scope';
+
+  @override
+  String get core_back => 'Back';
+
+  @override
+  String get core_close => 'Close';
+
+  @override
+  String get core_close_menu => 'Close menu';
+
+  @override
+  String get core_close_notification => 'Close notification';
+
+  @override
+  String get core_dlna_cast_required_hint =>
+      'Cast requires adding an HTTP connection in the music library first';
+
+  @override
+  String core_field_error(String message) {
+    return 'Error: $message';
+  }
+
+  @override
+  String get core_network_error => 'Network error';
+
+  @override
+  String core_network_switched_notice(String name) {
+    return 'Switched to: $name';
+  }
+
+  @override
+  String get core_pull_to_refresh => 'Pull to refresh';
+
+  @override
+  String get core_refresh_complete => 'Refresh complete';
+
+  @override
+  String get core_refresh_failed => 'Refresh failed';
+
+  @override
+  String get core_refreshing => 'Refreshing';
+
+  @override
+  String get core_release_to_refresh => 'Release to refresh';
+
+  @override
+  String get core_selected => 'Selected';
+
+  @override
+  String get core_unknown_device => 'Unknown device';
 }

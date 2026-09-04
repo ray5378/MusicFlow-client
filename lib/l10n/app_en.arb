@@ -2721,5 +2721,71 @@
   "search_bar_clear": "Clear search query",
   "search_add_to_library": "Add to library",
   "search_scope_title": "Search scope",
-  "search_scope_select_title": "Select a search scope"
+    "search_scope_select_title": "Select a search scope",
+  "core_back": "Back",
+  "@core_back": {
+    "description": "core_back"
+  },
+  "core_close": "Close",
+  "@core_close": {
+    "description": "core_close"
+  },
+  "core_close_menu": "Close menu",
+  "@core_close_menu": {
+    "description": "core_close_menu"
+  },
+  "core_close_notification": "Close notification",
+  "@core_close_notification": {
+    "description": "core_close_notification"
+  },
+  "core_dlna_cast_required_hint": "Cast requires adding an HTTP connection in the music library first",
+  "@core_dlna_cast_required_hint": {
+    "description": "core_dlna_cast_required_hint"
+  },
+  "core_field_error": "Error: {message}",
+  "@core_field_error": {
+    "description": "core_field_error",
+    "placeholders": {
+      "message": {"type": "String"}
+    }
+  },
+  "core_network_error": "Network error",
+  "@core_network_error": {
+    "description": "core_network_error"
+  },
+  "core_network_switched_notice": "Switched to: {name}",
+  "@core_network_switched_notice": {
+    "description": "core_network_switched_notice",
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "core_pull_to_refresh": "Pull to refresh",
+  "@core_pull_to_refresh": {
+    "description": "core_pull_to_refresh"
+  },
+  "core_refresh_complete": "Refresh complete",
+  "@core_refresh_complete": {
+    "description": "core_refresh_complete"
+  },
+  "core_refresh_failed": "Refresh failed",
+  "@core_refresh_failed": {
+    "description": "core_refresh_failed"
+  },
+  "core_refreshing": "Refreshing",
+  "@core_refreshing": {
+    "description": "core_refreshing"
+  },
+  "core_release_to_refresh": "Release to refresh",
+  "@core_release_to_refresh": {
+    "description": "core_release_to_refresh"
+  },
+  "core_selected": "Selected",
+  "@core_selected": {
+    "description": "core_selected"
+  },
+  "core_unknown_device": "Unknown device",
+  "@core_unknown_device": {
+    "description": "core_unknown_device"
+  }
 }

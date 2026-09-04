@@ -10,6 +10,7 @@ import 'music_flow_anchor.dart';
 import 'music_flow_icon_button.dart';
 import 'music_flow_pressable.dart';
 import 'music_flow_surface.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 Future<T?> showMusicFlowBottomSheet<T>({
   required BuildContext context,
@@ -128,8 +129,10 @@ Future<T?> _showAnchoredPopup<T>({
   final overlayBox = navigator.overlay?.context.findRenderObject() as RenderBox?;
   final origin = overlayBox?.localToGlobal(Offset.zero) ?? Offset.zero;
   final localAnchor = anchor - origin;
+  final loc = AppLocalizations.of(context);
   return navigator.push<T?>(
     _AnchoredPopupRoute<T>(
+      loc: loc,
       anchor: localAnchor,
       builder: builder,
       duration: duration,
@@ -139,11 +142,13 @@ Future<T?> _showAnchoredPopup<T>({
 
 class _AnchoredPopupRoute<T> extends PopupRoute<T> {
   _AnchoredPopupRoute({
+    required this.loc,
     required this.anchor,
     required this.builder,
     required this.duration,
   });
 
+  final AppLocalizations loc;
   final Offset anchor;
   final WidgetBuilder builder;
   final Duration duration;
@@ -160,7 +165,7 @@ class _AnchoredPopupRoute<T> extends PopupRoute<T> {
   Color? get barrierColor => Colors.transparent;
 
   @override
-  String? get barrierLabel => '关闭菜单';
+  String? get barrierLabel => loc.core_close_menu;
 
   @override
   Widget buildPage(
@@ -260,6 +265,7 @@ class MusicFlowBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final spacing = context.musicFlowSpacing;
     final sceneRadiusValue = context.musicFlowRadii.scene;
     // 桌面端居中显示时拒绝安卓式底部抽屉痕迹：隐藏 drag handle 并使用
@@ -331,7 +337,7 @@ class MusicFlowBottomSheet extends StatelessWidget {
                       SizedBox(width: spacing.sm),
                       MusicFlowIconButton(
                         icon: AppIcons.close,
-                        label: '关闭',
+                        label: loc.core_close,
                         onPressed: () => Navigator.maybePop(context),
                       ),
                     ],
@@ -405,6 +411,7 @@ class MusicFlowActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final enabled = onPressed != null;
     final accent = destructive ? colors.error : colors.accent;
@@ -422,7 +429,7 @@ class MusicFlowActionRow extends StatelessWidget {
         <String>[
           title,
           if (subtitle != null) subtitle!,
-          if (selected) '已选择',
+          if (selected) loc.core_selected,
         ].join('，');
 
     return MusicFlowPressable(

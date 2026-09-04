@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../design/components/music_flow_message.dart';
+import '../l10n/localizations.dart';
 import 'toast_notifier.dart';
 
 /// 网络异常提示（带节流，避免同一时刻重复弹出）。
@@ -31,14 +32,15 @@ class NetworkErrorNotifier {
     _startedAt ??= DateTime.now();
   }
 
-  static void show([String message = '网络异常']) {
+  static void show([String? message]) {
     final now = DateTime.now();
     final start = _startedAt;
+    final msg = message ?? l10nNowCurrent().core_network_error;
     if (start != null && now.difference(start) < startupGrace) {
-      _schedulePending(now, message);
+      _schedulePending(now, msg);
       return;
     }
-    _showNow(now, message);
+    _showNow(now, msg);
   }
 
   static void _schedulePending(DateTime now, String message) {
@@ -50,7 +52,7 @@ class NetworkErrorNotifier {
     final remaining = startupGrace - now.difference(_pendingSince!);
     _pendingTimer = Timer(remaining, () {
       _pendingTimer = null;
-      final msg = _pendingMessage ?? '网络异常';
+      final msg = _pendingMessage ?? l10nNowCurrent().core_network_error;
       _pendingMessage = null;
       _pendingSince = null;
       _showNow(DateTime.now(), msg);

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../theme/app_icons.dart';
 import '../music_flow_context.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class MusicFlowTextField extends StatefulWidget {
   const MusicFlowTextField({
@@ -134,6 +135,7 @@ class _MusicFlowTextFieldState extends State<MusicFlowTextField> {
   }
 
   Widget _buildField(BuildContext context, FormFieldState<String> field) {
+    final loc = AppLocalizations.of(context);
     final colors = context.musicFlowColors;
     final typography = context.musicFlowTypography;
     final spacing = context.musicFlowSpacing;
@@ -315,7 +317,7 @@ class _MusicFlowTextFieldState extends State<MusicFlowTextField> {
           SizedBox(height: spacing.xs),
           Semantics(
             liveRegion: true,
-            label: '错误：${field.errorText}',
+            label: loc.core_field_error(field.errorText!),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[

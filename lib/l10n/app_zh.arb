@@ -2721,5 +2721,71 @@
   "search_bar_clear": "清空搜索词",
   "search_add_to_library": "加入库",
   "search_scope_title": "搜索范围",
-  "search_scope_select_title": "选择搜索范围"
+    "search_scope_select_title": "选择搜索范围",
+  "core_back": "返回",
+  "@core_back": {
+    "description": "core_back"
+  },
+  "core_close": "关闭",
+  "@core_close": {
+    "description": "core_close"
+  },
+  "core_close_menu": "关闭菜单",
+  "@core_close_menu": {
+    "description": "core_close_menu"
+  },
+  "core_close_notification": "关闭通知",
+  "@core_close_notification": {
+    "description": "core_close_notification"
+  },
+  "core_dlna_cast_required_hint": "直投功能必须在媒体库中先添加http连接",
+  "@core_dlna_cast_required_hint": {
+    "description": "core_dlna_cast_required_hint"
+  },
+  "core_field_error": "错误：{message}",
+  "@core_field_error": {
+    "description": "core_field_error",
+    "placeholders": {
+      "message": {"type": "String"}
+    }
+  },
+  "core_network_error": "网络异常",
+  "@core_network_error": {
+    "description": "core_network_error"
+  },
+  "core_network_switched_notice": "已切换线路：{name}",
+  "@core_network_switched_notice": {
+    "description": "core_network_switched_notice",
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "core_pull_to_refresh": "下拉刷新",
+  "@core_pull_to_refresh": {
+    "description": "core_pull_to_refresh"
+  },
+  "core_refresh_complete": "刷新完成",
+  "@core_refresh_complete": {
+    "description": "core_refresh_complete"
+  },
+  "core_refresh_failed": "刷新失败",
+  "@core_refresh_failed": {
+    "description": "core_refresh_failed"
+  },
+  "core_refreshing": "正在刷新",
+  "@core_refreshing": {
+    "description": "core_refreshing"
+  },
+  "core_release_to_refresh": "松开刷新",
+  "@core_release_to_refresh": {
+    "description": "core_release_to_refresh"
+  },
+  "core_selected": "已选择",
+  "@core_selected": {
+    "description": "core_selected"
+  },
+  "core_unknown_device": "未知设备",
+  "@core_unknown_device": {
+    "description": "core_unknown_device"
+  }
 }

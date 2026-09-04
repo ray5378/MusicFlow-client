@@ -244,8 +244,8 @@ Future<MusicFlowAudioHandler> initAudioService() async {
     builder: () => MusicFlowAudioHandler(audioPlayer),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.ray5378.musicflow.audio',
-      androidNotificationChannelName: 'MusicFlow 播放控制',
-      androidNotificationChannelDescription: 'MusicFlow 播放控制',
+      androidNotificationChannelName: "'MusicFlow Playback'",
+      androidNotificationChannelDescription: "'MusicFlow playback control'",
       // Android 通知进度条/强调元素使用的底色，避免浅色主题下不可见。
       notificationColor: AppColorScheme.defaultSeedColor,
       androidNotificationOngoing: false, // 允许用户手动关闭通知
