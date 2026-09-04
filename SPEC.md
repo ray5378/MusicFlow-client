@@ -58,7 +58,7 @@
 - **依赖管理**：严禁引入未授权的新第三方库、严禁升级现有依赖版本。缺能力 → 先说明理由，等确认。
 - **命名规范**：文件/目录全小写+下划线（`cast_peer_provider.dart`）；类/接口/枚举大驼峰（`CastPeerController`）；函数/变量小驼峰；常量全大写+下划线（`SSDP_ADDR`）。**链路 B 的 DLNA 命名沿用 `lib/core/dlna/*` 现有命名，不再扩展。**
 - **代码位置**：核心 `lib/core/`，数据 `lib/data/`，功能 `lib/features/`，Provider `lib/providers/`，共享 `lib/widgets/`。**链路 B 业务模块：`lib/core/dlna/*`（SSDP/描述/SOAP/直传 A + CDS 清单 B）+ `lib/providers/dlna_provider.dart`，供链路 B 引用；禁止在链路 A（`cast_peer_provider` 等）路径引用，两者命名/命名空间保持独立。**
-- **语言**：UI 文本与代码注释统一中文。
+- **语言**：代码注释统一中文；面向用户的 UI 文本**必须**走 l10n（loc.xxx / l10nNow），禁止硬编码中文（见第十章国际化契约）。
 
 ### 1.5 内存红线
 
@@ -597,6 +597,28 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 ```
 
 ---
+
+
+## 十、国际化（i18n）契约（强制）
+
+> 语言方向：**中文默认 + English**，支持跟随系统 / 中文 / English 三档切换（已接入）。任何面向用户的新增文案必须走 l10n，禁止硬编码中文；CI 守卫强制（未接入即红）。
+
+### 10.1 实现方式
+
+- **基础设施**：`l10n.yaml` + `lib/l10n/app_zh.arb` / `app_en.arb`，`flutter gen-l10n` 生成 `AppLocalizations`。
+- **访问模式**：build 内捕获 `final loc = AppLocalizations.of(context);`，子树统一 `loc.xxx`；无 BuildContext 环境（providers / 纯函数）走 `l10nNow(ref.read(appLanguageProvider).preference)`，**禁止在 providers 误用 `AppLocalizations.of(context)`**。
+- **语言偏好**：`appLanguageProvider` 持久化三档——跟随系统 / 中文 / English；首次安装默认跟随系统（非英文系统回退中文），既有用户保留已存偏好。
+- **键纪律**：含 `{placeholder}` 的键必须补 `@key` 的 `description` 与 `placeholders`（含 type）；含硬编码中文的 `const` 控件必须去掉 `const`（值来自 build 期 `loc`）。
+
+### 10.2 CI 守卫（强制）
+
+- `tool/check-l10n.mjs`：ARB zh/en 键集合完全一致；硬编码中文扫描（排除 `l10n/` 与 `l10n/generated/`），`--gate-cjk` 已启用（不通过即红）；providers 误用 `AppLocalizations.of(context)` 检查。
+- `lib/l10n/generated/` 强制纳入版本库（`git add -f`），不跑 `gen-l10n` 的 CI workflow 可直接编译。
+
+### 10.3 硬性规定
+
+- 新增面向用户文案：必须同时进 `app_zh.arb` + `app_en.arb`，zh/en 键集合完全一致；禁止硬编码。
+- 默认中文，未覆盖语言回退中文。
 
 ## 附：开发工作流
 
