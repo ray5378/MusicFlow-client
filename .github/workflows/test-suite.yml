@@ -91,7 +91,7 @@ jobs:
   # —— l10n 合规守卫(阻塞) ——
   # 与全量测试不同，这一步没有 continue-on-error：l10n 基建破损(ARB 键不对齐 /
   # providers 误用 AppLocalizations.of / gen-l10n 失败)会直接标红。
-  # 硬编码 CJK 保全量迁移完成后，给下面命令追加 --gate-cjk 即可启用硬门禁。
+  # 全量迁移已完成,硬编码 CJK 硬门禁(--gate-cjk)已启用:发现任何硬编码中文即标红。
   l10n-guard:
     name: l10n guard (blocking)
     runs-on: ubuntu-latest
@@ -113,4 +113,4 @@ jobs:
         run: flutter gen-l10n
 
       - name: Run l10n compliance guard
-        run: node tool/check-l10n.mjs
+        run: node tool/check-l10n.mjs --gate-cjk

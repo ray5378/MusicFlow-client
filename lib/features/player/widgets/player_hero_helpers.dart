@@ -111,7 +111,9 @@ bool _isPrefixTextPair(String from, String to) {
 /// Strip middle-dots, interpuncts and surrounding whitespace so that
 /// "artist" matches "artist · album" after normalisation.
 String _normalizeForComparison(String s) {
-  return s.trim().replaceAll(RegExp(r'[\s·・•]+'), ' ');
+  return s
+      .trim()
+      .replaceAll(RegExp('[\\s\\u{00B7}\\u{30FB}\\u{2022}]+', unicode: true), ' ');
 }
 
 Widget playerTextFlightShuttleBuilder(
