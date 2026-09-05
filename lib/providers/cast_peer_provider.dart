@@ -384,7 +384,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   /// 服务器端定时暂停(链路 A 投屏/群组):由**服务器自己倒计时**并在到点暂停,
   /// App 关闭/掉线后定时依然生效。传 null / 时长 <= 0 取消当前定时。
-  Future<void> setSleepTimer(Duration? duration, {bool finishSong = false}) async {
+  Future<void> setSleepTimer(Duration? duration) async {
     final peerId = state.activePeer?.peerId;
     final client = _ref.read(subsonicApiClientProvider);
     if (peerId == null) return;
@@ -400,7 +400,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       '$base/sleep-timer',
       data: <String, dynamic>{
         'durationSeconds': duration.inSeconds,
-        'finishSong': finishSong,
       },
     ).timeout(const Duration(seconds: 8));
   }

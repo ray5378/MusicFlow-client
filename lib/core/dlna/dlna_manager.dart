@@ -70,10 +70,6 @@ class DlnaManager {
   /// 避免两者都判定「播放结束」而重复推进到同一首的下下首。
   DateTime? _lastCompletionAdvance;
 
-  /// 定时停止「播完整首再关闭」的曲毕暂停意图：置 true 时曲毕续播改为暂停
-  /// （由 sleep_timer 在到点后设置，`_advanceAfterCompletion` 消费后复位）。
-  bool pendingPauseAtTrackEnd = false;
-
   /// 按已知剩余时长前置的「曲末到点」一次性定时器：到点做收尾复核并续播。
   /// 目的：把续播从「被动等 2s 轮询恰好撞上曲末那一下」改成「按已知总长准点触发」，
   /// 即便轮询被节流到若干秒一帧，只要进程仍活着，曲毕那一刻也能及时推进下一首。
@@ -931,14 +927,6 @@ class DlnaManager {
   Future<void> _advanceAfterCompletion() async {
     if (_currentDevice == null || _queue.isEmpty) return;
 
-    // 定时停止「播完整首再关闭」：曲毕即暂停，不自动续播下一首。
-    if (pendingPauseAtTrackEnd) {
-      pendingPauseAtTrackEnd = false;
-      try {
-        await pause();
-      } catch (_) {}
-      return;
-    }
     if (_playMode == 'one') {
       // 单曲循环：重放当前曲。
       await _playSwitch();

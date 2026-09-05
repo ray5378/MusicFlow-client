@@ -1437,21 +1437,13 @@ class _PlayerUtilityBar extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => SleepTimerSheet(
         hasExisting: timerSet,
-        finishSongInitial:
-            sleep == null || ref.read(sleepTimerProvider.notifier).finishSong,
         // 已有定时时把当前实际剩余分钟(向上取整,至少 1 分钟)回显到自定义步进器。
         initialMinutes: sleep != null ? sleep.inMinutes.clamp(1, 180) : 0,
       ),
     );
     if (!context.mounted) return;
     if (selected is _SleepTimerStartChoice) {
-      if (selected.finishSong) {
-        await ref
-            .read(sleepTimerProvider.notifier)
-            .start(selected.duration, finishSong: true);
-      } else {
-        await ref.read(sleepTimerProvider.notifier).start(selected.duration);
-      }
+      await ref.read(sleepTimerProvider.notifier).start(selected.duration);
     } else if (selected is _SleepTimerOffSentinel) {
       await ref.read(sleepTimerProvider.notifier).cancel();
     }
@@ -1598,27 +1590,23 @@ class _SleepTimerOffSentinel {
   const _SleepTimerOffSentinel();
 }
 
-/// 用户选定的定时结果：时长 + 是否「播完当前曲再关闭」。
+/// 用户选定的定时结果：时长。
 class _SleepTimerStartChoice {
-  const _SleepTimerStartChoice({required this.duration, required this.finishSong});
+  const _SleepTimerStartChoice({required this.duration});
 
   final Duration duration;
-  final bool finishSong;
 }
 
-/// 「定时停止播放」设置弹窗（图样式）：7 档预设 + 自定义分钟步进器
-/// + 「播完整首歌曲再关闭」开关。通过 Navigator.pop 返回
-/// `_SleepTimerStartChoice` / `_SleepTimerOffSentinel` / null。
+/// 「定时停止播放」设置弹窗（图样式）：预设档 + 自定义分钟步进器。
+/// 通过 Navigator.pop 返回 `_SleepTimerStartChoice` / `_SleepTimerOffSentinel` / null。
 class SleepTimerSheet extends StatefulWidget {
   const SleepTimerSheet({
     super.key,
     required this.hasExisting,
-    this.finishSongInitial = true,
     this.initialMinutes = 0,
   });
 
   final bool hasExisting;
-  final bool finishSongInitial;
 
   /// 已有定时时回显的实际剩余分钟数（widget 打开前由调用方从 provider 读取）。
   final int initialMinutes;
@@ -1634,7 +1622,6 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
   late final TextEditingController _minutesController = TextEditingController(
     text: widget.initialMinutes > 0 ? widget.initialMinutes.toString() : '',
   );
-  late bool _finishSong = widget.finishSongInitial;
 
   @override
   void dispose() {
@@ -1653,7 +1640,6 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
     return AlertDialog(
       title: Text(loc.player_sleep_timer_dialog_title),
       titleTextStyle: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
@@ -1725,19 +1711,6 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // 「播完整首歌曲再关闭」开关。
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            value: _finishSong,
-            onChanged: (v) => setState(() => _finishSong = v),
-            title: Text(loc.player_sleep_timer_finish_song_title),
-            subtitle: Text(
-              loc.player_sleep_timer_finish_song_desc,
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
         ],
       ),
       actions: <Widget>[
@@ -1755,7 +1728,6 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
           onPressed: _customMinutes > 0
               ? () => Navigator.of(context).pop(_SleepTimerStartChoice(
                     duration: Duration(minutes: _customMinutes),
-                    finishSong: _finishSong,
                   ))
               : null,
         ),
