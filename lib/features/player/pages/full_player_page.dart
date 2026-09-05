@@ -1628,7 +1628,7 @@ class SleepTimerSheet extends StatefulWidget {
 }
 
 class _SleepTimerSheetState extends State<SleepTimerSheet> {
-  static const _presets = <int>[5, 10, 20, 30, 40, 50, 60];
+  static const _presets = <int>[10, 20, 30, 40, 50, 60];
   static const _maxMinutes = 180;
   late int _customMinutes = widget.initialMinutes;
   late final TextEditingController _minutesController = TextEditingController(
@@ -1662,16 +1662,18 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          // 预设档位：5/10/20/30/40/50/60 分钟，点一下即开始。
+          // 预设档位：10/20/30/40/50/60 分钟。点一下仅选中（高亮），
+          // 再点底部「开始定时」才真正启动。
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: _presets.map((mn) => _PresetChip(
               label: loc.player_sleep_timer_minutes(mn),
-              onTap: () => Navigator.of(context).pop(_SleepTimerStartChoice(
-                duration: Duration(minutes: mn),
-                finishSong: _finishSong,
-              )),
+              selected: _customMinutes == mn,
+              onTap: () => setState(() {
+                _customMinutes = mn;
+                _minutesController.text = mn.toString();
+              }),
             )).toList(),
           ),
           const SizedBox(height: 16),
@@ -1763,27 +1765,33 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
 }
 
 class _PresetChip extends StatelessWidget {
-  const _PresetChip({required this.label, required this.onTap});
+  const _PresetChip({
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return MusicFlowPressable(
       borderRadius: BorderRadius.circular(12),
       onPressed: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: selected ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(color: selected ? cs.primary : cs.outlineVariant),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
+            color: selected ? cs.onPrimaryContainer : cs.onSurface,
             fontWeight: FontWeight.w500,
           ),
         ),
