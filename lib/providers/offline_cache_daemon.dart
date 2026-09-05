@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/offline/dynamic_cover_keys.dart';
 import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
@@ -46,6 +47,8 @@ class OfflineCacheDaemon {
     await _ref.read(offlineCacheReadyProvider.future);
     _busy = true;
     try {
+      // 封面小、速度快，先缓存当前曲封面，不被整轨下载阻塞。
+      await _cacheSongCover(cache, song);
       await _cacheSongData(cache, song);
       // 预缓存实际「下一首将播放」的歌曲:随机模式由 player 侧 _resolveUpcomingSongForCache
       // 按随机语义取样给出,而非顺序队列的 index+1;未传时回退到顺序下一首。
@@ -55,7 +58,6 @@ class OfflineCacheDaemon {
         await _cacheSongCover(cache, next);
         await _cacheSongLyrics(cache, next);
       }
-      await _cacheSongCover(cache, song);
     } catch (e) {
       Logger.warn('offline cache daemon error', e);
     } finally {
@@ -113,27 +115,18 @@ class OfflineCacheDaemon {
     }
   }
 
+  /// 缓存某首歌曲的封面。coverArt 可能是服务端 coverArtId 或 `trusted-url:` 引用,
+  /// 与服务端 /rest/getCoverArt 代理逻辑（见 CoverArtImage）对齐,剥掉前缀再请求。
   Future<void> _cacheSongCover(OfflineCacheManager cache, Song song) async {
     final coverArt = song.coverArt;
     if (coverArt == null || coverArt.isEmpty) return;
     if (cache.hasCover(coverArt)) return;
     final client = _ref.read(subsonicApiClientProvider);
-    final url = client.getCoverArtUrl(coverArt, size: 300);
+    final url =
+        client.getCoverArtUrl(_coverArtIdForServer(coverArt), size: 300);
     if (url.isEmpty) return;
-    final bytes = await _ref
-        .read(subsonicApiClientProvider)
-        .dio
-        .get<List<int>>(
-          url,
-          options: Options(
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            receiveTimeout: const Duration(seconds: 10),
-          ),
-        )
-        .then((r) => r.data)
-        .catchError((Object e) => <int>[]);
-    if (bytes == null || bytes.isEmpty) return;
+    final bytes = await _fetchCoverBytes(coverArt, url);
+    if (bytes == null) return;
     await cache.putCover(coverArt, bytes, owners: [song.id]);
   }
 
@@ -143,7 +136,8 @@ class OfflineCacheDaemon {
   /// 封面图每日变化，**不落缓存**；调用处对动态歌单传 `alwaysFresh: true`，
   /// 保证冷启动每次都绕过缓存重拉。
   Future<void> cachePlaylistCover(String coverKey, {String? playlistName}) async {
-    if (coverKey.isEmpty) return;
+    final clean = coverKey.trim();
+    if (clean.isEmpty) return;
     if (_ref.read(isOfflineProvider)) return;
     if (playlistName != null &&
         DynamicCoverKeys.isDynamicPlaylist(playlistName)) {
@@ -151,25 +145,47 @@ class OfflineCacheDaemon {
     }
     final cache = _ref.read(offlineCacheManagerProvider);
     await _ref.read(offlineCacheReadyProvider.future);
-    if (cache.hasPlaylistCover(coverKey)) return;
-    final clean = coverKey.trim();
-    if (clean.isEmpty) return;
+    if (cache.hasPlaylistCover(clean)) return;
     final client = _ref.read(subsonicApiClientProvider);
-    final url = client.getCoverArtUrl(clean, size: 320);
+    final url =
+        client.getCoverArtUrl(_coverArtIdForServer(clean), size: 320);
     if (url.isEmpty) return;
-    final bytes = await client.dio
-        .get<List<int>>(
-          url,
-          options: Options(
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            receiveTimeout: const Duration(seconds: 15),
-          ),
-        )
-        .then((r) => r.data)
-        .catchError((Object e) => <int>[]);
-    if (bytes == null || bytes.isEmpty) return;
+    final bytes = await _fetchCoverBytes(clean, url);
+    if (bytes == null) return;
     await cache.putPlaylistCover(clean, bytes);
+  }
+
+  /// 把 coverArt 引用归一化为服务端可识别的 id：`trusted-url:` 引用剥掉前缀，
+  /// 只留真实 URL（与 CoverArtImage 展示路径一致），服务端再按其代理规则回源。
+  static String _coverArtIdForServer(String raw) {
+    final trimmed = raw.trim();
+    return extractTrustedCoverUrl(trimmed) ?? trimmed;
+  }
+
+  /// 拉取封面字节（带超时与失败日志）。失败/空字节返回 null，调用方据此跳过写入。
+  Future<List<int>?> _fetchCoverBytes(String coverKey, String url) async {
+    try {
+      final bytes = await _ref
+          .read(subsonicApiClientProvider)
+          .dio
+          .get<List<int>>(
+            url,
+            options: Options(
+              responseType: ResponseType.bytes,
+              followRedirects: true,
+              receiveTimeout: const Duration(seconds: 30),
+            ),
+          )
+          .then((r) => r.data);
+      if (bytes == null || bytes.isEmpty) {
+        Logger.warn('cover download returned empty: $coverKey');
+        return null;
+      }
+      return bytes;
+    } catch (e) {
+      Logger.warn('cover download failed: $coverKey', e);
+      return null;
+    }
   }
 
   /// 按与播放器一致的音质/转码参数下载歌曲流，落盘到临时文件后返回。

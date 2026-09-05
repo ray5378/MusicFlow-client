@@ -1214,6 +1214,19 @@ class RecentPlaylistsSection extends ConsumerWidget {
     // 当前播放来源：识别正在播放的歌单（封面叠加跳动竖条）。
     final queueOrigin = ref.watch(queueOriginProvider);
 
+    // 歌单封面在「展示」时即写离线缓存（非动态歌单），供首页断网离线展示；
+    // 动态歌单（今日漫游/每日推荐等）由 cachePlaylistCover 内部判定跳过。
+    ref.listen(recentPlaylistsProvider, (_, next) {
+      final data = next.valueOrNull;
+      if (data == null || data.isEmpty) return;
+      final daemon = ref.read(offlineCacheDaemonProvider);
+      for (final pl in data) {
+        final cover = pl.coverArt?.trim() ?? '';
+        if (cover.isEmpty) continue;
+        unawaited(daemon.cachePlaylistCover(cover, playlistName: pl.name));
+      }
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
