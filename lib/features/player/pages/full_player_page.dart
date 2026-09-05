@@ -1699,22 +1699,22 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
       ),
       actions: <Widget>[
         if (widget.hasExisting)
-          TextButton(
+          MusicFlowButton.ghost(
+            label: loc.player_sleep_timer_off,
             onPressed: () => Navigator.of(context).pop(const _SleepTimerOffSentinel()),
-            child: Text(loc.player_sleep_timer_off),
           ),
-        TextButton(
+        MusicFlowButton.ghost(
+          label: loc.settings_cancel,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(loc.settings_cancel),
         ),
-        FilledButton(
+        MusicFlowButton.primary(
+          label: loc.player_sleep_timer_start,
           onPressed: _customMinutes > 0
               ? () => Navigator.of(context).pop(_SleepTimerStartChoice(
                     duration: Duration(minutes: _customMinutes),
                     finishSong: _finishSong,
                   ))
               : null,
-          child: Text(loc.player_sleep_timer_start),
         ),
       ],
     );
@@ -1729,9 +1729,9 @@ class _PresetChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return MusicFlowPressable(
       borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
+      onPressed: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
