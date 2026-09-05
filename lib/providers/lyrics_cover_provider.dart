@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/provider_config.dart';
@@ -23,6 +25,7 @@ import 'library_provider.dart';
 import 'player_provider.dart';
 import 'gd_music_provider.dart';
 import 'effective_playback_provider.dart';
+import 'offline_provider.dart';
 
 // ======== 提供商配置 Providers ========
 
@@ -133,6 +136,22 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
   final song = ref.watch(playerProvider.select((s) => s.currentSong));
   if (song == null) return null;
 
+  // 离线回退：优先读本地缓存。
+  if (ref.read(isOfflineProvider)) {
+    final cache = ref.read(offlineCacheManagerProvider);
+    await ref.read(offlineCacheReadyProvider.future);
+    final cached = await cache.lyrics(song.id);
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        return Lyrics.fromJson(
+          jsonDecode(cached) as Map<String, dynamic>,
+        );
+      } catch (_) {
+        // 缓存损坏视为无缓存。
+      }
+    }
+  }
+
   if (song.isPreview) {
     final source = song.previewSource?.trim() ?? '';
     final lyricId = (song.previewLyricId ?? song.previewTrackId ?? '').trim();
@@ -158,13 +177,22 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
   }
 
   final repo = ref.watch(lyricsRepositoryProvider);
-  return repo.getLyrics(
+  final lyrics = await repo.getLyrics(
     songId: song.id,
     title: song.title,
     artist: song.artist ?? '',
     album: song.album,
     duration: song.duration != null ? Duration(seconds: song.duration!) : null,
   );
+
+  // 在线取到歌词后写入离线缓存（以歌曲为准）。
+  if (lyrics != null && !lyrics.isEmpty && !song.isPreview) {
+    final cache = ref.read(offlineCacheManagerProvider);
+    await ref.read(offlineCacheReadyProvider.future);
+    unawaited(cache.putLyrics(song.id, jsonEncode(lyrics.toJson())));
+  }
+
+  return lyrics;
 });
 
 // ======== 封面相关 Providers ========

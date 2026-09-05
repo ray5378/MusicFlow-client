@@ -320,6 +320,96 @@ abstract class AppLocalizations {
   /// **'按网络选择播放码率'**
   String get settings_audio_quality_desc;
 
+  /// No description provided for @offline_cache_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'离线缓存'**
+  String get offline_cache_title;
+
+  /// No description provided for @offline_cache_settings_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存歌曲/封面/歌词，断网可播放，自动轮转'**
+  String get offline_cache_settings_desc;
+
+  /// No description provided for @offline_cache_usage.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存占用'**
+  String get offline_cache_usage;
+
+  /// No description provided for @offline_cache_used.
+  ///
+  /// In zh, this message translates to:
+  /// **'已用'**
+  String get offline_cache_used;
+
+  /// No description provided for @offline_cache_song.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲'**
+  String get offline_cache_song;
+
+  /// No description provided for @offline_cache_lyric.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌词'**
+  String get offline_cache_lyric;
+
+  /// No description provided for @offline_cache_cover.
+  ///
+  /// In zh, this message translates to:
+  /// **'封面'**
+  String get offline_cache_cover;
+
+  /// No description provided for @offline_cache_playlist_cover.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单封面'**
+  String get offline_cache_playlist_cover;
+
+  /// No description provided for @offline_cache_clear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空缓存'**
+  String get offline_cache_clear;
+
+  /// No description provided for @offline_cache_cleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存已清空'**
+  String get offline_cache_cleared;
+
+  /// No description provided for @offline_cache_size_section.
+  ///
+  /// In zh, this message translates to:
+  /// **'总容量'**
+  String get offline_cache_size_section;
+
+  /// No description provided for @offline_cache_size_section_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'容量用满后自动轮转，按最久未使用清理'**
+  String get offline_cache_size_section_desc;
+
+  /// No description provided for @offline_cache_size_default.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get offline_cache_size_default;
+
+  /// No description provided for @offline_cache_unit_mb.
+  ///
+  /// In zh, this message translates to:
+  /// **'MB'**
+  String get offline_cache_unit_mb;
+
+  /// No description provided for @offline_cache_unit_gb.
+  ///
+  /// In zh, this message translates to:
+  /// **'GB'**
+  String get offline_cache_unit_gb;
+
   /// 音质页状态行（标签与值）的语义标签
   ///
   /// In zh, this message translates to:

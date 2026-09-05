@@ -26,6 +26,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../widgets/windows_title_bar.dart';
 import '../widgets/music_flow_settings_components.dart';
 import 'audio_quality_page.dart';
+import 'offline_cache_page.dart';
 import 'cover_providers_page.dart';
 import 'lyrics_providers_page.dart';
 import 'theme_settings_page.dart';
@@ -428,6 +429,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     title: loc.settings_audio_quality,
                     description: loc.settings_audio_quality_desc,
                     onPressed: () => _pushPage(const AudioQualityPage()),
+                  ),
+                  MusicFlowSettingRow(
+                    icon: AppIcons.cloudOff,
+                    title: loc.offline_cache_title,
+                    description: loc.offline_cache_settings_desc,
+                    onPressed: () => _pushPage(const OfflineCachePage()),
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.timer,

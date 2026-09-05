@@ -34,4 +34,19 @@ class Lyrics {
 
   bool get hasSynced => entries.any((e) => e.synced);
   bool get isEmpty => entries.isEmpty;
+
+  Map<String, dynamic> toJson() => {
+        'sourceId': sourceId,
+        'entries': entries.map((e) => e.toJson()).toList(),
+      };
+
+  factory Lyrics.fromJson(Map<String, dynamic> json) => Lyrics(
+        sourceId: json['sourceId'] as String? ?? '',
+        entries: (json['entries'] as List?)
+                ?.map(
+                  (e) => StructuredLyrics.fromJson(e as Map<String, dynamic>),
+                )
+                .toList() ??
+            const [],
+      );
 }

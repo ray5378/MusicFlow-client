@@ -21,6 +21,7 @@ class MusicFlowArtwork extends StatelessWidget {
     this.shape = MusicFlowArtworkShape.rounded,
     this.borderRadius,
     this.heroTag,
+    this.alwaysFresh = false,
   }) : assert(semanticLabel != ''),
        assert(
          shape != MusicFlowArtworkShape.circle || size != null,
@@ -38,6 +39,9 @@ class MusicFlowArtwork extends StatelessWidget {
   final BorderRadius? borderRadius;
   final Object? heroTag;
 
+  /// 动态封面（今日漫游/每日推荐/随机歌曲等）传 true：不读不写离线缓存，每次冷启动重拉。
+  final bool alwaysFresh;
+
   @override
   Widget build(BuildContext context) {
     Widget artwork = CoverArtImage(
@@ -46,6 +50,7 @@ class MusicFlowArtwork extends StatelessWidget {
       requestSize: requestSize,
       fit: fit,
       semanticLabel: semanticLabel,
+      alwaysFresh: alwaysFresh,
     );
 
     artwork = switch (shape) {

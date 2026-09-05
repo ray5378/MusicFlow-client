@@ -28,6 +28,7 @@ class LocalStorage {
   static const String _keyCrossfadeDurationMs = 'crossfade_duration_ms';
   static const String _keyPlayerVolume = 'player_volume';
   static const String _keyStatusLyricsEnabled = 'status_lyrics_enabled';
+  static const String _keyOfflineCacheSize = 'offline_cache_size';
   static const String _keyLyricsScrollDwellSeconds = 'lyrics_scroll_dwell_seconds';
   static const String _keyLoggingEnabled = 'logging_enabled';
   static const String _keySearchHistory = 'search_history_v1';
@@ -54,6 +55,19 @@ class LocalStorage {
   static Future<void> setStatusLyricsEnabled(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyStatusLyricsEnabled, value);
+  }
+
+
+  /// 读取离线缓存总容量档位名（未设置返回 null，由调用方回落到默认 2G）。
+  static Future<String?> getOfflineCacheSizeName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyOfflineCacheSize);
+  }
+
+  /// 保存离线缓存总容量档位名（enum.name）。
+  static Future<void> setOfflineCacheSizeName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyOfflineCacheSize, name);
   }
 
   /// 是否曾经启动过（用于判断是否显示开屏动画）

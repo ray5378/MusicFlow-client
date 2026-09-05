@@ -120,6 +120,51 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settings_audio_quality_desc => '按网络选择播放码率';
 
   @override
+  String get offline_cache_title => '离线缓存';
+
+  @override
+  String get offline_cache_settings_desc => '缓存歌曲/封面/歌词，断网可播放，自动轮转';
+
+  @override
+  String get offline_cache_usage => '缓存占用';
+
+  @override
+  String get offline_cache_used => '已用';
+
+  @override
+  String get offline_cache_song => '歌曲';
+
+  @override
+  String get offline_cache_lyric => '歌词';
+
+  @override
+  String get offline_cache_cover => '封面';
+
+  @override
+  String get offline_cache_playlist_cover => '歌单封面';
+
+  @override
+  String get offline_cache_clear => '清空缓存';
+
+  @override
+  String get offline_cache_cleared => '缓存已清空';
+
+  @override
+  String get offline_cache_size_section => '总容量';
+
+  @override
+  String get offline_cache_size_section_desc => '容量用满后自动轮转，按最久未使用清理';
+
+  @override
+  String get offline_cache_size_default => '默认';
+
+  @override
+  String get offline_cache_unit_mb => 'MB';
+
+  @override
+  String get offline_cache_unit_gb => 'GB';
+
+  @override
   String settings_audio_status_line(String label, String value) {
     return '$label，$value';
   }

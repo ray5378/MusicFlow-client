@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 
 import '../../../core/design/music_flow_design.dart';
 import '../../../core/l10n/localizations.dart';
+import '../../../core/offline/dynamic_cover_keys.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/network_error_notifier.dart';
 import '../../../data/models/recommend.dart';
@@ -23,6 +24,7 @@ import '../../../providers/locale_provider.dart';
 import '../../../providers/metadata_cache_provider.dart';
 import '../../../providers/music_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../providers/offline_cache_daemon.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/playlist_provider.dart';
 import '../../../providers/queue_origin_provider.dart';
@@ -456,7 +458,15 @@ void _openSearchPage(BuildContext context) {
 
 /// 播放本地歌单（供首页歌单卡封面播放按钮与长按菜单使用）。
 /// 加载歌单全部歌曲后整单播放，并记录队列来源为歌单（封面叠加跳动竖条）。
-Future<void> playLocalPlaylistById(WidgetRef ref, String playlistId) async {
+///
+/// [coverArtId]/[playlistName] 非空时，顺带把该歌单封面（非动态）写入离线缓存，
+/// 供首页断网时离线展示。
+Future<void> playLocalPlaylistById(
+  WidgetRef ref,
+  String playlistId, {
+  String? coverArtId,
+  String? playlistName,
+}) async {
   final loc = l10nNow(ref.read(appLanguageProvider).preference);
   final repository = ref.read(playlistRepositoryProvider);
   if (repository == null) {
@@ -468,6 +478,17 @@ Future<void> playLocalPlaylistById(WidgetRef ref, String playlistId) async {
     if (songs.isEmpty) {
       NetworkErrorNotifier.show(loc.discover_playlist_empty);
       return;
+    }
+    // 缓存歌单封面（非动态）供首页离线展示；动态歌单由 cachePlaylistCover 判定跳过。
+    final effectiveCover = (coverArtId != null && coverArtId.isNotEmpty)
+        ? coverArtId
+        : songs.first.coverArt;
+    if (effectiveCover != null && effectiveCover.isNotEmpty) {
+      unawaited(
+        ref
+            .read(offlineCacheDaemonProvider)
+            .cachePlaylistCover(effectiveCover, playlistName: playlistName),
+      );
     }
     await playEffectiveQueue(
       ref,
@@ -1243,7 +1264,12 @@ class RecentPlaylistsSection extends ConsumerWidget {
                         context: context,
                         playlist: pl,
                       ),
-                      onPlay: () => playLocalPlaylistById(ref, pl.id),
+                      onPlay: () => playLocalPlaylistById(
+                            ref,
+                            pl.id,
+                            coverArtId: pl.coverArt,
+                            playlistName: pl.name,
+                          ),
                       onPressed: () {
                         Navigator.of(context).push<void>(
                           MusicFlowPageRoute<void>(
@@ -1363,6 +1389,12 @@ class FixedRecommendSection extends ConsumerWidget {
                       isNowPlaying:
                           queueOrigin?.matchesPlaylist(card.playlistId) ??
                           false,
+                      // 动态歌单封面每日变化：不读不写离线缓存，冷启动每次重拉。
+                      alwaysFresh:
+                          DynamicCoverKeys.isDynamicPlaylist(
+                            card.name,
+                            id: card.playlistId,
+                          ),
                       onLongPress: () => showPlaylistOptionsSheet(
                         context: context,
                         playlist: Playlist(
@@ -1373,8 +1405,12 @@ class FixedRecommendSection extends ConsumerWidget {
                           duration: 0,
                         ),
                       ),
-                      onPlay: () =>
-                          playLocalPlaylistById(ref, card.playlistId),
+                      onPlay: () => playLocalPlaylistById(
+                            ref,
+                            card.playlistId,
+                            coverArtId: card.coverArt,
+                            playlistName: card.name,
+                          ),
                       onPressed: () {
                         Navigator.of(context).push<void>(
                           MusicFlowPageRoute<void>(
@@ -1765,7 +1801,12 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                                   duration: 0,
                                 ),
                               ),
-                              onPlay: () => playLocalPlaylistById(ref, pl.id),
+                              onPlay: () => playLocalPlaylistById(
+                            ref,
+                            pl.id,
+                            coverArtId: pl.coverArt,
+                            playlistName: pl.name,
+                          ),
                               onPressed: () {
                                 Navigator.of(context).push<void>(
                                   MusicFlowPageRoute<void>(

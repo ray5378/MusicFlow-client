@@ -134,6 +134,53 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose playback bitrate by network';
 
   @override
+  String get offline_cache_title => 'Offline cache';
+
+  @override
+  String get offline_cache_settings_desc =>
+      'Cache songs/covers/lyrics for offline playback with automatic rotation';
+
+  @override
+  String get offline_cache_usage => 'Cache usage';
+
+  @override
+  String get offline_cache_used => 'Used';
+
+  @override
+  String get offline_cache_song => 'Songs';
+
+  @override
+  String get offline_cache_lyric => 'Lyrics';
+
+  @override
+  String get offline_cache_cover => 'Covers';
+
+  @override
+  String get offline_cache_playlist_cover => 'Playlist covers';
+
+  @override
+  String get offline_cache_clear => 'Clear cache';
+
+  @override
+  String get offline_cache_cleared => 'Cache cleared';
+
+  @override
+  String get offline_cache_size_section => 'Total capacity';
+
+  @override
+  String get offline_cache_size_section_desc =>
+      'Auto-rotates when full, evicting least recently used items';
+
+  @override
+  String get offline_cache_size_default => 'Default';
+
+  @override
+  String get offline_cache_unit_mb => 'MB';
+
+  @override
+  String get offline_cache_unit_gb => 'GB';
+
+  @override
   String settings_audio_status_line(String label, String value) {
     return '$label: $value';
   }

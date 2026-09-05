@@ -25,6 +25,8 @@ import 'api_provider.dart';
 import 'audio_quality_provider.dart';
 import 'crossfade_provider.dart';
 import 'gd_music_provider.dart';
+import 'offline_cache_daemon.dart';
+import 'offline_provider.dart';
 
 export 'player/player_state.dart';
 export 'player/favorite_scrobble_handler.dart';
@@ -748,6 +750,65 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _updateMediaItem(song);
       _scheduleSongRemoteRefresh(song, debugSession);
 
+      // ---- 离线回退：网络断开或后端不可达时，若本地缓存命中则播放缓存文件。----
+      if (_ref.read(isOfflineProvider)) {
+        final cache = _ref.read(offlineCacheManagerProvider);
+        await _ref.read(offlineCacheReadyProvider.future);
+        final file = cache.songFile(song.id);
+        if (file != null && file.existsSync()) {
+          _seekDbg(
+            'offline fallback play cached file song=${song.id} '
+            'path=${file.path}',
+          );
+          try {
+            final sourceReady = await _replaceLoadedSource(
+              songId: song.id,
+              label: 'offline_file',
+              ownsSource: () => _isPlaybackContextCurrent(
+                session: debugSession,
+                songId: song.id,
+              ),
+              setSource: (player) async {
+                await player.setUrl(file.uri.toString());
+              },
+            );
+            if (!sourceReady) return;
+            await _syncPlaybackAfterSourceReady(autoPlay: autoPlay);
+            if (!isCurrentSession()) return;
+            await _applyPendingSeekIfNeeded();
+            if (!isCurrentSession()) return;
+            state = state.copyWith(
+              playbackSource: PlaybackSource.stream,
+              currentBitRateKbps: _resolveCurrentBitRateKbps(
+                song: song,
+                quality: _ref.read(effectiveQualityProvider),
+                source: PlaybackSource.stream,
+              ),
+            );
+            if (!isCurrentSession()) return;
+            _clearCurrentPlaybackRetry(reason: 'playback_ready_offline');
+            if (autoPlay) {
+              await _scrobble(song.id, submission: false);
+              if (!isCurrentSession()) return;
+            }
+            _seekDbg(
+              'offline fallback ready song=${song.id} '
+              'playerPos=${_audioPlayer?.position} duration=${state.duration}',
+            );
+            return;
+          } catch (e) {
+            Logger.warn('Offline cache playback failed: ${song.title}', e);
+            // 缓存文件损坏 → 按「不可播」跳过，走下一首。
+            _handlePlaybackError(song.id);
+            return;
+          }
+        }
+        // 未缓存：提示离线，沿用现有「跳过不可播」找下一首。
+        Logger.info('No offline cache for: ${song.title}');
+        _handlePlaybackError(song.id);
+        return;
+      }
+
       // 获取当前音质设置
       final effectiveQuality = _ref.read(effectiveQualityProvider);
 
@@ -885,6 +946,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       Logger.info('Playing: ${song.title}');
+
+      // 触发背景缓存：当前曲 + 下一首可播曲 + 当前曲封面（在线且非预览时）。
+      unawaited(
+        _ref
+            .read(offlineCacheDaemonProvider)
+            .onSongStartedOnline(song: song, queue: playQueue, index: playIndex),
+      );
+
       _seekDbg(
         'playSong ready song=${song.id} currentPos=${_audioPlayer?.position} '
         'duration=${state.duration}',

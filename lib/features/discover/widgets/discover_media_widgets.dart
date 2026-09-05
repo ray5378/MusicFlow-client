@@ -1208,6 +1208,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
     this.loading = false,
     this.width = 160,
     this.isNowPlaying = false,
+    this.alwaysFresh = false,
   });
 
   final String title;
@@ -1226,6 +1227,10 @@ class DiscoverPlaylistCard extends StatelessWidget {
 
   /// 该歌单是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
   final bool isNowPlaying;
+
+  /// 动态歌单（今日漫游/每日推荐/本地推荐/随机歌曲）封面每日变化，传 true
+  /// 使封面不读不写离线缓存，冷启动每次重拉。
+  final bool alwaysFresh;
 
   String? get _effectiveCoverRef {
     if (coverArtId != null && coverArtId!.isNotEmpty) return coverArtId;
@@ -1270,6 +1275,7 @@ class DiscoverPlaylistCard extends StatelessWidget {
                               size: width,
                               requestSize: 320,
                               fit: BoxFit.cover,
+                              alwaysFresh: alwaysFresh,
                               semanticLabel: loc.discover_cover_semantics(title),
                             )
                           : Container(
