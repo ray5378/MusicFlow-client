@@ -947,11 +947,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       Logger.info('Playing: ${song.title}');
 
-      // 触发背景缓存：当前曲 + 下一首可播曲 + 当前曲封面（在线且非预览时）。
+      // 触发背景缓存：当前曲 + 实际即将播放的下一首（随机模式按随机语义取样）+ 当前曲封面。
       unawaited(
         _ref
             .read(offlineCacheDaemonProvider)
-            .onSongStartedOnline(song: song, queue: playQueue, index: playIndex),
+            .onSongStartedOnline(
+              song: song,
+              queue: playQueue,
+              index: playIndex,
+              upcomingSong: _resolveUpcomingSongForCache(),
+            ),
       );
 
       _seekDbg(
@@ -2897,7 +2902,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     return currentIndex - 1;
   }
 
-  int? _getRandomIndexExcludingCurrent() {
+  int? _getRandomIndexExcludingCurrent({bool allowRoundReset = true}) {
     final queue = state.queue;
     if (queue.isEmpty) return null;
     if (queue.length == 1) return 0;
@@ -2961,6 +2966,28 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     for (var i = 0; i < queue.length; i++) {
       if (isMatch(i)) return i;
     }
+    return null;
+  }
+
+  /// 解析「下一首实际将播放的歌曲」供后台预缓存:随机模式按与 [next] 一致的
+  /// 优先级判断,随机分支用**非变更**抽样(allowRoundReset:false),不会提前
+  /// 清空本轮播过标记,从而不影响真实切歌的随机语义。
+  Song? _resolveUpcomingSongForCache() {
+    final queue = state.queue;
+    if (queue.isEmpty) return null;
+    if (state.shuffleEnabled) {
+      final forced = _resolveForcedNextIndex();
+      if (forced != null && forced >= 0 && forced < queue.length) {
+        return queue[forced];
+      }
+      final idx = _getRandomIndexExcludingCurrent(allowRoundReset: false);
+      if (idx != null && idx < queue.length) return queue[idx];
+      return null;
+    }
+    final nextIndex = state.currentIndex + 1;
+    if (nextIndex < queue.length) return queue[nextIndex];
+    // 顺序模式到队尾:按 [next] 的回绕语义取队首作为待缓存候选。
+    if (queue.isNotEmpty) return queue.first;
     return null;
   }
 

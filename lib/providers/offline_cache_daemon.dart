@@ -31,11 +31,12 @@ class OfflineCacheDaemon {
   final Ref _ref;
   bool _busy = false;
 
-  /// 在线播放一首歌进入「就绪」后调用。串行执行：当前曲→下一首→当前曲封面。
+  /// 在线播放一首歌进入「就绪」后调用。串行执行：当前曲→实际下一首→当前曲封面。
   Future<void> onSongStartedOnline({
     required Song song,
     required List<Song> queue,
     required int index,
+    Song? upcomingSong,
   }) async {
     if (_busy) return;
     if (song.isPreview) return;
@@ -46,13 +47,28 @@ class OfflineCacheDaemon {
     _busy = true;
     try {
       await _cacheSongData(cache, song);
-      await _cacheNextPlayable(cache, queue, index + 1, withCompanions: true);
+      // 预缓存实际「下一首将播放」的歌曲:随机模式由 player 侧 _resolveUpcomingSongForCache
+      // 按随机语义取样给出,而非顺序队列的 index+1;未传时回退到顺序下一首。
+      final next = upcomingSong ?? _nextFromQueue(queue, index);
+      if (next != null && !next.isPreview) {
+        await _cacheSongData(cache, next);
+        await _cacheSongCover(cache, next);
+        await _cacheSongLyrics(cache, next);
+      }
       await _cacheSongCover(cache, song);
     } catch (e) {
       Logger.warn('offline cache daemon error', e);
     } finally {
       _busy = false;
     }
+  }
+
+  /// 顺序模式下取「队列里下一首可播曲」（跳过客户端会跳过的不可播曲）作为回退候选。
+  static Song? _nextFromQueue(List<Song> queue, int index) {
+    for (var i = index + 1; i < queue.length; i++) {
+      if (!queue[i].isPreview) return queue[i];
+    }
+    return null;
   }
 
   Future<void> _cacheSongData(OfflineCacheManager cache, Song song) async {
@@ -63,32 +79,6 @@ class OfflineCacheDaemon {
     try {
       await tmp.delete();
     } catch (_) {}
-  }
-
-  Future<void> _cacheNextPlayable(
-    OfflineCacheManager cache,
-    List<Song> queue,
-    int fromIndex, {
-    bool withCompanions = false,
-  }) async {
-    if (fromIndex >= queue.length) return;
-    for (var i = fromIndex; i < queue.length; i++) {
-      final next = queue[i];
-      if (next.isPreview) continue; // 客户端会跳过的不可播曲
-      if (cache.hasSong(next.id)) continue;
-      final tmp = await _downloadStreamBytes(next);
-      if (tmp == null) continue;
-      await cache.putSongFromFile(next.id, tmp, meta: _metaOf(next));
-      try {
-        await tmp.delete();
-      } catch (_) {}
-      // 预缓存的下一首也一并缓存其封面 + 歌词，保证离线点播/封面/歌词齐全。
-      if (withCompanions) {
-        await _cacheSongCover(cache, next);
-        await _cacheSongLyrics(cache, next);
-      }
-      return; // 只预缓存下一首
-    }
   }
 
   /// 缓存的歌曲附带展示元数据（供「已缓存音乐」页离线展示）。
@@ -102,6 +92,7 @@ class OfflineCacheDaemon {
       };
 
   /// 缓存某首歌曲的歌词（在线时）。用于预缓存下一首时随附。
+
   Future<void> _cacheSongLyrics(OfflineCacheManager cache, Song song) async {
     if (cache.lyricsCached(song.id)) return;
     try {

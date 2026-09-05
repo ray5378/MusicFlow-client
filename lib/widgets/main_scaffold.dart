@@ -17,6 +17,7 @@ import '../features/library/pages/artist_list_page.dart';
 import '../features/library/pages/playlist_search_page.dart';
 import '../features/library/pages/song_list_page.dart';
 import '../features/library/pages/starred_page.dart';
+ import '../features/settings/pages/offline_cached_songs_page.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers/api_provider.dart';
@@ -481,6 +482,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         label: loc.widgets_i_like,
         icon: AppIcons.heart,
         onTap: () => unawaited(open(const StarredPage())),
+      ),
+      MusicFlowSidebarLibraryEntry(
+        label: loc.offline_cache_cached_songs_title,
+        icon: AppIcons.offline,
+        onTap: () => unawaited(open(const OfflineCachedSongsPage())),
       ),
     ];
   }
