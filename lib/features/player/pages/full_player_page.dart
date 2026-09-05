@@ -1438,7 +1438,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
       builder: (dialogContext) => SleepTimerSheet(
         hasExisting: timerSet,
         finishSongInitial:
-            sleep != null && ref.read(sleepTimerProvider.notifier).finishSong,
+            sleep == null || ref.read(sleepTimerProvider.notifier).finishSong,
         // 已有定时时把当前实际剩余分钟(向上取整,至少 1 分钟)回显到自定义步进器。
         initialMinutes: sleep != null ? sleep.inMinutes.clamp(1, 180) : 0,
       ),
@@ -1613,7 +1613,7 @@ class SleepTimerSheet extends StatefulWidget {
   const SleepTimerSheet({
     super.key,
     required this.hasExisting,
-    this.finishSongInitial = false,
+    this.finishSongInitial = true,
     this.initialMinutes = 0,
   });
 
