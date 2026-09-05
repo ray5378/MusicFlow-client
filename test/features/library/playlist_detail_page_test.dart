@@ -13,6 +13,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/repositories/library_repository.dart';
 import 'package:musicflow_client/data/repositories/playlist_repository.dart';
 import 'package:musicflow_client/features/library/pages/playlist_detail_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
 import 'package:musicflow_client/providers/player_provider.dart';
@@ -168,6 +169,9 @@ Future<void> _pumpPage(
         ).overrideWith((ref) async => ref.watch(_playlistSnapshotProvider)),
       ],
       child: MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
         navigatorKey: rootNavigatorKey,
         theme: AppTheme.light(),
@@ -185,7 +189,7 @@ Future<void> _pumpPage(
 }
 
 Future<void> _confirmRemoval(WidgetTester tester) async {
-  await tester.tap(find.bySemanticsLabel('移除选中歌曲'));
+  await tester.tap(find.bySemanticsLabel('移除所选歌曲'));
   await tester.pumpAndSettle();
 
   expect(find.text('移除歌曲'), findsOneWidget);
@@ -204,21 +208,21 @@ void main() {
       await tester.longPress(_playlistRow(0));
       await tester.pumpAndSettle();
 
-      expect(find.text('已选 1 首'), findsOneWidget);
+      expect(find.text('已选择 1 项'), findsOneWidget);
       _expectSongSelected(tester, _songs[0].title, selected: true);
       _expectSongSelected(tester, _songs[2].title, selected: false);
 
       await tester.tap(_playlistRow(2));
       await tester.pumpAndSettle();
 
-      expect(find.text('已选 2 首'), findsOneWidget);
+      expect(find.text('已选择 2 项'), findsOneWidget);
       _expectSongSelected(tester, _songs[0].title, selected: true);
       _expectSongSelected(tester, _songs[2].title, selected: true);
 
       await tester.tap(_playlistRow(0));
       await tester.pumpAndSettle();
 
-      expect(find.text('已选 1 首'), findsOneWidget);
+      expect(find.text('已选择 1 项'), findsOneWidget);
       _expectSongSelected(tester, _songs[0].title, selected: false);
       _expectSongSelected(tester, _songs[2].title, selected: true);
       expect(repository.removalCalls, isEmpty);
@@ -256,13 +260,13 @@ void main() {
 
     await tester.longPress(_playlistRow(0));
     await tester.pumpAndSettle();
-    expect(find.text('已选 1 首'), findsOneWidget);
+    expect(find.text('已选择 1 项'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     expect(find.byType(PlaylistDetailPage), findsOneWidget);
-    expect(find.text('已选 1 首'), findsNothing);
+    expect(find.text('已选择 1 项'), findsNothing);
     expect(find.bySemanticsLabel('管理歌单歌曲'), findsOneWidget);
     expect(repository.removalCalls, isEmpty);
     expect(tester.takeException(), isNull);
@@ -281,11 +285,11 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('管理歌单歌曲'));
     await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsLabel('全选歌曲'));
+    await tester.tap(find.bySemanticsLabel('全选'));
     await tester.pumpAndSettle();
 
-    expect(find.text('已选 4 首'), findsOneWidget);
-    final removeButton = find.bySemanticsLabel('移除选中歌曲');
+    expect(find.text('已选择 4 项'), findsOneWidget);
+    final removeButton = find.bySemanticsLabel('移除所选歌曲');
     expect(removeButton, findsOneWidget);
     expect(tester.getSize(removeButton).height, greaterThanOrEqualTo(48));
     expect(tester.takeException(), isNull);
@@ -299,7 +303,7 @@ void main() {
 
     await tester.longPress(_playlistRow(0));
     await tester.pumpAndSettle();
-    expect(find.text('已选 1 首'), findsOneWidget);
+    expect(find.text('已选择 1 项'), findsOneWidget);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(PlaylistDetailPage)),
@@ -314,8 +318,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('已选'), findsNothing);
-    expect(find.text('歌单内容已更新，请重新选择'), findsOneWidget);
+    expect(find.textContaining('已选择'), findsNothing);
+    expect(find.text('歌单内容已变化，请重新选择'), findsOneWidget);
     expect(find.bySemanticsLabel('管理歌单歌曲'), findsOneWidget);
     expect(repository.removalCalls, isEmpty);
     expect(tester.takeException(), isNull);
@@ -329,13 +333,13 @@ void main() {
 
     await tester.longPress(_playlistRow(0));
     await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsLabel('全选歌曲'));
+    await tester.tap(find.bySemanticsLabel('全选'));
     await tester.pumpAndSettle();
 
-    expect(find.text('已选 4 首'), findsOneWidget);
-    expect(find.bySemanticsLabel('取消全选歌曲'), findsOneWidget);
+    expect(find.text('已选择 4 项'), findsOneWidget);
+    expect(find.bySemanticsLabel('取消全选'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('移除选中歌曲'));
+    await tester.tap(find.bySemanticsLabel('移除所选歌曲'));
     await tester.pumpAndSettle();
 
     expect(repository.removalCalls, isEmpty);
@@ -348,7 +352,7 @@ void main() {
     expect(repository.removalCalls, hasLength(1));
     expect(repository.removalCalls.single.playlistId, _playlistId);
     expect(repository.removalCalls.single.indexes, <int>[3, 2, 1, 0]);
-    expect(find.textContaining('已选'), findsNothing);
+    expect(find.textContaining('已选择'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -358,9 +362,9 @@ void main() {
       final repository = _RecordingPlaylistRepository();
       await _pumpPage(tester, playlistRepository: repository);
 
-      await tester.tap(find.bySemanticsLabel('歌曲排序：默认顺序'));
+      await tester.tap(find.bySemanticsLabel('排序：默认排序'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('字母 A-Z'));
+      await tester.tap(find.text('按标题（升序）'));
       await tester.pumpAndSettle();
 
       expect(
@@ -373,7 +377,7 @@ void main() {
       await tester.tap(_playlistRow(0));
       await tester.pumpAndSettle();
 
-      expect(find.text('已选 2 首'), findsOneWidget);
+      expect(find.text('已选择 2 项'), findsOneWidget);
       await _confirmRemoval(tester);
 
       expect(repository.removalCalls, hasLength(1));
@@ -399,8 +403,8 @@ void main() {
 
     expect(repository.removalCalls, hasLength(1));
     expect(repository.removalCalls.single.indexes, <int>[2, 0]);
-    expect(find.text('网络异常，移除失败'), findsOneWidget);
-    expect(find.text('已选 2 首'), findsOneWidget);
+    expect(find.text('移除失败，请检查网络。'), findsOneWidget);
+    expect(find.text('已选择 2 项'), findsOneWidget);
     _expectSongSelected(tester, _songs[0].title, selected: true);
     _expectSongSelected(tester, _songs[2].title, selected: true);
     expect(tester.takeException(), isNull);

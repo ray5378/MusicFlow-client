@@ -501,6 +501,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         ref,
         all,
         startIndex: 0,
+        shuffleRandomStart: true,
         origin: QueueOrigin(QueueOriginKind.playlist, widget.playlistId),
       );
     } catch (_) {

@@ -68,6 +68,17 @@ Future<void> toggleEffectivePlayback(WidgetRef ref) async {
   await ref.read(castPeerControllerProvider.notifier).toggle();
 }
 
+/// 暂停（定时停止等场景的显式暂停）:链路 B 直投→指挥 DLNA 设备暂停;
+/// 链路 A 投屏→后端暂停;本机→本地暂停。cast_peer.pause() 内部无 activePeer
+/// 时会自动回退到本机暂停,因此这里统一经由它即可。
+Future<void> pauseEffectivePlayback(WidgetRef ref) async {
+  if (ref.read(_dlnaCastingProvider)) {
+    await ref.read(dlnaCastProvider.notifier).pause();
+    return;
+  }
+  await ref.read(castPeerControllerProvider.notifier).pause();
+}
+
 /// 跳转进度。
 Future<void> seekEffectivePlayback(WidgetRef ref, Duration position) async {
   if (ref.read(_dlnaCastingProvider)) {
@@ -107,6 +118,7 @@ Future<bool> playEffectiveQueue(
   WidgetRef ref,
   List<Song> songs, {
   int startIndex = 0,
+  bool shuffleRandomStart = false,
   QueueOrigin? origin,
 }) async {
   // 每次发起播放都覆盖来源标记：null → other（首页随机/搜索等无来源场景）。
@@ -126,7 +138,11 @@ Future<bool> playEffectiveQueue(
   }
   await ref
       .read(playerProvider.notifier)
-      .playQueue(songs, startIndex: startIndex);
+      .playQueue(
+        songs,
+        startIndex: startIndex,
+        shuffleRandomStart: shuffleRandomStart,
+      );
   return true;
 }
 

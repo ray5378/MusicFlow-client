@@ -473,6 +473,7 @@ Future<void> playLocalPlaylistById(WidgetRef ref, String playlistId) async {
       ref,
       songs,
       startIndex: 0,
+      shuffleRandomStart: true,
       origin: QueueOrigin(QueueOriginKind.playlist, playlistId),
     );
   } catch (_) {

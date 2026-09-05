@@ -1647,11 +1647,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// 播放队列
-  Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
+  ///
+  /// [shuffleRandomStart] 为 true 且当前处于随机模式时，随机挑选一首作为
+  /// 「洗牌后的列表」第一首，而不是固定从队列原顺序第 0 首开始。仅用于
+  /// 「播放整个歌单/列表」的从头播放语义；显式点了某首（调用方传入具体
+  /// index 而非该标记）则保持「点哪首播哪首」。
+  Future<void> playQueue(
+    List<Song> songs, {
+    int startIndex = 0,
+    bool shuffleRandomStart = false,
+  }) async {
     if (songs.isEmpty) return;
-    await playSong(songs[startIndex], queue: songs, index: startIndex);
+    var effectiveIndex = startIndex;
+    if (shuffleRandomStart && state.shuffleEnabled && songs.length > 1) {
+      // 打乱后的列表第一首 = 从全部曲目中随机挑一个索引，语义与主项目
+      // shuffle 模式的随机起点一致；同曲不因随机起点而跳过。
+      effectiveIndex = _random.nextInt(songs.length);
+    }
+    effectiveIndex = effectiveIndex.clamp(0, songs.length - 1);
+    await playSong(
+      songs[effectiveIndex],
+      queue: songs,
+      index: effectiveIndex,
+    );
   }
-
   /// 播放试听歌曲。
   Future<void> playPreviewSong(Song song) async {
     await playSong(song);

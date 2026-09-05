@@ -364,7 +364,11 @@ class _RecordingPlayerNotifier extends TestPlayerNotifier {
   final List<int> startIndices = <int>[];
 
   @override
-  Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
+  Future<void> playQueue(
+    List<Song> songs, {
+    bool shuffleRandomStart = false,
+    int startIndex = 0,
+  }) async {
     queues.add(List<Song>.of(songs));
     startIndices.add(startIndex);
   }

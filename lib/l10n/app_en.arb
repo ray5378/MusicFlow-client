@@ -2057,6 +2057,24 @@
       }
     }
   },
+  "player_sleep_timer": "Sleep timer",
+  "player_sleep_timer_dialog_title": "Sleep timer",
+  "player_sleep_timer_off": "Turn off timer",
+  "player_sleep_timer_minutes": "{count} min",
+  "player_sleep_timer_hours": "{count} hr",
+  "@player_sleep_timer_minutes": {
+    "description": "player_sleep_timer_minutes",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "@player_sleep_timer_hours": {
+    "description": "player_sleep_timer_hours",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "player_sleep_timer_custom": "Custom",
+  "player_sleep_timer_minutes_unit": "min",
+  "player_sleep_timer_finish_song_title": "Play current song to completion before stopping",
+  "player_sleep_timer_finish_song_desc": "When the timer ends, wait for the current song to finish before stopping",
+  "player_sleep_timer_start": "Start timer",
   "player_casting_to": "Streaming to “{name}”",
   "@player_casting_to": {
     "description": "player_casting_to",

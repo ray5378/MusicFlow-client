@@ -3744,6 +3744,66 @@ abstract class AppLocalizations {
   /// **'切换播放器，当前：{name}'**
   String player_switch_current(String name);
 
+  /// No description provided for @player_sleep_timer.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时暂停'**
+  String get player_sleep_timer;
+
+  /// No description provided for @player_sleep_timer_dialog_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时暂停'**
+  String get player_sleep_timer_dialog_title;
+
+  /// No description provided for @player_sleep_timer_off.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭定时'**
+  String get player_sleep_timer_off;
+
+  /// player_sleep_timer_minutes
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 分钟'**
+  String player_sleep_timer_minutes(int count);
+
+  /// player_sleep_timer_hours
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 小时'**
+  String player_sleep_timer_hours(int count);
+
+  /// No description provided for @player_sleep_timer_custom.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义'**
+  String get player_sleep_timer_custom;
+
+  /// No description provided for @player_sleep_timer_minutes_unit.
+  ///
+  /// In zh, this message translates to:
+  /// **'分钟'**
+  String get player_sleep_timer_minutes_unit;
+
+  /// No description provided for @player_sleep_timer_finish_song_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'播完整首歌曲再关闭'**
+  String get player_sleep_timer_finish_song_title;
+
+  /// No description provided for @player_sleep_timer_finish_song_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'计时结束后，会等当前歌曲播完再停止'**
+  String get player_sleep_timer_finish_song_desc;
+
+  /// No description provided for @player_sleep_timer_start.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始定时'**
+  String get player_sleep_timer_start;
+
   /// player_casting_to
   ///
   /// In zh, this message translates to:

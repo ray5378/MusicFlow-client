@@ -2033,6 +2033,40 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get player_sleep_timer => '定时暂停';
+
+  @override
+  String get player_sleep_timer_dialog_title => '定时暂停';
+
+  @override
+  String get player_sleep_timer_off => '关闭定时';
+
+  @override
+  String player_sleep_timer_minutes(int count) {
+    return '$count 分钟';
+  }
+
+  @override
+  String player_sleep_timer_hours(int count) {
+    return '$count 小时';
+  }
+
+  @override
+  String get player_sleep_timer_custom => '自定义';
+
+  @override
+  String get player_sleep_timer_minutes_unit => '分钟';
+
+  @override
+  String get player_sleep_timer_finish_song_title => '播完整首歌曲再关闭';
+
+  @override
+  String get player_sleep_timer_finish_song_desc => '计时结束后，会等当前歌曲播完再停止';
+
+  @override
+  String get player_sleep_timer_start => '开始定时';
+
+  @override
   String player_casting_to(String name) {
     return '正在投屏到「$name」';
   }

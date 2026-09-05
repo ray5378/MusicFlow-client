@@ -2057,6 +2057,24 @@
       }
     }
   },
+  "player_sleep_timer": "定时暂停",
+  "player_sleep_timer_dialog_title": "定时暂停",
+  "player_sleep_timer_off": "关闭定时",
+  "player_sleep_timer_minutes": "{count} 分钟",
+  "player_sleep_timer_hours": "{count} 小时",
+  "@player_sleep_timer_minutes": {
+    "description": "player_sleep_timer_minutes",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "@player_sleep_timer_hours": {
+    "description": "player_sleep_timer_hours",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "player_sleep_timer_custom": "自定义",
+  "player_sleep_timer_minutes_unit": "分钟",
+  "player_sleep_timer_finish_song_title": "播完整首歌曲再关闭",
+  "player_sleep_timer_finish_song_desc": "计时结束后，会等当前歌曲播完再停止",
+  "player_sleep_timer_start": "开始定时",
   "player_casting_to": "正在投屏到「{name}」",
   "@player_casting_to": {
     "description": "player_casting_to",

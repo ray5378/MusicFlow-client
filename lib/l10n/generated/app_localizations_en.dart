@@ -2152,6 +2152,42 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get player_sleep_timer => 'Sleep timer';
+
+  @override
+  String get player_sleep_timer_dialog_title => 'Sleep timer';
+
+  @override
+  String get player_sleep_timer_off => 'Turn off timer';
+
+  @override
+  String player_sleep_timer_minutes(int count) {
+    return '$count min';
+  }
+
+  @override
+  String player_sleep_timer_hours(int count) {
+    return '$count hr';
+  }
+
+  @override
+  String get player_sleep_timer_custom => 'Custom';
+
+  @override
+  String get player_sleep_timer_minutes_unit => 'min';
+
+  @override
+  String get player_sleep_timer_finish_song_title =>
+      'Play current song to completion before stopping';
+
+  @override
+  String get player_sleep_timer_finish_song_desc =>
+      'When the timer ends, wait for the current song to finish before stopping';
+
+  @override
+  String get player_sleep_timer_start => 'Start timer';
+
+  @override
   String player_casting_to(String name) {
     return 'Streaming to “$name”';
   }

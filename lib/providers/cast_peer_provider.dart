@@ -365,6 +365,60 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     unawaited(pollOnce());
   }
 
+  /// 暂停（定时停止等场景显式暂停；投屏时下发远端 pause，本机走本地暂停）。
+  Future<void> pause() async {
+    if (state.activePeer == null) {
+      await _ref.read(playerProvider.notifier).pause();
+      return;
+    }
+    if (!state.status.playing) return;
+    await _post('pause');
+    state = state.copyWith(
+      status: state.status.copyWith(
+        state: 'PAUSED_PLAYBACK',
+        active: true,
+      ),
+    );
+    unawaited(pollOnce());
+  }
+
+  /// 服务器端定时暂停(链路 A 投屏/群组):由**服务器自己倒计时**并在到点暂停,
+  /// App 关闭/掉线后定时依然生效。传 null / 时长 <= 0 取消当前定时。
+  Future<void> setSleepTimer(Duration? duration, {bool finishSong = false}) async {
+    final peerId = state.activePeer?.peerId;
+    final client = _ref.read(subsonicApiClientProvider);
+    if (peerId == null) return;
+    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
+    if (duration == null || duration <= Duration.zero) {
+      try {
+        await client.deleteRaw('$base/sleep-timer').timeout(const Duration(seconds: 8));
+      } catch (_) {}
+      return;
+    }
+    // 后端不可达时暴露给调用方,避免'静默不生效'。
+    await client.postRaw(
+      '$base/sleep-timer',
+      data: <String, dynamic>{
+        'durationSeconds': duration.inSeconds,
+        'finishSong': finishSong,
+      },
+    ).timeout(const Duration(seconds: 8));
+  }
+
+  /// 查询服务器端定时剩余;未设置时返回 null。
+  Future<Duration?> getSleepTimerRemaining() async {
+    final peerId = state.activePeer?.peerId;
+    final client = _ref.read(subsonicApiClientProvider);
+    if (peerId == null) return null;
+    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
+    try {
+      final data = await client.getRaw('$base/sleep-timer').timeout(const Duration(seconds: 8)) as Map<String, dynamic>;
+      final ms = data['remainingMs'];
+      if (data['active'] == true && ms is num) return Duration(milliseconds: ms.round());
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> next() async {
     if (state.activePeer == null) {
       await _ref.read(playerProvider.notifier).next();

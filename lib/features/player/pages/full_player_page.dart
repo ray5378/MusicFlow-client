@@ -14,6 +14,7 @@ import '../../../providers/frozen_playback_provider.dart';
 import '../../../providers/lyrics_cover_provider.dart';
 import '../../../providers/palette_provider.dart';
 import '../../../providers/player_provider.dart';
+import '../../../providers/sleep_timer_provider.dart';
 import '../widgets/mini_player.dart' show PlayerSwitcherSheet, VolumeButton;
 import '../widgets/local_dlna_cast_sheet.dart';
 import '../widgets/play_queue_sheet.dart';
@@ -1376,6 +1377,8 @@ class _PlayerUtilityBar extends ConsumerWidget {
     final cast = ref.watch(castPeerControllerProvider);
     // 链路 B（局域网 DLNA 直投）投屏态，独立于链路 A 的 cast。
     final dlnaCast = ref.watch(dlnaCastProvider);
+    final sleepRemaining = ref.watch(sleepTimerProvider);
+    final sleepActive = sleepRemaining != null;
 
     return Center(
       child: ConstrainedBox(
@@ -1403,6 +1406,15 @@ class _PlayerUtilityBar extends ConsumerWidget {
             ),
             // 音量：弹出式音量调节弹窗，与「喜欢」「切换播放器」并排。
             const VolumeButton(),
+            // 定时暂停:预设倒计时弹窗,到点后自动暂停(停止)播放。
+            _PlayerIconButton(
+              icon: AppIcons.timer,
+              label: sleepActive
+                  ? _formatSleepRemaining(sleepRemaining, loc)
+                  : loc.player_sleep_timer,
+              selected: sleepActive,
+              onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
+            ),
             // 「切换播放器」：使用 base_station(信号) 图标，与选择播放器弹窗中
             // DLNA 设备行(信号/三角) 保持一致；置于最右，与最左的 DLNA 直投拉开距离。
             _PlayerIconButton(
@@ -1415,6 +1427,44 @@ class _PlayerUtilityBar extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openSleepTimerSheet(BuildContext context, WidgetRef ref) async {
+    final sleep = ref.read(sleepTimerProvider);
+    final timerSet = sleep != null;
+    // 结果：null=取消；_SleepTimerOffSentinel=关闭已有定时；_SleepTimerStartChoice=开始定时。
+    final selected = await showDialog<Object?>(
+      context: context,
+      builder: (dialogContext) => SleepTimerSheet(
+        hasExisting: timerSet,
+        finishSongInitial:
+            sleep != null && ref.read(sleepTimerProvider.notifier).finishSong,
+      ),
+    );
+    if (!context.mounted) return;
+    if (selected is _SleepTimerStartChoice) {
+      if (selected.finishSong) {
+        await ref
+            .read(sleepTimerProvider.notifier)
+            .start(selected.duration, finishSong: true);
+      } else {
+        await ref.read(sleepTimerProvider.notifier).start(selected.duration);
+      }
+    } else if (selected is _SleepTimerOffSentinel) {
+      await ref.read(sleepTimerProvider.notifier).cancel();
+    }
+  }
+
+  static String _formatSleepRemaining(Duration? remaining, AppLocalizations loc) {
+    if (remaining == null) return '';
+    final minutes = remaining.inMinutes.ceil();
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    if (hours > 0) {
+      if (mins == 0) return loc.player_sleep_timer_hours(hours);
+      return '${loc.player_sleep_timer_hours(hours)} ${loc.player_sleep_timer_minutes(mins)}';
+    }
+    return loc.player_sleep_timer_minutes(mins);
   }
 
   Future<void> _openPlayerSwitcher(BuildContext context, WidgetRef ref) async {
@@ -1537,6 +1587,183 @@ class _PlayerIconButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+class _SleepTimerOffSentinel {
+  const _SleepTimerOffSentinel();
+}
+
+/// 用户选定的定时结果：时长 + 是否「播完当前曲再关闭」。
+class _SleepTimerStartChoice {
+  const _SleepTimerStartChoice({required this.duration, required this.finishSong});
+
+  final Duration duration;
+  final bool finishSong;
+}
+
+/// 「定时停止播放」设置弹窗（图样式）：7 档预设 + 自定义分钟步进器
+/// + 「播完整首歌曲再关闭」开关。通过 Navigator.pop 返回
+/// `_SleepTimerStartChoice` / `_SleepTimerOffSentinel` / null。
+class SleepTimerSheet extends StatefulWidget {
+  const SleepTimerSheet({super.key, required this.hasExisting, this.finishSongInitial = false});
+
+  final bool hasExisting;
+  final bool finishSongInitial;
+
+  @override
+  State<SleepTimerSheet> createState() => _SleepTimerSheetState();
+}
+
+class _SleepTimerSheetState extends State<SleepTimerSheet> {
+  static const _presets = <int>[5, 10, 20, 30, 40, 50, 60];
+  static const _maxMinutes = 180;
+  int _customMinutes = 0;
+  late bool _finishSong = widget.finishSongInitial;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return AlertDialog(
+      title: Text(loc.player_sleep_timer_dialog_title),
+      titleTextStyle: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+      contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          // 预设档位：5/10/20/30/40/50/60 分钟，点一下即开始。
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _presets.map((mn) => _PresetChip(
+              label: loc.player_sleep_timer_minutes(mn),
+              onTap: () => Navigator.of(context).pop(_SleepTimerStartChoice(
+                duration: Duration(minutes: mn),
+                finishSong: _finishSong,
+              )),
+            )).toList(),
+          ),
+          const SizedBox(height: 16),
+          // 自定义分钟步进器（0 起，+/-，分钟单位）。
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              _StepperButton(
+                icon: Icons.remove,
+                onTap: () => setState(() {
+                  if (_customMinutes > 0) _customMinutes--;
+                }),
+              ),
+              const SizedBox(width: 20),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    '$_customMinutes',
+                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    loc.player_sleep_timer_minutes_unit,
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 20),
+              _StepperButton(
+                icon: Icons.add,
+                onTap: () => setState(() {
+                  if (_customMinutes < _maxMinutes) _customMinutes++;
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 「播完整首歌曲再关闭」开关。
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: _finishSong,
+            onChanged: (v) => setState(() => _finishSong = v),
+            title: Text(loc.player_sleep_timer_finish_song_title),
+            subtitle: Text(
+              loc.player_sleep_timer_finish_song_desc,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        if (widget.hasExisting)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(const _SleepTimerOffSentinel()),
+            child: Text(loc.player_sleep_timer_off),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(loc.settings_cancel),
+        ),
+        FilledButton(
+          onPressed: _customMinutes > 0
+              ? () => Navigator.of(context).pop(_SleepTimerStartChoice(
+                    duration: Duration(minutes: _customMinutes),
+                    finishSong: _finishSong,
+                  ))
+              : null,
+          child: Text(loc.player_sleep_timer_start),
+        ),
+      ],
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  const _StepperButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return IconButton.filledTonal(
+      onPressed: onTap,
+      icon: Icon(icon),
+      style: IconButton.styleFrom(foregroundColor: accent),
     );
   }
 }
