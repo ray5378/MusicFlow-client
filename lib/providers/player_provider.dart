@@ -25,6 +25,7 @@ import 'api_provider.dart';
 import 'audio_quality_provider.dart';
 import 'crossfade_provider.dart';
 import 'gd_music_provider.dart';
+import 'sleep_timer_provider.dart';
 
 export 'player/player_state.dart';
 export 'player/favorite_scrobble_handler.dart';
@@ -3002,6 +3003,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 歌曲播放完成
   Future<void> _onSongCompleted(String completedSongId) async {
     if (state.currentSong?.id != completedSongId) return;
+
+    // 定时停止「播完整首再关闭」本机链路：到点后等当前曲播完，曲毕即在此
+    // 暂停并结束定时，不再自动切到下一首（避免与定时暂停冲突）。
+    final sleepNotifier = _ref.read(sleepTimerProvider.notifier);
+    if (sleepNotifier.finishingCurrentTrack) {
+      unawaited(sleepNotifier.finishAtTrackEndNow());
+      return;
+    }
 
     // 不阻塞切歌流程，避免完成态停留过久导致竞态。
     if (state.currentSong?.isPreview != true) {

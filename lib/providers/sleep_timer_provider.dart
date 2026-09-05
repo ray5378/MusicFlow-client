@@ -86,6 +86,10 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
           // 进入等当前曲播完阶段（记录当前曲目索引，待其推进或停止）。
           _finishingEnd = true;
           _endBaseIndex = _currentTargetIndex();
+          if (_ref.read(dlnaCastProvider).isCasting) {
+            // 链路 B：给 DLNA 管理器设「曲毕暂停」意图，使曲毕续播处改暂停而非切下一首。
+            _ref.read(dlnaManagerProvider).pendingPauseAtTrackEnd = true;
+          }
           state = Duration.zero;
         } else {
           _cancelTimer();
@@ -98,6 +102,15 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
         state = left;
       }
     });
+  }
+
+  /// 目标曲目恰好播完的时刻（player/DLNA 曲毕处）被调用：立即暂停并结束定时，
+  /// 不自动切到下一首。仅在本机/链路 B 的「等当前曲播完」阶段有效。
+  Future<void> finishAtTrackEndNow() async {
+    if (!_finishingEnd) return;
+    _cancelTimer();
+    state = null;
+    await _pauseLocal();
   }
 
   /// 取消已设置/已下发的定时。链路 A 同时取消服务器侧定时。
@@ -162,5 +175,9 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
     _finishingEnd = false;
     _endBaseIndex = -1;
     state = null;
+    // 兜底清掉 DLNA 曲毕暂停意图（正常触发后已复位,幂等）。
+    if (_ref.read(dlnaCastProvider).isCasting) {
+      _ref.read(dlnaManagerProvider).pendingPauseAtTrackEnd = false;
+    }
   }
 }
