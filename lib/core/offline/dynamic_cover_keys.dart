@@ -11,10 +11,10 @@ class DynamicCoverKeys {
 
   /// 已知动态歌单名称关键字（对齐主项目推荐插件命名）。
   static const List<String> _keywords = [
-    '今日漫游',
-    '每日推荐',
-    '本地推荐',
-    '随机歌曲',
+    '\u4eca\u65e5\u6f2b\u6e38',
+    '\u6bcf\u65e5\u63a8\u8350',
+    '\u672c\u5730\u63a8\u8350',
+    '\u968f\u673a\u6b4c\u66f2',
     'daily recommend',
     'today roam',
     'local recommend',
