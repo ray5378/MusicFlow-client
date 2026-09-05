@@ -1439,6 +1439,8 @@ class _PlayerUtilityBar extends ConsumerWidget {
         hasExisting: timerSet,
         finishSongInitial:
             sleep != null && ref.read(sleepTimerProvider.notifier).finishSong,
+        // 已有定时时把当前实际剩余分钟(向上取整,至少 1 分钟)回显到自定义步进器。
+        initialMinutes: sleep != null ? sleep.inMinutes.clamp(1, 180) : 0,
       ),
     );
     if (!context.mounted) return;
@@ -1608,10 +1610,18 @@ class _SleepTimerStartChoice {
 /// + 「播完整首歌曲再关闭」开关。通过 Navigator.pop 返回
 /// `_SleepTimerStartChoice` / `_SleepTimerOffSentinel` / null。
 class SleepTimerSheet extends StatefulWidget {
-  const SleepTimerSheet({super.key, required this.hasExisting, this.finishSongInitial = false});
+  const SleepTimerSheet({
+    super.key,
+    required this.hasExisting,
+    this.finishSongInitial = false,
+    this.initialMinutes = 0,
+  });
 
   final bool hasExisting;
   final bool finishSongInitial;
+
+  /// 已有定时时回显的实际剩余分钟数（widget 打开前由调用方从 provider 读取）。
+  final int initialMinutes;
 
   @override
   State<SleepTimerSheet> createState() => _SleepTimerSheetState();
@@ -1620,8 +1630,24 @@ class SleepTimerSheet extends StatefulWidget {
 class _SleepTimerSheetState extends State<SleepTimerSheet> {
   static const _presets = <int>[5, 10, 20, 30, 40, 50, 60];
   static const _maxMinutes = 180;
-  int _customMinutes = 0;
+  late int _customMinutes = widget.initialMinutes;
+  late final TextEditingController _minutesController = TextEditingController(
+    text: widget.initialMinutes > 0 ? widget.initialMinutes.toString() : '',
+  );
   late bool _finishSong = widget.finishSongInitial;
+
+  @override
+  void dispose() {
+    _minutesController.dispose();
+    super.dispose();
+  }
+
+  /// 把内部分钟值写回输入框（+/- 按钮用），并重建。
+  void _applyMinutes(int next) {
+    _customMinutes = next;
+    _minutesController.text = next.toString();
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1655,30 +1681,45 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
             children: <Widget>[
               _StepperButton(
                 icon: Icons.remove,
-                onTap: () => setState(() {
-                  if (_customMinutes > 0) _customMinutes--;
-                }),
+                onTap: () {
+                  if (_customMinutes > 0) _applyMinutes(_customMinutes - 1);
+                },
               ),
-              const SizedBox(width: 20),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    '$_customMinutes',
-                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              const SizedBox(width: 14),
+              // 手输分钟数：数字键盘，与 +/- 步进器双向同步。
+              SizedBox(
+                width: 92,
+                child: TextField(
+                  controller: _minutesController,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(3),
+                  ],
+                  style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    counterText: '',
                   ),
-                  Text(
-                    loc.player_sleep_timer_minutes_unit,
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
+                  onChanged: (value) {
+                    final n = int.tryParse(value) ?? 0;
+                    _customMinutes = n.clamp(0, _maxMinutes);
+                  },
+                ),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 8),
+              Text(
+                loc.player_sleep_timer_minutes_unit,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(width: 14),
               _StepperButton(
                 icon: Icons.add,
-                onTap: () => setState(() {
-                  if (_customMinutes < _maxMinutes) _customMinutes++;
-                }),
+                onTap: () {
+                  if (_customMinutes < _maxMinutes) _applyMinutes(_customMinutes + 1);
+                },
               ),
             ],
           ),
