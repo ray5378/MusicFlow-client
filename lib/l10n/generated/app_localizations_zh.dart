@@ -165,6 +165,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get offline_cache_unit_gb => 'GB';
 
   @override
+  String get offline_cache_cached_songs_title => '已缓存音乐';
+
+  @override
+  String get offline_cache_cached_songs_empty =>
+      '还没有缓存的音乐。播放过的歌曲会自动缓存，断网时也能在此播放。';
+
+  @override
+  String offline_cache_song_subtitle(int count, String size) {
+    return '$count 首 · $size';
+  }
+
+  @override
+  String offline_cache_song_count(int count) {
+    return '共 $count 首';
+  }
+
+  @override
   String settings_audio_status_line(String label, String value) {
     return '$label，$value';
   }

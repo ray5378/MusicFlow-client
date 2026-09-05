@@ -410,6 +410,30 @@ abstract class AppLocalizations {
   /// **'GB'**
   String get offline_cache_unit_gb;
 
+  /// No description provided for @offline_cache_cached_songs_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'已缓存音乐'**
+  String get offline_cache_cached_songs_title;
+
+  /// No description provided for @offline_cache_cached_songs_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有缓存的音乐。播放过的歌曲会自动缓存，断网时也能在此播放。'**
+  String get offline_cache_cached_songs_empty;
+
+  /// No description provided for @offline_cache_song_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首 · {size}'**
+  String offline_cache_song_subtitle(int count, String size);
+
+  /// No description provided for @offline_cache_song_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 首'**
+  String offline_cache_song_count(int count);
+
   /// 音质页状态行（标签与值）的语义标签
   ///
   /// In zh, this message translates to:

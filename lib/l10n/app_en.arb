@@ -52,6 +52,21 @@
   "offline_cache_size_default": "Default",
   "offline_cache_unit_mb": "MB",
   "offline_cache_unit_gb": "GB",
+  "offline_cache_cached_songs_title": "Cached Songs",
+  "offline_cache_cached_songs_empty": "No cached songs yet. Songs you play are cached automatically and playable offline here.",
+  "offline_cache_song_subtitle": "{count} songs · {size}",
+  "@offline_cache_song_subtitle": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "size": {"type": "String"}
+    }
+  },
+  "offline_cache_song_count": "{count} songs",
+  "@offline_cache_song_count": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "settings_audio_status_line": "{label}: {value}",
   "@settings_audio_status_line": {
     "description": "Accessibility label for a status line (label and value) on the audio quality page",

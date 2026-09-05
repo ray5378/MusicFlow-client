@@ -37,6 +37,7 @@ import '../../library/pages/playlist_detail_page.dart';
 import '../../library/pages/playlist_search_page.dart';
 import '../../library/pages/song_list_page.dart';
 import '../../library/pages/starred_page.dart';
+ import '../../settings/pages/offline_cached_songs_page.dart';
 import '../../library/widgets/playlist_options_sheet.dart';
 import '../../player/widgets/song_options_sheet.dart';
 import '../../../widgets/windows_title_bar.dart'
@@ -579,6 +580,7 @@ class CategoryNavBar extends StatelessWidget {
         (loc.discover_category_songs, AppIcons.music, const SongListPage()),
         (loc.discover_category_artists, AppIcons.profile, const ArtistListPage()),
         (loc.discover_category_albums, AppIcons.album, const AlbumListPage()),
+        (loc.offline_cache_cached_songs_title, AppIcons.offline, const OfflineCachedSongsPage()),
       ];
 
   @override
@@ -1852,3 +1854,4 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
     );
   }
 }
+

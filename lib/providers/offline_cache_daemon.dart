@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -11,6 +12,7 @@ import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/audio_quality_provider.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
+import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/offline_provider.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -44,7 +46,7 @@ class OfflineCacheDaemon {
     _busy = true;
     try {
       await _cacheSongData(cache, song);
-      await _cacheNextPlayable(cache, queue, index + 1);
+      await _cacheNextPlayable(cache, queue, index + 1, withCompanions: true);
       await _cacheSongCover(cache, song);
     } catch (e) {
       Logger.warn('offline cache daemon error', e);
@@ -57,7 +59,7 @@ class OfflineCacheDaemon {
     if (cache.hasSong(song.id)) return;
     final tmp = await _downloadStreamBytes(song);
     if (tmp == null) return;
-    await cache.putSongFromFile(song.id, tmp);
+    await cache.putSongFromFile(song.id, tmp, meta: _metaOf(song));
     try {
       await tmp.delete();
     } catch (_) {}
@@ -66,8 +68,9 @@ class OfflineCacheDaemon {
   Future<void> _cacheNextPlayable(
     OfflineCacheManager cache,
     List<Song> queue,
-    int fromIndex,
-  ) async {
+    int fromIndex, {
+    bool withCompanions = false,
+  }) async {
     if (fromIndex >= queue.length) return;
     for (var i = fromIndex; i < queue.length; i++) {
       final next = queue[i];
@@ -75,11 +78,47 @@ class OfflineCacheDaemon {
       if (cache.hasSong(next.id)) continue;
       final tmp = await _downloadStreamBytes(next);
       if (tmp == null) continue;
-      await cache.putSongFromFile(next.id, tmp);
+      await cache.putSongFromFile(next.id, tmp, meta: _metaOf(next));
       try {
         await tmp.delete();
       } catch (_) {}
+      // 预缓存的下一首也一并缓存其封面 + 歌词，保证离线点播/封面/歌词齐全。
+      if (withCompanions) {
+        await _cacheSongCover(cache, next);
+        await _cacheSongLyrics(cache, next);
+      }
       return; // 只预缓存下一首
+    }
+  }
+
+  /// 缓存的歌曲附带展示元数据（供「已缓存音乐」页离线展示）。
+  static Map<String, dynamic> _metaOf(Song song) => {
+        'songId': song.id,
+        'title': song.title,
+        'artist': song.artist ?? '',
+        if (song.album != null) 'album': song.album,
+        if (song.duration != null) 'duration': song.duration,
+        if (song.coverArt != null) 'coverArt': song.coverArt,
+      };
+
+  /// 缓存某首歌曲的歌词（在线时）。用于预缓存下一首时随附。
+  Future<void> _cacheSongLyrics(OfflineCacheManager cache, Song song) async {
+    if (cache.lyricsCached(song.id)) return;
+    try {
+      final repo = _ref.read(lyricsRepositoryProvider);
+      final lyrics = await repo.getLyrics(
+        songId: song.id,
+        title: song.title,
+        artist: song.artist ?? '',
+        album: song.album,
+        duration:
+            song.duration != null ? Duration(seconds: song.duration!) : null,
+      );
+      if (lyrics != null && !lyrics.isEmpty) {
+        await cache.putLyrics(song.id, jsonEncode(lyrics.toJson()));
+      }
+    } catch (_) {
+      // 歌词拉取失败不阻塞预缓存。
     }
   }
 

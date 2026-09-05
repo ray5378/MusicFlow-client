@@ -52,6 +52,21 @@
   "offline_cache_size_default": "默认",
   "offline_cache_unit_mb": "MB",
   "offline_cache_unit_gb": "GB",
+  "offline_cache_cached_songs_title": "已缓存音乐",
+  "offline_cache_cached_songs_empty": "还没有缓存的音乐。播放过的歌曲会自动缓存，断网时也能在此播放。",
+  "offline_cache_song_subtitle": "{count} 首 · {size}",
+  "@offline_cache_song_subtitle": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "size": {"type": "String"}
+    }
+  },
+  "offline_cache_song_count": "共 {count} 首",
+  "@offline_cache_song_count": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "settings_audio_status_line": "{label}，{value}",
   "@settings_audio_status_line": {
     "description": "音质页状态行（标签与值）的语义标签",

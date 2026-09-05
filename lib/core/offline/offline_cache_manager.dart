@@ -8,6 +8,64 @@ import 'package:path_provider/path_provider.dart';
 /// 缓存条目类型。
 enum OfflineCacheKind { song, cover, lyric, playlistCover }
 
+/// 已缓存歌曲的展示元数据（「已缓存音乐」页使用）。
+class CachedSongInfo {
+  final String songId;
+  final String title;
+  final String artist;
+  final String? album;
+  final int? durationSeconds;
+  final String? coverArt;
+  final int size;
+
+  const CachedSongInfo({
+    required this.songId,
+    required this.title,
+    required this.artist,
+    this.album,
+    this.durationSeconds,
+    this.coverArt,
+    required this.size,
+  });
+
+  static const _kSong = 'songId';
+  static const _kTitle = 'title';
+  static const _kArtist = 'artist';
+  static const _kAlbum = 'album';
+  static const _kDuration = 'duration';
+  static const _kCover = 'coverArt';
+
+  Map<String, dynamic> toJson() => {
+        _kSong: songId,
+        _kTitle: title,
+        _kArtist: artist,
+        if (album != null) _kAlbum: album,
+        if (durationSeconds != null) _kDuration: durationSeconds,
+        if (coverArt != null) _kCover: coverArt,
+      };
+
+  factory CachedSongInfo.fromMeta(String songId, Map<String, dynamic> meta) =>
+      CachedSongInfo(
+        songId: songId,
+        title: meta[_kTitle] as String? ?? songId,
+        artist: meta[_kArtist] as String? ?? '',
+        album: meta[_kAlbum] as String?,
+        durationSeconds: meta[_kDuration] as int?,
+        coverArt: meta[_kCover] as String?,
+        size: 0, // 大小由条目读取时回填
+      );
+
+  CachedSongInfo copyWithSize(int size) => CachedSongInfo(
+        songId: songId,
+        title: title,
+        artist: artist,
+        album: album,
+        durationSeconds: durationSeconds,
+        coverArt: coverArt,
+        size: size,
+      );
+}
+
 /// 一条缓存索引记录。
 class _CacheEntry {
   final OfflineCacheKind kind;
@@ -16,6 +74,8 @@ class _CacheEntry {
   int lastAccessMs;
   /// 归属的歌曲 id 集合（仅 cover 使用）：歌曲被清时，仅归属它的封面一并删除。
   final List<String> owners;
+  /// 歌曲条目的展示元数据（仅 kind==song）。
+  Map<String, dynamic>? meta;
 
   _CacheEntry({
     required this.kind,
@@ -23,6 +83,7 @@ class _CacheEntry {
     required this.size,
     required this.lastAccessMs,
     List<String>? owners,
+    this.meta,
   }) : owners = owners ?? const [];
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +92,7 @@ class _CacheEntry {
         'size': size,
         'lastAccessMs': lastAccessMs,
         if (owners.isNotEmpty) 'owners': owners,
+        if (meta != null) 'meta': meta,
       };
 
   factory _CacheEntry.fromJson(Map<String, dynamic> json) => _CacheEntry(
@@ -40,6 +102,7 @@ class _CacheEntry {
         size: json['size'] as int? ?? 0,
         lastAccessMs: json['lastAccessMs'] as int? ?? 0,
         owners: (json['owners'] as List?)?.cast<String>() ?? const [],
+        meta: (json['meta'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
       );
 
   String get compositeKey => '${kind.name}:$key';
@@ -180,6 +243,7 @@ class OfflineCacheManager {
     String key,
     List<int> bytes, {
     List<String> owners = const [],
+    Map<String, dynamic>? meta,
   }) async {
     await _synchronized(() async {
       if (bytes.isEmpty) return;
@@ -195,6 +259,7 @@ class OfflineCacheManager {
         key: key,
         size: bytes.length,
         lastAccessMs: DateTime.now().millisecondsSinceEpoch,
+        meta: kind == OfflineCacheKind.song ? meta : null,
       );
       if (kind == OfflineCacheKind.cover && owners.isNotEmpty) {
         entry.owners.addAll(owners.where((o) => o.isNotEmpty).toSet());
@@ -207,9 +272,10 @@ class OfflineCacheManager {
   }
 
   // ---- 歌曲 ----
-  Future<void> putSong(String songId, List<int> bytes) {
+  Future<void> putSong(String songId, List<int> bytes,
+      {Map<String, dynamic>? meta}) {
     if (songId.isEmpty) return Future.value();
-    return _writeBytes(OfflineCacheKind.song, songId, bytes);
+    return _writeBytes(OfflineCacheKind.song, songId, bytes, meta: meta);
   }
 
   bool hasSong(String songId) {
@@ -217,10 +283,11 @@ class OfflineCacheManager {
   }
 
   /// 直接把磁盘源文件拷入缓存（流式落盘，避免大文件整体进内存）。
-  Future<void> putSongFromFile(String songId, File src) {
+  Future<void> putSongFromFile(String songId, File src,
+      {Map<String, dynamic>? meta}) {
     if (songId.isEmpty) return Future.value();
     return _synchronized(() async {
-      if (!await src.exists()) return;
+      if (!src.existsSync()) return;
       final length = await src.length();
       if (length <= 0) return;
       final composite = '${OfflineCacheKind.song.name}:$songId';
@@ -233,11 +300,33 @@ class OfflineCacheManager {
         key: songId,
         size: length,
         lastAccessMs: DateTime.now().millisecondsSinceEpoch,
+        meta: meta,
       );
       _totalBytes += length;
       await _evictToFit();
       _scheduleIndexFlush();
     });
+  }
+
+  /// 已缓存歌曲列表（展示元数据），按缓存时间新→旧。「已缓存音乐」页数据源。
+  List<CachedSongInfo> get cachedSongs {
+    final list = _entries.values
+        .where((e) => e.kind == OfflineCacheKind.song)
+        .toList()
+      ..sort((a, b) => b.lastAccessMs.compareTo(a.lastAccessMs));
+    return [
+      for (final e in list)
+        CachedSongInfo.fromMeta(e.key, e.meta ?? const {})
+            .copyWithSize(e.size),
+    ];
+  }
+
+  /// 单条歌曲展示元数据；未缓存返回 null。
+  CachedSongInfo? cachedSong(String songId) {
+    final e = _entries['${OfflineCacheKind.song.name}:$songId'];
+    if (e == null) return null;
+    _touchEntry(e);
+    return CachedSongInfo.fromMeta(e.key, e.meta ?? const {}).copyWithSize(e.size);
   }
 
   File? songFile(String songId) {
@@ -260,6 +349,10 @@ class OfflineCacheManager {
     final file = _fileFor(e.kind, e.key);
     if (!await file.exists()) return null;
     return utf8.decode(await file.readAsBytes());
+  }
+
+  bool lyricsCached(String songId) {
+    return _entries.containsKey('${OfflineCacheKind.lyric.name}:$songId');
   }
 
   // ---- 封面（可带归属 songId 集合） ----

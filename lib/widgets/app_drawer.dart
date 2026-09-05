@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
@@ -9,6 +9,7 @@ import 'package:musicflow_client/features/library/pages/playlist_search_page.dar
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
 import 'package:musicflow_client/features/library/pages/starred_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
+import 'package:musicflow_client/features/settings/pages/offline_cached_songs_page.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api_provider.dart';
 import 'package:musicflow_client/providers/library_provider.dart';
@@ -185,6 +186,13 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
             _closeDrawerAndPushPage((context) => const StarredPage()),
       ),
       _DrawerNavigationEntry(
+        title: loc.offline_cache_cached_songs_title,
+        icon: AppIcons.offline,
+        onPressed: () => _closeDrawerAndPushPage(
+          (context) => const OfflineCachedSongsPage(),
+        ),
+      ),
+      _DrawerNavigationEntry(
         icon: AppIcons.settings,
         title: loc.widgets_settings,
         onPressed: () =>
@@ -350,3 +358,4 @@ class _DrawerSkeletonList extends StatelessWidget {
     );
   }
 }
+

@@ -181,6 +181,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get offline_cache_unit_gb => 'GB';
 
   @override
+  String get offline_cache_cached_songs_title => 'Cached Songs';
+
+  @override
+  String get offline_cache_cached_songs_empty =>
+      'No cached songs yet. Songs you play are cached automatically and playable offline here.';
+
+  @override
+  String offline_cache_song_subtitle(int count, String size) {
+    return '$count songs · $size';
+  }
+
+  @override
+  String offline_cache_song_count(int count) {
+    return '$count songs';
+  }
+
+  @override
   String settings_audio_status_line(String label, String value) {
     return '$label: $value';
   }
