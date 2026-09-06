@@ -837,14 +837,18 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
 
   Future<void> _playRound() async {
     final token = ++_roundToken;
-    List<Song> songs;
-    try {
-      songs = await ref.refresh(randomSongsProvider.future);
-    } catch (_) {
-      songs = _lastKnownSongs ?? const <Song>[];
+    // 直接播放主页当前已展示的随机歌曲,不再重新随机刷新,保证「播的就是看到的」;
+    // 仅当区块尚无内容时才回退到拉取一批。
+    var songs = _lastKnownSongs;
+    if (songs == null || songs.isEmpty) {
+      try {
+        songs = await ref.refresh(randomSongsProvider.future);
+      } catch (_) {
+        songs = null;
+      }
     }
     if (!mounted || token != _roundToken) return;
-    if (songs.isEmpty) return;
+    if (songs == null || songs.isEmpty) return;
     _autoContinue = true;
     _roundSongIds = songs.map((s) => s.id).toSet();
     setState(() => _lastKnownSongs = songs);
