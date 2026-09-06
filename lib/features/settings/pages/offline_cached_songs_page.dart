@@ -24,6 +24,8 @@ class OfflineCachedSongsPage extends ConsumerStatefulWidget {
 
 class _OfflineCachedSongsPageState extends ConsumerState<OfflineCachedSongsPage> {
   List<CachedSongInfo> _songs = const [];
+  // 全量转换只做一次:itemBuilder 直接下标取,避免每次 build/滚动把整张表重建 N 次。
+  List<Song> _songView = const [];
   bool _loaded = false;
 
   @override
@@ -43,11 +45,7 @@ class _OfflineCachedSongsPageState extends ConsumerState<OfflineCachedSongsPage>
     final cache = ref.read(offlineCacheManagerProvider);
     setState(() {
       _songs = cache.cachedSongs;
-      _loaded = true;
-    });
-  }
-
-  List<Song> _toSongs() => [
+      _songView = [
         for (final info in _songs)
           Song(
             id: info.songId,
@@ -59,6 +57,11 @@ class _OfflineCachedSongsPageState extends ConsumerState<OfflineCachedSongsPage>
             starred: false,
           ),
       ];
+      _loaded = true;
+    });
+  }
+
+  List<Song> _toSongs() => _songView;
 
   Future<void> _playAll() async {
     final songs = _toSongs();
@@ -117,7 +120,7 @@ class _OfflineCachedSongsPageState extends ConsumerState<OfflineCachedSongsPage>
                     if (index == 0) return _buildPlayAllHeader(loc, totalBytes);
                     final info = _songs[index - 1];
                     return MusicFlowSongRow(
-                      song: _toSongs()[index - 1],
+                      song: _songView[index - 1],
                       index: index,
                       isCurrent: info.songId == currentSongId,
                       onPressed: () => unawaited(_playAt(index - 1)),

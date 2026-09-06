@@ -15,8 +15,8 @@ import 'package:musicflow_client/features/library/pages/artist_list_page.dart';
 import 'package:musicflow_client/features/library/pages/playlist_detail_page.dart';
 import 'package:musicflow_client/features/library/pages/playlist_search_page.dart';
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
-import 'package:musicflow_client/data/repositories/music_repository.dart';
 import 'package:musicflow_client/data/repositories/playlist_repository.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/api/music_provider.dart';
@@ -24,7 +24,6 @@ import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 
 
 const _obstruction = 120.0;
@@ -101,6 +100,8 @@ Future<void> _pumpPage(
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: MusicFlowShellObstructionScope(bottom: _obstruction, child: page),
       ),
     ),

@@ -10,6 +10,7 @@ import 'package:musicflow_client/features/library/pages/artist_detail_page.dart'
 import 'package:musicflow_client/features/library/pages/edit_library_page.dart';
 import 'package:musicflow_client/features/library/pages/playlist_detail_page.dart';
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/library/playlist_provider.dart';
 
@@ -24,7 +25,12 @@ void main() {
   }) {
     return ProviderScope(
       overrides: overrides,
-      child: MaterialApp(theme: AppTheme.dark(), home: home),
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: home,
+      ),
     );
   }
 

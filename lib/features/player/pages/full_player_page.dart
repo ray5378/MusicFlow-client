@@ -100,14 +100,6 @@ class _FullPlayerPageState extends ConsumerState<FullPlayerPage>
     return album;
   }
 
-  void _showMessage(
-    String message, {
-    MusicFlowMessageKind kind = MusicFlowMessageKind.info,
-  }) {
-    if (!mounted) return;
-    showMusicFlowMessage(context, message, kind: kind);
-  }
-
   /// 打开播放队列：移动端走底部弹窗，桌面端走右侧面板开关。
   void _openQueue() {
     if (context.musicFlowWindowClass == MusicFlowWindowClass.compact) {

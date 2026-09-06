@@ -5,13 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:musicflow_client/core/design/components/music_flow_button.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/search.dart';
 import 'package:musicflow_client/data/repositories/search_repository.dart';
-import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 import 'package:musicflow_client/features/library/pages/remote_album_page.dart';
 import 'package:musicflow_client/features/library/pages/remote_playlist_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/library/search_provider.dart';
 
 import '../../helpers/mocks.dart';
@@ -89,6 +88,10 @@ void main() {
         overrides: [searchRepositoryProvider.overrideWithValue(repo)],
         child: MaterialApp(
           theme: AppTheme.light(),
+          // 固定 zh,与用例内基于本地化文案的断言一致。
+          locale: const Locale('zh', 'CN'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           builder: (context, child) {
             final media = MediaQuery.of(context);
             return MediaQuery(
@@ -113,11 +116,14 @@ void main() {
             RemotePlaylistPage(playlist: _playlist(), providerId: 'douyin'),
       );
 
-      expect(find.text('播放全部'), findsOneWidget);
-      expect(find.text('加入库'), findsOneWidget);
+      final loc = AppLocalizations.of(
+        tester.element(find.byType(RemotePlaylistPage)),
+      );
+      expect(find.text(loc.library_play_all), findsOneWidget);
+      expect(find.text(loc.library_add_to_library), findsOneWidget);
       // 垂直堆叠:两个按钮的垂直位置不同
-      final playRect = tester.getRect(find.text('播放全部'));
-      final libRect = tester.getRect(find.text('加入库'));
+      final playRect = tester.getRect(find.text(loc.library_play_all));
+      final libRect = tester.getRect(find.text(loc.library_add_to_library));
       expect(playRect.top, lessThan(libRect.top));
       // 都在屏内,未被裁剪
       expect(libRect.right, lessThanOrEqualTo(320));
@@ -136,10 +142,13 @@ void main() {
             RemotePlaylistPage(playlist: _playlist(), providerId: 'douyin'),
       );
 
-      expect(find.text('播放全部'), findsOneWidget);
-      expect(find.text('加入库'), findsOneWidget);
-      final playRect = tester.getRect(find.text('播放全部'));
-      final libRect = tester.getRect(find.text('加入库'));
+      final loc = AppLocalizations.of(
+        tester.element(find.byType(RemotePlaylistPage)),
+      );
+      expect(find.text(loc.library_play_all), findsOneWidget);
+      expect(find.text(loc.library_add_to_library), findsOneWidget);
+      final playRect = tester.getRect(find.text(loc.library_play_all));
+      final libRect = tester.getRect(find.text(loc.library_add_to_library));
       // 水平排列:垂直位置对齐
       expect(playRect.top, equals(libRect.top));
       // 播放全部在加入库左侧
@@ -158,10 +167,13 @@ void main() {
             RemoteAlbumPage(album: _album(), providerId: 'douyin'),
       );
 
-      expect(find.text('播放全部'), findsOneWidget);
-      expect(find.text('加入库'), findsOneWidget);
-      final playRect = tester.getRect(find.text('播放全部'));
-      final libRect = tester.getRect(find.text('加入库'));
+      final loc = AppLocalizations.of(
+        tester.element(find.byType(RemoteAlbumPage)),
+      );
+      expect(find.text(loc.library_play_all), findsOneWidget);
+      expect(find.text(loc.library_add_to_library), findsOneWidget);
+      final playRect = tester.getRect(find.text(loc.library_play_all));
+      final libRect = tester.getRect(find.text(loc.library_add_to_library));
       expect(playRect.top, lessThan(libRect.top));
       expect(libRect.right, lessThanOrEqualTo(320));
       expect(tester.takeException(), isNull);

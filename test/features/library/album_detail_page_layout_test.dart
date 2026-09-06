@@ -7,6 +7,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/repositories/music_repository.dart';
 import 'package:musicflow_client/features/library/pages/album_detail_page.dart';
 import 'package:musicflow_client/features/library/widgets/media_detail_components.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/widgets/song_list_item.dart';
@@ -58,6 +59,8 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.light(),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: MediaQuery(
               data: const MediaQueryData(
                 size: Size(390, 844),

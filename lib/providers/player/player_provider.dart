@@ -208,7 +208,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _isRestoringPlaybackSession = false;
   // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
   // 队列序列化缓存移入 _payloadEncoder(PlaybackPayloadEncoder)。
-  int _persistThrottleTick = 0;
   NetworkType _lastObservedNetworkType = NetworkType.none;
   bool _retryCurrentPlaybackOnReconnect = false;
   bool _retryingCurrentPlayback = false;
