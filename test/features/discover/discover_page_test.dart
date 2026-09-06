@@ -355,6 +355,62 @@ void main() {
     expect(find.bySemanticsLabel('重试'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('播放随机歌曲直接用主页当前展示批次,不重新 refresh', (
+    tester,
+  ) async {
+    // 守卫:点击首页随机歌曲的「播放」必须复用当前已展示的批次(_lastKnownSongs)
+    // 播放,而不是重新 ref.refresh 换一批(randomLoads 触发次数不增加)。
+    final songs = _songs(count: 3);
+    final player = _RecordingPlayerNotifier();
+    var randomLoads = 0;
+
+    await _pumpDiscover(
+      tester,
+      player: player,
+      extraOverrides: <Override>[
+        randomSongsProvider.overrideWith((ref) async {
+          randomLoads += 1;
+          return songs;
+        }),
+        playlistsProvider.overrideWith((ref) async => <Playlist>[_playlist()]),
+        recentPlaylistsProvider
+            .overrideWith((ref) async => <Playlist>[_playlist()]),
+        homeCardsProvider.overrideWith((ref) async => <HomeCard>[]),
+        recommendChannelsProvider.overrideWith(
+          (ref) async => RecommendResult(providerId: '', channels: const []),
+        ),
+        homeRecommendSectionProvider.overrideWith(
+          (ref) async => const HomeRecommendSection(
+            fixed: <HomeCard>[],
+            random: <Playlist>[],
+          ),
+        ),
+        localRecommendChannelsProvider.overrideWith(
+          (ref) async => const <LocalRecommendChannel>[],
+        ),
+      ],
+    );
+
+    // 区块展示层已有内容,记录点击前的随机拉取次数。
+    expect(find.byKey(const Key('discover-random-mix')), findsOneWidget);
+    final loadsBeforeTap = randomLoads;
+    expect(loadsBeforeTap, greaterThanOrEqualTo(1));
+
+    await tester.tap(find.bySemanticsLabel('播放随机歌曲'));
+    await tester.pump();
+
+    // 播放的就是主页当前展示的这批,且触发点播不重新随机刷新。
+    expect(player.queues, isNotEmpty);
+    expect(
+      player.queues.last.map((s) => s.id),
+      songs.map((s) => s.id),
+    );
+    expect(player.startIndices.last, 0);
+    expect(randomLoads, loadsBeforeTap,
+        reason: '点击「播放随机歌曲」不应导致 randomSongs 再次拉取换批');
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _RecordingPlayerNotifier extends TestPlayerNotifier {

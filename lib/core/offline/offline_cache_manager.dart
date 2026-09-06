@@ -128,10 +128,13 @@ class OfflineCacheManager {
   bool _init = false;
   Timer? _flushTimer;
   bool _flushScheduled = false;
+  // 测试注入的根目录；为空时回退到真实的应用数据目录。仅供单测脱离
+  // path_provider 使用，生产路径不带参行为完全一致。
+  final Directory? _rootForTest;
   // 串行化磁盘写与索引更新（Dart 单线程内避免多段 await 交错）。
   Future<void> _opTail = Future.value();
 
-  OfflineCacheManager();
+  OfflineCacheManager({Directory? rootForTest}) : _rootForTest = rootForTest;
 
   int get maxBytes => _maxBytes;
   int get totalBytes => _totalBytes;
@@ -169,7 +172,7 @@ class OfflineCacheManager {
   /// 初始化：创建目录、载入索引。
   Future<void> init() async {
     if (_init) return;
-    final support = await getApplicationSupportDirectory();
+    final support = _rootForTest ?? await getApplicationSupportDirectory();
     _root = Directory(p.join(support.path, 'offline_cache'));
     if (!await _root!.exists()) await _root!.create(recursive: true);
     for (final kind in OfflineCacheKind.values) {
@@ -396,20 +399,29 @@ class OfflineCacheManager {
 
   /// 删除一首歌：歌曲文件 + 其歌词 + 仅归属该歌的封面。
   Future<void> evictSong(String songId) async {
-    await _synchronized(() async {
-      await _removeEntry(OfflineCacheKind.song, songId);
-      await _removeEntry(OfflineCacheKind.lyric, songId);
-      final coverKeys = _entries.values
-          .where((e) =>
-              e.kind == OfflineCacheKind.cover && e.owners.contains(songId))
-          .where((e) => e.owners.every((o) => o == songId))
-          .map((e) => e.key)
-          .toList();
-      for (final key in coverKeys) {
-        await _removeEntry(OfflineCacheKind.cover, key);
-      }
-    });
+    await _synchronized(() => _evictSongInternal(songId));
     _scheduleIndexFlush();
+  }
+
+  /// 删除一首歌的内部实现，**不加 `_synchronized`**。
+  ///
+  /// 同时供公开 [evictSong]（自会包一层 serializer）与 `_evictToFit` 复用。
+  /// 关键约束：`_evictToFit` 会出现在已处于 `_synchronized` 的上下文（例如
+  /// `_writeBytes` 的串行化操作内）被调用，此刻若再包一层 `_synchronized`，
+  /// 新操作会排在 `_opTail` 链尾等待当前操作结束，而当前操作又在等它返回，
+  /// 造成自锁死锁。故这里做纯删除，绝不再排队。
+  Future<void> _evictSongInternal(String songId) async {
+    await _removeEntry(OfflineCacheKind.song, songId);
+    await _removeEntry(OfflineCacheKind.lyric, songId);
+    final coverKeys = _entries.values
+        .where((e) =>
+            e.kind == OfflineCacheKind.cover && e.owners.contains(songId))
+        .where((e) => e.owners.every((o) => o == songId))
+        .map((e) => e.key)
+        .toList();
+    for (final key in coverKeys) {
+      await _removeEntry(OfflineCacheKind.cover, key);
+    }
   }
 
   Future<void> _removeEntry(OfflineCacheKind kind, String key) async {
@@ -433,7 +445,9 @@ class OfflineCacheManager {
     for (final entry in sorted) {
       if (_totalBytes <= _maxBytes) break;
       if (entry.kind == OfflineCacheKind.song || entry.kind == OfflineCacheKind.lyric) {
-        await evictSong(entry.key);
+        // 直接用内部实现，不再经 evictSong 包一层 _synchronized，避免在
+        // 已串行化上下文(_writeBytes/putSongFromFile)内嵌套自锁死锁。
+        await _evictSongInternal(entry.key);
       } else {
         await _removeEntry(entry.kind, entry.key);
       }

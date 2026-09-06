@@ -1,0 +1,42 @@
+name: Offline Cache Guard
+
+# 离线缓存链路的阻塞式门禁：防止后续改动把离线缓存(歌曲/封面/歌词/歌单封面)
+# 和首页「随机歌曲播放不改批次」行为搞坏。
+# 与 test-suite.yml(非阻塞观察)不同：本流水线是**真门禁**，任何失败直接标红、
+# 阻塞 main 合并；job 与 step 均不加 continue-on-error。
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-cache-guard:
+    name: offline cache guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.10'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 只有真正的 error 才标红(与 test-suite 的 --no-fatal-infos/warnings 一致)。
+      - name: Run dart analyze (errors only)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      # 离线缓存链路专项用例:OfflineCacheManager 单测 + 首页随机歌曲播放守卫。
+      - name: Run offline-cache tests
+        run: flutter test test/core/offline test/features/discover/discover_page_test.dart
