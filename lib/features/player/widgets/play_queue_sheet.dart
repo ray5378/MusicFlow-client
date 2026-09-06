@@ -3,17 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/design/media/music_flow_media_color_scope.dart';
-import '../../../data/models/peer.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/cast_peer_provider.dart';
-import '../../../providers/dlna_provider.dart';
-import '../../../providers/palette_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../widgets/song_list_item.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import 'song_options_sheet.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/design/media/music_flow_media_color_scope.dart';
+import 'package:musicflow_client/data/models/peer.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/player/widgets/song_options_sheet.dart';
 
 /// 桌面端右侧队列面板是否已打开(防止重复叠加)。
 bool _queuePanelOpen = false;

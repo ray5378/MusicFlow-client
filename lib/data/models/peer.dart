@@ -1,8 +1,8 @@
 /// 主项目后端「播放器(peer)」模型 —— 对齐 /rest/api/v1/peers*。
 library;
 
-import 'song.dart';
-import '../../core/l10n/localizations.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 
 class PeerInfo {
   const PeerInfo({

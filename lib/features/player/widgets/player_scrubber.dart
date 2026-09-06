@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 
 typedef MusicFlowScrubberSemanticFormatter = String Function(double value);
 

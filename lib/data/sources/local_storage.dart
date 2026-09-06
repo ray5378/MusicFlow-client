@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/utils/logger.dart';
-import '../models/server_config.dart';
-import '../models/audio_quality.dart';
-import '../models/search_history.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/server_config.dart';
+import 'package:musicflow_client/data/models/audio_quality.dart';
+import 'package:musicflow_client/data/models/search_history.dart';
 
 /// 本地存储封装（SharedPreferences）
 class LocalStorage {

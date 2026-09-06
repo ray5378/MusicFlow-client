@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/dlna/cast_http.dart';
-import '../../../core/dlna/dlna_models.dart';
-import '../../../providers/dlna_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../widgets/windows_title_bar.dart' show isWindowsDesktop;
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/dlna/cast_http.dart';
+import 'package:musicflow_client/core/dlna/dlna_models.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/widgets/windows_title_bar.dart' show isWindowsDesktop;
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 链路 B：局域网 DLNA 直投面板（独立副轨道）
 /// 与「选择播放器」（链路 A，cast_peer_provider）完全独立：客户端自行 SSDP 发现

@@ -1,4 +1,4 @@
-import '../../data/models/structured_lyrics.dart';
+import 'package:musicflow_client/data/models/structured_lyrics.dart';
 
 /// OpenSubsonic 结构化歌词 JSON 解析器
 class StructuredLyricsParser {

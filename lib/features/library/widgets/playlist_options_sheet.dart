@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/network_error_notifier.dart';
-import '../../../core/utils/toast_notifier.dart';
-import '../../../data/models/playlist.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/playlist_provider.dart';
-import '../../../providers/queue_origin_provider.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/library/playlist_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 需要调用方继续处理的歌单操作（播放/喜欢在弹窗内直接执行）。
 enum PlaylistOptionsAction { addToQueue, edit, delete }

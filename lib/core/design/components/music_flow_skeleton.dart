@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../providers/app_visibility_provider.dart';
-import '../music_flow_context.dart';
+import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
 
 class MusicFlowSkeleton extends ConsumerStatefulWidget {
   const MusicFlowSkeleton({

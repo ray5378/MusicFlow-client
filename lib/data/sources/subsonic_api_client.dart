@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import '../../core/constants/api_constants.dart';
-import '../../core/network/fallback_interceptor.dart';
-import '../../core/utils/server_url_security.dart';
-import '../../core/utils/subsonic_auth.dart';
-import '../../core/utils/logger.dart';
-import '../models/music_library.dart';
+import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/core/network/fallback_interceptor.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
+import 'package:musicflow_client/core/utils/subsonic_auth.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/music_library.dart';
 
 /// Subsonic API Client
 /// Updated to support MusicLibrary model and injected Dio.

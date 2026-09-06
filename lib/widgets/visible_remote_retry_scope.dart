@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/network/connectivity_monitor.dart';
-import '../core/utils/logger.dart';
-import '../providers/api_provider.dart';
-import '../providers/navigation_provider.dart';
+import 'package:musicflow_client/core/network/connectivity_monitor.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 
 typedef VisibleRemoteRetryCondition = bool Function(WidgetRef ref);
 typedef VisibleRemoteRetryAction = FutureOr<void> Function(WidgetRef ref);

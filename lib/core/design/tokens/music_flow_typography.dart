@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'music_flow_colors.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 
 /// MusicFlow's single-family, content-first type hierarchy.
 @immutable

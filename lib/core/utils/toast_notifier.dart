@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../design/components/music_flow_message.dart';
-import 'logger.dart';
+import 'package:musicflow_client/core/design/components/music_flow_message.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 
 /// MaterialApp 的 ScaffoldMessenger 关键帧（兼容旧用法 / 测试）。
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();

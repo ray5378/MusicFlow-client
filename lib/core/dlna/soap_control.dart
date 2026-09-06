@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:musicflow_client/core/utils/logger.dart';
+
 /// SOAP 控制模块
 /// 向 DLNA 设备发送 AVTransport 和 RenderingControl 命令
 class SoapControl {
@@ -92,7 +94,9 @@ class SoapControl {
   static Future<void> stop(String controlUrl) async {
     try {
       await call(controlUrl, _avTransport, 'Stop', {'InstanceID': '0'});
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('SOAP', 'Stop failed: $e');
+    }
   }
 
   /// 设置播放 URI
@@ -121,7 +125,8 @@ class SoapControl {
         'NextURIMetaData': metadata,
       });
       return true;
-    } catch (_) {
+    } catch (e) {
+      Logger.debugWithTag('SOAP', 'SetNextAVTransportURI failed: $e');
       return false;
     }
   }
@@ -168,7 +173,8 @@ class SoapControl {
       final match = RegExp(r'<CurrentTransportState>([^<]*)</CurrentTransportState>', caseSensitive: false)
           .firstMatch(xml);
       return match?.group(1)?.trim() ?? 'UNKNOWN';
-    } catch (_) {
+    } catch (e) {
+      Logger.debugWithTag('SOAP', 'GetTransportInfo failed: $e');
       return 'UNKNOWN';
     }
   }
@@ -199,7 +205,8 @@ class SoapControl {
         position: _parseHms(relTime ?? '00:00:00'),
         duration: _parseHms(trackDur ?? '00:00:00'),
       );
-    } catch (_) {
+    } catch (e) {
+      Logger.debugWithTag('SOAP', 'GetPositionInfo failed: $e');
       return (position: 0, duration: 0);
     }
   }
@@ -236,7 +243,8 @@ class SoapControl {
       final match = RegExp(r'<CurrentVolume>([^<]*)</CurrentVolume>', caseSensitive: false)
           .firstMatch(xml);
       return int.tryParse(match?.group(1)?.trim() ?? '') ?? 0;
-    } catch (_) {
+    } catch (e) {
+      Logger.debugWithTag('SOAP', 'GetVolume failed: $e');
       return 0;
     }
   }
@@ -263,7 +271,8 @@ class SoapControl {
           .firstMatch(xml);
       final value = match?.group(1)?.trim().toLowerCase() ?? '0';
       return value == '1' || value == 'true';
-    } catch (_) {
+    } catch (e) {
+      Logger.debugWithTag('SOAP', 'GetMute failed: $e');
       return false;
     }
   }

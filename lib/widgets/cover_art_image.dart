@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/design/music_flow_design.dart';
-import '../core/utils/cover_ref_security.dart';
-import '../data/models/server_address.dart';
-import '../l10n/generated/app_localizations.dart';
-import '../providers/api_provider.dart';
-import '../providers/offline_provider.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/offline/offline_provider.dart';
 
 /// 网络封面图。
 ///

@@ -1,16 +1,16 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/utils/logger.dart';
-import '../../data/models/album.dart';
-import '../../data/models/artist.dart';
-import '../../data/models/playlist.dart';
-import '../../data/models/song.dart';
-import '../../data/repositories/music_repository.dart';
-import '../../providers/api_provider.dart';
-import '../../providers/library_provider.dart';
-import '../../providers/music_provider.dart';
-import '../../providers/playlist_provider.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/repositories/music_repository.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/library/library_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/library/playlist_provider.dart';
 
 /// 本地搜索每类最多展示的条数(与聚合搜索「本地结果」块的 limit 一致)。
 const int kLocalSearchPageSize = 12;

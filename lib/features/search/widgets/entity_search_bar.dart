@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 统一搜索条(聚合搜索专用):只有关键词输入(debounce),无来源切换。
 /// 需求:去掉「聚合 / 本地 / 插件」切换按钮,全部强制聚合搜索。

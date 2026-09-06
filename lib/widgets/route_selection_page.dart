@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/design/music_flow_design.dart';
-import '../core/network/address_pool.dart';
-import '../data/models/music_library.dart';
-import '../data/models/server_address.dart';
-import '../l10n/generated/app_localizations.dart';
-import '../providers/api_provider.dart';
-import '../providers/auth_provider.dart';
-import '../providers/library_provider.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/network/address_pool.dart';
+import 'package:musicflow_client/data/models/music_library.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/auth/auth_provider.dart';
+import 'package:musicflow_client/providers/library/library_provider.dart';
 
 /// 「切换线路」内容区页面。
 ///

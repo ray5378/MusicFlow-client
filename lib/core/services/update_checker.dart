@@ -2,8 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../utils/logger.dart';
-import 'windows_installer_detector.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/services/windows_installer_detector.dart';
 
 /// 挑选适合当前平台的更新包:
 /// - Android → `.apk`;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../music_flow_context.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
 
 class MusicFlowSlider extends StatelessWidget {
   const MusicFlowSlider({

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../widgets/windows_title_bar.dart'
+import 'package:musicflow_client/widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
 
 /// MusicFlow 通用 AppBar：在 Windows 桌面端自动为右上角窗口控制按钮

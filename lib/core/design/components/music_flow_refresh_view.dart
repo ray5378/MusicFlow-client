@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 
-import '../../theme/app_icons.dart';
-import '../music_flow_context.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/theme/app_icons.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class MusicFlowRefreshView extends StatefulWidget {
   const MusicFlowRefreshView({

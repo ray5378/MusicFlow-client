@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/album.dart';
-import '../../../providers/palette_provider.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../../../widgets/now_playing_bars.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../utils/library_sorting.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/now_playing_bars.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/library/utils/library_sorting.dart';
 
 Future<SongSortOption?> showMediaSongSortSheet({
   required BuildContext context,

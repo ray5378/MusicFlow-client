@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:musicflow_client/providers/auth_provider.dart';
+import 'package:musicflow_client/providers/auth/auth_provider.dart';
 import 'package:musicflow_client/data/repositories/auth_repository.dart';
 import 'package:musicflow_client/data/repositories/library_repository.dart';
 import 'package:musicflow_client/data/models/music_library.dart';

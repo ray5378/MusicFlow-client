@@ -1,4 +1,4 @@
-import '../../core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 
 /// 服务端部分数值字段可能返回浮点(如聚合/导入歌曲的 duration),
 /// 这里统一按 num 解析后取整,避免 as int 强转抛 CastError。

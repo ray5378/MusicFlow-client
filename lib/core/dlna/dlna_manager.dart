@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
-import '../utils/logger.dart';
-import 'dlna_models.dart';
-import 'ssdp_discovery.dart';
-import 'device_description.dart';
-import 'soap_control.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/dlna/dlna_models.dart';
+import 'package:musicflow_client/core/dlna/ssdp_discovery.dart';
+import 'package:musicflow_client/core/dlna/device_description.dart';
+import 'package:musicflow_client/core/dlna/soap_control.dart';
 
 /// DLNA 管理器
 /// 统一管理设备发现、投屏控制。
@@ -512,7 +512,9 @@ class DlnaManager {
     if (device?.avTransportUrl == null) return;
     try {
       await SoapControl.stop(device!.avTransportUrl!);
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('DLNA', 'SoapControl.stop failed: $e');
+    }
   }
 
   /// 暂停播放
@@ -525,7 +527,9 @@ class DlnaManager {
       _playSegmentStart = null; // 暂停期间墙钟不计入播放时长
       _currentStatus = _currentStatus.copyWith(state: 'PAUSED');
       onStatusChanged?.call(_currentStatus);
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('DLNA', 'pause failed: $e');
+    }
   }
 
   /// 恢复播放
@@ -537,7 +541,9 @@ class DlnaManager {
       _playSegmentStart = DateTime.now(); // 从恢复时刻继续累计播放时长
       _currentStatus = _currentStatus.copyWith(state: 'PLAYING');
       onStatusChanged?.call(_currentStatus);
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('DLNA', 'resume failed: $e');
+    }
   }
 
   /// 跳转进度
@@ -545,7 +551,9 @@ class DlnaManager {
     if (_currentDevice?.avTransportUrl == null) return;
     try {
       await SoapControl.seek(_currentDevice!.avTransportUrl!, seconds);
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('DLNA', 'seek($seconds) failed: $e');
+    }
   }
 
   /// 设置音量
@@ -558,7 +566,9 @@ class DlnaManager {
       );
       _currentStatus = _currentStatus.copyWith(volume: volume);
       onStatusChanged?.call(_currentStatus);
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('DLNA', 'setVolume($volume) failed: $e');
+    }
   }
 
   /// 静音开关
@@ -572,7 +582,9 @@ class DlnaManager {
       );
       _currentStatus = _currentStatus.copyWith(muted: newMuted);
       onStatusChanged?.call(_currentStatus);
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('DLNA', 'toggleMute failed: $e');
+    }
   }
 
   // ==================== 投屏队列编辑（对齐链路 A） ====================
@@ -695,7 +707,9 @@ class DlnaManager {
           muted = await SoapControl.getMute(
             _currentDevice!.renderingControlUrl!,
           );
-        } catch (_) {}
+        } catch (e) {
+          Logger.debugWithTag('DLNA', 'poll volume/mute failed: $e');
+        }
       }
 
       // 按墙钟累计实际播放时长：**以客户端自己的时钟为准**，不再依赖设备上报的 state。

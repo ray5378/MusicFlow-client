@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/services/update_checker.dart';
-import '../../../core/utils/logger.dart';
-import '../widgets/update_available_dialog.dart';
+import 'package:musicflow_client/core/services/update_checker.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/features/settings/widgets/update_available_dialog.dart';
 
 /// 启动后延迟多久再发起更新检查。
 ///

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../core/design/music_flow_design.dart';
-import 'music_flow_network_status_bar.dart';
-import 'music_flow_shell_navigation.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
+import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_shell_navigation.dart';
 
 class MusicFlowAppShell extends StatelessWidget {
   const MusicFlowAppShell({

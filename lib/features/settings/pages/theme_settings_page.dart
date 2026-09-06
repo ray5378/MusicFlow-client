@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/theme/color_scheme.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../providers/theme_provider.dart';
-import '../widgets/music_flow_settings_components.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/theme/color_scheme.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/ui/theme_provider.dart';
+import 'package:musicflow_client/features/settings/widgets/music_flow_settings_components.dart';
 
 class ThemeSettingsPage extends ConsumerWidget {
   const ThemeSettingsPage({super.key});

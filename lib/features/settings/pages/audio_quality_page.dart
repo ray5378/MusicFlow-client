@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/network/connectivity_monitor.dart';
-import '../../../data/models/audio_quality.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../providers/audio_quality_provider.dart';
-import '../widgets/music_flow_settings_components.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/network/connectivity_monitor.dart';
+import 'package:musicflow_client/data/models/audio_quality.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
+import 'package:musicflow_client/features/settings/widgets/music_flow_settings_components.dart';
 
 class AudioQualityPage extends ConsumerWidget {
   const AudioQualityPage({super.key});

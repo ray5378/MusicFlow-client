@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/server_url_security.dart';
-import '../../../data/models/server_address.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class AddressDialog extends StatefulWidget {
   const AddressDialog({

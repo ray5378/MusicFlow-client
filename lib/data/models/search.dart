@@ -2,10 +2,10 @@
 /// 四类目(歌曲/专辑/艺术家/歌单)共用同一套「聚合/本地/插件」搜索范式。
 library;
 
-import 'album.dart';
-import 'artist.dart';
-import 'playlist.dart';
-import 'song.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
 
 /// 搜索类目
 enum SearchEntityKind { song, album, artist, playlist }

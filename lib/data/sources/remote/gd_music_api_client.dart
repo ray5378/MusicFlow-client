@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
-import '../../../core/utils/logger.dart';
-import '../../../core/l10n/localizations.dart';
-import '../../models/song.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/data/models/song.dart';
 
 class GdSongUrlResult {
   final String url;

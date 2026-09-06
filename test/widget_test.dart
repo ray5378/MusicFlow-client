@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/app.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
-import 'package:musicflow_client/providers/api_provider.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

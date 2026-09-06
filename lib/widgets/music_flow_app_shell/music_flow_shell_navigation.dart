@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/design/music_flow_design.dart';
-import '../../features/settings/pages/app_settings_page.dart';
-import '../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 @immutable
 class MusicFlowShellDestination {

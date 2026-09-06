@@ -5,21 +5,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/peer.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/cast_peer_provider.dart';
-import '../../../providers/dlna_provider.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/frozen_playback_provider.dart';
-import '../../../providers/lyrics_cover_provider.dart';
-import '../../../providers/palette_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../pages/full_player_page.dart';
-import 'player_hero_helpers.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import 'play_queue_sheet.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/peer.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/frozen_playback_provider.dart';
+import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/features/player/pages/full_player_page.dart';
+import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 
 /// Stable bridge between the application shell and the immersive player.
 class MiniPlayer extends ConsumerWidget {

@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/album.dart';
-import '../models/artist.dart';
-import '../models/playlist.dart';
-import '../models/song.dart';
-import 'music_repository.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/repositories/music_repository.dart';
 
 /// 元数据缓存仓库（基于 SharedPreferences）
 class MetadataCacheRepository {

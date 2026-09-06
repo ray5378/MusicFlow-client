@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_icons.dart';
-import '../music_flow_context.dart';
-import '../layout/music_flow_shell_obstruction.dart';
-import 'music_flow_icon_button.dart';
+import 'package:musicflow_client/core/theme/app_icons.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/layout/music_flow_shell_obstruction.dart';
+import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
 // Windows 桌面端为右上角系统窗口按钮（最小化/最大化/关闭）预留空间。
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
-import '../../../widgets/windows_title_bar.dart'
+import 'package:musicflow_client/widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
 
 /// Stable page frame for MusicFlow feature surfaces.

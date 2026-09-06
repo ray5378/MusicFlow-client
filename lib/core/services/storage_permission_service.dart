@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:permission_handler/permission_handler.dart';
-import '../utils/logger.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 
 /// 存储权限服务 — 封装 Android 不同版本的权限请求
 class StoragePermissionService {

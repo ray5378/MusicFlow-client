@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../data/models/search.dart';
-import '../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 首页搜索入口与搜索页共用的搜索范围。
 ///

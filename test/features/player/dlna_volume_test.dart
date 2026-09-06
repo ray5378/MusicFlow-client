@@ -7,11 +7,11 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/pages/full_player_page.dart';
-import 'package:musicflow_client/providers/cast_peer_provider.dart';
-import 'package:musicflow_client/providers/dlna_provider.dart';
-import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
-import 'package:musicflow_client/providers/palette_provider.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 
 import 'test_player_notifier.dart';
 

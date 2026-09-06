@@ -1,4 +1,4 @@
-import '../../core/l10n/localizations.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 
 /// 离线缓存总容量档位。
 enum OfflineCacheSize {

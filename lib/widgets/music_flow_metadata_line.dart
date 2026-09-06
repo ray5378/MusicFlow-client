@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
 
 /// A single, wrapping metadata sentence with consistent visual and spoken
 /// separators.

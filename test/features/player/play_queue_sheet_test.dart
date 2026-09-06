@@ -3,7 +3,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/widgets/cover_art_image.dart';
 import 'package:musicflow_client/widgets/now_playing_bars.dart';
 import 'package:musicflow_client/widgets/song_list_item.dart';

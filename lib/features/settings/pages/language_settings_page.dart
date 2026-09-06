@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../providers/locale_provider.dart';
-import '../widgets/music_flow_settings_components.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/ui/locale_provider.dart';
+import 'package:musicflow_client/features/settings/widgets/music_flow_settings_components.dart';
 
 /// 界面语言设置页：跟随系统 / 中文 / English 单选。
 class LanguageSettingsPage extends ConsumerWidget {

@@ -11,8 +11,8 @@ import 'package:musicflow_client/features/discover/pages/search_page.dart';
 import 'package:musicflow_client/features/library/pages/album_detail_page.dart';
 import 'package:musicflow_client/features/library/pages/artist_detail_page.dart';
 import 'package:musicflow_client/features/search/local_search_providers.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
-import 'package:musicflow_client/providers/search_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/library/search_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../player/test_player_notifier.dart';

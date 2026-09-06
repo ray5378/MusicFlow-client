@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
-import '../models/music_library.dart'; // New model
-import '../models/server_address.dart'; // New model
-import '../sources/subsonic_api_client.dart';
-import '../../core/utils/logger.dart';
+import 'package:musicflow_client/data/models/music_library.dart'; // New model
+import 'package:musicflow_client/data/models/server_address.dart'; // New model
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 
 /// Authentication Repository
 /// Handles login verification. Persistence is now handled by LibraryRepository.

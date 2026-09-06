@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'music_libraries_table.dart';
+import 'package:musicflow_client/data/sources/database/tables/music_libraries_table.dart';
 
 @DataClassName('ServerAddressTableData')
 class ServerAddresses extends Table {

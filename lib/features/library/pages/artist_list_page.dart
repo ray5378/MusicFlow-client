@@ -3,24 +3,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/artist.dart';
-import '../../../data/models/search.dart';
-import '../../../data/models/song.dart';
-import '../../../features/search/widgets/aggregate_search_results.dart';
-import '../../../features/search/widgets/entity_search_bar.dart';
-import '../../../features/search/widgets/search_result_card.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/library_stats_provider.dart';
-import '../../../providers/music_provider.dart';
-import '../../../providers/navigation_provider.dart';
-import '../../../widgets/visible_remote_retry_scope.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../widgets/artist_options_sheet.dart';
-import '../widgets/library_collection_components.dart';
-import '../widgets/windowed_list_view.dart';
-import '../widgets/windowed_paginated_list.dart';
-import 'artist_detail_page.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/search/widgets/aggregate_search_results.dart';
+import 'package:musicflow_client/features/search/widgets/entity_search_bar.dart';
+import 'package:musicflow_client/features/search/widgets/search_result_card.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/library/library_stats_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/ui/navigation_provider.dart';
+import 'package:musicflow_client/widgets/visible_remote_retry_scope.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/library/widgets/artist_options_sheet.dart';
+import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/features/library/widgets/windowed_list_view.dart';
+import 'package:musicflow_client/features/library/widgets/windowed_paginated_list.dart';
+import 'package:musicflow_client/features/library/pages/artist_detail_page.dart';
 
 /// 艺术家库 —— 窗口化分页列表(对齐主项目前端 useInfiniteList)。
 class ArtistListPage extends ConsumerStatefulWidget {

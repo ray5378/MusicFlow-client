@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../core/design/music_flow_design.dart';
-import 'cover_art_image.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
 
 enum MusicFlowArtworkShape { rounded, circle }
 

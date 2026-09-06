@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 
-import 'connection/connection.dart';
-import 'tables/music_libraries_table.dart';
-import 'tables/server_addresses_table.dart';
-import 'tables/lyrics_provider_configs_table.dart';
-import 'tables/cover_provider_configs_table.dart';
+import 'package:musicflow_client/data/sources/database/connection/connection.dart';
+import 'package:musicflow_client/data/sources/database/tables/music_libraries_table.dart';
+import 'package:musicflow_client/data/sources/database/tables/server_addresses_table.dart';
+import 'package:musicflow_client/data/sources/database/tables/lyrics_provider_configs_table.dart';
+import 'package:musicflow_client/data/sources/database/tables/cover_provider_configs_table.dart';
 
 part 'app_database.g.dart';
 

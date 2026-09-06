@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/offline/offline_cache_manager.dart';
-import '../../../data/models/offline_cache_size.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../providers/offline_cache_settings_provider.dart';
-import '../../../providers/offline_provider.dart';
-import '../widgets/music_flow_settings_components.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
+import 'package:musicflow_client/data/models/offline_cache_size.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/offline/offline_cache_settings_provider.dart';
+import 'package:musicflow_client/providers/offline/offline_provider.dart';
+import 'package:musicflow_client/features/settings/widgets/music_flow_settings_components.dart';
 
 /// 离线缓存设置页：总容量档位 + 占用展示 + 一键清空。
 class OfflineCachePage extends ConsumerStatefulWidget {

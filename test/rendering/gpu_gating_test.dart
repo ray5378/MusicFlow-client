@@ -20,10 +20,10 @@ import 'package:musicflow_client/data/models/structured_lyrics.dart';
 import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart';
 import 'package:musicflow_client/features/player/widgets/vinyl_record_cover.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
-import 'package:musicflow_client/providers/app_visibility_provider.dart';
-import 'package:musicflow_client/providers/effective_playback_provider.dart';
-import 'package:musicflow_client/providers/frozen_playback_provider.dart';
-import 'package:musicflow_client/providers/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/frozen_playback_provider.dart';
+import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
 /// 无限旋转动画的哨兵 widget：验证 TickerMode 全局静音是否生效。

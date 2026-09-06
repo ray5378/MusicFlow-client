@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:palette_generator/palette_generator.dart';
 
-import '../tokens/music_flow_colors.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 
 /// Semantic, artwork-derived colours for media-led surfaces.
 ///

@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-import '../../l10n/generated/app_localizations.dart';
-import '../../providers/locale_provider.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/ui/locale_provider.dart';
 
 /// 无 BuildContext 环境（providers / services）读取当前语言文案的统一入口。
 ///

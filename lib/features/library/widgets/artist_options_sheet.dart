@@ -3,17 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/network_error_notifier.dart';
-import '../../../core/utils/toast_notifier.dart';
-import '../../../data/models/artist.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/api_provider.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/music_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../providers/queue_origin_provider.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 歌手长按/右键菜单:播放歌手热门歌曲、收藏/取消收藏、添加到播放列表。
 Future<void> showArtistOptionsSheet({

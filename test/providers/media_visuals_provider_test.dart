@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 import 'package:musicflow_client/data/models/song.dart';
-import 'package:musicflow_client/providers/palette_provider.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

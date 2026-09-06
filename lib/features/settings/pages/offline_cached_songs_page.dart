@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/offline/offline_cache_manager.dart';
-import '../../../data/models/song.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/offline_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../providers/queue_origin_provider.dart';
-import '../../../widgets/song_list_item.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/offline/offline_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
 
 /// 「已缓存音乐」页：按歌单样式展示离线缓存的歌曲，支持逐首播放与「全部播放」。
 class OfflineCachedSongsPage extends ConsumerStatefulWidget {

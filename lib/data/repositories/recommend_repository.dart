@@ -1,7 +1,7 @@
-import '../../core/utils/logger.dart';
-import '../../core/l10n/localizations.dart';
-import '../models/recommend.dart';
-import '../sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/data/models/recommend.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 
 /// 首页推荐仓库:对接主项目内部端点(非 Subsonic),
 /// 获取固定推荐卡与不同插件的平台推荐歌单。

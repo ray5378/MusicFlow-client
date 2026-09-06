@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/cover_ref_security.dart';
-import '../../../data/models/album.dart';
-import '../../../data/models/playlist.dart';
-import '../../../data/models/song.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../../../widgets/now_playing_bars.dart';
-import '../../../widgets/song_list_item.dart';
-import '../../library/widgets/library_collection_components.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/now_playing_bars.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
+import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class DiscoverSongTile extends StatelessWidget {
   const DiscoverSongTile({

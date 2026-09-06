@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/toast_notifier.dart';
-import '../../../data/models/album.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/music_provider.dart';
-import '../../../providers/navigation_provider.dart';
-import '../../../providers/queue_origin_provider.dart';
-import '../../../widgets/song_list_item.dart';
-import '../../../widgets/visible_remote_retry_scope.dart';
-import '../../player/widgets/song_options_sheet.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../utils/library_sorting.dart';
-import '../widgets/album_options_sheet.dart';
-import '../widgets/media_detail_components.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/ui/navigation_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
+import 'package:musicflow_client/widgets/visible_remote_retry_scope.dart';
+import 'package:musicflow_client/features/player/widgets/song_options_sheet.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/library/utils/library_sorting.dart';
+import 'package:musicflow_client/features/library/widgets/album_options_sheet.dart';
+import 'package:musicflow_client/features/library/widgets/media_detail_components.dart';
 
 class AlbumDetailPage extends ConsumerStatefulWidget {
   const AlbumDetailPage({super.key, required this.albumId});

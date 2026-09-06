@@ -1,7 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
-import '../utils/logger.dart';
-import '../theme/color_scheme.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/theme/color_scheme.dart';
 
 const musicFlowPlaybackSystemActions = <MediaAction>{MediaAction.seek};
 

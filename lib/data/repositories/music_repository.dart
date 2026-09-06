@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/constants/api_constants.dart';
-import '../../core/utils/logger.dart';
-import '../models/song.dart';
-import '../models/album.dart';
-import '../models/artist.dart';
-import '../sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 
 const _musicRepoLogTag = 'MUSIC_REPO';
 

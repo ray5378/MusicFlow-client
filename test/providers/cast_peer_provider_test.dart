@@ -6,9 +6,9 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:mocktail/mocktail.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
-import 'package:musicflow_client/providers/api_provider.dart';
-import 'package:musicflow_client/providers/cast_peer_provider.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 
 import '../features/player/test_player_notifier.dart';
 import '../helpers/mocks.dart';

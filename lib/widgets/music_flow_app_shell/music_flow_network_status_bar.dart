@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/design/components/music_flow_message.dart';
-import '../../core/design/music_flow_design.dart';
-import '../../core/utils/network_error_notifier.dart';
-import '../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/components/music_flow_message.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// The reachability states surfaced by MusicFlow's application shell.
 ///

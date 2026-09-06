@@ -1,5 +1,5 @@
-import '../../core/utils/logger.dart';
-import '../sources/covers/cover_source.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/sources/covers/cover_source.dart';
 
 class CoverLookupResult {
   final String sourceId;

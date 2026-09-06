@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/palette_provider.dart';
-import '../../../providers/player_provider.dart';
-import 'song_options_sheet.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/features/player/widgets/song_options_sheet.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 歌曲信息页：全屏播放页三页结构中的左滑页。
 ///

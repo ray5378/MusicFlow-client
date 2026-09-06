@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../search_scope.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/features/search/search_scope.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 搜索范围切换器(五档 pill):所有 / 歌单 / 音乐 / 艺术家 / 专辑。
 ///

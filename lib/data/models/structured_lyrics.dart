@@ -1,4 +1,4 @@
-import 'lyrics_line.dart';
+import 'package:musicflow_client/data/models/lyrics_line.dart';
 
 /// 一组歌词（对应 OpenSubsonic 的 structuredLyrics 中的一个条目）
 class StructuredLyrics {

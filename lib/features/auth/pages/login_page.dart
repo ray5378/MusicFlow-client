@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/server_url_security.dart';
-import '../../../data/repositories/auth_repository.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../providers/auth_provider.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
+import 'package:musicflow_client/data/repositories/auth_repository.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/auth/auth_provider.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});

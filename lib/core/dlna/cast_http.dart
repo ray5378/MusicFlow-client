@@ -1,6 +1,6 @@
-import '../../data/models/music_library.dart';
-import '../../data/models/server_address.dart';
-import '../utils/server_url_security.dart';
+import 'package:musicflow_client/data/models/music_library.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// DLNA 直投强制 http 拉流的共用工具。

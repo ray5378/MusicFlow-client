@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../core/design/music_flow_design.dart';
-import '../core/utils/song_quality.dart';
-import '../data/models/song.dart';
-import '../l10n/generated/app_localizations.dart';
-import 'music_flow_artwork.dart';
-import 'music_flow_metadata_line.dart';
-import 'now_playing_bars.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/song_quality.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/widgets/music_flow_artwork.dart';
+import 'package:musicflow_client/widgets/music_flow_metadata_line.dart';
+import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
 enum MusicFlowSongRowVariant { albumTrack, standard, topRank }
 

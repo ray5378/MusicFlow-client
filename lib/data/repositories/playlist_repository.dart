@@ -1,8 +1,8 @@
-import '../../core/constants/api_constants.dart';
-import '../../core/utils/logger.dart';
-import '../models/playlist.dart';
-import '../models/song.dart';
-import '../sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 
 /// 歌单仓库
 class PlaylistRepository {

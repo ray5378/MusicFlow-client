@@ -6,7 +6,7 @@ import 'package:musicflow_client/core/design/components/music_flow_icon_button.d
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
-import 'package:musicflow_client/providers/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
 void main() {

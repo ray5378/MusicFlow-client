@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/media/music_flow_media_visuals.dart';
-import '../../../core/design/tokens/music_flow_colors.dart';
+import 'package:musicflow_client/core/design/media/music_flow_media_visuals.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
 
 /// The two spatial states used by the shared player background Hero.
 enum MusicFlowPlayerBackdropMode { mini, stage }

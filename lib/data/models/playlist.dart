@@ -1,5 +1,5 @@
-import 'song.dart';
-import '../../core/l10n/localizations.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 
 /// 歌单模型
 class Playlist {

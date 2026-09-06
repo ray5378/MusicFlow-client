@@ -1,7 +1,7 @@
-import '../../../data/models/playlist.dart';
-import '../../../data/models/song.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../utils/pinyin_helper.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/utils/pinyin_helper.dart';
 
 enum SongSortOption {
   defaultOrder,

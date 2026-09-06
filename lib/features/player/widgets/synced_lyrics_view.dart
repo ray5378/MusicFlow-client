@@ -6,12 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/structured_lyrics.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/frozen_playback_provider.dart';
-import '../../../providers/lyrics_dwell_provider.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/structured_lyrics.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/frozen_playback_provider.dart';
+import 'package:musicflow_client/providers/media/lyrics_dwell_provider.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class _LyricsRenderParts {
   const _LyricsRenderParts(this.primary, [this.secondary]);

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 
-import '../music_flow_context.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
 
 /// MusicFlow's spatial page transition for imperative navigation.
 ///

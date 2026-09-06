@@ -1,15 +1,15 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/models/song.dart';
-import '../../data/sources/subsonic_api_client.dart';
-import '../../data/sources/local_storage.dart';
-import '../../data/repositories/music_repository.dart';
-import '../../core/constants/api_constants.dart';
-import '../../core/network/connectivity_monitor.dart';
-import '../../core/platform/platform_file_bridge.dart';
-import '../../core/utils/logger.dart';
-import '../music_provider.dart';
-import '../api_provider.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/data/sources/local_storage.dart';
+import 'package:musicflow_client/data/repositories/music_repository.dart';
+import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/core/network/connectivity_monitor.dart';
+import 'package:musicflow_client/core/platform/platform_file_bridge.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
 
 
 const _logTag = 'PLAYER';

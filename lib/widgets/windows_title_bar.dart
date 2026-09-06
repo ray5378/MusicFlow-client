@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../core/design/music_flow_design.dart';
-import '../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// Windows runner 窗口控制通道(对应 windows/runner/flutter_window.cpp)。
 const MethodChannel kWindowsWindowChannel = MethodChannel(

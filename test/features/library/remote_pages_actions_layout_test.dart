@@ -12,7 +12,7 @@ import 'package:musicflow_client/data/repositories/search_repository.dart';
 import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 import 'package:musicflow_client/features/library/pages/remote_album_page.dart';
 import 'package:musicflow_client/features/library/pages/remote_playlist_page.dart';
-import 'package:musicflow_client/providers/search_provider.dart';
+import 'package:musicflow_client/providers/library/search_provider.dart';
 
 import '../../helpers/mocks.dart';
 

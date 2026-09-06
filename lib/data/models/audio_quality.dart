@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../core/l10n/localizations.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 
 /// 音质级别枚举
 enum AudioQualityLevel {

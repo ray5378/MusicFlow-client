@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../data/models/music_library.dart';
-import '../../../data/models/server_address.dart';
-import '../../../providers/api_provider.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/library_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../widgets/address_dialog.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/data/models/music_library.dart';
+import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/auth/auth_provider.dart';
+import 'package:musicflow_client/providers/library/library_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/features/library/widgets/address_dialog.dart';
 
 class EditLibraryPage extends ConsumerStatefulWidget {
   const EditLibraryPage({super.key, required this.libraryId});

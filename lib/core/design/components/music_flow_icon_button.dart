@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../music_flow_context.dart';
-import 'music_flow_pressable.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 
 class MusicFlowIconButton extends StatelessWidget {
   const MusicFlowIconButton({

@@ -1,11 +1,11 @@
-import '../../../core/constants/api_constants.dart';
-import '../../../core/utils/lrc_parser.dart';
-import '../../../core/utils/logger.dart';
-import '../../../core/utils/structured_lyrics_parser.dart';
-import '../../models/lyrics.dart';
-import '../../../core/l10n/localizations.dart';
-import '../subsonic_api_client.dart';
-import 'lyrics_source.dart';
+import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/core/utils/lrc_parser.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/structured_lyrics_parser.dart';
+import 'package:musicflow_client/data/models/lyrics.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/data/sources/lyrics/lyrics_source.dart';
 
 /// 服务端歌词源（OpenSubsonic / 传统 Subsonic）
 class SubsonicLyricsSource implements LyricsSource {

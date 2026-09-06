@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../music_flow_context.dart';
-import 'music_flow_button.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/components/music_flow_button.dart';
 
 class MusicFlowSectionHeader extends StatelessWidget {
   const MusicFlowSectionHeader({

@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import '../utils/logger.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
-import 'dlna_models.dart';
+import 'package:musicflow_client/core/dlna/dlna_models.dart';
 
 /// 设备描述 XML 解析器
 /// 从 description.xml 提取设备信息和服务 URL

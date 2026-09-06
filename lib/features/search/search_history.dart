@@ -2,9 +2,9 @@ import 'dart:async' show unawaited;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/utils/logger.dart';
-import '../../data/models/search_history.dart';
-import '../../data/sources/local_storage.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/search_history.dart';
+import 'package:musicflow_client/data/sources/local_storage.dart';
 
 /// 搜索历史控制器:持久化到 SharedPreferences,跨启动保留。
 ///

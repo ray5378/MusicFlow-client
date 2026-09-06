@@ -1,4 +1,4 @@
-import '../../models/lyrics.dart';
+import 'package:musicflow_client/data/models/lyrics.dart';
 
 /// 歌词数据源抽象接口
 abstract class LyricsSource {

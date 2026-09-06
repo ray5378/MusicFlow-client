@@ -5,26 +5,26 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/cast_peer_provider.dart';
-import '../../../providers/dlna_provider.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/frozen_playback_provider.dart';
-import '../../../providers/lyrics_cover_provider.dart';
-import '../../../providers/palette_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../providers/sleep_timer_provider.dart';
-import '../widgets/mini_player.dart' show PlayerSwitcherSheet, VolumeButton;
-import '../widgets/local_dlna_cast_sheet.dart';
-import '../widgets/play_queue_sheet.dart';
-import '../widgets/player_hero_helpers.dart';
-import '../widgets/player_scrubber.dart';
-import '../widgets/song_info_page.dart';
-import '../widgets/synced_lyrics_view.dart';
-import '../widgets/vinyl_record_cover.dart';
-import '../../../widgets/windows_title_bar.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/frozen_playback_provider.dart';
+import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/player/sleep_timer_provider.dart';
+import 'package:musicflow_client/features/player/widgets/mini_player.dart' show PlayerSwitcherSheet, VolumeButton;
+import 'package:musicflow_client/features/player/widgets/local_dlna_cast_sheet.dart';
+import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
+import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dart';
+import 'package:musicflow_client/features/player/widgets/player_scrubber.dart';
+import 'package:musicflow_client/features/player/widgets/song_info_page.dart';
+import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart';
+import 'package:musicflow_client/features/player/widgets/vinyl_record_cover.dart';
+import 'package:musicflow_client/widgets/windows_title_bar.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// MusicFlow's immersive now-playing scene.
 class FullPlayerPage extends ConsumerStatefulWidget {

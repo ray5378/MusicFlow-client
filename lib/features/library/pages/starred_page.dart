@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../data/models/playlist.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/music_provider.dart';
-import '../../../providers/navigation_provider.dart';
-import '../../../providers/playlist_provider.dart';
-import '../../../providers/queue_origin_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../widgets/song_list_item.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../../../widgets/visible_remote_retry_scope.dart';
-import '../../discover/widgets/discover_media_widgets.dart';
-import '../../player/widgets/song_options_sheet.dart';
-import '../widgets/album_options_sheet.dart';
-import '../widgets/artist_options_sheet.dart';
-import '../widgets/library_collection_components.dart';
-import '../widgets/playlist_options_sheet.dart';
-import 'album_detail_page.dart';
-import 'artist_detail_page.dart';
-import 'playlist_detail_page.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/data/models/playlist.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/ui/navigation_provider.dart';
+import 'package:musicflow_client/providers/library/playlist_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/visible_remote_retry_scope.dart';
+import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
+import 'package:musicflow_client/features/player/widgets/song_options_sheet.dart';
+import 'package:musicflow_client/features/library/widgets/album_options_sheet.dart';
+import 'package:musicflow_client/features/library/widgets/artist_options_sheet.dart';
+import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/features/library/widgets/playlist_options_sheet.dart';
+import 'package:musicflow_client/features/library/pages/album_detail_page.dart';
+import 'package:musicflow_client/features/library/pages/artist_detail_page.dart';
+import 'package:musicflow_client/features/library/pages/playlist_detail_page.dart';
 
 enum StarredTab { playlists, songs, albums, artists }
 

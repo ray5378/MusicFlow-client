@@ -1,6 +1,6 @@
-import '../subsonic_api_client.dart';
-import '../../../core/l10n/localizations.dart';
-import 'cover_source.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/data/sources/covers/cover_source.dart';
 
 /// 服务端封面源（Subsonic getCoverArt）
 class SubsonicCoverSource implements CoverSource {

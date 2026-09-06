@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'tokens/music_flow_breakpoints.dart';
-import 'tokens/music_flow_colors.dart';
-import 'tokens/music_flow_interaction.dart';
-import 'tokens/music_flow_motion.dart';
-import 'tokens/music_flow_radii.dart';
-import 'tokens/music_flow_spacing.dart';
-import 'tokens/music_flow_typography.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_breakpoints.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_interaction.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_motion.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_radii.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_spacing.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_typography.dart';
 
 /// Typed access to MusicFlow's semantic design vocabulary.
 extension MusicFlowDesignContext on BuildContext {

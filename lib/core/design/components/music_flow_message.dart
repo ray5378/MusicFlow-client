@@ -3,12 +3,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../theme/app_icons.dart';
-import '../music_flow_context.dart';
-import '../tokens/music_flow_colors.dart';
-import 'music_flow_icon_button.dart';
-import 'music_flow_surface.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/theme/app_icons.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_colors.dart';
+import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
+import 'package:musicflow_client/core/design/components/music_flow_surface.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 enum MusicFlowMessageKind { info, success, warning, error }
 

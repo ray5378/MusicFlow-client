@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class PlaylistFormResult {
   const PlaylistFormResult({

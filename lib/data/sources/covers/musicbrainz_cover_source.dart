@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import '../../../core/utils/logger.dart';
-import 'cover_source.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/sources/covers/cover_source.dart';
 
 /// MusicBrainz Cover Art Archive 封面源
 class MusicbrainzCoverSource implements CoverSource {

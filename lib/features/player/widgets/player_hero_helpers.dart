@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-export 'player_backdrop.dart';
+export 'package:musicflow_client/features/player/widgets/player_backdrop.dart';
 
 const playerBackgroundHeroTag = 'player-background';
 const playerCoverHeroTag = 'player-cover';

@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/design/components/music_flow_app_bar.dart';
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/logger.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/components/music_flow_app_bar.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 应用内诊断日志窗口：无需控制台/导出即可直接在客户端查看并复制日志。
 ///

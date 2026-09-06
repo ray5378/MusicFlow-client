@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/search.dart';
-import '../../../providers/search_provider.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../library/widgets/library_collection_components.dart';
-import 'search_result_card.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/providers/library/search_provider.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/features/search/widgets/search_result_card.dart';
 
 /// 聚合搜索结果：分块展示「本地结果」+「全网结果」。
 ///

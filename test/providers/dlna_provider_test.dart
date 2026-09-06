@@ -5,8 +5,8 @@ import 'package:musicflow_client/core/dlna/dlna_manager.dart';
 import 'package:musicflow_client/core/dlna/dlna_models.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
-import 'package:musicflow_client/providers/dlna_provider.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 
 import '../features/player/test_player_notifier.dart';
 

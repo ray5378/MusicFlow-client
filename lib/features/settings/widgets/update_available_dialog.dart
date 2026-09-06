@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/services/update_checker.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../widgets/windows_title_bar.dart' show isWindowsDesktop;
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/services/update_checker.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/widgets/windows_title_bar.dart' show isWindowsDesktop;
 
 /// 发现新版本时弹出的提示框（启动自动检查 / 设置页手动检查共用）。
 ///

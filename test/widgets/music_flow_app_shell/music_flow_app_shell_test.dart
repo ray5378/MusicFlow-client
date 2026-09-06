@@ -4,7 +4,7 @@ import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_app_shell.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_shell_navigation.dart';

@@ -4,24 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/design/music_flow_design.dart';
-import 'core/l10n/localizations.dart';
-import 'core/utils/logger.dart';
-import 'core/utils/toast_notifier.dart';
-import 'core/theme/app_theme.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
-import 'features/auth/pages/login_page.dart';
-import 'features/settings/services/startup_update_checker.dart';
-import 'providers/auth_provider.dart';
-import 'providers/cast_peer_provider.dart';
-import 'providers/theme_provider.dart';
-import 'providers/locale_provider.dart';
-import 'l10n/generated/app_localizations.dart';
-import 'widgets/main_scaffold.dart';
-import 'features/discover/pages/discover_page.dart';
-import 'features/library/pages/edit_library_page.dart';
+import 'package:musicflow_client/features/auth/pages/login_page.dart';
+import 'package:musicflow_client/features/settings/services/startup_update_checker.dart';
+import 'package:musicflow_client/providers/auth/auth_provider.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/ui/theme_provider.dart';
+import 'package:musicflow_client/providers/ui/locale_provider.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/widgets/main_scaffold.dart';
+import 'package:musicflow_client/features/discover/pages/discover_page.dart';
+import 'package:musicflow_client/features/library/pages/edit_library_page.dart';
 
 /// 应用主入口 Widget
 class App extends ConsumerWidget {

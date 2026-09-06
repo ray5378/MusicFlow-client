@@ -1,6 +1,6 @@
-import '../../core/utils/logger.dart';
-import '../models/lyrics.dart';
-import '../sources/lyrics/lyrics_source.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/lyrics.dart';
+import 'package:musicflow_client/data/sources/lyrics/lyrics_source.dart';
 
 /// 歌词仓库 — 按优先级 Fallback（不做本地缓存，实时拉取）
 class LyricsRepository {

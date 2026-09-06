@@ -1,6 +1,6 @@
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
-import 'package:musicflow_client/providers/player_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 

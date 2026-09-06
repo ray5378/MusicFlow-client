@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../music_flow_context.dart';
-import '../../theme/app_icons.dart';
-import 'music_flow_icon_button.dart';
-import 'music_flow_surface.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/theme/app_icons.dart';
+import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
+import 'package:musicflow_client/core/design/components/music_flow_surface.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 在 Windows/桌面端显示「窗户」样式的模态弹窗。
 ///

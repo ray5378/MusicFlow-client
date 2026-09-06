@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import '../design/components/music_flow_message.dart';
-import '../l10n/localizations.dart';
-import 'toast_notifier.dart';
+import 'package:musicflow_client/core/design/components/music_flow_message.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
 
 /// 网络异常提示（带节流，避免同一时刻重复弹出）。
 ///

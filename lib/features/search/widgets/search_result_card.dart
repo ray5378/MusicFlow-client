@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:remixicon/remixicon.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/cover_ref_security.dart';
-import '../../../data/models/search.dart';
-import '../../../data/repositories/search_repository.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../../library/pages/remote_album_page.dart';
-import '../../library/pages/remote_artist_page.dart';
-import '../../library/pages/remote_playlist_page.dart';
-import '../search_actions.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/repositories/search_repository.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/features/library/pages/remote_album_page.dart';
+import 'package:musicflow_client/features/library/pages/remote_artist_page.dart';
+import 'package:musicflow_client/features/library/pages/remote_playlist_page.dart';
+import 'package:musicflow_client/features/search/search_actions.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 远程搜索结果展示:按类目渲染歌曲/专辑/艺术家/歌单卡片,
 /// 每个卡片支持「播放」与(适用时)「加入库」。

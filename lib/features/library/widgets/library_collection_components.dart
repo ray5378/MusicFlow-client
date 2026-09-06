@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/album.dart';
-import '../../../data/models/artist.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../../../widgets/now_playing_bars.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/album.dart';
+import 'package:musicflow_client/data/models/artist.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/now_playing_bars.dart';
 
 class MusicFlowAlbumTile extends StatelessWidget {
   const MusicFlowAlbumTile({

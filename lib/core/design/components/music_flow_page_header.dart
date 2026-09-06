@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../music_flow_context.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
 // Windows 桌面端为右上角系统窗口按钮（最小化/最大化/关闭）预留空间。
-import '../../../widgets/windows_title_bar.dart'
+import 'package:musicflow_client/widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
 
 class MusicFlowPageHeader extends StatelessWidget {

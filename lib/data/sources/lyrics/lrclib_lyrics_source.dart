@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
-import '../../../core/utils/lrc_parser.dart';
-import '../../../core/utils/logger.dart';
-import '../../models/lyrics.dart';
-import 'lyrics_source.dart';
+import 'package:musicflow_client/core/utils/lrc_parser.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/lyrics.dart';
+import 'package:musicflow_client/data/sources/lyrics/lyrics_source.dart';
 
 /// LRCLIB 公共歌词 API
 class LrclibLyricsSource implements LyricsSource {

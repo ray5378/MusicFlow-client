@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/cover_ref_security.dart';
-import '../../../data/models/search.dart';
-import '../../../data/models/song.dart';
-import '../../../features/library/widgets/library_collection_components.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../providers/search_provider.dart';
-import '../../../widgets/cover_art_image.dart';
-import '../../../widgets/song_list_item.dart';
-import '../../player/widgets/song_options_sheet.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../search/search_actions.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/cover_ref_security.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/library/widgets/library_collection_components.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/library/search_provider.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
+import 'package:musicflow_client/features/player/widgets/song_options_sheet.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/search/search_actions.dart';
 
 /// 远程平台歌单预览页(对齐主项目前端 RemoteDetailDialog):
 /// 点击搜索结果**不直接入库**,而是先拉取歌单内歌曲预览,可「播放全部」直接播,

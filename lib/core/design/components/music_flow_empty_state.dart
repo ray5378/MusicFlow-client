@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_icons.dart';
-import '../music_flow_context.dart';
-import 'music_flow_button.dart';
+import 'package:musicflow_client/core/theme/app_icons.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/components/music_flow_button.dart';
 
 class MusicFlowEmptyState extends StatelessWidget {
   const MusicFlowEmptyState({

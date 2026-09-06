@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../music_flow_context.dart';
+import 'package:musicflow_client/core/design/music_flow_context.dart';
 
 /// Controls how [MusicFlowPressable] exposes the semantics of its
 /// [MusicFlowPressable.child].

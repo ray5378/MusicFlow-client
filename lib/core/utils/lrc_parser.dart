@@ -1,5 +1,5 @@
-import '../../data/models/lyrics_line.dart';
-import '../../data/models/structured_lyrics.dart';
+import 'package:musicflow_client/data/models/lyrics_line.dart';
+import 'package:musicflow_client/data/models/structured_lyrics.dart';
 
 /// LRC 格式解析器（用于 LRCLIB、网易云等外部源）
 class LrcParser {

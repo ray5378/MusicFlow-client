@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import '../utils/logger.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 
 /// SSDP 设备发现模块
 /// 使用 UDP 多播发送 M-SEARCH 并监听 NOTIFY 响应。
@@ -116,7 +116,9 @@ class SsdpDiscovery {
       // 允许广播（定向/全局兜底需要）。
       try {
         socket.broadcastEnabled = true;
-      } catch (_) {}
+      } catch (e) {
+        Logger.debugWithTag('SSDP', 'bind $addr: enable broadcast failed: $e');
+      }
 
       // 关键：多播成员锁定到「该地址所属接口」。Windows 上若不传接口，join 落在
       // 默认多播接口；这里传 iface 使其组播身份跟随被绑定的网卡。
@@ -127,7 +129,9 @@ class SsdpDiscovery {
         } else {
           socket.joinMulticast(InternetAddress(_ssdpAddr));
         }
-      } catch (_) {}
+      } catch (e) {
+        Logger.debugWithTag('SSDP', 'bind $addr: joinMulticast failed: $e');
+      }
 
       sockets.add(socket);
       // **** Windows 收包修复：必须 listen() 事件驱动，Timer 轮询 receive()
@@ -149,13 +153,17 @@ class SsdpDiscovery {
           if (bc != null) {
             try {
               socket.send(data, InternetAddress(bc), _ssdpPort);
-            } catch (_) {}
+            } catch (e) {
+              Logger.debugWithTag('SSDP', 'directed broadcast send to $bc failed: $e');
+            }
           }
         } else {
           // 任意地址兜底：改发全局广播，尽量覆盖默认接口所在网段。
           try {
             socket.send(data, InternetAddress('255.255.255.255'), _ssdpPort);
-          } catch (_) {}
+          } catch (e) {
+            Logger.debugWithTag('SSDP', 'global broadcast send failed: $e');
+          }
         }
       }
 
@@ -174,7 +182,9 @@ class SsdpDiscovery {
             final target = '$subnet.$host';
             try {
               socket.send(data, InternetAddress(target), _ssdpPort);
-            } catch (_) {}
+            } catch (e) {
+              Logger.debugWithTag('SSDP', 'unicast scan send to $target failed: $e');
+            }
           }
         }
       }
@@ -227,7 +237,9 @@ class SsdpDiscovery {
           if (a.type == InternetAddressType.IPv4) addrs.add(a.address);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('SSDP', 'probe explicit IPv4 addresses failed: $e');
+    }
     return addrs.toList();
   }
 
@@ -245,7 +257,9 @@ class SsdpDiscovery {
             iface.addresses.any((a) => a.type == InternetAddressType.IPv4);
         if (hasIpv4) result.add(iface);
       }
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('SSDP', 'probe network interfaces failed: $e');
+    }
     return result;
   }
 
@@ -302,7 +316,9 @@ class SsdpDiscovery {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Logger.debugWithTag('SSDP', 'interface lookup for $addr failed: $e');
+    }
     return null;
   }
 
@@ -373,7 +389,9 @@ class SsdpDiscovery {
         } else {
           socket.joinMulticast(InternetAddress(_ssdpAddr));
         }
-      } catch (_) {}
+      } catch (e) {
+        Logger.debugWithTag('SSDP', 'listener joinMulticast failed: $e');
+      }
 
       _listenerSockets.add(socket);
       // **** Windows 收包修复：被动监听同样必须 listen() 事件驱动，

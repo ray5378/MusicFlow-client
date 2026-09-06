@@ -4,19 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../core/utils/network_error_notifier.dart';
-import '../../../core/utils/toast_notifier.dart';
-import '../../../data/models/song.dart';
-import '../../../providers/api_provider.dart';
-import '../../../providers/cast_peer_provider.dart';
-import '../../../providers/dlna_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../providers/playlist_provider.dart';
-import '../../../widgets/music_flow_artwork.dart';
-import '../../library/pages/album_detail_page.dart';
-import '../../library/pages/artist_detail_page.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/library/playlist_provider.dart';
+import 'package:musicflow_client/widgets/music_flow_artwork.dart';
+import 'package:musicflow_client/features/library/pages/album_detail_page.dart';
+import 'package:musicflow_client/features/library/pages/artist_detail_page.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class SongOptionsExtraAction {
   const SongOptionsExtraAction({

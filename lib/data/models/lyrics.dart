@@ -1,5 +1,5 @@
 import 'dart:ui';
-import 'structured_lyrics.dart';
+import 'package:musicflow_client/data/models/structured_lyrics.dart';
 
 /// 统一歌词模型，兼容 OpenSubsonic 结构化歌词和外部 LRC 歌词
 class Lyrics {

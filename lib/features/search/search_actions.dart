@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/models/search.dart';
-import '../../data/repositories/search_repository.dart';
-import '../../providers/effective_playback_provider.dart';
-import '../../providers/player_provider.dart';
-import '../../providers/playlist_provider.dart';
-import '../../providers/search_provider.dart';
-import '../../core/design/components/music_flow_message.dart';
-import '../../core/utils/toast_notifier.dart';
-import '../../l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/repositories/search_repository.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/library/playlist_provider.dart';
+import 'package:musicflow_client/providers/library/search_provider.dart';
+import 'package:musicflow_client/core/design/components/music_flow_message.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void _toast(BuildContext context, String message, {bool error = false}) {
   if (!context.mounted) return;

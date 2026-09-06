@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import 'windowed_paginated_list.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/library/widgets/windowed_paginated_list.dart';
 
 /// 全库统一的「窗口化 + 视口渐进式加载」列表渲染层。
 ///

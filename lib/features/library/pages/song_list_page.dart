@@ -3,22 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/search.dart';
-import '../../../data/models/song.dart';
-import '../../../features/library/widgets/windowed_list_view.dart';
-import '../../../features/library/widgets/windowed_paginated_list.dart';
-import '../../../features/player/widgets/song_options_sheet.dart';
-import '../../../features/search/widgets/aggregate_search_results.dart';
-import '../../../features/search/widgets/entity_search_bar.dart';
-import '../../../providers/effective_playback_provider.dart';
-import '../../../providers/library_stats_provider.dart';
-import '../../../providers/music_provider.dart';
-import '../../../providers/navigation_provider.dart';
-import '../../../providers/player_provider.dart';
-import '../../../widgets/song_list_item.dart';
-import '../../../l10n/generated/app_localizations.dart';
-import '../../../widgets/visible_remote_retry_scope.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/library/widgets/windowed_list_view.dart';
+import 'package:musicflow_client/features/library/widgets/windowed_paginated_list.dart';
+import 'package:musicflow_client/features/player/widgets/song_options_sheet.dart';
+import 'package:musicflow_client/features/search/widgets/aggregate_search_results.dart';
+import 'package:musicflow_client/features/search/widgets/entity_search_bar.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/library/library_stats_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/ui/navigation_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/widgets/song_list_item.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/widgets/visible_remote_retry_scope.dart';
 
 /// 歌曲库 —— 窗口化分页加载(对齐主项目前端 useInfiniteList):
 /// 渲染层虚拟滚动、数据层按 page/pageSize 分块拉取并剪枝;

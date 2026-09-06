@@ -1,8 +1,8 @@
-import '../../core/utils/logger.dart';
-import '../../core/l10n/localizations.dart';
-import '../models/search.dart';
-import '../models/song.dart';
-import '../sources/subsonic_api_client.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/data/models/search.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 
 /// 搜索仓库:对齐主项目 web 的 entity-search / playlist-search。
 /// 本地搜索由页面自身列表过滤承担;本仓库只负责「聚合 / 插件」远程搜索与导入。

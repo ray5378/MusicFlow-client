@@ -37,6 +37,7 @@ jobs:
       - name: Run dart analyze (errors only)
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      # 离线缓存链路专项用例:OfflineCacheManager 单测 + 首页随机歌曲播放守卫。
+      # 离线缓存链路专项用例:OfflineCacheManager 单测 + 首页随机歌曲播放守卫
+      # + 播放器随机/预缓存一致索引 / 会话 payload 序列化 / shuffle 历史导航单测。
       - name: Run offline-cache tests
-        run: flutter test test/core/offline test/features/discover/discover_page_test.dart
+        run: flutter test test/core/offline test/features/discover/discover_page_test.dart test/core/player test/providers/player/shuffle_history_test.dart

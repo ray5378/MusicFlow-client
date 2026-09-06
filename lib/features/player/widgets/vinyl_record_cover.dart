@@ -2,9 +2,9 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 
-import '../../../core/design/music_flow_design.dart';
-import '../../../data/models/song.dart';
-import '../../../widgets/cover_art_image.dart';
+import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/widgets/cover_art_image.dart';
 
 /// 黑胶唱片封面组件 - 参考箭头音乐风格。
 ///

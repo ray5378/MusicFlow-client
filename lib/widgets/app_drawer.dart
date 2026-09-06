@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
@@ -11,19 +11,19 @@ import 'package:musicflow_client/features/library/pages/starred_page.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
 import 'package:musicflow_client/features/settings/pages/offline_cached_songs_page.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
-import 'package:musicflow_client/providers/api_provider.dart';
-import 'package:musicflow_client/providers/library_provider.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/auth_provider.dart';
-import '../providers/music_provider.dart';
-import '../providers/player_provider.dart';
-import '../providers/playlist_provider.dart';
-import 'music_flow_app_shell/music_flow_drawer.dart';
+import 'package:musicflow_client/providers/auth/auth_provider.dart';
+import 'package:musicflow_client/providers/api/music_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/library/playlist_provider.dart';
+import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_drawer.dart';
 
 /// MusicFlow's application drawer. [Scaffold] still supplies platform drawer
 /// routing, focus, and back behavior; every visible surface is owned here.

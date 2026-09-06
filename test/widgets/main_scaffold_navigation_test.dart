@@ -1,7 +1,7 @@
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
-import 'package:musicflow_client/providers/api_provider.dart';
-import 'package:musicflow_client/providers/navigation_provider.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 import 'package:musicflow_client/widgets/main_scaffold.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
 import 'package:flutter/material.dart';
