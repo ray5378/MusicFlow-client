@@ -260,10 +260,13 @@ class OfflineCacheManager {
         size: bytes.length,
         lastAccessMs: DateTime.now().millisecondsSinceEpoch,
         meta: kind == OfflineCacheKind.song ? meta : null,
+        // 封面在构造时直接传入可变归属列表；切勿在 const [] 默认值上调 addAll
+        // （会抛 UnsupportedError），那样会把封面条目挡在 _entries 之外，导致
+        // 封面计数永远为 0、并让 _cacheSongCover 提前抛错连带阻塞歌曲缓存。
+        owners: kind == OfflineCacheKind.cover
+            ? owners.where((o) => o.isNotEmpty).toSet().toList()
+            : const [],
       );
-      if (kind == OfflineCacheKind.cover && owners.isNotEmpty) {
-        entry.owners.addAll(owners.where((o) => o.isNotEmpty).toSet());
-      }
       _entries[composite] = entry;
       _totalBytes += bytes.length;
       await _evictToFit();
