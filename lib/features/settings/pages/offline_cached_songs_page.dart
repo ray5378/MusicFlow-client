@@ -31,7 +31,8 @@ class _OfflineCachedSongsPageState extends ConsumerState<OfflineCachedSongsPage>
     super.initState();
     _reload();
     // 播放新的歌曲会触发后台缓存新增条目，切歌时刷新列表。
-    ref.listen<PlayerState>(playerProvider, (_, next) {
+    // initState 阶段只能使用 ref.listenManual（ref.listen 仅在 build 内合法）。
+    ref.listenManual<PlayerState>(playerProvider, (_, next) {
       if (next.currentSong?.id != null) _reload();
     });
   }
