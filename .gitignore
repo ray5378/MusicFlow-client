@@ -23,6 +23,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# 任意层级的构建输出(android/build、windows build 等),防止 git add -A 误入库
+**/build/
 flutter_*.png
 linked_*.ds
 unlinked.ds
