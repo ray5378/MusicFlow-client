@@ -113,6 +113,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // 随机模式「一轮内不重复」:记录本轮已播放的歌曲 id(与主项目洗牌序列语义一致,
   // 播完一轮才重新洗牌)。随机取下一首时优先从未播过的歌中选。
   final Set<String> _shuffleRoundPlayedIds = <String>{};
+  // 歌曲「就绪」时提前确定的真实下一首索引:预缓存与真实切歌(next)复用同一个值,
+  // 避免两者各自独立抽随机数导致「缓存的下一首 ≠ 实际播的下一首」。
+  int? _precomputedUpcomingIndex;
   Duration? _pendingSeekPosition;
   String? _pendingSeekSongId;
   String? _currentStreamUrl;
@@ -2171,7 +2174,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
         return;
       }
-      final nextIndex = _getRandomIndexExcludingCurrent();
+      // 尽量复用「歌曲就绪时提前算好」的下一首索引(与预缓存消费同一值,保证
+      // 缓存的就是实际要播的下一首);未持有才临时抽随机。
+      var nextIndex = _consumePrecomputedUpcomingIndex();
+      if (nextIndex == null) {
+        nextIndex = _getRandomIndexExcludingCurrent();
+        if (nextIndex != null) {
+          Logger.info('SHUFFLE RANDOM_FALLBACK idx=$nextIndex song=${state.queue[nextIndex].id} title=${state.queue[nextIndex].title}');
+        }
+      }
       if (nextIndex == null) return;
       final nextSong = state.queue[nextIndex];
       await playSong(
@@ -2969,19 +2980,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     return null;
   }
 
-  /// 解析「下一首实际将播放的歌曲」供后台预缓存:随机模式按与 [next] 一致的
-  /// 优先级判断,随机分支用**非变更**抽样(allowRoundReset:false),不会提前
-  /// 清空本轮播过标记,从而不影响真实切歌的随机语义。
+  /// 解析「下一首实际将播放的歌曲」供后台预缓存,并把随机分支抽出的索引
+  /// 存入 [_precomputedUpcomingIndex]。真实切歌 [next] 会消费同一索引
+  /// (见 _consumePrecomputedUpcomingIndex),确保「预缓存的下一首 == 实际
+  /// 将要播放的下一首」。随机分支用**非变更**抽样(allowRoundReset:false),
+  /// 不会提前清空本轮播过标记,从而不影响真实切歌的随机语义。
   Song? _resolveUpcomingSongForCache() {
     final queue = state.queue;
     if (queue.isEmpty) return null;
     if (state.shuffleEnabled) {
       final forced = _resolveForcedNextIndex();
       if (forced != null && forced >= 0 && forced < queue.length) {
+        _precomputedUpcomingIndex = forced;
         return queue[forced];
       }
       final idx = _getRandomIndexExcludingCurrent(allowRoundReset: false);
-      if (idx != null && idx < queue.length) return queue[idx];
+      if (idx != null && idx < queue.length) {
+        _precomputedUpcomingIndex = idx;
+        Logger.info('SHUFFLE precompute idx=$idx song=${queue[idx].id} title=${queue[idx].title}');
+        return queue[idx];
+      }
+      _precomputedUpcomingIndex = null;
       return null;
     }
     final nextIndex = state.currentIndex + 1;
@@ -2989,6 +3008,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // 顺序模式到队尾:按 [next] 的回绕语义取队首作为待缓存候选。
     if (queue.isNotEmpty) return queue.first;
     return null;
+  }
+
+  /// 消费「歌曲就绪时预计算」的下一首索引([_resolveUpcomingSongForCache] 写入),
+  /// 让真实切歌与预缓存复用同一个值。队列已变/索引越界/指向当前曲时视为失效,
+  /// 返回 null(调用方回退临时抽随机)。
+  int? _consumePrecomputedUpcomingIndex() {
+    final idx = _precomputedUpcomingIndex;
+    _precomputedUpcomingIndex = null;
+    final queue = state.queue;
+    if (!state.shuffleEnabled) return null;
+    if (idx == null || idx < 0 || idx >= queue.length) return null;
+    if (idx == state.currentIndex) return null;
+    if (queue[idx].isPreview) return null;
+    return idx;
   }
 
   void _clearForcedNext() {
