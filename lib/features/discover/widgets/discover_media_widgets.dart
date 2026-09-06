@@ -142,6 +142,8 @@ class DiscoverRecentAlbumRail extends StatelessWidget {
           height: cardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+            cacheExtent: 0,
             itemCount: albums.length,
             separatorBuilder: (context, index) =>
                 SizedBox(width: context.musicFlowSpacing.sm),
@@ -340,6 +342,8 @@ class DiscoverAlbumRail extends StatelessWidget {
           height: tileHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+            cacheExtent: 0,
             itemCount: albums.length,
             separatorBuilder: (context, index) =>
                 SizedBox(width: context.musicFlowSpacing.sm),
@@ -418,6 +422,8 @@ class DiscoverFrequentAlbumShelf extends StatelessWidget {
           height: itemHeight * 2 + context.musicFlowSpacing.sm,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+            cacheExtent: 0,
             itemCount: groupCount,
             separatorBuilder: (context, index) =>
                 SizedBox(width: context.musicFlowSpacing.md),

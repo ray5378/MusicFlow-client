@@ -973,6 +973,8 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
           builder: (context, controller) => ListView.builder(
             controller: controller,
             scrollDirection: Axis.horizontal,
+            // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+            cacheExtent: 0,
             padding: EdgeInsets.zero,
             itemCount: columnCount,
             itemBuilder: (context, col) {
@@ -1266,6 +1268,8 @@ class RecentPlaylistsSection extends ConsumerWidget {
                 child: ListView.separated(
                   controller: controller,
                   scrollDirection: Axis.horizontal,
+                  // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+                  cacheExtent: 0,
                   padding: EdgeInsets.zero,
                   itemCount: playlists.length,
                   separatorBuilder: (context, index) =>
@@ -1394,6 +1398,8 @@ class FixedRecommendSection extends ConsumerWidget {
                 child: ListView.separated(
                   controller: controller,
                   scrollDirection: Axis.horizontal,
+                  // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+                  cacheExtent: 0,
                   padding: EdgeInsets.zero,
                   itemCount: cards.length,
                   separatorBuilder: (context, index) =>
@@ -1650,6 +1656,8 @@ class PlatformRecommendSection extends ConsumerWidget {
                         child: ListView.separated(
                           controller: controller,
                           scrollDirection: Axis.horizontal,
+                          // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+                          cacheExtent: 0,
                           padding: EdgeInsets.zero,
                           itemCount: channel.playlists.length,
                           separatorBuilder: (context, index) =>
@@ -1796,6 +1804,8 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                         child: ListView.separated(
                           controller: controller,
                           scrollDirection: Axis.horizontal,
+                          // 严格视口渲染：只为视口内的封面构建/加载，不为视口外预热。
+                          cacheExtent: 0,
                           padding: EdgeInsets.zero,
                           itemCount: channel.playlists.length,
                           separatorBuilder: (context, index) =>
