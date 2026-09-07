@@ -21,38 +21,61 @@ final _dlnaCastingProvider = Provider<bool>((ref) {
 final effectivePositionProvider = Provider<Duration>((ref) {
   if (ref.watch(_dlnaCastingProvider)) {
     // 链路 B:500ms 插值 + 2s 轮询回写修正(对齐链路 A 的 smoothPosition)。
-    return Duration(
-      milliseconds:
-          (ref.watch(dlnaCastProvider).smoothPositionSeconds * 1000).round(),
+    // select 只取插值秒数：状态其他字段变化不触发本 provider 重建。
+    final smooth = ref.watch(
+      dlnaCastProvider.select((s) => s.smoothPositionSeconds),
     );
+    return Duration(milliseconds: (smooth * 1000).round());
   }
-  final cast = ref.watch(castPeerControllerProvider);
-  if (cast.activePeer != null) {
+  // select 只取「是否投屏 + 平滑进度」，status 其余字段变化不扩散。
+  final cast = ref.watch(
+    castPeerControllerProvider.select(
+      (s) => (
+        active: s.activePeer != null,
+        smooth: s.smoothPositionSeconds,
+      ),
+    ),
+  );
+  if (cast.active) {
     // 平滑进度:250/500ms 插值 + 轮询回写修正。
-    return Duration(
-      milliseconds: (cast.smoothPositionSeconds * 1000).round(),
-    );
+    return Duration(milliseconds: (cast.smooth * 1000).round());
   }
   return ref.watch(playerProvider.select((state) => state.position));
 });
 
 final effectiveDurationProvider = Provider<Duration>((ref) {
   if (ref.watch(_dlnaCastingProvider)) {
-    return Duration(seconds: ref.watch(dlnaCastProvider).status.duration);
+    final duration = ref.watch(
+      dlnaCastProvider.select((s) => s.status.duration),
+    );
+    return Duration(seconds: duration);
   }
-  final cast = ref.watch(castPeerControllerProvider);
-  if (cast.activePeer != null) {
-    return Duration(milliseconds: (cast.status.durationSeconds * 1000).round());
+  final cast = ref.watch(
+    castPeerControllerProvider.select(
+      (s) => (
+        active: s.activePeer != null,
+        duration: s.status.durationSeconds,
+      ),
+    ),
+  );
+  if (cast.active) {
+    return Duration(milliseconds: (cast.duration * 1000).round());
   }
   return ref.watch(playerProvider.select((state) => state.duration));
 });
 
 final effectiveIsPlayingProvider = Provider<bool>((ref) {
   if (ref.watch(_dlnaCastingProvider)) {
-    return ref.watch(dlnaCastProvider).status.state == 'PLAYING';
+    return ref.watch(
+      dlnaCastProvider.select((s) => s.status.state == 'PLAYING'),
+    );
   }
-  final cast = ref.watch(castPeerControllerProvider);
-  if (cast.activePeer != null) return cast.status.playing;
+  final cast = ref.watch(
+    castPeerControllerProvider.select(
+      (s) => (active: s.activePeer != null, playing: s.status.playing),
+    ),
+  );
+  if (cast.active) return cast.playing;
   return ref.watch(playerProvider.select((state) => state.isPlaying));
 });
 

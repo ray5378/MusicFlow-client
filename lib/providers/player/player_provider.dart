@@ -1663,7 +1663,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (identical(_fadeCompleter, completer)) {
           _fadeCompleter = null;
         }
-        player.setVolume(0.0);
+        // 恢复用户音量而非置 0：若新源随后加载失败进暂停态，
+        // 音量卡在 0 会造成"无声假死"（与 _cancelFade 的恢复语义一致）。
+        player.setVolume(state.volume);
         if (!completer.isCompleted) completer.complete();
         return;
       }
