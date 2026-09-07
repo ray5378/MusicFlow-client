@@ -132,8 +132,25 @@ jobs:
       - name: Decode signing keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          # 签名防线：四个 secret 任一缺失即硬失败，杜绝"空 keystore → debug 签名 → job 绿"的静默降级。
+          # （base64 -d 对空输入不报错，必须显式校验解码产物非空。）
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::secret ${name} 未配置，拒绝构建（防止静默产出 debug 签名的 release 包）。"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "${{ github.workspace }}/android/app/release-key.jks"
+          if [ ! -s "${{ github.workspace }}/android/app/release-key.jks" ]; then
+            echo "::error::keystore 解码后为空，ANDROID_KEYSTORE_BASE64 内容无效。"
+            exit 1
+          fi
 
       - name: Build APK (Release)
         env:

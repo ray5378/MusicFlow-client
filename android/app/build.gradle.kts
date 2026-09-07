@@ -74,11 +74,23 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            // Preserve unsigned-CI behavior by falling back to debug signing.
-            signingConfig = if (hasReleaseSigning) {
-                signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                // 签名防线：release 构建缺凭据必须硬中断，绝不静默回退 debug 签名
+                // （否则 CI secret 漏配时会产出无法覆盖安装的 debug 包且 job 显示绿色）。
+                // 仅当本次请求的是 release 任务时中断，保证无 keystore 的机器仍能 flutter run --debug。
+                val requestedTasks = gradle.startParameter.taskNames.joinToString(" ")
+                if (requestedTasks.contains("Release", ignoreCase = true) ||
+                    requestedTasks.contains("Bundle", ignoreCase = true)) {
+                    throw GradleException(
+                        "Release signing credentials are missing. " +
+                            "Provide ECHO_STORE_FILE/ECHO_STORE_PASSWORD/ECHO_KEY_ALIAS/ECHO_KEY_PASSWORD " +
+                            "(or android/key.properties), or run a debug build instead."
+                    )
+                }
+                // 本地非 release 任务（如 IDE 同步、debug）保持可用，不中断配置阶段。
+                signingConfig = signingConfigs.getByName("debug")
             }
             // 仅打包 arm64-v8a(ARMv8 及以上)原生库,显著减小安装包体积。
             // 注意:这里不再设 ndk.abiFilters —— 该过滤器与 CI 构建命令的
