@@ -35,6 +35,9 @@ POINT g_dragOffset{};
 int g_dpi = 96;
 int g_curWidth = kWindowWidth;
 int g_curHeight = kWindowHeight;
+// 随 DPI 缩放的内边距与阴影偏移(WM_PAINT 使用)。
+int g_padX = kPaddingX;
+int g_shadowOffset = kShadowOffset;
 
 // 按 DPI 重建字体并缩放布局尺寸；dpi 与当前一致时不重复创建。
 void ApplyDpiScale(int dpi) {
@@ -50,6 +53,8 @@ void ApplyDpiScale(int dpi) {
                        DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei UI");
   g_curWidth = static_cast<int>(kWindowWidth * scale);
   g_curHeight = static_cast<int>(kWindowHeight * scale);
+  g_padX = static_cast<int>(kPaddingX * scale);
+  g_shadowOffset = static_cast<int>(kShadowOffset * scale);
   if (g_hwnd) {
     InvalidateRect(g_hwnd, nullptr, TRUE);
   }
@@ -124,11 +129,11 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         const int y = (h - sz.cy) / 2;
         // Shadow pass.
         SetTextColor(hdc, kShadowColor);
-        TextOutW(hdc, padX + shadowOffset, y + shadowOffset,
+        TextOutW(hdc, g_padX + g_shadowOffset, y + g_shadowOffset,
                  g_text.c_str(), static_cast<int>(g_text.size()));
         // Main pass.
         SetTextColor(hdc, kTextColor);
-        TextOutW(hdc, padX, y, g_text.c_str(),
+        TextOutW(hdc, g_padX, y, g_text.c_str(),
                  static_cast<int>(g_text.size()));
         SelectObject(hdc, old);
       }
