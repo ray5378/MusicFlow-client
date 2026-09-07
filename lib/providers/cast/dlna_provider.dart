@@ -4,7 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:musicflow_client/core/services/notification_permission_service.dart';
 import 'package:musicflow_client/core/dlna/cast_http.dart';
 import 'package:musicflow_client/core/dlna/dlna_keepalive.dart';
 import 'package:musicflow_client/core/dlna/dlna_manager.dart';
@@ -97,17 +97,8 @@ Future<void> releaseCastWakeLock() async {
 ///     用户确认后应用列入白名单，退后台/锁屏仍持续轮询 → 到点准点推下一首。
 Future<void> _requestBackgroundCastPerms() async {
   // 1) POST_NOTIFICATIONS（Android 13+；旧版本 API 由插件自动放行）
-  try {
-    final status = await Permission.notification.request();
-    if (!status.isGranted) {
-      Logger.infoWithTag(
-        'DLNA-KEEPALIVE',
-        l10nNowCurrent().provider_cast_notify_permission,
-      );
-    }
-  } catch (e) {
-    Logger.debugWithTag('DLNA-KEEPALIVE', 'request notification permission failed: $e');
-  }
+  //    复用全局幂等 helper：本地播放首启已申请过则直接跳过。
+  await ensureMediaNotificationPermission();
 
   // 2) 电池优化豁免（Android 6+；未豁免时弹出系统授权框，用户确认一次即可）
   try {
@@ -325,6 +316,10 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   DlnaCastNotifier(this._ref) : super(const DlnaCastState()) {
     final manager = _ref.read(dlnaManagerProvider);
 
+    // provider 被 invalidate/容器销毁时停掉轮询与曲末 Timer（全局 provider
+    // 正常路径 stopCast/detach 已清理，这里兜底热重载/测试场景的泄漏）。
+    _ref.onDispose(_disposeTimers);
+
     // 用户手动清理 App（划掉任务）时释放客户端保活：由音频 handler 的
     // onTaskRemoved 触发，避免划掉后仍在后台轮询/持唤醒锁/自动切歌。
     final handler = _ref.read(playerProvider.notifier).audioHandler;
@@ -415,6 +410,13 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   void _stopTick() {
     _tickTimer?.cancel();
     _tickTimer = null;
+  }
+
+  /// provider 拆除时的 Timer 兜底清理（onDispose 回调）。
+  void _disposeTimers() {
+    _stopTick();
+    _endTimer?.cancel();
+    _endTimer = null;
   }
 
   /// 取消曲末提醒（客户端本地 Dart Timer）。

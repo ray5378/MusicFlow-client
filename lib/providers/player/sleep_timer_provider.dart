@@ -101,4 +101,12 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
     _serverTracked = false;
     state = null;
   }
+
+  @override
+  void dispose() {
+    // 全局 provider 被 invalidate/容器销毁时清掉倒计时，避免 Timer 泄漏。
+    _timer?.cancel();
+    _timer = null;
+    super.dispose();
+  }
 }

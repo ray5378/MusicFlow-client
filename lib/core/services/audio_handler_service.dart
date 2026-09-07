@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:musicflow_client/core/services/notification_permission_service.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
 
@@ -159,6 +162,9 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   @override
   Future<void> play() async {
     Logger.info('AudioHandler: play');
+    // Android 13+ 媒体通知权限：本地播放同样依赖媒体前台服务通知，
+    // 首次播放时申请一次（幂等、全静默失败降级，不阻断播放）。
+    unawaited(ensureMediaNotificationPermission());
     await _audioPlayer.play();
   }
 
