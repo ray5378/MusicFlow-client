@@ -411,6 +411,31 @@ void main() {
         reason: '点击「播放随机歌曲」不应导致 randomSongs 再次拉取换批');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('every horizontal cover rail renders strictly in viewport', (
+    tester,
+  ) async {
+    // 封面显示守卫：首页所有「真实封面横向列表」必须 cacheExtent == 0。
+    // 回归保护：任何新增/遗漏的横向封面 rail 若未显式设置 cacheExtent 0,
+    // 会回落到默认 250px 预热,导致视口外封面被提前构建并发起请求;
+    // 此断言在任何全量数据渲染下都会覆盖所有已展示的封面 rail。
+    await _pumpDiscover(tester);
+
+    final lists = tester.widgetList<ListView>(find.byType(ListView));
+    final horizontal = lists
+        .where((list) => list.scrollDirection == Axis.horizontal)
+        .toList();
+
+    expect(horizontal, isNotEmpty, reason: '首页应渲染出横向封面列表');
+    for (final list in horizontal) {
+      expect(
+        list.cacheExtent,
+        0,
+        reason: '横向封面列表应严格视口渲染(不预加载视口外封面)',
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _RecordingPlayerNotifier extends TestPlayerNotifier {

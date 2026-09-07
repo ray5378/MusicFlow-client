@@ -1,0 +1,45 @@
+name: Cover Display Guard
+
+# 首页封面显示链路的阻塞式门禁：防止后续改动破坏封面显示逻辑。
+# 守卫点：
+#   · 首页所有「真实封面横向列表」必须 cacheExtent == 0 —— 严格视口渲染，
+#     只为视口内封面构建/加载，不为视口外(默认 250px)预热封面请求。
+#   · 首页全量渲染无布局异常(takeException == null)。
+# 与 test-suite.yml(非阻塞观察)不同：本流水线是**真门禁**，任何失败直接标红、
+# 阻塞 main 合并；job 与 step 均不加 continue-on-error。
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cover-display-guard:
+    name: cover display guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.10'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 只有真正的 error 才标红(与离线缓存门禁同口径)。
+      - name: Run dart analyze (errors only)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      # 封面显示守卫专项用例：布局渲染 + 横向封面列表 cacheExtent == 0。
+      - name: Run cover display tests
+        run: flutter test test/features/discover/discover_page_test.dart
