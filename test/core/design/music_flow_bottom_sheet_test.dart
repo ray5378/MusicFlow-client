@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicflow_client/core/design/components/music_flow_bottom_sheet.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   group('MusicFlowBottomSheet platform adaptation', () {
@@ -20,6 +21,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () {
@@ -57,6 +61,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () {

@@ -5,6 +5,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 在桌面平台(非安卓)运行测试体:MusicFlowRefreshView 在安卓触屏端有意不渲染
 /// 文字气泡,而 flutter test 默认平台即 TargetPlatform.android,会掩盖气泡反馈。
@@ -32,6 +33,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: Scaffold(
           body: MusicFlowRefreshView(
@@ -81,6 +85,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: Scaffold(
           body: MusicFlowRefreshView(
@@ -135,6 +142,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: Scaffold(
           body: MusicFlowRefreshView(
@@ -174,6 +184,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.light(),
           home: Scaffold(
             body: MusicFlowRefreshView(
@@ -221,6 +234,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: Scaffold(
           body: MusicFlowRefreshView(

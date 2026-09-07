@@ -13,6 +13,7 @@ import 'package:musicflow_client/widgets/cover_art_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 一个“永不结束”的模拟 HTTP 客户端：让网络封面停留在加载态，
 /// 从而稳定断言 frameBuilder 中的加载骨架屏（而非直接失败回落占位）。
@@ -138,6 +139,9 @@ void main() {
         ),
       ],
       child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         home: Scaffold(
           body: Center(child: CoverArtImage(coverArtId: coverArtId, size: 48)),
         ),
@@ -181,6 +185,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           home: Scaffold(
             body: CoverArtImage(
               coverArtId: null,
@@ -206,6 +213,9 @@ void main() {
       return scopeWithBoundClient(
         child: ProviderScope(
           child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
             home: Scaffold(
               body: layout(
                 CoverArtImage(

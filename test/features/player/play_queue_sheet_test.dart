@@ -10,6 +10,7 @@ import 'package:musicflow_client/widgets/song_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   final songs = <Song>[
@@ -34,6 +35,9 @@ void main() {
   }) {
     return ProviderScope(
       child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.dark(),
         builder: (context, child) {
           final media = MediaQuery.of(context);

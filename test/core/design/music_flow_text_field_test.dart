@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   Widget testApp(
@@ -12,6 +13,9 @@ void main() {
     TextScaler textScaler = TextScaler.noScaling,
   }) {
     return MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
       theme: theme ?? AppTheme.light(),
       home: MediaQuery(
         data: MediaQueryData(textScaler: textScaler),

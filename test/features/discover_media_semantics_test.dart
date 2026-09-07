@@ -4,6 +4,7 @@ import 'package:musicflow_client/features/discover/widgets/discover_media_widget
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   final song = Song(
@@ -17,6 +18,9 @@ void main() {
   Widget app(Widget child) {
     return ProviderScope(
       child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: Scaffold(
           body: Center(child: SizedBox(width: 360, child: child)),

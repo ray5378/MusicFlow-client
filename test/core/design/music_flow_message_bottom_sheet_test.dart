@@ -2,6 +2,7 @@ import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   group('MusicFlowMessage contrast', () {
@@ -45,6 +46,9 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
             theme: theme,
             home: const Scaffold(
               body: Center(child: MusicFlowMessage(message: '播放已恢复')),
@@ -82,6 +86,9 @@ void main() {
       const safeInsets = EdgeInsets.only(top: 44, bottom: 34);
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.light(),
           builder: (context, child) {
             final mediaQuery = MediaQuery.of(context);

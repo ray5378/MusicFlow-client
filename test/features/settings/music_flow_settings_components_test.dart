@@ -2,6 +2,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/features/settings/widgets/music_flow_settings_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   Finder toggleTrack() => find.byWidgetPredicate(
@@ -21,6 +22,9 @@ void main() {
     String description = '用于获取当前歌曲的同步歌词。',
   }) {
     return MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
       theme: AppTheme.light(),
       builder: (context, child) {
         final media = MediaQuery.of(context);

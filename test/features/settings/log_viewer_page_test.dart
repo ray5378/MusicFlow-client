@@ -7,6 +7,7 @@ import 'package:musicflow_client/widgets/windows_title_bar.dart'
     show kWindowsWindowControlsWidth;
 
 import '../../helpers/windows_overlap.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   group('LogViewerPage Windows title-bar overlap', () {
@@ -24,7 +25,10 @@ void main() {
         debugDefaultTargetPlatformOverride = TargetPlatform.windows;
 
         await tester.pumpWidget(
-          const MaterialApp(home: LogViewerPage()),
+          const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),home: LogViewerPage()),
         );
         // 页面内 1s 轮询 Timer 让 pumpAndSettle 无法收敛，只 pump 一帧。
         await tester.pump();
@@ -54,7 +58,10 @@ void main() {
         debugDefaultTargetPlatformOverride = TargetPlatform.linux;
 
         await tester.pumpWidget(
-          const MaterialApp(home: LogViewerPage()),
+          const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),home: LogViewerPage()),
         );
         await tester.pump();
 

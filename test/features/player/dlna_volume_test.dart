@@ -14,6 +14,7 @@ import 'package:musicflow_client/providers/ui/palette_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 
 import 'test_player_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 记录 setVolume 下发的假直投 notifier：验证音量条在直投态路由到 DLNA。
 class _RecCastNotifier extends DlnaCastNotifier {
@@ -99,6 +100,9 @@ void main() {
         ),
       ],
       child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.dark(),
         home: const FullPlayerPage(),
       ),

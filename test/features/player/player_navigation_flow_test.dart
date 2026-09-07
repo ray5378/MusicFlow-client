@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'test_player_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('MiniPlayer opens the full player and selects from its queue', (
@@ -52,6 +53,9 @@ void main() {
           currentLyricsProvider.overrideWith((ref) async => null),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.dark(),
           builder: (context, child) {
             final media = MediaQuery.of(context);

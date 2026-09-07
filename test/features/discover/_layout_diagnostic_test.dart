@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../player/test_player_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 // 临时诊断测试：输出首页各按钮/图标的真实渲染矩形，用于排查布局问题。
 void main() {
@@ -195,6 +196,9 @@ Future<void> _pumpDiscover(
     ProviderScope(
       overrides: overrides,
       child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         builder: (context, child) {
           final media = MediaQuery.of(context);

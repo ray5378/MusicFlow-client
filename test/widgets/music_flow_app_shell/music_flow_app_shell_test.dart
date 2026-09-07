@@ -11,6 +11,7 @@ import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_shell_n
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 const _destinations = <MusicFlowShellDestination>[
   MusicFlowShellDestination(
@@ -527,6 +528,9 @@ Future<void> _pumpShell(
   await tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: theme ?? AppTheme.light(),
         home: MediaQuery(
           data: MediaQueryData(

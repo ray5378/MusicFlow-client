@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   group('MainScaffold back decision', () {
@@ -59,6 +60,9 @@ void main() {
         tester.view.physicalSize = Size(width, 800);
         await tester.pumpWidget(
           MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
             theme: AppTheme.light(),
             home: Builder(
               builder: (context) => Text(
@@ -174,7 +178,13 @@ Future<_MainScaffoldHarness> _pumpMainScaffold(WidgetTester tester) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        routerConfig: router,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('zh'),
+      ),
     ),
   );
   await tester.pumpAndSettle();

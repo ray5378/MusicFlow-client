@@ -2,6 +2,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('MusicFlow drawer avoids default Material drawer silhouettes', (
@@ -65,6 +66,9 @@ Future<void> _pumpDrawer(
 
   await tester.pumpWidget(
     MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
       theme: AppTheme.light(),
       home: MediaQuery(
         data: MediaQueryData(

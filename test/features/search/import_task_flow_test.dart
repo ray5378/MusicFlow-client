@@ -12,6 +12,7 @@ import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:musicflow_client/providers/library/search_provider.dart';
 
 import '../../helpers/mocks.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 入库触发即返回契约(§入库不阻塞):
 /// 提交 POST 秒回 → 立即 Toast,不弹任何阻塞遮罩;
@@ -40,6 +41,9 @@ void main() {
       ProviderScope(
         overrides: [searchRepositoryProvider.overrideWithValue(repo)],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           navigatorKey: rootNavigatorKey,
           home: Scaffold(
             body: Center(
@@ -205,6 +209,9 @@ void main() {
             }),
           ],
           child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
             navigatorKey: rootNavigatorKey,
             home: Scaffold(
               body: Center(

@@ -16,6 +16,7 @@ import 'package:musicflow_client/providers/library/search_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../player/test_player_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 typedef _NetworkHandler = Future<SearchOutcome> Function(SearchRequest req);
 
@@ -112,6 +113,9 @@ void main() {
           ...overrides,
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.light(),
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(disableAnimations: true),

@@ -8,6 +8,7 @@ import 'package:musicflow_client/widgets/music_flow_metadata_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('artwork owns shape, Hero tag, and accessible cover label', (
@@ -16,6 +17,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.light(),
           home: const Scaffold(
             body: Row(
@@ -64,6 +68,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: const Scaffold(
           body: MediaQuery(
@@ -102,6 +109,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: Scaffold(
           body: MediaQuery(
@@ -144,6 +154,9 @@ void main() {
   testWidgets('shuffle can remain visible while disabled', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
         theme: AppTheme.light(),
         home: const Scaffold(
           body: MusicFlowMediaActions(

@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'test_player_notifier.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class _MockLibraryRepository extends Mock implements LibraryRepository {}
 
@@ -46,6 +47,9 @@ void main() {
           playerProvider.overrideWith((ref) => notifier),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.light(),
           home: Scaffold(
             body: Builder(
@@ -98,6 +102,9 @@ void main() {
             playerProvider.overrideWith((ref) => notifier),
           ],
           child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
             theme: AppTheme.light(),
             home: Scaffold(
               body: Builder(

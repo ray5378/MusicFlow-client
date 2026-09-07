@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:musicflow_client/core/services/update_checker.dart';
 import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/features/settings/services/startup_update_checker.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 void main() {
   const assets = <ReleaseAsset>[
@@ -36,7 +37,10 @@ void main() {
   const hostKey = Key('startup-update-check-host');
 
   Widget app(Widget child) {
-    return MaterialApp(theme: AppTheme.dark(), home: Scaffold(body: child));
+    return MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),theme: AppTheme.dark(), home: Scaffold(body: child));
   }
 
   group('startupUpdateCheckSupported', () {
@@ -328,6 +332,9 @@ void main() {
       final navKey = GlobalKey<NavigatorState>();
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           navigatorKey: navKey,
           theme: AppTheme.dark(),
           home: const Scaffold(body: SizedBox()),
@@ -357,6 +364,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
           theme: AppTheme.dark(),
           home: const Scaffold(body: SizedBox()),
           builder: (context, child) => StartupUpdateCheckScope(

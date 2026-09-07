@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicflow_client/core/dlna/cast_http.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 ServerAddress _addr(
   String id,
@@ -166,6 +168,10 @@ void main() {
   });
 
   test('提示文案与 ray 指定措辞一致', () {
-    expect(kDlnaCastHttpRequiredHint, '直投功能必须在媒体库中先添加http连接');
+    // kDlnaCastHttpRequiredHint 已改为函数(AppLocalizations) => String，取 zh 文案断言。
+    expect(
+      kDlnaCastHttpRequiredHint(lookupAppLocalizations(const Locale('zh'))),
+      '直投功能必须在媒体库中先添加http连接',
+    );
   });
 }
