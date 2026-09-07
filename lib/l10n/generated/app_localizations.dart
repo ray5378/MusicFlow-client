@@ -5,8 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart' as intl;
 
-import 'package:musicflow_client/l10n/generated/app_localizations_en.dart';
-import 'package:musicflow_client/l10n/generated/app_localizations_zh.dart';
+import 'app_localizations_en.dart';
+import 'app_localizations_zh.dart';
 
 // ignore_for_file: type=lint
 
@@ -2116,6 +2116,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'本地结果'**
   String get search_local_results;
+
+  /// No description provided for @search_local_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地结果加载失败。'**
+  String get search_local_load_failed;
 
   /// No description provided for @search_network_results.
   ///

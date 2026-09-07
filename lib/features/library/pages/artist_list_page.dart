@@ -110,6 +110,7 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
             return repository.getArtistsPage(1, 12, query: _searchQuery);
           },
           grid: true,
+          cacheKey: _searchQuery,
           itemBuilder: (context, artist, _) => SearchArtistCard(
             artist: SearchArtist.fromLocal(artist),
             onPlay: () => unawaited(_playLocalArtist(ref, artist)),

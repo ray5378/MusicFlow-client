@@ -715,6 +715,7 @@
   },
   "search_local_no_results": "本地没有找到相关结果",
   "search_local_results": "本地结果",
+  "search_local_load_failed": "本地结果加载失败。",
   "search_network_results": "全网结果",
   "search_network_results_subtitle": "已启用插件的合并搜索,卡片带插件·平台标签",
   "search_scope_overlay": "搜索范围浮层",

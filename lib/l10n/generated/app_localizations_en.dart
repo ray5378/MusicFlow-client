@@ -1,6 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
 
@@ -1194,6 +1194,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get search_local_results => 'Local results';
+
+  @override
+  String get search_local_load_failed => 'Failed to load local results.';
 
   @override
   String get search_network_results => 'Web-wide results';

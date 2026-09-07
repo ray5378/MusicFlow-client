@@ -152,6 +152,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             return repository.getSongsPage(1, 12, query: _searchQuery);
           },
           itemBuilder: (context, song, index) => _buildRow(index, song),
+          cacheKey: _searchQuery,
           emptyText: loc.library_local_no_match_songs,
         ),
       );

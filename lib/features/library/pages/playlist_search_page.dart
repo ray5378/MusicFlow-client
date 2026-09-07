@@ -114,6 +114,7 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
             return repository.getPlaylistsPage(1, 12, query: _searchQuery);
           },
           grid: true,
+          cacheKey: _searchQuery,
           itemBuilder: (context, playlist, _) => SearchPlaylistCard(
             playlist: SearchPlaylist.fromLocal(playlist),
             onPlay: () => unawaited(_playLocalPlaylist(ref, playlist)),

@@ -118,6 +118,7 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
             return repository.getAlbumsPage(1, 12, query: _searchQuery);
           },
           grid: true,
+          cacheKey: _searchQuery,
           itemBuilder: (context, album, _) => SearchAlbumCard(
             album: SearchAlbum.fromLocal(album),
             onPlay: () => unawaited(_playLocalAlbum(ref, album)),

@@ -117,7 +117,11 @@ class AggregateSearchResults extends ConsumerWidget {
 /// 「本地结果」块：按关键词拉取本地库匹配项。
 /// [grid] 为 true 时渲染卡片网格（对齐全网结果的卡片网格，专辑/歌单）；
 /// 为 false 时渲染纵向行（歌曲/歌手）。
-class AggregateLocalBlock<T> extends StatelessWidget {
+///
+/// Future 缓存：调用方通过 [cacheKey]（如搜索关键词）标识本次查询，
+/// 父级 rebuild（键盘弹出、骨架屏切换等）不会重复发起本地查询；
+/// cacheKey 变化才重新 fetch。查询失败不再伪装成"无匹配"，给出重试入口。
+class AggregateLocalBlock<T> extends StatefulWidget {
   const AggregateLocalBlock({
     super.key,
     required this.fetcher,
@@ -125,6 +129,7 @@ class AggregateLocalBlock<T> extends StatelessWidget {
     required this.emptyText,
     this.grid = false,
     this.limit = 12,
+    this.cacheKey,
   });
 
   final Future<({List<T> items, int total})> Function() fetcher;
@@ -136,15 +141,75 @@ class AggregateLocalBlock<T> extends StatelessWidget {
   final bool grid;
   final int limit;
 
+  /// Future 缓存键（如搜索关键词）：键不变则 rebuild 复用既有 Future。
+  final Object? cacheKey;
+
+  @override
+  State<AggregateLocalBlock<T>> createState() =>
+      _AggregateLocalBlockState<T>();
+}
+
+class _AggregateLocalBlockState<T> extends State<AggregateLocalBlock<T>> {
+  Object? _cacheKey;
+  late Future<({List<T> items, int total})> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _cacheKey = widget.cacheKey;
+    _future = widget.fetcher();
+  }
+
+  @override
+  void didUpdateWidget(AggregateLocalBlock<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.cacheKey != _cacheKey) {
+      _cacheKey = widget.cacheKey;
+      _future = widget.fetcher();
+    }
+  }
+
+  void _reload() {
+    setState(() => _future = widget.fetcher());
+  }
+
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return FutureBuilder<({List<T> items, int total})>(
-      future: fetcher(),
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: MusicFlowMediaListSkeleton(count: 3),
+          );
+        }
+        // 失败 ≠ 无匹配：明确报错并提供重试，避免把网络故障当空结果。
+        if (snapshot.hasError) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              context.musicFlowPageHorizontalPadding,
+              context.musicFlowSpacing.xxs,
+              context.musicFlowPageHorizontalPadding,
+              context.musicFlowSpacing.xs,
+            ),
+            child: Row(
+              children: <Widget>[
+                Flexible(
+                  child: Text(
+                    loc.search_local_load_failed,
+                    style: context.musicFlowTypography.metadata.copyWith(
+                      color: context.musicFlowColors.muted,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _reload,
+                  child: Text(loc.widgets_retry),
+                ),
+              ],
+            ),
           );
         }
         final items = snapshot.data?.items ?? <T>[];
@@ -157,19 +222,19 @@ class AggregateLocalBlock<T> extends StatelessWidget {
               context.musicFlowSpacing.xs,
             ),
             child: Text(
-              emptyText,
+              widget.emptyText,
               style: context.musicFlowTypography.metadata.copyWith(
                 color: context.musicFlowColors.muted,
               ),
             ),
           );
         }
-        final shown = items.take(limit).toList();
-        if (!grid) {
+        final shown = items.take(widget.limit).toList();
+        if (!widget.grid) {
           return Column(
             children: <Widget>[
               for (final (i, item) in shown.indexed)
-                itemBuilder(context, item, i),
+                widget.itemBuilder(context, item, i),
             ],
           );
         }
@@ -195,7 +260,7 @@ class AggregateLocalBlock<T> extends StatelessWidget {
             ),
             children: <Widget>[
               for (final (i, item) in shown.indexed)
-                itemBuilder(context, item, i),
+                widget.itemBuilder(context, item, i),
             ],
           );
         }
@@ -209,7 +274,7 @@ class AggregateLocalBlock<T> extends StatelessWidget {
           crossAxisSpacing: 12,
           children: <Widget>[
             for (final (i, item) in shown.indexed)
-              itemBuilder(context, item, i),
+              widget.itemBuilder(context, item, i),
           ],
         );
       },

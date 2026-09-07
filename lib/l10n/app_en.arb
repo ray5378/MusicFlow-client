@@ -715,6 +715,7 @@
   },
   "search_local_no_results": "No local results found",
   "search_local_results": "Local results",
+  "search_local_load_failed": "Failed to load local results.",
   "search_network_results": "Web-wide results",
   "search_network_results_subtitle": "Aggregated search across enabled plugins; cards carry the plugin · platform label",
   "search_scope_overlay": "Search scope overlay",
