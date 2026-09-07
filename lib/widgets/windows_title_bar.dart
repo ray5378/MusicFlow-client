@@ -56,9 +56,40 @@ Future<void> setDesktopLyricText(String text) async {
   }
 }
 
-/// 显示/隐藏桌面歌词浮窗(原生层置顶、不抢焦点)。
-Future<void> setDesktopLyricVisible(bool visible) async {
+/// 推送桌面歌词浮窗完整显示状态(歌名/歌手/歌词行/播放/喜欢/模式/音量)。
+/// 原生层据此绘制两行文本与悬停控制按钮。
+Future<void> setDesktopLyricState({
+  required String song,
+  required String artist,
+  required String lyric,
+  required bool playing,
+  required bool liked,
+  required String mode,
+  required double volume,
+}) async {
   if (!isWindowsDesktop) return;
+  try {
+    await kWindowsWindowChannel.invokeMethod<void>(
+      'update_desktop_lyric_state',
+      <String, Object>{
+        'song': song,
+        'artist': artist,
+        'lyric': lyric,
+        'playing': playing,
+        'liked': liked,
+        'mode': mode,
+        'volume': volume,
+      },
+    );
+  } on MissingPluginException {
+    // 非 Windows 平台没有对应原生实现,静默忽略。
+  } on PlatformException {
+    // 状态推送失败不影响主流程。
+  }
+}
+
+/// 显示/隐藏桌面歌词浮窗(原生层置顶、不抢焦点)。
+Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop) return;
   try {
     await kWindowsWindowChannel.invokeMethod<void>(
       'set_desktop_lyric_visible',

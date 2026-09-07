@@ -1,19 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
-import 'package:musicflow_client/widgets/windows_title_bar.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/widgets/windows_title_bar.dart';
 
 /// Windows 桌面歌词浮窗开关(默认关闭)。
 final statusLyricsEnabledProvider = StateProvider<bool>((ref) => false);
 
-/// 桌面歌词控制器:持久化开关、监听当前歌词并把当前行推送到桌面歌词浮窗
-/// (原生 Win32 无边框置顶悬浮窗,可拖动,非托盘 tooltip)。在 MainScaffold
-/// 初始化时读取一次以激活监听。
+/// 桌面歌词控制器:持久化开关,监听播放状态(歌名/歌手/歌词行/播放/喜欢/
+/// 播放模式/音量)并把完整状态推送到桌面歌词浮窗(原生 Win32 悬浮窗,
+/// 两行文本 + 悬停控制按钮)。在 MainScaffold 初始化时读取一次以激活监听。
 final statusLyricsControllerProvider = Provider<StatusLyricsController>((ref) {
   final controller = StatusLyricsController(ref);
   ref.onDispose(controller.dispose);
@@ -27,31 +29,55 @@ class StatusLyricsController {
       statusLyricsEnabledProvider,
       (_, next) {
         _enabled = next;
-        _syncLyricsSubscription();
+        _syncSubscriptions();
         _apply();
       },
     );
-    _syncLyricsSubscription();
-    // 启动时恢复上次开关状态并立即应用(开启则显示浮窗并推送歌词)。
+    _syncSubscriptions();
+    // 启动时恢复上次开关状态并立即应用(开启则显示浮窗并推送状态)。
     _restore();
   }
 
   final Ref _ref;
   bool _enabled = false;
-  String? _lastPushed;
+  String? _lastPushedKey;
   ProviderSubscription<bool>? _enabledSub;
-  ProviderSubscription<String?>? _lyricsSub;
+  final List<ProviderSubscription<dynamic>> _playerSubs = [];
 
-  /// 仅在开启时订阅当前歌词行,避免在关闭状态下无谓触发歌词网络拉取。
-  void _syncLyricsSubscription() {
-    if (_enabled && _lyricsSub == null) {
-      _lyricsSub = _ref.listen<String?>(
-        currentLyricLineProvider,
-        (_, __) => _push(),
-      );
-    } else if (!_enabled && _lyricsSub != null) {
-      _lyricsSub!.close();
-      _lyricsSub = null;
+  /// 仅在开启时订阅播放状态与歌词行,避免在关闭状态下无谓触发歌词网络拉取。
+  void _syncSubscriptions() {
+    if (_enabled && _playerSubs.isEmpty) {
+      _playerSubs.addAll([
+        _ref.listen<Song?>(
+          playerProvider.select((s) => s.currentSong),
+          (_, __) => _push(),
+        ),
+        _ref.listen<bool>(
+          playerProvider.select((s) => s.isPlaying),
+          (_, __) => _push(),
+        ),
+        _ref.listen<double>(
+          playerProvider.select((s) => s.volume),
+          (_, __) => _push(),
+        ),
+        _ref.listen<bool>(
+          playerProvider.select((s) => s.shuffleEnabled),
+          (_, __) => _push(),
+        ),
+        _ref.listen<LoopMode>(
+          playerProvider.select((s) => s.loopMode),
+          (_, __) => _push(),
+        ),
+        _ref.listen<String?>(
+          currentLyricLineProvider,
+          (_, __) => _push(),
+        ),
+      ]);
+    } else if (!_enabled && _playerSubs.isNotEmpty) {
+      for (final sub in _playerSubs) {
+        sub.close();
+      }
+      _playerSubs.clear();
     }
   }
 
@@ -64,15 +90,14 @@ class StatusLyricsController {
     }
   }
 
-  /// 把开关状态应用到浮窗:开启 → 显示并推送当前歌词;关闭 → 隐藏并清空。
+  /// 把开关状态应用到浮窗:开启 → 显示并推送当前状态;关闭 → 隐藏。
   void _apply() {
     if (_enabled) {
       unawaited(setDesktopLyricVisible(true));
-      _lastPushed = null;
+      _lastPushedKey = null;
       _push();
     } else {
       unawaited(setDesktopLyricVisible(false));
-      unawaited(setDesktopLyricText(''));
     }
   }
 
@@ -89,22 +114,38 @@ class StatusLyricsController {
 
   void _push() {
     if (!_enabled) return;
-    final text = _ref.read(currentLyricLineProvider) ?? _fallbackText();
-    if (text == _lastPushed) return;
-    _lastPushed = text;
-    unawaited(setDesktopLyricText(text));
-  }
-
-  String _fallbackText() {
-    final song = _ref.read(playerProvider.select((s) => s.currentSong));
-    if (song == null) return 'MusicFlow';
-    final title = song.title;
-    final artist = song.artist?.trim() ?? '';
-    return artist.isEmpty ? title : '$title - $artist';
+    final player = _ref.read(playerProvider);
+    final song = player.currentSong;
+    final title = song?.title ?? '';
+    final artist = song?.artist?.trim() ?? '';
+    final lyric = _ref.read(currentLyricLineProvider) ?? '';
+    final playing = player.isPlaying;
+    final liked = player.currentSong?.starred ?? false;
+    // 播放模式(与 PlayerNotifier.playbackMode 同一推导,避免依赖 notifier):
+    // shuffle → 'shuffle';单曲循环 → 'repeatOne';其余 → 'repeatAll'。
+    final mode = player.shuffleEnabled
+        ? 'shuffle'
+        : (player.loopMode == LoopMode.one ? 'repeatOne' : 'repeatAll');
+    final volume = double.parse(player.volume.toStringAsFixed(2));
+    // 去重:任何字段都没变就不推。
+    final key = '$title|$artist|$lyric|$playing|$liked|$mode|$volume';
+    if (key == _lastPushedKey) return;
+    _lastPushedKey = key;
+    unawaited(setDesktopLyricState(
+      song: title,
+      artist: artist,
+      lyric: lyric,
+      playing: playing,
+      liked: liked,
+      mode: mode,
+      volume: volume,
+    ));
   }
 
   void dispose() {
     _enabledSub?.close();
-    _lyricsSub?.close();
+    for (final sub in _playerSubs) {
+      sub.close();
+    }
   }
 }

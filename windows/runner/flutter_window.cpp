@@ -64,6 +64,16 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   g_window_messenger = flutter_controller_->engine()->messenger();
 
+  // 桌面歌词浮窗按钮事件(上一首/播放暂停/下一首/模式/喜欢/音量)经
+  // tray 字符串通道回传 Dart,与托盘按钮共用同一条处理链路。
+  DesktopLyricSetEventCallback([](const char* msg) {
+    if (!g_window_messenger || msg == nullptr) return;
+    const std::string s(msg);
+    std::vector<uint8_t> data(s.begin(), s.end());
+    g_window_messenger->Send("com.musicflow.app/tray", data.data(),
+                             data.size());
+  });
+
   // 窗口控制通道:客户端自绘标题栏(关闭/最小化/最大化/拖拽)与
   // 托盘「状态栏歌词」tooltip 均通过该通道与原生层交互。
   window_channel_ =
@@ -156,21 +166,49 @@ void FlutterWindow::HandleWindowMethod(
     result->Success();
     return;
   }
-  if (method == "set_desktop_lyric_text") {
-    // 桌面歌词浮窗:更新歌词文本(空文本清空;窗口自适应大小重绘)。
-    std::wstring text;
+  if (method == "update_desktop_lyric_state") {
+    // 桌面歌词浮窗:推送完整显示状态(歌名/歌手/歌词行/播放/喜欢/模式/音量)。
+    DesktopLyricState st;
     if (const flutter::EncodableValue* arguments = call.arguments()) {
       if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
-        const auto& argsMap = std::get<flutter::EncodableMap>(*arguments);
-        const auto it = argsMap.find(flutter::EncodableValue("text"));
-        if (it != argsMap.end()) {
-          if (const auto* s = std::get_if<std::string>(&it->second)) {
-            text = Utf8ToUtf16(*s);
+        const auto& m = std::get<flutter::EncodableMap>(*arguments);
+        auto getStr = [&](const char* key) -> std::string {
+          const auto it = m.find(flutter::EncodableValue(key));
+          if (it != m.end()) {
+            if (const auto* s = std::get_if<std::string>(&it->second)) {
+              return *s;
+            }
           }
-        }
+          return "";
+        };
+        auto getBool = [&](const char* key, bool def) -> bool {
+          const auto it = m.find(flutter::EncodableValue(key));
+          if (it != m.end()) {
+            if (const auto* b = std::get_if<bool>(&it->second)) return *b;
+          }
+          return def;
+        };
+        auto getDouble = [&](const char* key, double def) -> double {
+          const auto it = m.find(flutter::EncodableValue(key));
+          if (it != m.end()) {
+            if (const auto* d = std::get_if<double>(&it->second)) return *d;
+            if (const auto* i = std::get_if<int32_t>(&it->second)) {
+              return static_cast<double>(*i);
+            }
+          }
+          return def;
+        };
+        st.song = Utf8ToUtf16(getStr("song"));
+        st.artist = Utf8ToUtf16(getStr("artist"));
+        st.lyric = Utf8ToUtf16(getStr("lyric"));
+        st.playing = getBool("playing", false);
+        st.liked = getBool("liked", false);
+        const std::string mode = getStr("mode");
+        st.mode = mode == "shuffle" ? 0 : (mode == "repeatOne" ? 2 : 1);
+        st.volume = getDouble("volume", 0.8);
       }
     }
-    DesktopLyricSetText(text);
+    DesktopLyricUpdateState(st);
     result->Success();
     return;
   }

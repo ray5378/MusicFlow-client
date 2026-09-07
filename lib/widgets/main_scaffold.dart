@@ -170,6 +170,14 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   void _initTrayListener() {
     _trayChannel.setMessageHandler((message) async {
       if (!mounted || message == null) return '';
+      // 桌面歌词浮窗音量滑条:volume:<0..1>,调整播放器自身音量(不动系统音量)。
+      if (message!.startsWith('volume:')) {
+        final v = double.tryParse(message!.substring(7));
+        if (v != null) {
+          await ref.read(playerProvider.notifier).setVolume(v);
+        }
+        return '';
+      }
       switch (message) {
         case 'toggle_play_pause':
           await toggleEffectivePlayback(ref);
@@ -183,6 +191,14 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         case 'toggle_status_lyrics':
           // 托盘菜单「显示桌面歌词」:与客户端设置页开关共用同一个入口。
           await ref.read(statusLyricsControllerProvider).toggle();
+          break;
+        case 'cycle_playback_mode':
+          // 桌面歌词浮窗「播放模式」按钮:循环切换 随机/列表循环/单曲循环。
+          await ref.read(playerProvider.notifier).cyclePlaybackMode();
+          break;
+        case 'toggle_like':
+          // 桌面歌词浮窗「喜欢」按钮:与主窗口喜欢按钮同一条链路。
+          await ref.read(playerProvider.notifier).toggleFavorite();
           break;
         case 'quit':
           // 托盘「退出」:先立即落盘播放状态(进度/音量,不等防抖 Timer),
