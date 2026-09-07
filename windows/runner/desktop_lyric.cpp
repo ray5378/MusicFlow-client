@@ -1,15 +1,20 @@
 #include "desktop_lyric.h"
 
 #include <windowsx.h>
+#include <objidl.h>
+#include <gdiplus.h>
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 
-// AlphaBlend(毛玻璃遮盖)来自 msimg32。
-#pragma comment(lib, "msimg32.lib")
+// UpdateLayeredWindow 逐像素 alpha 合成需要 GDI+。
+#pragma comment(lib, "gdiplus.lib")
 
 namespace {
+
+namespace gd = Gdiplus;
+using gd::REAL;  // GDI+ 浮点类型,函数签名里大量使用
 
 constexpr wchar_t kLyricWindowClass[] = L"MusicFlowDesktopLyric";
 constexpr wchar_t kRegKey[] = L"Software\\MusicFlow";
@@ -20,19 +25,23 @@ constexpr wchar_t kRegPosY[] = L"LyricY";
 constexpr int kWindowWidth = 520;     // 窗口固定宽度
 constexpr int kWindowHeight = 84;     // 歌词区固定高度
 constexpr int kPaddingX = 26;         // 文字左边距
-constexpr int kShadowOffset = 2;      // 文字阴影偏移
-constexpr BYTE kWindowAlpha = 210;    // 整窗透明度(0-255)
 constexpr int kCornerRadius = 12;     // 圆角半径
 constexpr int kHeaderFontSize = 13;   // 「歌名 - 歌手」字号
 constexpr int kLyricFontSize = 24;    // 歌词字号
 constexpr int kPopupFontSize = 13;    // 音量百分比字号
 constexpr int kPopupHeight = 162;     // 音量弹窗区高度(歌词区上方预留)
+constexpr int kLyricStrokeW = 4;      // 歌词描边宽(逻辑)
+constexpr int kHeaderStrokeW = 3;     // 标题描边宽(逻辑)
 
-constexpr COLORREF kBgColor = RGB(28, 28, 34);        // 深色圆角背景
-constexpr COLORREF kFrostColor = RGB(212, 218, 228);  // 毛玻璃遮罩色调
-constexpr COLORREF kHeaderColor = RGB(142, 147, 158); // 标题行灰
-constexpr COLORREF kTextColor = RGB(237, 239, 243);   // 歌词主色
-constexpr COLORREF kShadowColor = RGB(0, 0, 0);       // 阴影色
+// 参考网易云桌面歌词:未悬停时无任何底板(完全透明),只有描边字;
+// 悬停时出现整栏灰色半透明圆角面板,按钮绘制其上。
+constexpr int kHoverPanelAlpha = 160;                 // 悬停面板不透明度
+constexpr int kPopupPanelAlpha = 242;                 // 音量弹窗不透明度
+constexpr COLORREF kHoverPanelColor = RGB(138, 138, 138);  // 悬停面板灰
+constexpr COLORREF kLyricFillColor = RGB(240, 149, 149);   // 歌词填充默认色(粉)
+constexpr COLORREF kHeaderFillColor = RGB(255, 255, 255);  // 标题填充(白)
+constexpr COLORREF kHeaderStrokeColor = RGB(201, 201, 201);// 标题描边(浅灰)
+constexpr COLORREF kTextColor = RGB(237, 239, 243);   // 弹窗文字
 constexpr COLORREF kBtnBg = RGB(38, 40, 47);          // 普通按钮底
 constexpr COLORREF kPlayBtnBg = RGB(46, 49, 58);      // 播放按钮底(稍亮)
 constexpr COLORREF kIconColor = RGB(215, 218, 224);   // 图标常规色
@@ -57,7 +66,6 @@ constexpr int kOffMode = 139;
 constexpr int kOffNext = 191;
 constexpr int kOffPlay = 245;
 constexpr int kOffPrev = 299;
-constexpr int kMaskExtra = 12;        // 遮罩左缘比最左按钮再多留的宽度
 
 // 播放模式(与 Dart PlaybackMode 枚举顺序对齐: 0=shuffle,1=repeatAll,2=repeatOne)
 constexpr int kModeShuffle = 0;
@@ -77,21 +85,25 @@ constexpr wchar_t kGlyphHeart = L'\uEB51';       // 描边心形
 constexpr wchar_t kGlyphHeartFill = L'\uEB52';   // 实心心形
 
 HWND g_hwnd = nullptr;
-HFONT g_lyricFont = nullptr;
-HFONT g_headerFont = nullptr;
-HFONT g_popupFont = nullptr;
-HFONT g_iconFont = nullptr;      // 普通按钮图标(Segoe MDL2 Assets)
-HFONT g_iconPlayFont = nullptr;  // 播放按钮图标(大一号)
+ULONG_PTR g_gdiplusToken = 0;
+gd::FontFamily* g_famUI = nullptr;    // Microsoft YaHei UI
+gd::FontFamily* g_famIcon = nullptr;  // Segoe MDL2 Assets
+gd::Font* g_fontPopup = nullptr;      // 音量百分比
+gd::Font* g_fontIcon = nullptr;       // 普通按钮图标
+gd::Font* g_fontIconPlay = nullptr;   // 播放按钮图标(大一号)
+gd::Bitmap* g_surface = nullptr;      // 分层窗口内容(PARGB,按需重建)
+gd::Graphics* g_gfx = nullptr;
 std::wstring g_song;
 std::wstring g_artist;
 std::wstring g_lyric;
+COLORREF g_lyricColor = kLyricFillColor;  // 歌词填充色(Flutter 推送)
 bool g_playing = false;
 bool g_liked = false;
 int g_mode = kModeRepeatAll;
 double g_volume = 0.8;
 bool g_visible = false;
 bool g_dragging = false;
-bool g_hovering = false;       // 鼠标是否在窗口内(决定遮罩/按钮显示)
+bool g_hovering = false;       // 鼠标是否在窗口内(决定面板/按钮显示)
 bool g_trackingMouse = false;  // TrackMouseEvent 是否已登记
 bool g_popupOpen = false;      // 音量弹窗是否展开
 bool g_sliderDragging = false; // 正在拖音量滑条
@@ -107,14 +119,22 @@ float g_scale = 1.0f;
 int g_curWidth = kWindowWidth;
 int g_curHeight = kWindowHeight;
 int g_padX = kPaddingX;
-int g_shadowOffset = kShadowOffset;
 int g_popupH = kPopupHeight;
 
 int S(int v) { return static_cast<int>(v * g_scale + 0.5f); }
+float Sf(int v) { return static_cast<float>(v) * g_scale; }
 
-// 窗口总高固定 = 歌词区 + 弹窗区;弹窗区平时通过窗口区域裁剪排除,
-// 真正透明且不接收鼠标,杜绝分层窗口 resize 后旧画面残影(双浮窗 bug)。
+// 窗口总高固定 = 歌词区 + 弹窗区;弹窗区未画像素 alpha=0,
+// 天然透明且不接收鼠标(等价旧 SetWindowRgn 裁剪)。
 int TotalHeight() { return g_curHeight + g_popupH; }
+
+// GDI+ COLORREF → Color(COLoRREF 布局 0x00bbggrr;不用 GetXValue 宏,
+// 对 constexpr 截断会触发 C4310)。
+gd::Color Gd(COLORREF c, int alpha = 255) {
+  return gd::Color(static_cast<BYTE>(alpha), static_cast<BYTE>(c & 0xFF),
+                   static_cast<BYTE>((c >> 8) & 0xFF),
+                   static_cast<BYTE>((c >> 16) & 0xFF));
+}
 
 // 按钮几何:圆心(物理 px)与半径。idx: 0=prev 1=play 2=next 3=mode 4=volume 5=like
 struct BtnGeom {
@@ -132,11 +152,6 @@ BtnGeom ButtonGeom(int idx) {
     case 4: return {w - S(kOffVolume), cy, S(kBtnR)};
     default: return {w - S(kOffLike), cy, S(kBtnR)};
   }
-}
-
-// 按钮区遮罩左缘(物理 px):最左按钮(prev)左缘再外扩一点。
-int MaskLeft() {
-  return g_curWidth - S(kOffPrev + kBtnR + kMaskExtra);
 }
 
 // 音量弹窗面板(物理 px),位于窗口顶部弹窗区。
@@ -189,78 +204,28 @@ void FireEvent(const std::string& msg) {
   if (g_eventCb) g_eventCb(msg.c_str());
 }
 
-// ---- 窗口区域:歌词区常驻;弹窗展开时把弹窗面板并入可见区域 ----
-void ApplyWindowRegion() {
-  if (!g_hwnd) return;
-  const int w = g_curWidth;
-  const int rad = S(kCornerRadius);
-  // 歌词区(窗口下部,圆角)。
-  HRGN region = CreateRoundRectRgn(0, g_popupH, w + 1, TotalHeight() + 1, rad,
-                                   rad);
-  if (g_popupOpen) {
-    const RECT p = PanelRect();
-    HRGN panel = CreateRoundRectRgn(p.left, p.top, p.right + 1, p.bottom + 1,
-                                    S(8), S(8));
-    // 连接带:面板底缘与歌词区之间的空隙并入窗口,否则鼠标从歌词栏
-    // 移向音量面板时会穿过不可见区触发 WM_MOUSELEAVE,弹窗提前收起。
-    HRGN bridge = CreateRectRgn(p.left, p.bottom, p.right + 1, g_popupH + 1);
-    HRGN combined = CreateRectRgn(0, 0, 0, 0);
-    CombineRgn(combined, region, panel, RGN_OR);
-    CombineRgn(combined, combined, bridge, RGN_OR);
-    DeleteObject(panel);
-    DeleteObject(bridge);
-    DeleteObject(region);
-    region = combined;
-  }
-  // SetWindowRgn 后 region 归系统所有,不再 DeleteObject。
-  SetWindowRgn(g_hwnd, region, FALSE);
-}
+void RenderLayered();  // 前向声明:渲染入口在文件后部定义
 
-void SetPopupOpen(bool open) {
-  if (g_popupOpen == open) return;
-  g_popupOpen = open;
-  if (!open) g_sliderDragging = false;
-  ApplyWindowRegion();
-  InvalidateRect(g_hwnd, nullptr, TRUE);
-}
-
-// ---- 字体/布局随 DPI 重建 ----
+// ---- 字体随 DPI 重建(GDI+ Font,UnitPixel 免去 DPI 换算) ----
 void ApplyDpiScale(int dpi) {
   if (dpi <= 0) dpi = 96;
-  if (dpi == g_dpi && g_lyricFont) return;
+  if (dpi == g_dpi && g_fontPopup) return;
   g_dpi = dpi;
   g_scale = dpi / 96.0f;
-  auto makeFont = [&](int logicalSize, bool bold, const wchar_t* face,
-                      DWORD quality) {
-    return CreateFontW(-S(logicalSize), 0, 0, 0, bold ? FW_BOLD : FW_NORMAL,
-                       FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-                       OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, quality,
-                       DEFAULT_PITCH | FF_DONTCARE, face);
-  };
-  if (g_lyricFont) DeleteObject(g_lyricFont);
-  if (g_headerFont) DeleteObject(g_headerFont);
-  if (g_popupFont) DeleteObject(g_popupFont);
-  if (g_iconFont) DeleteObject(g_iconFont);
-  if (g_iconPlayFont) DeleteObject(g_iconPlayFont);
-  g_lyricFont = makeFont(kLyricFontSize, true, L"Microsoft YaHei UI",
-                         CLEARTYPE_QUALITY);
-  g_headerFont =
-      makeFont(kHeaderFontSize, false, L"Microsoft YaHei UI", CLEARTYPE_QUALITY);
-  g_popupFont =
-      makeFont(kPopupFontSize, false, L"Microsoft YaHei UI", CLEARTYPE_QUALITY);
-  g_iconFont =
-      makeFont(20, false, L"Segoe MDL2 Assets", ANTIALIASED_QUALITY);
-  g_iconPlayFont =
-      makeFont(26, false, L"Segoe MDL2 Assets", ANTIALIASED_QUALITY);
+  delete g_fontPopup;
+  delete g_fontIcon;
+  delete g_fontIconPlay;
+  g_fontPopup =
+      new gd::Font(g_famUI, Sf(kPopupFontSize), gd::FontStyleRegular,
+                   gd::UnitPixel);
+  g_fontIcon = new gd::Font(g_famIcon, Sf(20), gd::FontStyleRegular,
+                            gd::UnitPixel);
+  g_fontIconPlay = new gd::Font(g_famIcon, Sf(26), gd::FontStyleRegular,
+                                gd::UnitPixel);
   g_curWidth = S(kWindowWidth);
   g_curHeight = S(kWindowHeight);
   g_padX = S(kPaddingX);
-  g_shadowOffset = S(kShadowOffset);
   g_popupH = S(kPopupHeight);
-  if (g_hwnd) {
-    ApplyWindowRegion();
-    InvalidateRect(g_hwnd, nullptr, TRUE);
-  }
 }
 
 void SaveLyricPos() {
@@ -299,63 +264,100 @@ void RestoreLyricPos(int* x, int* y) {
   if (*y < wa.top) *y = wa.top;
 }
 
-void RepaintLyric() {
-  if (g_hwnd) InvalidateRect(g_hwnd, nullptr, FALSE);
+// ---- GDI+ 绘制辅助 ----
+
+gd::GraphicsPath* RoundRectPath(REAL x, REAL y, REAL w, REAL h, REAL r) {
+  auto* p = new gd::GraphicsPath();
+  const REAL d = r * 2;
+  p->AddArc(x, y, d, d, 180, 90);
+  p->AddArc(x + w - d, y, d, d, 270, 90);
+  p->AddArc(x + w - d, y + h - d, d, d, 0, 90);
+  p->AddArc(x, y + h - d, d, d, 90, 90);
+  p->CloseFigure();
+  return p;
 }
 
-// ---- 图标绘制:Segoe MDL2 Assets 字形,居中输出 ----
-void DrawGlyph(HDC hdc, int cx, int cy, wchar_t glyph, HFONT font,
-               COLORREF color) {
+void FillRoundRect(gd::Graphics& g, REAL x, REAL y, REAL w, REAL h, REAL r,
+                   const gd::Color& c) {
+  gd::GraphicsPath* p = RoundRectPath(x, y, w, h, r);
+  gd::SolidBrush br(c);
+  g.FillPath(&br, p);
+  delete p;
+}
+
+// 描边字:路径文字 → 先描边(DrawPath)再填充(FillPath),
+// 视觉上填充居内、描边成环,与网易云效果一致。
+void DrawOutlinedText(gd::Graphics& g, const std::wstring& text,
+                      const gd::FontFamily* family, gd::FontStyle style,
+                      REAL sizePx, REAL leftX, REAL centerY,
+                      const gd::Color& fill, const gd::Color& stroke,
+                      REAL strokeW) {
+  if (text.empty() || family == nullptr) return;
+  gd::GraphicsPath path;
+  path.AddString(text.c_str(), static_cast<INT>(text.size()), family, style,
+                 sizePx, gd::PointF(0, 0),
+                 gd::StringFormat::GenericTypographic());
+  gd::RectF bounds{};
+  if (path.GetBounds(&bounds) != gd::Ok) return;
+  gd::Matrix m;
+  m.Translate(leftX - bounds.X, centerY - (bounds.Y + bounds.Height / 2));
+  path.Transform(&m);
+  gd::Pen pen(stroke, strokeW);
+  pen.SetLineJoin(gd::LineJoinRound);
+  pen.SetLineCap(gd::LineCapRound, gd::LineCapRound, gd::DashCapRound);
+  g.DrawPath(&pen, &path);
+  gd::SolidBrush br(fill);
+  g.FillPath(&br, &path);
+}
+
+// 图标绘制:Segoe MDL2 Assets 字形,按字形 ink 外接框居中于按钮圆心
+// (DrawString 的行盒居中会被字体行高带偏,这里与描边字同一套路径定位)。
+void DrawGlyphGd(gd::Graphics& g, const BtnGeom& b, wchar_t glyph,
+                 const gd::Font* font, const gd::Color& color) {
   if (!font) return;
-  HFONT old = static_cast<HFONT>(SelectObject(hdc, font));
-  SetBkMode(hdc, TRANSPARENT);
-  SetTextColor(hdc, color);
-  SIZE sz{};
-  GetTextExtentPoint32W(hdc, &glyph, 1, &sz);
-  TextOutW(hdc, cx - sz.cx / 2, cy - sz.cy / 2, &glyph, 1);
-  SelectObject(hdc, old);
+  gd::FontFamily family;
+  if (font->GetFamily(&family) != gd::Ok) return;
+  gd::GraphicsPath path;
+  path.AddString(&glyph, 1, &family, font->GetStyle(), font->GetSize(),
+                 gd::PointF(0, 0), gd::StringFormat::GenericTypographic());
+  gd::RectF bounds{};
+  if (path.GetBounds(&bounds) != gd::Ok) return;
+  gd::Matrix m;
+  m.Translate(static_cast<REAL>(b.cx) - (bounds.X + bounds.Width / 2),
+              static_cast<REAL>(b.cy) - (bounds.Y + bounds.Height / 2));
+  path.Transform(&m);
+  gd::SolidBrush br(color);
+  g.FillPath(&br, &path);
 }
 
-void DrawButton(HDC hdc, int idx) {
+void DrawButton(gd::Graphics& g, int idx) {
   const BtnGeom b = ButtonGeom(idx);
   const bool hot = g_hovering && g_hotButton == idx;
   // 悬停高亮圆形底。
   if (hot) {
     const int pad = S(4);
-    RECT hl{b.cx - b.r - pad, b.cy - b.r - pad, b.cx + b.r + pad,
-            b.cy + b.r + pad};
-    const COLORREF hlColor = idx == 5 ? kLikeHoverBg : kHoverBg;
-    HBRUSH br = CreateSolidBrush(hlColor);
-    HBRUSH old = static_cast<HBRUSH>(SelectObject(hdc, br));
-    HPEN pen = CreatePen(PS_SOLID, 1, hlColor);
-    HPEN oldPen = static_cast<HPEN>(SelectObject(hdc, pen));
-    Ellipse(hdc, hl.left, hl.top, hl.right, hl.bottom);
-    SelectObject(hdc, oldPen);
-    SelectObject(hdc, old);
-    DeleteObject(pen);
-    DeleteObject(br);
+    gd::SolidBrush br(Gd(idx == 5 ? kLikeHoverBg : kHoverBg));
+    g.FillEllipse(&br, static_cast<REAL>(b.cx - b.r - pad),
+                  static_cast<REAL>(b.cy - b.r - pad),
+                  static_cast<REAL>((b.r + pad) * 2),
+                  static_cast<REAL>((b.r + pad) * 2));
   }
   // 按钮圆底。
-  HBRUSH br = CreateSolidBrush(idx == 1 ? kPlayBtnBg : kBtnBg);
-  HBRUSH oldBr = static_cast<HBRUSH>(SelectObject(hdc, br));
-  HPEN pen = CreatePen(PS_SOLID, 1, kBtnBg);
-  HPEN oldPen = static_cast<HPEN>(SelectObject(hdc, pen));
-  Ellipse(hdc, b.cx - b.r, b.cy - b.r, b.cx + b.r, b.cy + b.r);
-  SelectObject(hdc, oldPen);
-  SelectObject(hdc, oldBr);
-  DeleteObject(pen);
-  DeleteObject(br);
+  gd::SolidBrush br(Gd(idx == 1 ? kPlayBtnBg : kBtnBg));
+  g.FillEllipse(&br, static_cast<REAL>(b.cx - b.r),
+                static_cast<REAL>(b.cy - b.r), static_cast<REAL>(b.r * 2),
+                static_cast<REAL>(b.r * 2));
   // 图标(Segoe MDL2 Assets 字形)。
-  const COLORREF iconColor =
-      hot ? RGB(255, 255, 255)
-          : (idx == 5 && g_liked ? kLikeColor : kIconColor);
+  const gd::Color iconColor =
+      Gd(hot ? RGB(255, 255, 255)
+             : (idx == 5 && g_liked ? kLikeColor : kIconColor));
   wchar_t glyph = 0;
-  HFONT font = g_iconFont;
+  const gd::Font* font = g_fontIcon;
   switch (idx) {
     case 0: glyph = kGlyphPrev; break;
     case 1:
       glyph = g_playing ? kGlyphPause : kGlyphPlay;
-      font = g_iconPlayFont;
+      font = g_fontIconPlay;
       break;
     case 2: glyph = kGlyphNext; break;
     case 3:
@@ -367,68 +369,66 @@ void DrawButton(HDC hdc, int idx) {
     case 4: glyph = kGlyphVolume; break;
     case 5: glyph = g_liked ? kGlyphHeartFill : kGlyphHeart; break;
   }
-  DrawGlyph(hdc, b.cx, b.cy, glyph, font, iconColor);
+  DrawGlyphGd(g, b, glyph, font, iconColor);
 }
 
-void DrawVolumePopup(HDC hdc) {
+void DrawVolumePopup(gd::Graphics& g) {
   if (!g_popupOpen) return;
   const RECT panel = PanelRect();
-  // 面板底 + 描边。
-  HBRUSH br = CreateSolidBrush(kPanelBg);
-  HBRUSH old = static_cast<HBRUSH>(SelectObject(hdc, br));
-  HBRUSH frameBr = CreateSolidBrush(kPanelBorder);
-  RECT rr = panel;
+  const REAL px = static_cast<REAL>(panel.left);
+  const REAL py = static_cast<REAL>(panel.top);
+  const REAL pw = static_cast<REAL>(panel.right - panel.left);
+  const REAL ph = static_cast<REAL>(panel.bottom - panel.top);
   const int rad = S(8);
-  HRGN rgn = CreateRoundRectRgn(rr.left, rr.top, rr.right + 1, rr.bottom + 1,
-                                rad, rad);
-  FillRgn(hdc, rgn, br);
-  FrameRgn(hdc, rgn, frameBr, 1, 1);
-  DeleteObject(rgn);
-  SelectObject(hdc, old);
-  DeleteObject(frameBr);
-  DeleteObject(br);
-  // 连接带(面板与歌词区之间的桥接矩形,在窗口区域内)用面板底色填满,
-  // 视觉上面板一直延伸到歌词栏,也避免双缓冲位图的未绘制垃圾露出来。
-  RECT bridgeFill{panel.left + 1, panel.bottom, panel.right - 1, g_popupH};
-  HBRUSH bridgeBr = CreateSolidBrush(kPanelBg);
-  FillRect(hdc, &bridgeFill, bridgeBr);
-  DeleteObject(bridgeBr);
+  // 面板底 + 描边。
+  FillRoundRect(g, px, py, pw, ph, static_cast<REAL>(rad),
+                Gd(kPanelBg, kPopupPanelAlpha));
+  {
+    gd::GraphicsPath* p = RoundRectPath(px, py, pw, ph, static_cast<REAL>(rad));
+    gd::Pen pen(Gd(kPanelBorder), 1.0f);
+    g.DrawPath(&pen, p);
+    delete p;
+  }
+  // 连接带(面板与歌词区之间的桥接矩形)用面板底色填满,视觉上面板
+  // 一直延伸到歌词栏。
+  {
+    gd::SolidBrush br(Gd(kPanelBg, kPopupPanelAlpha));
+    g.FillRectangle(&br, px + 1, py + ph, pw - 2,
+                    static_cast<REAL>(g_popupH - panel.bottom));
+  }
   // 百分比。
   wchar_t label[16];
   swprintf(label, 16, L"%d%%",
            static_cast<int>(std::lround(g_volume * 100.0)));
-  if (g_popupFont) {
-    SetBkMode(hdc, TRANSPARENT);
-    HFONT oldF = static_cast<HFONT>(SelectObject(hdc, g_popupFont));
-    SetTextColor(hdc, kTextColor);
-    SIZE sz{};
-    GetTextExtentPoint32W(hdc, label, static_cast<int>(wcslen(label)), &sz);
-    TextOutW(hdc, (panel.left + panel.right - sz.cx) / 2, panel.top + S(4),
-             label, static_cast<int>(wcslen(label)));
-    SelectObject(hdc, oldF);
+  if (g_fontPopup) {
+    gd::SolidBrush br(Gd(kTextColor));
+    gd::StringFormat sf;
+    sf.SetAlignment(gd::StringAlignmentCenter);
+    sf.SetLineAlignment(gd::StringAlignmentCenter);
+    g.DrawString(label, static_cast<INT>(wcslen(label)), g_fontPopup,
+                 gd::RectF(px, py, pw, static_cast<REAL>(S(18))), &sf, &br);
   }
   // 滑条:槽 + 已填充 + 滑块。
   const RECT tr = TrackRect();
-  RECT track{tr.left, tr.top, tr.right, tr.bottom};
-  HBRUSH trackBr = CreateSolidBrush(kTrackColor);
-  FillRect(hdc, &track, trackBr);
-  DeleteObject(trackBr);
+  gd::SolidBrush trackBr(Gd(kTrackColor));
+  g.FillRectangle(&trackBr, static_cast<REAL>(tr.left),
+                  static_cast<REAL>(tr.top),
+                  static_cast<REAL>(tr.right - tr.left),
+                  static_cast<REAL>(tr.bottom - tr.top));
   const int thumbCy =
       tr.bottom - static_cast<int>((tr.bottom - tr.top) * g_volume);
   if (thumbCy < tr.bottom) {
-    RECT filled{tr.left, thumbCy, tr.right, tr.bottom};
-    HBRUSH fillBr = CreateSolidBrush(kTrackFill);
-    FillRect(hdc, &filled, fillBr);
-    DeleteObject(fillBr);
+    gd::SolidBrush fillBr(Gd(kTrackFill));
+    g.FillRectangle(&fillBr, static_cast<REAL>(tr.left),
+                    static_cast<REAL>(thumbCy),
+                    static_cast<REAL>(tr.right - tr.left),
+                    static_cast<REAL>(tr.bottom - thumbCy));
   }
   const int thumbR = S(7);
-  HBRUSH thumbBr = CreateSolidBrush(kThumbColor);
-  HBRUSH oldBr = static_cast<HBRUSH>(SelectObject(hdc, thumbBr));
-  Ellipse(hdc, tr.left + (tr.right - tr.left) / 2 - thumbR,
-          thumbCy - thumbR, tr.left + (tr.right - tr.left) / 2 + thumbR,
-          thumbCy + thumbR);
-  SelectObject(hdc, oldBr);
-  DeleteObject(thumbBr);
+  gd::SolidBrush thumbBr(Gd(kThumbColor));
+  g.FillEllipse(&thumbBr, static_cast<REAL>(tr.left + (tr.right - tr.left) / 2 - thumbR),
+                static_cast<REAL>(thumbCy - thumbR),
+                static_cast<REAL>(thumbR * 2), static_cast<REAL>(thumbR * 2));
 }
 
 // 滑条上按 y 反解音量(0..1)。
@@ -448,141 +448,139 @@ void SetVolumeAndNotify(double v) {
   char buf[32];
   snprintf(buf, sizeof(buf), "volume:%.2f", v);
   FireEvent(buf);
-  RepaintLyric();
+  RenderLayered();
 }
 
-// 按钮区毛玻璃遮盖:浅色半透明 + 顶部高光渐变(逐行预乘 alpha),
-// 比实色遮罩更有磨砂玻璃质感;按钮绘制在其上保持清晰。
-void DrawFrostMask(HDC hdc, const RECT& rc) {
-  const int w = rc.right - rc.left;
-  const int h = rc.bottom - rc.top;
-  if (w <= 0 || h <= 0) return;
-  HDC mem = CreateCompatibleDC(hdc);
-  if (!mem) return;
-  BITMAPINFO bi{};
-  bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-  bi.bmiHeader.biWidth = w;
-  bi.bmiHeader.biHeight = -h;  // top-down
-  bi.bmiHeader.biPlanes = 1;
-  bi.bmiHeader.biBitCount = 32;
-  bi.bmiHeader.biCompression = BI_RGB;
-  void* bits = nullptr;
-  HBITMAP bmp =
-      CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
-  if (!bmp || !bits) {
-    if (bmp) DeleteObject(bmp);
-    DeleteDC(mem);
+// 歌词描边色随填充色自适应:亮字(如暖黄)→ 同色相向黑收深,避免在浅色
+// 壁纸上糊掉;暗字 → 向白提亮保持描边清晰。
+COLORREF ComputeLyricStrokeColor(COLORREF fill) {
+  const int r = fill & 0xFF;
+  const int g = (fill >> 8) & 0xFF;
+  const int b = (fill >> 16) & 0xFF;
+  const double lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (lum >= 150) {
+    const auto darken = [](int c) {
+      return static_cast<int>(c * 0.45 + 0.5);
+    };
+    return RGB(darken(r), darken(g), darken(b));
+  }
+  const auto lighten = [](int c) {
+    return static_cast<int>(c + (255 - c) * 0.75 + 0.5);
+  };
+  return RGB(lighten(r), lighten(g), lighten(b));
+}
+
+// 分层窗口内容面(PARGB 位图),尺寸变化时重建。
+bool EnsureSurface(int w, int h) {
+  if (g_surface && g_gfx) {
+    if (g_surface->GetWidth() == static_cast<UINT>(w) &&
+        g_surface->GetHeight() == static_cast<UINT>(h)) {
+      return true;
+    }
+    delete g_gfx;
+    delete g_surface;
+    g_gfx = nullptr;
+    g_surface = nullptr;
+  }
+  g_surface = new gd::Bitmap(w, h, PixelFormat32bppPARGB);
+  if (g_surface->GetLastStatus() != gd::Ok) {
+    delete g_surface;
+    g_surface = nullptr;
+    return false;
+  }
+  g_gfx = gd::Graphics::FromImage(g_surface);
+  if (!g_gfx) {
+    delete g_surface;
+    g_surface = nullptr;
+    return false;
+  }
+  return true;
+}
+
+// 渲染整窗内容并经 UpdateLayeredWindow 上屏(逐像素 alpha):
+// - 未悬停:无任何底板,只有 alpha=1 的隐形命中层撑起歌词区矩形,
+//   保证可拖动/可触发悬停;其余区域 alpha=0 透明且不接收鼠标。
+// - 悬停:整栏灰色半透明圆角面板 + 按钮。
+void RenderLayered() {
+  if (!g_hwnd || !EnsureSurface(g_curWidth, TotalHeight())) return;
+  gd::Graphics& g = *g_gfx;
+  g.SetSmoothingMode(gd::SmoothingModeAntiAlias);
+  g.SetTextRenderingHint(gd::TextRenderingHintAntiAliasGridFit);
+  g.Clear(gd::Color(0, 0, 0, 0));
+
+  const REAL w = static_cast<REAL>(g_curWidth);
+  const REAL baseY = static_cast<REAL>(g_popupH);
+  const REAL hLyric = static_cast<REAL>(g_curHeight);
+  const REAL rad = static_cast<REAL>(S(kCornerRadius));
+  // 底板两态:未悬停 alpha=1(隐形但接收鼠标),悬停灰色半透明。
+  if (g_hovering) {
+    FillRoundRect(g, 0, baseY, w, hLyric, rad,
+                  Gd(kHoverPanelColor, kHoverPanelAlpha));
+  } else {
+    FillRoundRect(g, 0, baseY, w, hLyric, rad, gd::Color(1, 255, 255, 255));
+  }
+
+  // 两行文字:标题行(歌名 - 歌手) + 歌词行(空则 MusicFlow),描边字。
+  const std::wstring header =
+      g_artist.empty() ? g_song : (g_song + L" - " + g_artist);
+  const std::wstring lyric = g_lyric.empty() ? L"MusicFlow" : g_lyric;
+  DrawOutlinedText(g, header, g_famUI, gd::FontStyleRegular,
+                   Sf(kHeaderFontSize), static_cast<REAL>(g_padX),
+                   baseY + hLyric * 0.20f, Gd(kHeaderFillColor),
+                   Gd(kHeaderStrokeColor), Sf(kHeaderStrokeW) * 0.5f);
+  DrawOutlinedText(g, lyric, g_famUI, gd::FontStyleBold, Sf(kLyricFontSize),
+                   static_cast<REAL>(g_padX), baseY + hLyric * 0.66f,
+                   Gd(g_lyricColor), Gd(ComputeLyricStrokeColor(g_lyricColor)),
+                   Sf(kLyricStrokeW) * 0.5f);
+
+  // 悬停时:按钮;弹窗展开时:音量面板。
+  if (g_hovering) {
+    for (int i = 0; i < 6; ++i) DrawButton(g, i);
+  }
+  DrawVolumePopup(g);
+
+  // 上屏:UpdateLayeredWindow(ptDst=nullptr 保持当前位置)。
+  HBITMAP hbmp = nullptr;
+  if (g_surface->GetHBITMAP(gd::Color(0, 0, 0, 0), &hbmp) != gd::Ok || !hbmp) {
+    if (hbmp) DeleteObject(hbmp);
     return;
   }
-  HBITMAP oldBmp = static_cast<HBITMAP>(SelectObject(mem, bmp));
-  // 逐行填充:alpha 顶部 92 → 底部 64,颜色需预乘(AC_SRC_ALPHA 要求)。
-  // COLORREF 布局 0x00bbggrr;不用 GetXValue 宏(对 constexpr 截断会触发 C4310)。
-  const int r0 = kFrostColor & 0xFF;
-  const int g0 = (kFrostColor >> 8) & 0xFF;
-  const int b0 = (kFrostColor >> 16) & 0xFF;
-  auto* px = static_cast<DWORD*>(bits);
-  for (int y = 0; y < h; ++y) {
-    const int a = 92 - (92 - 64) * y / std::max(1, h - 1);
-    const DWORD pr = static_cast<DWORD>(r0 * a / 255);
-    const DWORD pg = static_cast<DWORD>(g0 * a / 255);
-    const DWORD pb = static_cast<DWORD>(b0 * a / 255);
-    const DWORD v = (static_cast<DWORD>(a) << 24) | (pr << 16) | (pg << 8) | pb;
-    for (int x = 0; x < w; ++x) *px++ = v;
+  HDC hdcScreen = GetDC(nullptr);
+  HDC mem = CreateCompatibleDC(hdcScreen);
+  if (!mem) {
+    DeleteObject(hbmp);
+    ReleaseDC(nullptr, hdcScreen);
+    return;
   }
+  HBITMAP old = static_cast<HBITMAP>(SelectObject(mem, hbmp));
+  POINT src{0, 0};
+  SIZE sz{g_curWidth, TotalHeight()};
   BLENDFUNCTION bf{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-  AlphaBlend(hdc, rc.left, rc.top, w, h, mem, 0, 0, w, h, bf);
-  // 左缘发丝线,强化玻璃面板边界。
-  HPEN pen = CreatePen(PS_SOLID, 1, RGB(96, 102, 112));
-  HPEN oldPen = static_cast<HPEN>(SelectObject(hdc, pen));
-  MoveToEx(hdc, rc.left, rc.top, nullptr);
-  LineTo(hdc, rc.left, rc.bottom);
-  SelectObject(hdc, oldPen);
-  DeleteObject(pen);
-  SelectObject(mem, oldBmp);
-  DeleteObject(bmp);
+  UpdateLayeredWindow(g_hwnd, hdcScreen, nullptr, &sz, mem, &src, 0, &bf,
+                      ULW_ALPHA);
+  SelectObject(mem, old);
+  DeleteObject(hbmp);
   DeleteDC(mem);
+  ReleaseDC(nullptr, hdcScreen);
+}
+
+void RepaintLyric() { RenderLayered(); }
+
+void SetPopupOpen(bool open) {
+  if (g_popupOpen == open) return;
+  g_popupOpen = open;
+  if (!open) g_sliderDragging = false;
+  RepaintLyric();
 }
 
 LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
                               LPARAM lParam) {
   switch (message) {
     case WM_PAINT: {
+      // 分层窗口由 UpdateLayeredWindow 呈现,不产生有效绘制;
+      // 仅为平衡校验区域。
       PAINTSTRUCT ps;
-      HDC hdc = BeginPaint(hwnd, &ps);
-      RECT rc{};
-      GetClientRect(hwnd, &rc);
-      const int w = rc.right - rc.left;
-      const int h = rc.bottom - rc.top;
-      // 双缓冲:全部内容先画进内存位图,最后一次 BitBlt 上屏。
-      // 拖音量滑条等高频重绘时,无缓冲会看到遮罩/背景逐层绘制而闪烁。
-      HDC buf = CreateCompatibleDC(hdc);
-      HBITMAP bmp = CreateCompatibleBitmap(hdc, w, h);
-      if (!buf || !bmp) {
-        if (buf) DeleteDC(buf);
-        if (bmp) DeleteObject(bmp);
-        EndPaint(hwnd, &ps);
-        return 0;
-      }
-      HBITMAP oldBmp = static_cast<HBITMAP>(SelectObject(buf, bmp));
-      hdc = buf;
-      // 全窗口按圆角裁剪(窗口区域已保证弹窗区不可见)。
-      HRGN clip = CreateRoundRectRgn(0, 0, w + 1, h + 1, S(kCornerRadius),
-                                     S(kCornerRadius));
-      SelectClipRgn(hdc, clip);
-      // 歌词区圆角背景(窗口下部,常驻)。
-      HRGN bg = CreateRoundRectRgn(0, g_popupH, w + 1, h + 1, S(kCornerRadius),
-                                   S(kCornerRadius));
-      HBRUSH brush = CreateSolidBrush(kBgColor);
-      FillRgn(hdc, bg, brush);
-      DeleteObject(brush);
-      DeleteObject(bg);
-      // 两行文字:标题行(歌名 - 歌手) + 歌词行(空则 MusicFlow)。
-      const int baseY = g_popupH;
-      std::wstring header = g_artist.empty() ? g_song : (g_song + L" - " + g_artist);
-      std::wstring lyric = g_lyric.empty() ? L"MusicFlow" : g_lyric;
-      SetBkMode(hdc, TRANSPARENT);
-      if (g_headerFont && !header.empty()) {
-        HFONT old = static_cast<HFONT>(SelectObject(hdc, g_headerFont));
-        SIZE sz{};
-        GetTextExtentPoint32W(hdc, header.c_str(),
-                              static_cast<int>(header.size()), &sz);
-        const int y = baseY + static_cast<int>(g_curHeight * 0.20f) - sz.cy / 2;
-        SetTextColor(hdc, kShadowColor);
-        TextOutW(hdc, g_padX + g_shadowOffset, y + g_shadowOffset,
-                 header.c_str(), static_cast<int>(header.size()));
-        SetTextColor(hdc, kHeaderColor);
-        TextOutW(hdc, g_padX, y, header.c_str(),
-                 static_cast<int>(header.size()));
-        SelectObject(hdc, old);
-      }
-      if (g_lyricFont && !lyric.empty()) {
-        HFONT old = static_cast<HFONT>(SelectObject(hdc, g_lyricFont));
-        SIZE sz{};
-        GetTextExtentPoint32W(hdc, lyric.c_str(), static_cast<int>(lyric.size()),
-                              &sz);
-        const int y = baseY + static_cast<int>(g_curHeight * 0.66f) - sz.cy / 2;
-        SetTextColor(hdc, kShadowColor);
-        TextOutW(hdc, g_padX + g_shadowOffset, y + g_shadowOffset,
-                 lyric.c_str(), static_cast<int>(lyric.size()));
-        SetTextColor(hdc, kTextColor);
-        TextOutW(hdc, g_padX, y, lyric.c_str(), static_cast<int>(lyric.size()));
-        SelectObject(hdc, old);
-      }
-      // 悬停时:按钮区毛玻璃遮罩 + 按钮。平时不画,保持纯歌词。
-      if (g_hovering) {
-        RECT mask{MaskLeft(), baseY, w, baseY + g_curHeight};
-        DrawFrostMask(hdc, mask);
-        for (int i = 0; i < 6; ++i) DrawButton(hdc, i);
-      }
-      DrawVolumePopup(hdc);
-      SelectClipRgn(hdc, nullptr);
-      DeleteObject(clip);
-      // 一次性上屏。
-      hdc = ps.hdc;
-      BitBlt(hdc, 0, 0, w, h, buf, 0, 0, SRCCOPY);
-      SelectObject(buf, oldBmp);
-      DeleteObject(bmp);
-      DeleteDC(buf);
+      BeginPaint(hwnd, &ps);
       EndPaint(hwnd, &ps);
       return 0;
     }
@@ -723,6 +721,7 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
       SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
                    g_curWidth, TotalHeight(), SWP_NOZORDER | SWP_NOACTIVATE);
+      RepaintLyric();
       return 0;
     }
     default:
@@ -734,6 +733,14 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
 
 void DesktopLyricInit(HINSTANCE instance) {
   if (g_hwnd) return;
+  if (g_gdiplusToken == 0) {
+    gd::GdiplusStartupInput input;
+    gd::GdiplusStartup(&g_gdiplusToken, &input, nullptr);
+    g_famUI = new gd::FontFamily(L"Microsoft YaHei UI");
+    g_famIcon = new gd::FontFamily(L"Segoe MDL2 Assets");
+    ApplyDpiScale(96);
+  }
+
   WNDCLASSEXW wc{};
   wc.cbSize = sizeof(wc);
   wc.lpfnWndProc = LyricWndProc;
@@ -762,14 +769,13 @@ void DesktopLyricInit(HINSTANCE instance) {
       L"MusicFlowLyric", WS_POPUP, x, y - g_popupH, g_curWidth, TotalHeight(),
       nullptr, nullptr, instance, nullptr);
   if (!g_hwnd) return;
-  SetLayeredWindowAttributes(g_hwnd, 0, kWindowAlpha, LWA_ALPHA);
-  ApplyWindowRegion();
   const auto getDpiForWindow =
       reinterpret_cast<UINT(WINAPI*)(HWND)>(
           GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow"));
   if (getDpiForWindow) {
     ApplyDpiScale(static_cast<int>(getDpiForWindow(g_hwnd)));
   }
+  RepaintLyric();
 }
 
 void DesktopLyricSetEventCallback(DesktopLyricEventCallback callback) {
@@ -780,6 +786,7 @@ void DesktopLyricUpdateState(const DesktopLyricState& state) {
   const bool changed = g_song != state.song || g_artist != state.artist ||
                        g_lyric != state.lyric || g_playing != state.playing ||
                        g_liked != state.liked || g_mode != state.mode ||
+                       g_lyricColor != state.lyricColor ||
                        std::fabs(g_volume - state.volume) > 0.004;
   g_song = state.song;
   g_artist = state.artist;
@@ -787,6 +794,7 @@ void DesktopLyricUpdateState(const DesktopLyricState& state) {
   g_playing = state.playing;
   g_liked = state.liked;
   g_mode = state.mode;
+  g_lyricColor = state.lyricColor;
   g_volume = state.volume;
   if (changed) RepaintLyric();
 }
@@ -798,6 +806,7 @@ void DesktopLyricSetVisible(bool visible) {
     ShowWindow(g_hwnd, SW_SHOWNOACTIVATE);
     SetWindowPos(g_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    RepaintLyric();
   } else {
     ShowWindow(g_hwnd, SW_HIDE);
   }
@@ -810,24 +819,23 @@ void DesktopLyricShutdown() {
     DestroyWindow(g_hwnd);
     g_hwnd = nullptr;
   }
-  if (g_lyricFont) {
-    DeleteObject(g_lyricFont);
-    g_lyricFont = nullptr;
-  }
-  if (g_headerFont) {
-    DeleteObject(g_headerFont);
-    g_headerFont = nullptr;
-  }
-  if (g_popupFont) {
-    DeleteObject(g_popupFont);
-    g_popupFont = nullptr;
-  }
-  if (g_iconFont) {
-    DeleteObject(g_iconFont);
-    g_iconFont = nullptr;
-  }
-  if (g_iconPlayFont) {
-    DeleteObject(g_iconPlayFont);
-    g_iconPlayFont = nullptr;
+  delete g_gfx;
+  g_gfx = nullptr;
+  delete g_surface;
+  g_surface = nullptr;
+  delete g_fontPopup;
+  g_fontPopup = nullptr;
+  delete g_fontIcon;
+  g_fontIcon = nullptr;
+  delete g_fontIconPlay;
+  g_fontIconPlay = nullptr;
+  delete g_famUI;
+  g_famUI = nullptr;
+  delete g_famIcon;
+  g_famIcon = nullptr;
+  if (g_gdiplusToken != 0) {
+    gd::GdiplusShutdown(g_gdiplusToken);
+    g_gdiplusToken = 0;
   }
 }
+

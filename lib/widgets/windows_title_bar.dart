@@ -56,8 +56,8 @@ Future<void> setDesktopLyricText(String text) async {
   }
 }
 
-/// 推送桌面歌词浮窗完整显示状态(歌名/歌手/歌词行/播放/喜欢/模式/音量)。
-/// 原生层据此绘制两行文本与悬停控制按钮。
+/// 推送桌面歌词浮窗完整显示状态(歌名/歌手/歌词行/播放/喜欢/模式/音量/
+/// 歌词填充色)。原生层据此绘制两行文本与悬停控制按钮。
 Future<void> setDesktopLyricState({
   required String song,
   required String artist,
@@ -66,6 +66,7 @@ Future<void> setDesktopLyricState({
   required bool liked,
   required String mode,
   required double volume,
+  required int lyricColor,
 }) async {
   if (!isWindowsDesktop) return;
   try {
@@ -79,6 +80,7 @@ Future<void> setDesktopLyricState({
         'liked': liked,
         'mode': mode,
         'volume': volume,
+        'lyricColor': lyricColor,
       },
     );
   } on MissingPluginException {

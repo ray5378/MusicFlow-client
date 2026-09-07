@@ -198,6 +198,13 @@ void FlutterWindow::HandleWindowMethod(
           }
           return def;
         };
+        auto getInt = [&](const char* key, int32_t def) -> int32_t {
+          const auto it = m.find(flutter::EncodableValue(key));
+          if (it != m.end()) {
+            if (const auto* i = std::get_if<int32_t>(&it->second)) return *i;
+          }
+          return def;
+        };
         st.song = Utf8ToUtf16(getStr("song"));
         st.artist = Utf8ToUtf16(getStr("artist"));
         st.lyric = Utf8ToUtf16(getStr("lyric"));
@@ -206,6 +213,12 @@ void FlutterWindow::HandleWindowMethod(
         const std::string mode = getStr("mode");
         st.mode = mode == "shuffle" ? 0 : (mode == "repeatOne" ? 2 : 1);
         st.volume = getDouble("volume", 0.8);
+        // 歌词填充色 0xRRGGBB,随 MINI 播放器歌词栏 accent;缺省保持默认粉。
+        const int32_t colorRaw = getInt("lyricColor", -1);
+        if (colorRaw >= 0) {
+          st.lyricColor = RGB((colorRaw >> 16) & 0xFF, (colorRaw >> 8) & 0xFF,
+                              colorRaw & 0xFF);
+        }
       }
     }
     DesktopLyricUpdateState(st);

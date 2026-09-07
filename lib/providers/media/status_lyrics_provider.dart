@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Color;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
@@ -8,6 +9,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/ui/palette_provider.dart';
 import 'package:musicflow_client/widgets/windows_title_bar.dart';
 
 /// Windows 桌面歌词浮窗开关(默认关闭)。
@@ -72,6 +74,11 @@ class StatusLyricsController {
           currentLyricLineProvider,
           (_, __) => _push(),
         ),
+        // 封面配色变化(切歌/封面加载完成)→ 歌词 accent 变化,同步重推。
+        _ref.listen<MusicFlowMediaVisuals>(
+          resolvedCurrentSongMediaVisualsProvider,
+          (_, __) => _push(),
+        ),
       ]);
     } else if (!_enabled && _playerSubs.isNotEmpty) {
       for (final sub in _playerSubs) {
@@ -127,8 +134,18 @@ class StatusLyricsController {
         ? 'shuffle'
         : (player.loopMode == LoopMode.one ? 'repeatOne' : 'repeatAll');
     final volume = double.parse(player.volume.toStringAsFixed(2));
+    // 歌词填充色:与 MINI 播放器歌词栏同一取色(暖黄对迷你条底色 4.5:1
+    // 自适应),封面配色变化时自动跟随。
+    final visuals = _ref.read(resolvedCurrentSongMediaVisualsProvider);
+    final lyricColor =
+        MusicFlowMediaVisuals.lyricAccentFor(
+          visuals,
+          backgrounds: <Color>[visuals.miniSurface],
+        ).toARGB32() &
+        0xFFFFFF;
     // 去重:任何字段都没变就不推。
-    final key = '$title|$artist|$lyric|$playing|$liked|$mode|$volume';
+    final key =
+        '$title|$artist|$lyric|$playing|$liked|$mode|$volume|$lyricColor';
     if (key == _lastPushedKey) return;
     _lastPushedKey = key;
     unawaited(setDesktopLyricState(
@@ -139,6 +156,7 @@ class StatusLyricsController {
       liked: liked,
       mode: mode,
       volume: volume,
+      lyricColor: lyricColor,
     ));
   }
 

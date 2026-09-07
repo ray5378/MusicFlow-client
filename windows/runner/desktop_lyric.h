@@ -26,6 +26,8 @@ struct DesktopLyricState {
   bool liked = false;
   int mode = 1;  // 0=shuffle 1=repeatAll 2=repeatOne
   double volume = 0.8;
+  // 歌词行填充色(Flutter 推送,随 MINI 播放器歌词栏 accent 同步变化)。
+  COLORREF lyricColor = RGB(240, 149, 149);
 };
 
 void DesktopLyricInit(HINSTANCE instance);
