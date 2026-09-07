@@ -185,7 +185,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     }
 
-    state = AuthState(isAuthenticated: false);
+    // 显式置 isInitializing:false：裸构造会回落默认值 true，
+    // 导致登出后再登录 redirect 守卫（app.dart）永远判"初始化中"而失效。
+    state = AuthState(isAuthenticated: false, isInitializing: false);
     Logger.infoWithTag('AUTH', 'logout completed');
   }
 
