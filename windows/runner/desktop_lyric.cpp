@@ -30,6 +30,31 @@ bool g_visible = false;
 bool g_dragging = false;
 POINT g_dragOffset{};
 
+// DPI 缩放：字号/内边距/圆角/窗口物理尺寸随 DPI 走，跨显示器拖动
+// （WM_DPICHANGED）与高 DPI 启动时不再偏小、字号不跟随。
+int g_dpi = 96;
+int g_curWidth = kWindowWidth;
+int g_curHeight = kWindowHeight;
+
+// 按 DPI 重建字体并缩放布局尺寸；dpi 与当前一致时不重复创建。
+void ApplyDpiScale(int dpi) {
+  if (dpi <= 0) dpi = 96;
+  if (dpi == g_dpi && g_font) return;
+  g_dpi = dpi;
+  const float scale = dpi / 96.0f;
+  const int fontSize = static_cast<int>(kFontSize * scale);
+  if (g_font) DeleteObject(g_font);
+  g_font = CreateFontW(-fontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                       CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                       DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei UI");
+  g_curWidth = static_cast<int>(kWindowWidth * scale);
+  g_curHeight = static_cast<int>(kWindowHeight * scale);
+  if (g_hwnd) {
+    InvalidateRect(g_hwnd, nullptr, TRUE);
+  }
+}
+
 void SaveLyricPos() {
   if (!g_hwnd) return;
   RECT rc{};
@@ -59,9 +84,9 @@ void RestoreLyricPos(int* x, int* y) {
     *x = static_cast<int>(savedX);
     *y = static_cast<int>(savedY);
   }
-  // 窗口固定大小(520x84)后,旧保存位置可能使窗口部分超出工作区,clamp 回来。
-  if (*x + kWindowWidth > wa.right) *x = wa.right - kWindowWidth - 80;
-  if (*y + kWindowHeight > wa.bottom) *y = wa.bottom - kWindowHeight - 40;
+  // 窗口大小随 DPI 缩放后,旧保存位置可能使窗口部分超出工作区,clamp 回来。
+  if (*x + g_curWidth > wa.right) *x = wa.right - g_curWidth - 80;
+  if (*y + g_curHeight > wa.bottom) *y = wa.bottom - g_curHeight - 40;
   if (*x < wa.left) *x = wa.left;
   if (*y < wa.top) *y = wa.top;
 }
@@ -99,11 +124,11 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         const int y = (h - sz.cy) / 2;
         // Shadow pass.
         SetTextColor(hdc, kShadowColor);
-        TextOutW(hdc, kPaddingX + kShadowOffset, y + kShadowOffset,
+        TextOutW(hdc, padX + shadowOffset, y + shadowOffset,
                  g_text.c_str(), static_cast<int>(g_text.size()));
         // Main pass.
         SetTextColor(hdc, kTextColor);
-        TextOutW(hdc, kPaddingX, y, g_text.c_str(),
+        TextOutW(hdc, padX, y, g_text.c_str(),
                  static_cast<int>(g_text.size()));
         SelectObject(hdc, old);
       }
@@ -149,7 +174,19 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
                                          TPM_RETURNCMD,
                                      pt.x, pt.y, 0, hwnd, nullptr);
       DestroyMenu(menu);
+      // 已知问题修复：TrackPopupMenu 后补发 WM_NULL，否则弹出菜单可能
+      // 残留在屏幕上不消失（菜单未正确 dismiss）。
+      PostMessageW(hwnd, WM_NULL, 0, 0);
       if (cmd == 1) DesktopLyricSetVisible(false);
+      return 0;
+    }
+    case WM_DPICHANGED: {
+      // 跨显示器拖动：按新 DPI 重建字体/缩放布局，窗口用系统建议位置。
+      ApplyDpiScale(HIWORD(wParam));
+      const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
+      SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                   g_curWidth, g_curHeight,
+                   SWP_NOZORDER | SWP_NOACTIVATE);
       return 0;
     }
     default:
@@ -170,26 +207,38 @@ void DesktopLyricInit(HINSTANCE instance) {
   wc.lpszClassName = kLyricWindowClass;
   RegisterClassExW(&wc);
 
-  g_font = CreateFontW(-kFontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                       CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                       DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei UI");
+  // 高 DPI 启动：按系统 DPI 预缩放字号与窗口尺寸（GetDpiForSystem 为
+  // Win10 1607+ API，经 GetProcAddress 动态取用，旧系统回退 96）。
+  UINT dpi = 96;
+  const auto getDpiForSystem =
+      reinterpret_cast<UINT(WINAPI*)()>(
+          GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForSystem"));
+  if (getDpiForSystem) dpi = getDpiForSystem();
+  ApplyDpiScale(static_cast<int>(dpi));
 
   // Default position: bottom-right of the work area (above the taskbar),
   // keep some margin from the edges (80/40) so it is not glued to the corner;
   // restored position from registry wins when it is still on-screen.
   RECT wa{};
   SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
-  int x = wa.right - kWindowWidth - 80;
-  int y = wa.bottom - kWindowHeight - 40;
+  int x = wa.right - g_curWidth - 80;
+  int y = wa.bottom - g_curHeight - 40;
   RestoreLyricPos(&x, &y);
 
   g_hwnd = CreateWindowExW(
       WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, kLyricWindowClass,
-      L"MusicFlowLyric", WS_POPUP, x, y, kWindowWidth, kWindowHeight, nullptr,
+      L"MusicFlowLyric", WS_POPUP, x, y, g_curWidth, g_curHeight, nullptr,
       nullptr, instance, nullptr);
   if (!g_hwnd) return;
   SetLayeredWindowAttributes(g_hwnd, 0, kWindowAlpha, LWA_ALPHA);
+  // 窗口所在显示器的实际 DPI 可能与系统 DPI 不同（多显示器混插），
+  // 创建后再按窗口真实 DPI 校正一次。
+  const auto getDpiForWindow =
+      reinterpret_cast<UINT(WINAPI*)(HWND)>(
+          GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow"));
+  if (getDpiForWindow) {
+    ApplyDpiScale(static_cast<int>(getDpiForWindow(g_hwnd)));
+  }
 }
 
 void DesktopLyricSetText(const std::wstring& text) {
