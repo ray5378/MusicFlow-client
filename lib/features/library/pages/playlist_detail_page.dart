@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/features/library/widgets/playlist_detail_blocks.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/library/widgets/windowed_paginated_list.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
@@ -31,6 +32,54 @@ import 'package:musicflow_client/features/library/widgets/playlist_options_sheet
 /// - 曲目列表按 page/pageSize 分块拉取并窗口化渲染,滚动到哪拉到哪,内存峰值恒定;
 /// - 只有「播放全部 / 非默认排序 / 加入播放列表」等需要完整顺序表的操作,
 ///   才在用户主动触发时后台逐页拉全量(渲染层仍保持窗口化)。
+/// 歌单内容版本:由元数据与歌曲明细共同决定,用于识别选择期间歌单被外部刷新。
+int _playlistRevision(Playlist? playlist) {
+  if (playlist == null) return 0;
+  final songs = playlist.songs ?? const <Song>[];
+  return Object.hash(
+    playlist.id,
+    playlist.changed?.microsecondsSinceEpoch,
+    playlist.songCount,
+    playlist.duration,
+    Object.hashAll(
+      songs.map(
+        (song) => Object.hash(
+          song.id,
+          song.title,
+          song.artistId,
+          song.albumId,
+          song.duration,
+        ),
+      ),
+    ),
+  );
+}
+
+List<PlaylistSongEntry> _sortPlaylistEntries(
+  List<Song> songs,
+  SongSortOption option,
+) {
+  final entries = List<PlaylistSongEntry>.generate(
+    songs.length,
+    (index) => PlaylistSongEntry(song: songs[index], originalIndex: index),
+    growable: false,
+  );
+  if (option == SongSortOption.defaultOrder || entries.length < 2) {
+    return entries;
+  }
+
+  final pinyinOf = createSharedPinyinResolver();
+  entries.sort((left, right) {
+    final comparison =
+        compareSongsForSortCached(left.song, right.song, option, pinyinOf);
+    return comparison == 0
+        ? left.originalIndex.compareTo(right.originalIndex)
+        : comparison;
+  });
+  return entries;
+}
+
+
 class PlaylistDetailPage extends ConsumerStatefulWidget {
   const PlaylistDetailPage({
     super.key,
@@ -74,7 +123,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   // ---- 全量模式(非默认排序:一次拉全量后本地排序) ----
   bool _fullMode = false;
-  List<_PlaylistSongEntry> _fullEntries = const <_PlaylistSongEntry>[];
+  List<PlaylistSongEntry> _fullEntries = const <PlaylistSongEntry>[];
   bool _fullLoading = false;
   bool _fullFailed = false;
 
@@ -109,7 +158,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     _meta = null;
     _metaFailed = false;
     _fullMode = false;
-    _fullEntries = const <_PlaylistSongEntry>[];
+    _fullEntries = const <PlaylistSongEntry>[];
     _sortOption = SongSortOption.defaultOrder;
     _loadMeta();
     _songList.load('');
@@ -243,7 +292,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         child: MusicFlowScaffold(
           topBar: topBar,
           bottomBar: _selectionMode
-              ? _PlaylistSelectionBar(
+              ? PlaylistSelectionBar(
                   selectedCount: _selectedSongIndexes.length,
                   removing: _isRemovingSongs,
                   onRemove: _selectedSongIndexes.isEmpty
@@ -273,7 +322,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         );
       }
       return widget.initialName != null
-          ? _PlaylistLoadingPreview(
+          ? PlaylistLoadingPreview(
               name: widget.initialName!,
               songCount: widget.initialSongCount ?? 0,
               coverArt: widget.initialCoverArt,
@@ -293,7 +342,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
           builder: (context, _) => CustomScrollView(
             slivers: <Widget>[
               SliverToBoxAdapter(
-                child: _PlaylistIdentityHeader(
+                child: PlaylistIdentityHeader(
                   playlist: playlist,
                   songCount: currentSongCount,
                   isNowPlaying: isNowPlaying,
@@ -542,7 +591,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       setState(() {
         _sortOption = option;
         _fullMode = false;
-        _fullEntries = const <_PlaylistSongEntry>[];
+        _fullEntries = const <PlaylistSongEntry>[];
         _fullFailed = false;
       });
       _songList.load('');
@@ -553,7 +602,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       _fullMode = true;
       _fullLoading = true;
       _fullFailed = false;
-      _fullEntries = const <_PlaylistSongEntry>[];
+      _fullEntries = const <PlaylistSongEntry>[];
     });
     final repository = ref.read(playlistRepositoryProvider);
     if (repository == null) {
@@ -935,309 +984,3 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   }
 }
 
-class _PlaylistSongEntry {
-  const _PlaylistSongEntry({required this.song, required this.originalIndex});
-
-  final Song song;
-  final int originalIndex;
-}
-
-/// 歌单内容版本:由元数据与歌曲明细共同决定,用于识别选择期间歌单被外部刷新。
-int _playlistRevision(Playlist? playlist) {
-  if (playlist == null) return 0;
-  final songs = playlist.songs ?? const <Song>[];
-  return Object.hash(
-    playlist.id,
-    playlist.changed?.microsecondsSinceEpoch,
-    playlist.songCount,
-    playlist.duration,
-    Object.hashAll(
-      songs.map(
-        (song) => Object.hash(
-          song.id,
-          song.title,
-          song.artistId,
-          song.albumId,
-          song.duration,
-        ),
-      ),
-    ),
-  );
-}
-
-List<_PlaylistSongEntry> _sortPlaylistEntries(
-  List<Song> songs,
-  SongSortOption option,
-) {
-  final entries = List<_PlaylistSongEntry>.generate(
-    songs.length,
-    (index) => _PlaylistSongEntry(song: songs[index], originalIndex: index),
-    growable: false,
-  );
-  if (option == SongSortOption.defaultOrder || entries.length < 2) {
-    return entries;
-  }
-
-  final pinyinOf = createSharedPinyinResolver();
-  entries.sort((left, right) {
-    final comparison =
-        compareSongsForSortCached(left.song, right.song, option, pinyinOf);
-    return comparison == 0
-        ? left.originalIndex.compareTo(right.originalIndex)
-        : comparison;
-  });
-  return entries;
-}
-
-class _PlaylistSelectionBar extends StatelessWidget {
-  const _PlaylistSelectionBar({
-    required this.selectedCount,
-    required this.removing,
-    required this.onRemove,
-  });
-
-  final int selectedCount;
-  final bool removing;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final count = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(loc.library_remove_from_current_playlist, style: context.musicFlowTypography.title),
-        SizedBox(height: context.musicFlowSpacing.xxs),
-        Text(
-          loc.library_selected_count_rationale('$selectedCount'),
-          style: context.musicFlowTypography.metadata.copyWith(
-            color: context.musicFlowColors.muted,
-          ),
-        ),
-      ],
-    );
-
-    MusicFlowButton removeButton({required bool expand}) => MusicFlowButton.destructive(
-      label: removing ? loc.library_removing : loc.library_remove_selected,
-      semanticLabel: loc.library_remove_selected_semantics,
-      leadingIcon: AppIcons.removeCircle,
-      expand: expand,
-      onPressed: removing ? null : onRemove,
-    );
-
-    return MusicFlowSurface(
-      level: MusicFlowSurfaceLevel.surface,
-      borderRadius: BorderRadius.zero,
-      borderColor: context.musicFlowColors.divider,
-      padding: EdgeInsets.fromLTRB(
-        context.musicFlowPageHorizontalPadding,
-        context.musicFlowSpacing.xs,
-        context.musicFlowPageHorizontalPadding,
-        context.musicFlowSpacing.xs,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stack =
-              constraints.maxWidth < 380 ||
-              MediaQuery.textScalerOf(context).scale(1) > 1.3;
-          if (stack) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                count,
-                SizedBox(height: context.musicFlowSpacing.xs),
-                removeButton(expand: true),
-              ],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(child: count),
-              SizedBox(width: context.musicFlowSpacing.md),
-              removeButton(expand: false),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PlaylistIdentityHeader extends StatelessWidget {
-  const _PlaylistIdentityHeader({
-    required this.playlist,
-    required this.songCount,
-    this.isNowPlaying = false,
-  });
-
-  final Playlist playlist;
-  final int songCount;
-
-  /// 该歌单是否正在播放：封面右下角叠加半透明遮罩 + 白色跳动竖条。
-  final bool isNowPlaying;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final comment = playlist.comment?.trim();
-
-    return MediaDetailHeaderSurface(
-      coverArtId: playlist.coverArt,
-      child: Padding(
-        padding: EdgeInsets.all(context.musicFlowSpacing.lg),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 680;
-            final cover = SizedBox.square(
-              dimension: wide ? 176 : 120,
-              child: MediaDetailArtwork(
-                coverArtId: playlist.coverArt,
-                semanticLabel: loc.library_playlist_cover(playlist.name),
-                heroTag: 'playlist-cover-${playlist.id}',
-                requestSize: 480,
-                isNowPlaying: isNowPlaying,
-              ),
-            );
-            final information = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Semantics(
-                  header: true,
-                  child: Text(
-                    playlist.name,
-                    style: context.musicFlowTypography.display,
-                  ),
-                ),
-                if (comment != null && comment.isNotEmpty) ...<Widget>[
-                  SizedBox(height: context.musicFlowSpacing.xs),
-                  Text(comment, style: context.musicFlowTypography.body),
-                ],
-                SizedBox(height: context.musicFlowSpacing.sm),
-                Wrap(
-                  spacing: context.musicFlowSpacing.xs,
-                  runSpacing: context.musicFlowSpacing.xxs,
-                  children: <Widget>[
-                    Text(
-                      loc.library_song_count('$songCount'),
-                      style: context.musicFlowTypography.metadata.copyWith(
-                        color: context.musicFlowColors.muted,
-                      ),
-                    ),
-                    Text(
-                      playlist.durationString,
-                      style: context.musicFlowTypography.metadata.copyWith(
-                        color: context.musicFlowColors.muted,
-                      ),
-                    ),
-                    Text(
-                      playlist.public ? loc.library_public_playlist : loc.library_private_playlist,
-                      style: context.musicFlowTypography.metadata.copyWith(
-                        color: context.musicFlowColors.muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-
-            if (!wide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  cover,
-                  SizedBox(width: context.musicFlowSpacing.md),
-                  Expanded(child: information),
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                cover,
-                SizedBox(width: context.musicFlowSpacing.xl),
-                Expanded(child: information),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-/// 歌单详情加载中的占位预览：利用列表传入的预加载数据立即展示封面+标题，
-/// 避免用户点击后看到白屏 loading spinner。
-class _PlaylistLoadingPreview extends StatelessWidget {
-  const _PlaylistLoadingPreview({
-    required this.name,
-    required this.songCount,
-    this.coverArt,
-  });
-
-  final String name;
-  final int songCount;
-  final String? coverArt;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1400),
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverToBoxAdapter(
-              child: MediaDetailHeaderSurface(
-                coverArtId: coverArt,
-                child: Padding(
-                  padding: EdgeInsets.all(context.musicFlowSpacing.lg),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      SizedBox.square(
-                        dimension: 120,
-                        child: MediaDetailArtwork(
-                          coverArtId: coverArt,
-                          semanticLabel: loc.library_playlist_cover(name),
-                          heroTag: 'playlist-cover-$name',
-                          requestSize: 480,
-                        ),
-                      ),
-                      SizedBox(width: context.musicFlowSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(name, style: context.musicFlowTypography.display),
-                            SizedBox(height: context.musicFlowSpacing.sm),
-                            Text(
-                              loc.library_song_count('$songCount'),
-                              style: context.musicFlowTypography.metadata.copyWith(
-                                color: context.musicFlowColors.muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SliverFillRemaining(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
