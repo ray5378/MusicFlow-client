@@ -147,8 +147,9 @@ class OfflineCacheManager {
         OfflineCacheKind.playlistCover => 'playlist_covers',
       };
 
-  /// 将任意 key 安全化为文件名。
-  static String _safeName(String key) {
+  /// 将任意 key 安全化为文件名（公开静态：下载 daemon 等外部写盘也必须走它，
+  /// 防止原始 id 拼路径造成路径穿越/非法字符）。
+  static String safeName(String key) {
     final cleaned = key
         .trim()
         .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_')
@@ -156,6 +157,14 @@ class OfflineCacheManager {
     if (cleaned.isEmpty) return '_';
     return cleaned.length > 120 ? cleaned.substring(0, 120) : cleaned;
   }
+
+  static String _safeName(String key) => safeName(key);
+
+  /// 歌词缓存键：拼接 libraryId 隔离多库——不同媒体库可能存在相同 songId
+  /// （不同服务端自增/uuid 独立），不隔离会串库返回错误歌词。
+  /// [evictSong] 的歌词清理已兼容 `<libId>:<songId>` 与裸 `<songId>` 两种格式。
+  static String lyricsKey(String libraryId, String songId) =>
+      libraryId.isEmpty ? songId : '$libraryId:$songId';
 
   File _fileFor(OfflineCacheKind kind, String key) {
     return File(p.join(_kindDirs[kind]!.path, _safeName(key)));
@@ -226,9 +235,39 @@ class OfflineCacheManager {
         'entries': _entries.values.map((e) => e.toJson()).toList(),
       };
       final indexFile = File(p.join(_root!.path, _indexName));
-      await indexFile.writeAsString(jsonEncode(payload), flush: true);
+      // 索引本身也走原子写：写一半被杀的 index.json 会触发"清空重建"，
+      // 导致全部缓存变孤儿（下次启动被 _sweepOrphans 清掉）。
+      final tmp = File('${indexFile.path}.part');
+      await tmp.writeAsString(jsonEncode(payload), flush: true);
+      await _atomicPromote(tmp, indexFile);
     });
   }
+
+  /// 原子写：先落 `.part` 再 rename 到目标（rename 同目录内原子替换，
+  /// Windows/Android 均成立）。rename 失败时退化为直接覆盖写，保证可用性。
+  Future<void> _atomicWrite(File file, List<int> bytes) async {
+    final tmp = File('${file.path}.part');
+    await tmp.writeAsBytes(bytes, flush: true);
+    await _atomicPromote(tmp, file);
+  }
+
+  Future<void> _atomicPromote(File tmp, File target) async {
+    try {
+      await tmp.rename(target.path);
+    } catch (_) {
+      try {
+        await tmp.copy(target.path);
+      } finally {
+        try {
+          if (await tmp.exists()) await tmp.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// 立即落盘索引（App 退出/切后台时调用）：绕过 1s debounce，
+  /// 避免"写入后 1s 内进程被杀"留下有文件无索引的孤儿。
+  Future<void> flushIndexNow() => _flushIndex();
 
   /// 设置总容量（字节）。超容量时立即轮转。
   Future<void> setMaxBytes(int bytes) async {
@@ -256,7 +295,7 @@ class OfflineCacheManager {
         _totalBytes -= existing.size;
       }
       final file = _fileFor(kind, key);
-      await file.writeAsBytes(bytes, flush: true);
+      await _atomicWrite(file, bytes);
       final entry = _CacheEntry(
         kind: kind,
         key: key,
@@ -300,7 +339,10 @@ class OfflineCacheManager {
       final existing = _entries[composite];
       if (existing != null) _totalBytes -= existing.size;
       final file = _fileFor(OfflineCacheKind.song, songId);
-      await src.copy(file.path);
+      // 原子拷贝：先写 .part 再 rename，弱网/强退不会留下损坏的目标文件。
+      final tmp = File('${file.path}.part');
+      await src.copy(tmp.path);
+      await _atomicPromote(tmp, file);
       _entries[composite] = _CacheEntry(
         kind: OfflineCacheKind.song,
         key: songId,
@@ -413,6 +455,15 @@ class OfflineCacheManager {
   Future<void> _evictSongInternal(String songId) async {
     await _removeEntry(OfflineCacheKind.song, songId);
     await _removeEntry(OfflineCacheKind.lyric, songId);
+    // 兼容带 libraryId 前缀的歌词键（OfflineCacheManager.lyricsKey）。
+    final lyricKeys = _entries.values
+        .where((e) =>
+            e.kind == OfflineCacheKind.lyric && e.key.endsWith(':$songId'))
+        .map((e) => e.key)
+        .toList();
+    for (final key in lyricKeys) {
+      await _removeEntry(OfflineCacheKind.lyric, key);
+    }
     final coverKeys = _entries.values
         .where((e) =>
             e.kind == OfflineCacheKind.cover && e.owners.contains(songId))

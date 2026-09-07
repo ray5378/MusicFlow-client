@@ -13,6 +13,7 @@ import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
 import 'package:path_provider/path_provider.dart';
@@ -144,7 +145,10 @@ class OfflineCacheDaemon {
   /// 缓存某首歌曲的歌词（在线时）。用于预缓存下一首时随附。
 
   Future<void> _cacheSongLyrics(OfflineCacheManager cache, Song song) async {
-    if (cache.lyricsCached(song.id)) return;
+    // 歌词键带 libraryId 隔离多库（与 currentLyricsProvider 同一约定）。
+    final libId = _ref.read(activeLibraryProvider)?.id ?? '';
+    final lyricsKey = OfflineCacheManager.lyricsKey(libId, song.id);
+    if (cache.lyricsCached(lyricsKey)) return;
     try {
       final repo = _ref.read(lyricsRepositoryProvider);
       final lyrics = await repo.getLyrics(
@@ -156,7 +160,7 @@ class OfflineCacheDaemon {
             song.duration != null ? Duration(seconds: song.duration!) : null,
       );
       if (lyrics != null && !lyrics.isEmpty) {
-        await cache.putLyrics(song.id, jsonEncode(lyrics.toJson()));
+        await cache.putLyrics(lyricsKey, jsonEncode(lyrics.toJson()));
       }
     } catch (_) {
       // 歌词拉取失败不阻塞预缓存。
@@ -261,7 +265,9 @@ class OfflineCacheDaemon {
     if (url.isEmpty) return null;
 
     final tmpDir = await getTemporaryDirectory();
-    final tmp = File('${tmpDir.path}/${song.id}_cache_${DateTime.now().millisecondsSinceEpoch}.tmp');
+    // song.id 必须安全化：直接拼原始 id 有路径穿越/非法字符风险
+    // （与 OfflineCacheManager.safeName 同一约定）。
+    final tmp = File('${tmpDir.path}/${OfflineCacheManager.safeName(song.id)}_cache_${DateTime.now().millisecondsSinceEpoch}.tmp');
     try {
       await client.dio.download(
         url,

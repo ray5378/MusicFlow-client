@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicflow_client/providers/offline/offline_provider.dart';
 
 /// 应用/窗口是否处于「可见」状态。
 ///
@@ -83,6 +86,14 @@ class _AppVisibilityScopeState extends ConsumerState<AppVisibilityScope>
     // 仅最小化/完全隐藏(paused、hidden)与销毁(detached)视为不可见并冻结。
     ref.read(appVisibilityProvider.notifier).state =
         state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
+    // 离线缓存索引兜底 flush：索引写入带 1s debounce，若在窗口内进程被杀，
+    // 会留下"有文件无索引"的孤儿（下次启动被孤儿回收清掉）。退后台/销毁时立即落盘。
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(
+        ref.read(offlineCacheManagerProvider).flushIndexNow().catchError((_) {}),
+      );
+    }
   }
 
   @override
