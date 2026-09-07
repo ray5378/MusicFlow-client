@@ -27,6 +27,7 @@ std::wstring Utf8ToUtf16(const std::string& utf8) {
 // 全局 messenger 指针：OnCreate 时从 Flutter 引擎取到，供 NotifyWindowVisible
 // 在窗口消息路径（WM_CLOSE/SC_MINIMIZE）与托盘恢复路径（main.cpp）发送可见性。
 static flutter::BinaryMessenger* g_window_messenger = nullptr;
+static HWND g_main_window = nullptr;  // 主窗口句柄(歌词栏单击开关主窗口用)
 
 }  // namespace
 
@@ -66,8 +67,30 @@ bool FlutterWindow::OnCreate() {
 
   // 桌面歌词浮窗按钮事件(上一首/播放暂停/下一首/模式/喜欢/音量)经
   // tray 字符串通道回传 Dart,与托盘按钮共用同一条处理链路。
+  // 「点击歌词栏空白处开关主窗口」不走 Dart:直接原生切换显隐
+  // (开→收进托盘并通知 Flutter 冻结渲染;收→恢复前台并解除冻结)。
+  // 注意必须用顶层窗口句柄(GetHandle),不能用 Flutter 子视图句柄:
+  // view()->GetNativeWindow() 是 SetChildContent 挂进去的子 HWND,对它
+  // SW_HIDE 只会藏掉内容、顶层窗体留在屏幕上,表现为「主窗口假死卡住」。
+  g_main_window = GetHandle();
   DesktopLyricSetEventCallback([](const char* msg) {
     if (!g_window_messenger || msg == nullptr) return;
+    if (std::string(msg) == "toggle_main_window") {
+      if (g_main_window) {
+        if (IsWindowVisible(g_main_window) && !IsIconic(g_main_window)) {
+          ShowWindow(g_main_window, SW_HIDE);
+          NotifyWindowVisible(false);
+        } else {
+          // 最小化过的先还原,普通隐藏的直接显示(SW_RESTORE 会把
+          // 最大化窗口错误还原成普通尺寸)。
+          ShowWindow(g_main_window,
+                     IsIconic(g_main_window) ? SW_RESTORE : SW_SHOW);
+          NotifyWindowVisible(true);
+          SetForegroundWindow(g_main_window);
+        }
+      }
+      return;
+    }
     const std::string s(msg);
     std::vector<uint8_t> data(s.begin(), s.end());
     g_window_messenger->Send("com.musicflow.app/tray", data.data(),

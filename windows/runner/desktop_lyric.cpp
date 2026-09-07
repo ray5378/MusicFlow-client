@@ -103,6 +103,8 @@ int g_mode = kModeRepeatAll;
 double g_volume = 0.8;
 bool g_visible = false;
 bool g_dragging = false;
+bool g_pressPending = false;   // 按下未判定:未超阈值=单击(开关主窗口),超了=拖动
+POINT g_pressPt{};             // 按下时的客户区坐标(拖动偏移基准/单击判定)
 bool g_hovering = false;       // 鼠标是否在窗口内(决定面板/按钮显示)
 bool g_trackingMouse = false;  // TrackMouseEvent 是否已登记
 bool g_popupOpen = false;      // 音量弹窗是否展开
@@ -110,6 +112,15 @@ bool g_sliderDragging = false; // 正在拖音量滑条
 int g_hotButton = -1;          // 悬停按钮索引
 int g_pressedButton = -1;      // 按下中的按钮索引
 POINT g_dragOffset{};
+
+// ---- 歌词跑马灯滚动(超宽时从右向左匀速滚,首尾各停 1.8s,循环) ----
+constexpr UINT_PTR kScrollTimerId = 1;
+constexpr ULONGLONG kScrollHoldMs = 1800;  // 起点终点停留
+constexpr int kScrollSpeed = 40;           // 滚动速度(逻辑 px/s)
+constexpr int kScrollTimerMs = 33;         // 定时器周期(约 30fps)
+double g_lyricOverflow = 0;                // 歌词超出可用宽度(物理 px,<=0 不滚)
+ULONGLONG g_scrollCycle = 0;               // 本轮循环起点 tick,0=待重置
+bool g_scrollTimerOn = false;
 
 DesktopLyricEventCallback g_eventCb = nullptr;
 
@@ -226,6 +237,7 @@ void ApplyDpiScale(int dpi) {
   g_curHeight = S(kWindowHeight);
   g_padX = S(kPaddingX);
   g_popupH = S(kPopupHeight);
+  g_scrollCycle = 0;  // 宽度变了,滚动按新宽度从头算
 }
 
 void SaveLyricPos() {
@@ -470,6 +482,49 @@ COLORREF ComputeLyricStrokeColor(COLORREF fill) {
   return RGB(lighten(r), lighten(g), lighten(b));
 }
 
+// 独立测量文本宽(物理 px):AddString + GetBounds 不依赖 DC。
+double MeasureTextWidth(const std::wstring& text, const gd::FontFamily* family,
+                        gd::FontStyle style, REAL sizePx) {
+  if (text.empty() || family == nullptr) return 0;
+  gd::GraphicsPath path;
+  path.AddString(text.c_str(), static_cast<INT>(text.size()), family, style,
+                 sizePx, gd::PointF(0, 0),
+                 gd::StringFormat::GenericTypographic());
+  gd::RectF bounds{};
+  if (path.GetBounds(&bounds) != gd::Ok) return 0;
+  return bounds.Width;
+}
+
+// 跑马灯当前偏移(A 方案):起点停 hold → 匀速滚到尾 → 终点停 hold → 循环。
+REAL CurrentScrollOffset(REAL overflow) {
+  if (overflow <= 2) return 0;
+  if (g_scrollCycle == 0) g_scrollCycle = GetTickCount64();
+  const double speed = S(kScrollSpeed);  // 物理 px/s
+  const ULONGLONG scrollMs =
+      static_cast<ULONGLONG>(overflow / speed * 1000.0);
+  const ULONGLONG total = kScrollHoldMs + scrollMs + kScrollHoldMs;
+  const ULONGLONG p = (GetTickCount64() - g_scrollCycle) % total;
+  if (p < kScrollHoldMs) return 0;
+  if (p < kScrollHoldMs + scrollMs) {
+    return static_cast<REAL>(overflow *
+                             static_cast<double>(p - kScrollHoldMs) /
+                             static_cast<double>(scrollMs));
+  }
+  return overflow;
+}
+
+// 超宽时开定时器驱动滚动重绘,不需要时关掉。
+void UpdateScrollTimer(bool need) {
+  if (!g_hwnd) return;
+  if (need && !g_scrollTimerOn) {
+    SetTimer(g_hwnd, kScrollTimerId, kScrollTimerMs, nullptr);
+    g_scrollTimerOn = true;
+  } else if (!need && g_scrollTimerOn) {
+    KillTimer(g_hwnd, kScrollTimerId);
+    g_scrollTimerOn = false;
+  }
+}
+
 // 分层窗口内容面(PARGB 位图),尺寸变化时重建。
 bool EnsureSurface(int w, int h) {
   if (g_surface && g_gfx) {
@@ -528,10 +583,23 @@ void RenderLayered() {
                    Sf(kHeaderFontSize), static_cast<REAL>(g_padX),
                    baseY + hLyric * 0.20f, Gd(kHeaderFillColor),
                    Gd(kHeaderStrokeColor), Sf(kHeaderStrokeW) * 0.5f);
-  DrawOutlinedText(g, lyric, g_famUI, gd::FontStyleBold, Sf(kLyricFontSize),
-                   static_cast<REAL>(g_padX), baseY + hLyric * 0.66f,
-                   Gd(g_lyricColor), Gd(ComputeLyricStrokeColor(g_lyricColor)),
+  // 歌词行:超宽时跑马灯左滚,水平裁剪在可用宽度内(左右各留 padX)。
+  const REAL lyricSize = Sf(kLyricFontSize);
+  const REAL availW = w - 2 * static_cast<REAL>(g_padX);
+  const double textW =
+      MeasureTextWidth(lyric, g_famUI, gd::FontStyleBold, lyricSize);
+  g_lyricOverflow = textW > 0 ? (textW - availW) : 0.0;
+  UpdateScrollTimer(g_lyricOverflow > 2);
+  const REAL scrollX = CurrentScrollOffset(
+      static_cast<REAL>(g_lyricOverflow));
+  g.SetClip(gd::RectF(static_cast<REAL>(g_padX), baseY, availW, hLyric),
+            gd::CombineModeReplace);
+  DrawOutlinedText(g, lyric, g_famUI, gd::FontStyleBold, lyricSize,
+                   static_cast<REAL>(g_padX) - scrollX,
+                   baseY + hLyric * 0.66f, Gd(g_lyricColor),
+                   Gd(ComputeLyricStrokeColor(g_lyricColor)),
                    Sf(kLyricStrokeW) * 0.5f);
+  g.ResetClip();
 
   // 悬停时:按钮;弹窗展开时:音量面板。
   if (g_hovering) {
@@ -596,6 +664,19 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
                      SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         return 0;
       }
+      if (g_pressPending) {
+        // 按下后移动超过阈值 → 判定为拖动窗口;否则保持待判定(单击)。
+        const int dx = pt.x - g_pressPt.x;
+        const int dy = pt.y - g_pressPt.y;
+        const int th = S(6);
+        if (dx * dx + dy * dy > th * th) {
+          g_pressPending = false;
+          g_dragging = true;
+          g_dragOffset = g_pressPt;
+        } else {
+          return 0;
+        }
+      }
       if (g_sliderDragging) {
         SetVolumeAndNotify(VolumeFromY(pt.y));
         return 0;
@@ -654,11 +735,12 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         RepaintLyric();
         return 0;
       }
-      // 其余区域:拖动窗口。
+      // 其余区域:按下待判定——原地点击=开关主窗口,按住移动=拖动窗口。
       SetCapture(hwnd);
-      g_dragging = true;
-      g_dragOffset.x = GET_X_LPARAM(lParam);
-      g_dragOffset.y = GET_Y_LPARAM(lParam);
+      g_pressPending = true;
+      g_dragging = false;
+      g_pressPt.x = GET_X_LPARAM(lParam);
+      g_pressPt.y = GET_Y_LPARAM(lParam);
       return 0;
     }
     case WM_LBUTTONUP: {
@@ -690,6 +772,14 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         }
         return 0;
       }
+      if (g_pressPending) {
+        // 未超移动阈值的原地释放 = 单击:开关客户端主窗口
+        // (开着→收进托盘,收着→弹回前台),由原生层拦截执行。
+        g_pressPending = false;
+        ReleaseCapture();
+        FireEvent("toggle_main_window");
+        return 0;
+      }
       if (g_dragging) {
         g_dragging = false;
         ReleaseCapture();
@@ -700,6 +790,7 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
     case WM_CAPTURECHANGED:
       g_pressedButton = -1;
       g_sliderDragging = false;
+      g_pressPending = false;
       return 0;
     case WM_RBUTTONUP: {
       HMENU menu = CreatePopupMenu();
@@ -716,6 +807,10 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       if (cmd == 1) DesktopLyricSetVisible(false);
       return 0;
     }
+    case WM_TIMER:
+      // 跑马灯滚动重绘(仅超宽歌词时定时器存活)。
+      if (wParam == kScrollTimerId) RepaintLyric();
+      return 0;
     case WM_DPICHANGED: {
       ApplyDpiScale(HIWORD(wParam));
       const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
@@ -796,6 +891,8 @@ void DesktopLyricUpdateState(const DesktopLyricState& state) {
   g_mode = state.mode;
   g_lyricColor = state.lyricColor;
   g_volume = state.volume;
+  // 歌词变化 → 滚动循环从头开始(先停在句首 1.8s 再滚)。
+  g_scrollCycle = 0;
   if (changed) RepaintLyric();
 }
 
@@ -808,6 +905,7 @@ void DesktopLyricSetVisible(bool visible) {
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     RepaintLyric();
   } else {
+    UpdateScrollTimer(false);
     ShowWindow(g_hwnd, SW_HIDE);
   }
 }
