@@ -23,6 +23,9 @@ class DlnaManager {
   Future<String> Function(String songId)? _streamUrlBuilder;
 
   final List<DlnaDevice> _devices = [];
+  /// location → 在途 fetch：同一设备上线连发多条 SSDP alive 且周期性重播，
+  /// 广播风暴期间的重复请求直接复用在途 Future（避免重复 HttpClient/竞态写表）。
+  final Map<String, Future<void>> _inflightFetches = {};
   DlnaDevice? _currentDevice;
   Timer? _statusTimer;
   DlnaDeviceStatus _currentStatus = const DlnaDeviceStatus();
@@ -219,6 +222,17 @@ class DlnaManager {
 
   /// 获取设备描述并添加到列表
   Future<void> _fetchAndAddDevice(String location) async {
+    // 在途去重：同一 location 的并发 fetch 复用同一个 Future。
+    final inflight = _inflightFetches[location];
+    if (inflight != null) return inflight;
+    final future = _doFetchAndAdd(location).whenComplete(() {
+      _inflightFetches.remove(location);
+    });
+    _inflightFetches[location] = future;
+    return future;
+  }
+
+  Future<void> _doFetchAndAdd(String location) async {
     final device = await DeviceDescriptionParser.fetch(location);
     if (device == null) return;
 

@@ -9,17 +9,18 @@ import 'package:musicflow_client/core/dlna/dlna_models.dart';
 class DeviceDescriptionParser {
   /// 从 location URL 获取设备信息
   static Future<DlnaDevice?> fetch(String location) async {
+    final client = HttpClient();
     try {
       final uri = Uri.parse(location);
-      final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 5);
 
       final request = await client.getUrl(uri);
       final response = await request.close();
+      // 读 body 单独加超时：connectionTimeout 只覆盖 TCP 握手，
+      // "接受连接但不回 body"的老设备（如 2017 MUZO 固件）会让 join() 永久挂起。
       final xml = await response.transform(
         const SystemEncoding().decoder,
-      ).join();
-      client.close(force: true);
+      ).join().timeout(const Duration(seconds: 5));
 
       final device = _parseXml(xml, location);
       Logger.debugWithTag('SSDP-DESC', 'fetch $location -> ${device != null ? 'ok(${device.name})' : 'parse failed (no AVTransport / no UDN)'}');
@@ -27,6 +28,9 @@ class DeviceDescriptionParser {
     } catch (e) {
       Logger.errorWithTag('SSDP-DESC', 'fetch failed $location: $e');
       return null;
+    } finally {
+      // 无条件关闭：close 不能只放成功路径，否则异常路径泄漏 HttpClient。
+      client.close(force: true);
     }
   }
 
