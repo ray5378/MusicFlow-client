@@ -21,6 +21,7 @@ import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/player/shuffle_queue_indexer.dart';
 import 'package:musicflow_client/core/player/playback_payload.dart';
 import 'package:musicflow_client/core/services/audio_handler_service.dart';
+import 'package:musicflow_client/core/services/smtc_service.dart';
 
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
@@ -63,6 +64,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   AudioPlayer? _audioPlayer;
   MusicFlowAudioHandler? _audioHandler;
+
+  /// Windows SMTC（系统音量浮层/锁屏媒体卡片）。仅 Windows 平台初始化。
+  SmtcService? _smtc;
 
   /// 当前音频处理器（后台服务中初始化）。供 DLNA 等注册「任务被手动清理」回调，
   /// 以便在用户划掉 App 时释放各自的后台保活。
@@ -299,6 +303,23 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
     _audioPlayer = player;
 
+    // Windows SMTC：桌面端不走 audio_service，用 smtc_windows 独立桥接
+    // 系统音量浮层/锁屏媒体卡片（显示正在播放 + 上一首/暂停/下一首可控）。
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      final smtc = SmtcService();
+      unawaited(smtc.init());
+      smtc.onNext = () => next();
+      smtc.onPrevious = () => previous();
+      smtc.onPlayPause = (resume) {
+        if (resume) {
+          play();
+        } else {
+          pause();
+        }
+      };
+      _smtc = smtc;
+    }
+
     // 优先恢复本机音量：桌面端 SharedPreferences 读取极快，player 一就绪就
     // 落库并写入 real 引擎。放在最前，避免后续模式/会话恢复失败时音量恢复被
     // 跳过（否则每次重开都停在默认值、观感上"回到 100%"）。也保证任何播放
@@ -317,6 +338,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         'song=${state.currentSong?.id}',
       );
       if (mounted) state = state.copyWith(isPlaying: isPlaying);
+      _syncSmtc();
     });
 
     // 监听播放进度
@@ -1176,10 +1198,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
 
-  /// 更新通知栏媒体信息
+  /// 更新系统媒体信息（Android 通知栏 / Windows SMTC 音量浮层）
   void _updateMediaItem(Song song) {
-    if (_audioHandler == null) return;
-
     final previewCover = song.previewCoverUrl?.trim();
     final coverArtUrl =
         song.isPreview && previewCover != null && previewCover.isNotEmpty
@@ -1203,6 +1223,28 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     _audioHandler?.updateMediaItem(mediaItem);
+
+    // Windows SMTC：推送歌名/歌手/专辑/封面，并把时间轴重置到新歌起点。
+    _smtc?.updateMetadata(
+      title: song.title,
+      artist: song.artist ?? 'Unknown Artist',
+      album: song.album ?? 'Unknown Album',
+      thumbnail: safeCoverArtUrl,
+    );
+    _syncSmtc();
+  }
+
+  /// 把当前播放状态同步到 Windows SMTC（音量浮层媒体卡片）。
+  /// SMTC 由系统按播放状态自行推进显示位置，只在关键节点推送即可：
+  /// 切歌（重置时间轴）、播放/暂停切换、seek 完成、投屏进度 tick。
+  void _syncSmtc() {
+    final smtc = _smtc;
+    if (smtc == null) return;
+    smtc.updateStatus(
+      playing: state.isPlaying,
+      position: state.position,
+      duration: state.duration,
+    );
   }
 
   /// 投屏/直投期间，用投屏进度驱动系统播控中心（通知/锁屏进度条）。
@@ -1216,6 +1258,12 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       active: active,
       playing: playing,
       position: position,
+    );
+    // Windows SMTC 同样由投屏进度驱动（本机暂停时进度会定住）。
+    _smtc?.updateStatus(
+      playing: playing,
+      position: position,
+      duration: state.duration,
     );
   }
 
@@ -1915,6 +1963,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       );
       if (isCurrentSeek() && mounted) {
         state = state.copyWith(position: target);
+        _syncSmtc();
       }
     } finally {
       _releaseSeekAnchor(seekGeneration);
@@ -2321,6 +2370,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     _positionPollTimer?.cancel();
     _cancelFade();
     _networkTypeSubscription?.cancel();
+    _smtc?.dispose();
+    _smtc = null;
     // Check if initialized/assigned before disposing
     // Since it was 'late', we can't check.
     // Converting to nullable field:

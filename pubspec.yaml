@@ -93,6 +93,8 @@ dependencies:
   media_kit_libs_linux: ^1.2.1
   media_kit_libs_windows_audio: ^1.0.9
   remixicon: '>=4.9.3 <5.0.0'
+  smtc_windows: ^1.1.0
+  flutter_rust_bridge: 2.11.1
 
 dev_dependencies:
   drift_dev: ^2.22.1
