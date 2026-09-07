@@ -57,6 +57,8 @@ dependencies:
 
   # 本地存储
   shared_preferences: ^2.3.4
+  # 凭据安全存储（password/apiKey）：Windows DPAPI / Android Keystore 加密
+  flutter_secure_storage: ^9.2.4
 
   # 工具
   crypto: ^3.0.6

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:musicflow_client/core/services/credentials_store.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/server_config.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
@@ -126,15 +127,25 @@ class LocalStorage {
     await prefs.remove(_keySearchHistory);
   }
 
-  /// 保存服务器配置
+  /// 保存服务器配置。
+  ///
+  /// 凭据（password/apiKey）移入系统钥匙串（CredentialsStore，
+  /// Windows DPAPI / Android Keystore 加密），SharedPreferences 只落非敏感配置。
   static Future<void> saveServerConfig(ServerConfig config) async {
+    await CredentialsStore.writeAll(
+      CredentialsStore.scopeServerConfig,
+      'main',
+      {'password': config.password, 'apiKey': config.apiKey},
+    );
     final prefs = await SharedPreferences.getInstance();
-    final json = jsonEncode(config.toJson());
-    await prefs.setString(_keyServerConfig, json);
+    final sanitized = Map<String, dynamic>.from(config.toJson())
+      ..['password'] = null
+      ..['apiKey'] = null;
+    await prefs.setString(_keyServerConfig, jsonEncode(sanitized));
     Logger.infoWithTag(_logTag, 'server config saved');
   }
 
-  /// 读取服务器配置
+  /// 读取服务器配置（凭据从钥匙串回填；旧版本明文残留自动迁移进钥匙串）。
   static Future<ServerConfig?> getServerConfig() async {
     final prefs = await SharedPreferences.getInstance();
     final json = prefs.getString(_keyServerConfig);
@@ -144,7 +155,33 @@ class LocalStorage {
     }
 
     try {
-      final map = jsonDecode(json) as Map<String, dynamic>;
+      final map = Map<String, dynamic>.from(jsonDecode(json) as Map);
+      // 旧版本迁移：prefs 里残留的明文凭据 → 移入钥匙串并从 prefs 清除。
+      if (map['password'] != null || map['apiKey'] != null) {
+        await CredentialsStore.writeAll(
+          CredentialsStore.scopeServerConfig,
+          'main',
+          {
+            'password': map['password'] as String?,
+            'apiKey': map['apiKey'] as String?,
+          },
+        );
+        map['password'] = null;
+        map['apiKey'] = null;
+        await prefs.setString(_keyServerConfig, jsonEncode(map));
+        Logger.infoWithTag(
+          _logTag,
+          'migrated plaintext credentials to secure storage',
+        );
+      }
+      // 从钥匙串回填凭据。
+      final creds = await CredentialsStore.readAll(
+        CredentialsStore.scopeServerConfig,
+        'main',
+        const ['password', 'apiKey'],
+      );
+      map['password'] = creds['password'];
+      map['apiKey'] = creds['apiKey'];
       Logger.debugWithTag(_logTag, 'server config loaded');
       return ServerConfig.fromJson(map);
     } catch (e) {
@@ -153,8 +190,13 @@ class LocalStorage {
     }
   }
 
-  /// 删除服务器配置（登出）
+  /// 删除服务器配置（登出）：连同钥匙串中的凭据一并清除。
   static Future<void> clearServerConfig() async {
+    await CredentialsStore.deleteAll(
+      CredentialsStore.scopeServerConfig,
+      'main',
+      const ['password', 'apiKey'],
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyServerConfig);
     Logger.infoWithTag(_logTag, 'server config cleared');
