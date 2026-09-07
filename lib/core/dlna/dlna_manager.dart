@@ -1,3 +1,4 @@
+import 'package:musicflow_client/core/dlna/dlna_didl.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -375,7 +376,7 @@ class DlnaManager {
     final track = _queue[_queueIndex];
     // A 档：先换无鉴权 token 流 URL，再交给设备自拉流。
     final url = await _directStreamUrl(track.songId);
-    final metadata = _buildDidlLite(
+    final metadata = buildDidlLite(
       title: track.title,
       uri: url,
       mime: track.mimeHint ?? 'audio/mpeg',
@@ -473,7 +474,7 @@ class DlnaManager {
     final next = _queue[nextIndex];
     // A 档：预置下一首同样用无鉴权 token 流 URL。
     final url = await _directStreamUrl(next.songId);
-    final metadata = _buildDidlLite(
+    final metadata = buildDidlLite(
       title: next.title,
       uri: url,
       mime: next.mimeHint ?? 'audio/mpeg',
@@ -1039,50 +1040,6 @@ class DlnaManager {
   /// 嵌入 SOAP 信封；设备 SOAP 栈反解后得到的就是这份原始 XML。
   /// 避免此前「这里先手写 &lt; 预转义、SOAP 再转义一次」导致的双重转义
   /// （设备拿到 `&amp;lt;` → 反解为字面 `&lt;` 而非真实标签，严格设备会拒绝该曲目）。
-  String _buildDidlLite({
-    required String title,
-    required String uri,
-    required String mime,
-    String? artist,
-    String? album,
-    String? albumArtUri,
-  }) {
-    final protocolInfo =
-        'http-get:*:$mime:DLNA.ORG_OP=01;DLNA.ORG_CI=0;'
-        'DLNA.ORG_FLAGS=01700000000000000000000000000000';
-
-    final buffer = StringBuffer()
-      ..write('<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"')
-      ..write(' xmlns:dc="http://purl.org/dc/elements/1.1/"')
-      ..write(' xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">')
-      ..write('<item id="1" parentID="0" restricted="1">')
-      ..write('<dc:title>${_escapeXml(title)}</dc:title>');
-
-    if (artist != null) {
-      buffer.write('<dc:creator>${_escapeXml(artist)}</dc:creator>');
-    }
-    if (album != null) {
-      buffer.write('<upnp:album>${_escapeXml(album)}</upnp:album>');
-    }
-    if (albumArtUri != null) {
-      buffer.write('<upnp:albumArtURI>${_escapeXml(albumArtUri)}</upnp:albumArtURI>');
-    }
-
-    buffer
-      ..write('<upnp:class>object.item.audioItem.musicTrack</upnp:class>')
-      ..write('<res protocolInfo="$protocolInfo">${_escapeXml(uri)}</res>')
-      ..write('</item></DIDL-Lite>');
-
-    return buffer.toString();
-  }
-
-  /// XML 转义
-  String _escapeXml(String s) {
-    return s
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-  }
 
   // ==================== 资源清理 ====================
 
