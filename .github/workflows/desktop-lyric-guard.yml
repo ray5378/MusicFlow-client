@@ -1,0 +1,82 @@
+name: Desktop Lyric Guard
+
+# 桌面歌词浮窗防线(阻塞型,与 GPU Render Guard 同级):
+# 桌面歌词是原生 Win32 C++ 渲染 + Dart 推送链路的组合,而纯 tag 体系下
+# push main 不触发 Windows 构建 —— C++ 语法错误与跨端约定回归只会在
+# 发版时才暴露。本 workflow 在每次 push/PR 上补齐三道确定性检查:
+#   1. native-logic-tests:纯逻辑头(描边色/跑马灯/单击阈值)C++ 单测,
+#      ubuntu g++ 即可编译(desktop_lyric_logic.h 刻意不依赖 windows.h);
+#   2. native-compile-check:windows runner 上 MSVC /Zs 全量语法检查
+#      desktop_lyric.cpp,把原生编译错误挡在发版之前;
+#   3. dart-guards:Dart 推送链路单测 + 结构扫描(主窗口句柄/恢复分支/
+#      逐像素 alpha 管线/鼠标捕获释放/取色去重 key,均为真实事故防回归)。
+#
+# 三道检查全部确定性、无历史遗留失败,因此不设 continue-on-error,
+# 失败直接标红(区别于 Test Suite / UI Guard 观察流水线)。
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-logic-tests:
+    name: Desktop lyric pure-logic C++ tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile and run logic tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            tool/desktop_lyric_logic_test.cc -o /tmp/desktop_lyric_logic_test
+          /tmp/desktop_lyric_logic_test
+
+  native-compile-check:
+    name: MSVC syntax check (desktop_lyric.cpp)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # /Zs 只做语法检查不产出目标文件;/utf-8 与 runner CMake 一致
+      # (源码为 UTF-8 无 BOM,默认代码页读会乱码)。
+      - name: Syntax-check desktop lyric native source
+        run: >
+          cl /nologo /utf-8 /Zs /std:c++17 /W3 /EHsc
+          /I windows\runner windows\runner\desktop_lyric.cpp
+
+  dart-guards:
+    name: Dart push-chain tests + structural scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run desktop lyric Dart tests
+        run: flutter test test/providers/status_lyrics_provider_test.dart
+
+      - name: Structural scan (handle/pipeline/capture/color-key)
+        run: dart run tool/desktop_lyric_guard.dart

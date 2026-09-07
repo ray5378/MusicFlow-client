@@ -1,4 +1,5 @@
 #include "desktop_lyric.h"
+#include "desktop_lyric_logic.h"  // 纯逻辑(描边色/跑马灯/单击阈值),有独立单测
 
 #include <windowsx.h>
 #include <objidl.h>
@@ -666,10 +667,10 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       }
       if (g_pressPending) {
         // 按下后移动超过阈值 → 判定为拖动窗口;否则保持待判定(单击)。
+        // 阈值公式在 dllogic::MovedBeyondThreshold(带独立单测)。
         const int dx = pt.x - g_pressPt.x;
         const int dy = pt.y - g_pressPt.y;
-        const int th = S(6);
-        if (dx * dx + dy * dy > th * th) {
+        if (dllogic::MovedBeyondThreshold(dx, dy, S(6))) {
           g_pressPending = false;
           g_dragging = true;
           g_dragOffset = g_pressPt;

@@ -15,6 +15,18 @@ import 'package:musicflow_client/widgets/windows_title_bar.dart';
 /// Windows 桌面歌词浮窗开关(默认关闭)。
 final statusLyricsEnabledProvider = StateProvider<bool>((ref) => false);
 
+/// 桌面歌词播放模式字符串推导(纯函数,单测锁定):
+/// shuffle → 'shuffle';单曲循环 → 'repeatOne';其余 → 'repeatAll'。
+/// 与 PlayerNotifier.playbackMode 同一规则,原生层按
+/// 0=shuffle / 1=repeatAll / 2=repeatOne 解释。
+String deriveDesktopLyricMode({
+  required bool shuffleEnabled,
+  required LoopMode loopMode,
+}) {
+  if (shuffleEnabled) return 'shuffle';
+  return loopMode == LoopMode.one ? 'repeatOne' : 'repeatAll';
+}
+
 /// 桌面歌词控制器:持久化开关,监听播放状态(歌名/歌手/歌词行/播放/喜欢/
 /// 播放模式/音量)并把完整状态推送到桌面歌词浮窗(原生 Win32 悬浮窗,
 /// 两行文本 + 悬停控制按钮)。在 MainScaffold 初始化时读取一次以激活监听。
@@ -128,11 +140,11 @@ class StatusLyricsController {
     final lyric = _ref.read(currentLyricLineProvider) ?? '';
     final playing = player.isPlaying;
     final liked = player.currentSong?.starred ?? false;
-    // 播放模式(与 PlayerNotifier.playbackMode 同一推导,避免依赖 notifier):
-    // shuffle → 'shuffle';单曲循环 → 'repeatOne';其余 → 'repeatAll'。
-    final mode = player.shuffleEnabled
-        ? 'shuffle'
-        : (player.loopMode == LoopMode.one ? 'repeatOne' : 'repeatAll');
+    // 播放模式:推导规则在 deriveDesktopLyricMode(纯函数,带单测)。
+    final mode = deriveDesktopLyricMode(
+      shuffleEnabled: player.shuffleEnabled,
+      loopMode: player.loopMode,
+    );
     final volume = double.parse(player.volume.toStringAsFixed(2));
     // 歌词填充色:与 MINI 播放器歌词栏同一取色(暖黄对迷你条底色 4.5:1
     // 自适应),封面配色变化时自动跟随。
