@@ -28,7 +28,6 @@ class VinylRecordCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coverRadius = size * 0.35;
-    final centerHoleRadius = size * 0.04;
     // Windows 走 Skia,大 blur 阴影成本高:降级为细描边 + 小模糊。
     final isWindows =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
@@ -84,17 +83,6 @@ class VinylRecordCover extends StatelessWidget {
                 child: _buildCoverImage(context),
               ),
             ),
-            // 中心小孔
-            if (showVinylEffect)
-              Container(
-                width: centerHoleRadius * 2,
-                height: centerHoleRadius * 2,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.grey[800],
-                  border: Border.all(color: Colors.grey[600]!, width: 2),
-                ),
-              ),
           ],
         ),
       ),
