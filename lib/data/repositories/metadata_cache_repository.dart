@@ -128,21 +128,29 @@ class MetadataCacheRepository {
     return (songs: songs, cachedAt: cachedAt);
   }
 
-  /// 容忍性地解析缓存的歌曲列表：跳过损坏/旧版本不兼容的单个条目。
+  /// 容忍性解析缓存的歌曲列表：跳过损坏/旧版本不兼容的单个条目。
   /// 否则一条坏数据会让 `Song.fromJson` 抛 FormatException，直接导致缓存读取
   /// 整体失败、随机歌曲无法回退到网络拉取（Windows 拉不到随机歌曲的根因）。
-  List<Song> _parseCachedSongs(List rawList) {
-    final songs = <Song>[];
-    for (final e in rawList) {
+  List<Song> _parseCachedSongs(List rawList) =>
+      _parseList<Song>(rawList, Song.fromJson);
+
+  /// 通用容忍性解析：跳过损坏/不兼容的单个条目，一条坏数据不再让整组
+  /// 缓存读取失败（getAllSongs/getAllAlbums/getPlaylists 等全部直读路径共用）。
+  List<T> _parseList<T>(
+    List? rawList,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    final out = <T>[];
+    for (final e in rawList ?? const []) {
       if (e is! Map || e.isEmpty) continue;
       try {
-        songs.add(Song.fromJson(Map<String, dynamic>.from(e)));
+        out.add(fromJson(Map<String, dynamic>.from(e)));
       } catch (_) {
-        // 跳过损坏条目,不阻断整体读取。
+        // 跳过损坏条目，不阻断整体读取。
         continue;
       }
     }
-    return songs;
+    return out;
   }
 
   Future<void> cacheRecentAlbums(String libraryId, List<Album> albums) async {
@@ -155,9 +163,7 @@ class MetadataCacheRepository {
   Future<List<Album>?> getRecentAlbums(String libraryId) async {
     final map = await _readMap(libraryId, 'home_recent_albums');
     if (map == null) return null;
-    final list = map['albums'] as List?;
-    if (list == null) return null;
-    return list.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
+    return _parseList<Album>(map['albums'] as List?, Album.fromJson);
   }
 
   Future<void> cacheFrequentAlbums(String libraryId, List<Album> albums) async {
@@ -449,15 +455,9 @@ class MetadataCacheRepository {
       return null;
     }
     return StarredCache(
-      artists: artistsList
-          .map((e) => Artist.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      albums: albumsList
-          .map((e) => Album.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      songs: songsList
-          .map((e) => Song.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      artists: _parseList<Artist>(artistsList, Artist.fromJson),
+      albums: _parseList<Album>(albumsList, Album.fromJson),
+      songs: _parseList<Song>(songsList, Song.fromJson),
     );
   }
 }

@@ -6,6 +6,10 @@ class LrcParser {
   // [mm:ss.xx] 或 [mm:ss.xxx]
   static final _timeTagRegExp = RegExp(r'\[(\d{1,3}):(\d{2})\.(\d{2,3})\]');
 
+  // 增强型逐字时间标签 <mm:ss.xx>（APT/Enhanced LRC）：本客户端只做逐行滚动，
+  // 不支持逐字卡拉 OK，剥掉标签避免其残留在歌词文本里显示成乱码。
+  static final _wordTagRegExp = RegExp(r'<\d{1,3}:\d{2}(?:\.\d{1,3})?>');
+
   /// 将 LRC 文本解析为统一的 StructuredLyrics
   static StructuredLyrics parse(String lrcContent) {
     final lines = lrcContent.split('\n');
@@ -30,8 +34,11 @@ class LrcParser {
 
       hasTags = true;
 
-      // 提取歌词文本（移除所有时间戳）
-      final text = trimmed.replaceAll(_timeTagRegExp, '').trim();
+      // 提取歌词文本（移除所有时间戳与逐字标签）
+      final text = trimmed
+          .replaceAll(_timeTagRegExp, '')
+          .replaceAll(_wordTagRegExp, '')
+          .trim();
 
       // 一行可能有多个时间戳（共享歌词文本）
       for (final match in matches) {

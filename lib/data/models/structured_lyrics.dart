@@ -21,14 +21,25 @@ class StructuredLyrics {
   factory StructuredLyrics.fromJson(Map<String, dynamic> json) {
     final lineList =
         (json['line'] as List?)
-            ?.map((e) => LyricsLine.fromJson(e as Map<String, dynamic>))
+            ?.whereType<Map>()
+            .map((e) => LyricsLine.fromJson(e.cast<String, dynamic>()))
             .toList() ??
         [];
     return StructuredLyrics(
-      displayArtist: json['displayArtist'] as String?,
-      displayTitle: json['displayTitle'] as String?,
-      lang: json['lang'] as String?,
-      offsetMs: json['offset'] as int? ?? 0,
+      displayArtist: json['displayArtist'] is String
+          ? json['displayArtist'] as String
+          : null,
+      displayTitle: json['displayTitle'] is String
+          ? json['displayTitle'] as String
+          : null,
+      lang: json['lang'] is String ? json['lang'] as String : null,
+      // offset 容错：OpenSubsonic 实现不一定按规范返回整数（字符串/浮点均见过），
+      // as int? 会抛 CastError 导致整组歌词静默丢弃，统一按 num/字符串解析。
+      offsetMs: switch (json['offset']) {
+        num value => value.toInt(),
+        String value => int.tryParse(value) ?? 0,
+        _ => 0,
+      },
       synced: json['synced'] as bool? ?? false,
       lines: lineList,
     );

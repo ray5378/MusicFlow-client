@@ -7,8 +7,13 @@ class LyricsLine {
 
   factory LyricsLine.fromJson(Map<String, dynamic> json) {
     return LyricsLine(
-      startMs: json['start'] as int?,
-      value: json['value'] as String? ?? '',
+      // start 容错：非整数实现（浮点/字符串）不应让整组歌词丢弃。
+      startMs: switch (json['start']) {
+        num value => value.toInt(),
+        String value => int.tryParse(value),
+        _ => null,
+      },
+      value: json['value'] is String ? json['value'] as String : '',
     );
   }
 

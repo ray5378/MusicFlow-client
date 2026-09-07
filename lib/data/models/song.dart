@@ -17,6 +17,10 @@ bool? _toBool(dynamic value) {
   return null;
 }
 
+/// 字符串字段容错解析：非 String（如坏缓存写入的数字/Map）返回 null
+/// 而不是抛 CastError 让整组歌曲解析失败。
+String? _toStr(dynamic value) => value is String ? value : null;
+
 /// 歌曲模型
 class Song {
   final String id;
@@ -191,28 +195,30 @@ class Song {
     );
   }
 
-  /// 从 JSON 反序列化
+  /// 从 JSON 反序列化。
+  /// id/title 为必需字段，但缓存数据可能损坏（历史版本写入了坏记录）：
+  /// 字符串字段一律经 _toStr 容错，坏数据退化为空串而不是让整组歌曲解析全挂。
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      album: json['album'] as String?,
-      albumId: json['albumId'] as String?,
-      artist: json['artist'] as String?,
-      artistId: json['artistId'] as String?,
+      id: _toStr(json['id']) ?? '',
+      title: _toStr(json['title']) ?? '',
+      album: _toStr(json['album']),
+      albumId: _toStr(json['albumId']),
+      artist: _toStr(json['artist']),
+      artistId: _toStr(json['artistId']),
       track: _toInt(json['track']),
       year: _toInt(json['year']),
-      genre: json['genre'] as String?,
-      coverArt: json['coverArt'] as String?,
+      genre: _toStr(json['genre']),
+      coverArt: _toStr(json['coverArt']),
       size: _toInt(json['size']),
-      contentType: json['contentType'] as String?,
-      suffix: json['suffix'] as String?,
+      contentType: _toStr(json['contentType']),
+      suffix: _toStr(json['suffix']),
       duration: _toInt(json['duration']),
       bitRate: _toInt(json['bitRate']),
       bitDepth: _toInt(json['bitDepth']),
       samplingRate: _toInt(json['samplingRate']),
       channelCount: _toInt(json['channelCount']),
-      path: json['path'] as String?,
+      path: _toStr(json['path']),
       isVideo: _toBool(json['isVideo']),
       playCount: _toInt(json['playCount']),
       created: json['created'] is String
@@ -223,11 +229,11 @@ class Song {
         _ => json['starred'] != null,
       },
       discNumber: _toInt(json['discNumber']),
-      type: json['type'] as String?,
+      type: _toStr(json['type']),
       isPreview: json['isPreview'] as bool? ?? false,
-      previewSource: json['previewSource'] as String?,
-      previewTrackId: json['previewTrackId'] as String?,
-      previewLyricId: json['previewLyricId'] as String?,
+      previewSource: _toStr(json['previewSource']),
+      previewTrackId: _toStr(json['previewTrackId']),
+      previewLyricId: _toStr(json['previewLyricId']),
       previewPicId: json['previewPicId'] as String?,
       previewStreamUrl: json['previewStreamUrl'] as String?,
       previewCoverUrl: json['previewCoverUrl'] as String?,

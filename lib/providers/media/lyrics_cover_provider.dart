@@ -20,6 +20,7 @@ import 'package:musicflow_client/data/sources/covers/fanart_cover_source.dart';
 import 'package:musicflow_client/data/sources/covers/musicbrainz_cover_source.dart';
 import 'package:musicflow_client/data/sources/covers/custom_cover_source.dart';
 import 'package:musicflow_client/core/utils/lrc_parser.dart';
+import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
@@ -136,11 +137,14 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
   final song = ref.watch(playerProvider.select((s) => s.currentSong));
   if (song == null) return null;
 
-  // 离线回退：优先读本地缓存。
+  // 离线回退：优先读本地缓存。歌词键带 libraryId 隔离多库（同 id 不串库）。
   if (ref.read(isOfflineProvider)) {
     final cache = ref.read(offlineCacheManagerProvider);
     await ref.read(offlineCacheReadyProvider.future);
-    final cached = await cache.lyrics(song.id);
+    final libId = ref.read(activeLibraryProvider)?.id ?? '';
+    final cached = await cache.lyrics(
+      OfflineCacheManager.lyricsKey(libId, song.id),
+    );
     if (cached != null && cached.isNotEmpty) {
       try {
         return Lyrics.fromJson(
@@ -185,11 +189,17 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
     duration: song.duration != null ? Duration(seconds: song.duration!) : null,
   );
 
-  // 在线取到歌词后写入离线缓存（以歌曲为准）。
+  // 在线取到歌词后写入离线缓存（以歌曲为准，键带 libraryId 隔离多库）。
   if (lyrics != null && !lyrics.isEmpty && !song.isPreview) {
     final cache = ref.read(offlineCacheManagerProvider);
     await ref.read(offlineCacheReadyProvider.future);
-    unawaited(cache.putLyrics(song.id, jsonEncode(lyrics.toJson())));
+    final libId = ref.read(activeLibraryProvider)?.id ?? '';
+    unawaited(
+      cache.putLyrics(
+        OfflineCacheManager.lyricsKey(libId, song.id),
+        jsonEncode(lyrics.toJson()),
+      ),
+    );
   }
 
   return lyrics;
