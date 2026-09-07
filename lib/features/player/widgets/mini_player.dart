@@ -574,6 +574,12 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                         child:
                             widget.progressLayer ??
                             _MiniPlayerProgressSurface(
+                              // 与全屏页同款守卫：songId 变化时 State 重建，
+                              // 拖动中的旧比例不会套到新歌时长上。
+                              key: ValueKey<String?>(
+                                _playerState.currentSong?.id,
+                              ),
+                              songId: _playerState.currentSong?.id,
                               position: _playerState.position,
                               duration: _playerState.duration,
                               onSeek: widget.onSeek,
@@ -597,9 +603,15 @@ class _ProviderMiniPlayerProgress extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 冻结进度：窗口不可见时拖拽手势层的 position 不再高频重建。
+    // songId 用 select 只在切歌时重建（对齐全屏页的拖动守卫）。
     final position = ref.watch(frozenPositionProvider);
     final duration = ref.watch(effectiveDurationProvider);
+    final songId = ref.watch(
+      playerProvider.select((state) => state.currentSong?.id),
+    );
     return _MiniPlayerProgressSurface(
+      key: ValueKey<String?>(songId),
+      songId: songId,
       position: position,
       duration: duration,
       onSeek: (target) => seekEffectivePlayback(ref, target),
@@ -609,11 +621,14 @@ class _ProviderMiniPlayerProgress extends ConsumerWidget {
 
 class _MiniPlayerProgressSurface extends StatefulWidget {
   const _MiniPlayerProgressSurface({
+    super.key,
+    required this.songId,
     required this.position,
     required this.duration,
     required this.onSeek,
   });
 
+  final String? songId;
   final Duration position;
   final Duration duration;
   final Future<void> Function(Duration target) onSeek;
@@ -628,17 +643,25 @@ class _MiniPlayerProgressSurfaceState
   double _scrubViewportWidth = 1;
   double? _scrubProgress;
   bool _scrubbing = false;
+  // 拖动会话开始时锁定的歌曲 id：切歌后旧拖动会话立即作废，
+  // 防止把旧歌的比例换算到新歌 duration 上（对齐全屏页 _dragSongId）。
+  String? _scrubSongId;
 
   void _handleProgressDragStart(DragStartDetails details) {
     if (widget.duration <= Duration.zero) return;
     setState(() {
       _scrubbing = true;
+      _scrubSongId = widget.songId;
       _scrubProgress = _progressFromDx(details.localPosition.dx);
     });
   }
 
   void _handleProgressDragUpdate(DragUpdateDetails details) {
     if (!_scrubbing || widget.duration <= Duration.zero) return;
+    if (_scrubSongId != widget.songId) {
+      _handleProgressDragCancel();
+      return;
+    }
     setState(() {
       _scrubProgress = _progressFromDx(details.localPosition.dx);
     });
@@ -647,7 +670,9 @@ class _MiniPlayerProgressSurfaceState
   void _handleProgressDragEnd(DragEndDetails details) {
     final progress = _scrubProgress;
     final durationMs = widget.duration.inMilliseconds;
-    if (_scrubbing && progress != null && durationMs > 0) {
+    // 只有拖动会话锁定的歌曲与当前歌曲一致时才 seek。
+    final sameSong = _scrubSongId != null && _scrubSongId == widget.songId;
+    if (_scrubbing && progress != null && durationMs > 0 && sameSong) {
       HapticFeedback.selectionClick();
       unawaited(
         widget.onSeek(Duration(milliseconds: (durationMs * progress).round())),
@@ -656,6 +681,7 @@ class _MiniPlayerProgressSurfaceState
     setState(() {
       _scrubbing = false;
       _scrubProgress = null;
+      _scrubSongId = null;
     });
   }
 
@@ -664,6 +690,7 @@ class _MiniPlayerProgressSurfaceState
     setState(() {
       _scrubbing = false;
       _scrubProgress = null;
+      _scrubSongId = null;
     });
   }
 
