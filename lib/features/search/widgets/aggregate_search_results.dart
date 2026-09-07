@@ -204,9 +204,9 @@ class _AggregateLocalBlockState<T> extends State<AggregateLocalBlock<T>> {
                     ),
                   ),
                 ),
-                TextButton(
+                MusicFlowButton.ghost(
+                  label: loc.widgets_retry,
                   onPressed: _reload,
-                  child: Text(loc.widgets_retry),
                 ),
               ],
             ),
