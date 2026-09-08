@@ -39,7 +39,7 @@ constexpr int kHeaderStrokeW = 3;     // 标题描边宽(逻辑)
 constexpr int kHoverPanelAlpha = 160;                 // 悬停面板不透明度
 constexpr int kPopupPanelAlpha = 242;                 // 音量弹窗不透明度
 constexpr COLORREF kHoverPanelColor = RGB(138, 138, 138);  // 悬停面板灰
-constexpr COLORREF kLyricFillColor = RGB(255, 194, 51);   // 歌词填充固定暖黄(0xFFC233)
+constexpr COLORREF kLyricFillColor = RGB(240, 149, 149);   // 歌词填充默认色(粉)
 constexpr COLORREF kHeaderFillColor = RGB(255, 255, 255);  // 标题填充(白)
 constexpr COLORREF kHeaderStrokeColor = RGB(201, 201, 201);// 标题描边(浅灰)
 constexpr COLORREF kTextColor = RGB(237, 239, 243);   // 弹窗文字
@@ -56,26 +56,17 @@ constexpr COLORREF kTrackFill = RGB(55, 138, 221);    // 滑条已填充(蓝)
 constexpr COLORREF kThumbColor = RGB(255, 255, 255);  // 滑块
 
 // 按钮(圆心,逻辑坐标,自右缘向左排;窗口宽 W,歌词区高 84,中线 y=弹窗高+42):
-// 上一首 / 播放暂停(大) / 下一首 / 播放模式 / 喜欢 / 播放队列 / 音量(最贴边)
+// 上一首 / 播放暂停(大) / 下一首 / 播放模式 / 音量 / 喜欢(最贴边)
 constexpr int kBtnR = 17;             // 普通按钮半径
 constexpr int kPlayR = 22;            // 播放按钮半径
-// 圆心相对右缘的偏移(逻辑 px): volume=35(最右), queue=87, like=139,
-// mode=191, next=243, play=297, prev=351
-constexpr int kOffVolume = 35;
-constexpr int kOffQueue = 87;
-constexpr int kOffLike = 139;
-constexpr int kOffMode = 191;
-constexpr int kOffNext = 243;
-constexpr int kOffPlay = 297;
-constexpr int kOffPrev = 351;
-
-// 队列弹窗(逻辑 px):行高、最大可见行数与内边距。
-constexpr int kQueueRowH = 32;
-constexpr int kQueueMaxRows = 7;
-constexpr int kListPopupPadV = 10;    // 列表弹窗上下内边距
-constexpr int kListPopupPadH = 8;     // 列表弹窗左右外边距
-constexpr int kListRowPadX = 14;      // 行内左右留白
-constexpr int kListRowGap = 6;        // 行与行之间的间隙
+// 圆心相对右缘的偏移(逻辑 px): like=35, volume=87, mode=139, next=191,
+// play=245, prev=299
+constexpr int kOffLike = 35;
+constexpr int kOffVolume = 87;
+constexpr int kOffMode = 139;
+constexpr int kOffNext = 191;
+constexpr int kOffPlay = 245;
+constexpr int kOffPrev = 299;
 
 // 播放模式(与 Dart PlaybackMode 枚举顺序对齐: 0=shuffle,1=repeatAll,2=repeatOne)
 constexpr int kModeShuffle = 0;
@@ -93,19 +84,12 @@ constexpr wchar_t kGlyphRepeatAll = L'\uE8EE';
 constexpr wchar_t kGlyphRepeatOne = L'\uE8ED';
 constexpr wchar_t kGlyphHeart = L'\uEB51';       // 描边心形
 constexpr wchar_t kGlyphHeartFill = L'\uEB52';   // 实心心形
-// 播放队列按钮:与客户端 MINI 播放器同款 remixicon 字形
-// (list_ordered_2),字体经 AddFontResourceExW 私有加载。
-constexpr wchar_t kGlyphQueue = L'\uF399';        // remix list_ordered_2
-// remix 字体加载失败时的 Segoe MDL2 降级字形(列表)。
-constexpr wchar_t kGlyphQueueFallback = L'\uE8FD';
 
 HWND g_hwnd = nullptr;
 ULONG_PTR g_gdiplusToken = 0;
 gd::FontFamily* g_famUI = nullptr;    // Microsoft YaHei UI
 gd::FontFamily* g_famIcon = nullptr;  // Segoe MDL2 Assets
-gd::FontFamily* g_famRemix = nullptr; // remixicon(与 MINI 播放器同款图标)
-gd::Font* g_fontPopup = nullptr;      // 弹窗文本(百分比/列表行)
-gd::Font* g_fontRemix = nullptr;      // 队列/切换播放器按钮图标(remixicon)
+gd::Font* g_fontPopup = nullptr;      // 音量百分比
 gd::Font* g_fontIcon = nullptr;       // 普通按钮图标
 gd::Font* g_fontIconPlay = nullptr;   // 播放按钮图标(大一号)
 gd::Bitmap* g_surface = nullptr;      // 分层窗口内容(PARGB,按需重建)
@@ -124,19 +108,11 @@ bool g_pressPending = false;   // 按下未判定:未超阈值=单击(开关主�
 POINT g_pressPt{};             // 按下时的客户区坐标(拖动偏移基准/单击判定)
 bool g_hovering = false;       // 鼠标是否在窗口内(决定面板/按钮显示)
 bool g_trackingMouse = false;  // TrackMouseEvent 是否已登记
+bool g_popupOpen = false;      // 音量弹窗是否展开
 bool g_sliderDragging = false; // 正在拖音量滑条
 int g_hotButton = -1;          // 悬停按钮索引
 int g_pressedButton = -1;      // 按下中的按钮索引
 POINT g_dragOffset{};
-
-// ---- 弹窗(同一时间最多展开一个,展开时窗口向上增高) ----
-enum class PopupKind { None, Volume, Queue };
-PopupKind g_popup = PopupKind::None;
-// 播放队列弹窗数据(Flutter 推送,全量替换)。
-std::vector<std::wstring> g_queueItems;
-int g_queueIndex = -1;
-int g_queueScroll = 0;  // 顶部可见行下标(滚轮滚动)
-int g_hotRow = -1;  // 悬停中的列表行(面板内高亮)
 
 // ---- 歌词跑马灯滚动(超宽时从右向左匀速滚,首尾各停 1.8s,循环) ----
 constexpr UINT_PTR kScrollTimerId = 1;
@@ -172,8 +148,7 @@ gd::Color Gd(COLORREF c, int alpha = 255) {
                    static_cast<BYTE>((c >> 16) & 0xFF));
 }
 
-// 按钮几何:圆心(物理 px)与半径。
-// idx: 0=prev 1=play 2=next 3=mode 4=volume 5=like 6=queue
+// 按钮几何:圆心(物理 px)与半径。idx: 0=prev 1=play 2=next 3=mode 4=volume 5=like
 struct BtnGeom {
   int cx, cy, r;
 };
@@ -187,28 +162,12 @@ BtnGeom ButtonGeom(int idx) {
     case 2: return {w - S(kOffNext), cy, S(kBtnR)};
     case 3: return {w - S(kOffMode), cy, S(kBtnR)};
     case 4: return {w - S(kOffVolume), cy, S(kBtnR)};
-    case 5: return {w - S(kOffLike), cy, S(kBtnR)};
-    default: return {w - S(kOffQueue), cy, S(kBtnR)};
-  }
-}
-
-// 各弹窗的逻辑高度(未展开=音量弹窗高度,窗口几何与旧版一致;
-// 列表弹窗高度随行数自适应)。
-int PopupLogicalHeight(PopupKind kind) {
-  switch (kind) {
-    case PopupKind::Queue: {
-      const int rows =
-          std::max(1, std::min<int>(static_cast<int>(g_queueItems.size()),
-                                    kQueueMaxRows));
-      return rows * kQueueRowH + (rows - 1) * kListRowGap + kListPopupPadV * 2;
-    }
-    default:
-      return kPopupHeight;
+    default: return {w - S(kOffLike), cy, S(kBtnR)};
   }
 }
 
 // 音量弹窗面板(物理 px),位于窗口顶部弹窗区。
-RECT VolumePanelRect() {
+RECT PanelRect() {
   const int volCx = g_curWidth - S(kOffVolume);
   RECT rc{};
   rc.left = volCx - S(32);
@@ -218,24 +177,10 @@ RECT VolumePanelRect() {
   return rc;
 }
 
-// 队列/设备列表弹窗面板(物理 px):横向铺满歌词窗(留边),向上增高。
-RECT ListPanelRect() {
-  RECT rc{};
-  rc.left = S(kListPopupPadH);
-  rc.right = g_curWidth - S(kListPopupPadH);
-  rc.top = S(6);
-  rc.bottom = g_popupH - S(6);
-  return rc;
-}
-
-RECT PopupPanelRect() {
-  return g_popup == PopupKind::Volume ? VolumePanelRect() : ListPanelRect();
-}
-
 // 滑条轨道(物理 px)。
 RECT TrackRect() {
   const int volCx = g_curWidth - S(kOffVolume);
-  const RECT panel = VolumePanelRect();
+  const RECT panel = PanelRect();
   RECT rc{};
   rc.left = volCx - S(3);
   rc.right = volCx + S(3);
@@ -253,57 +198,17 @@ bool PtInCircle(const POINT& pt, const BtnGeom& b) {
 // 命中测试(窗口客户区物理坐标)。返回 -1 表示不在任何按钮上。
 int HitTestButton(const POINT& pt) {
   if (!g_hovering) return -1;
-  for (int i = 6; i >= 0; --i) {
+  for (int i = 5; i >= 0; --i) {
     if (PtInCircle(pt, ButtonGeom(i))) return i;
   }
   return -1;
 }
 
 bool PtInPanel(const POINT& pt) {
-  if (g_popup == PopupKind::None) return false;
-  const RECT rc = PopupPanelRect();
+  if (!g_popupOpen) return false;
+  const RECT rc = PanelRect();
   return pt.x >= rc.left && pt.x < rc.right && pt.y >= rc.top &&
          pt.y < rc.bottom;
-}
-
-// 列表弹窗行区(面板内减去上下内边距,物理 px)。
-RECT ListRowsRect() {
-  const RECT panel = ListPanelRect();
-  RECT rc{};
-  rc.left = panel.left + S(kListRowPadX);
-  rc.right = panel.right - S(kListRowPadX);
-  rc.top = panel.top + S(kListPopupPadV);
-  rc.bottom = panel.bottom - S(kListPopupPadV);
-  return rc;
-}
-
-int ListRowH() { return S(kQueueRowH); }
-
-int ListRowGap() { return S(kListRowGap); }
-
-int ListVisibleRows() {
-  const RECT rows = ListRowsRect();
-  const int slot = ListRowH() + ListRowGap();
-  int n = (rows.bottom - rows.top + ListRowGap()) / slot;
-  return std::max(1, n);
-}
-
-// 列表行命中:返回全局行下标,不在行上返回 -1。
-int HitTestListRow(const POINT& pt) {
-  if (g_popup != PopupKind::Queue) return -1;
-  const RECT rows = ListRowsRect();
-  if (pt.x < rows.left || pt.x >= rows.right || pt.y < rows.top ||
-      pt.y >= rows.bottom) {
-    return -1;
-  }
-  const int slot = ListRowH() + ListRowGap();
-  const int idx = g_queueScroll + (pt.y - rows.top) / slot;
-  const int count = static_cast<int>(g_queueItems.size());
-  if (idx < 0 || idx >= count) return -1;
-  // 命中落进行间空隙时不算。
-  const int inSlot = static_cast<int>(pt.y - rows.top) % slot;
-  if (inSlot >= ListRowH()) return -1;
-  return idx;
 }
 
 // ---- 事件回调 ----
@@ -320,20 +225,11 @@ void ApplyDpiScale(int dpi) {
   g_dpi = dpi;
   g_scale = dpi / 96.0f;
   delete g_fontPopup;
-  delete g_fontRemix;
   delete g_fontIcon;
   delete g_fontIconPlay;
   g_fontPopup =
       new gd::Font(g_famUI, Sf(kPopupFontSize), gd::FontStyleRegular,
                    gd::UnitPixel);
-  g_fontRemix = g_famRemix
-                    ? new gd::Font(g_famRemix, Sf(19), gd::FontStyleRegular,
-                                   gd::UnitPixel)
-                    : nullptr;
-  if (g_famRemix && g_fontRemix && g_fontRemix->GetLastStatus() != gd::Ok) {
-    delete g_fontRemix;
-    g_fontRemix = nullptr;
-  }
   g_fontIcon = new gd::Font(g_famIcon, Sf(20), gd::FontStyleRegular,
                             gd::UnitPixel);
   g_fontIconPlay = new gd::Font(g_famIcon, Sf(26), gd::FontStyleRegular,
@@ -341,7 +237,7 @@ void ApplyDpiScale(int dpi) {
   g_curWidth = S(kWindowWidth);
   g_curHeight = S(kWindowHeight);
   g_padX = S(kPaddingX);
-  g_popupH = S(PopupLogicalHeight(g_popup));
+  g_popupH = S(kPopupHeight);
   g_scrollCycle = 0;  // 宽度变了,滚动按新宽度从头算
 }
 
@@ -485,22 +381,13 @@ void DrawButton(gd::Graphics& g, int idx) {
       break;
     case 4: glyph = kGlyphVolume; break;
     case 5: glyph = g_liked ? kGlyphHeartFill : kGlyphHeart; break;
-    case 6:
-      // 播放队列:MINI 播放器同款 remix 图标,加载失败降级 Segoe 字形。
-      if (g_fontRemix) {
-        glyph = kGlyphQueue;
-        font = g_fontRemix;
-      } else {
-        glyph = kGlyphQueueFallback;
-      }
-      break;
   }
   DrawGlyphGd(g, b, glyph, font, iconColor);
 }
 
 void DrawVolumePopup(gd::Graphics& g) {
-  if (g_popup != PopupKind::Volume) return;
-  const RECT panel = VolumePanelRect();
+  if (!g_popupOpen) return;
+  const RECT panel = PanelRect();
   const REAL px = static_cast<REAL>(panel.left);
   const REAL py = static_cast<REAL>(panel.top);
   const REAL pw = static_cast<REAL>(panel.right - panel.left);
@@ -555,81 +442,6 @@ void DrawVolumePopup(gd::Graphics& g) {
   g.FillEllipse(&thumbBr, static_cast<REAL>(tr.left + (tr.right - tr.left) / 2 - thumbR),
                 static_cast<REAL>(thumbCy - thumbR),
                 static_cast<REAL>(thumbR * 2), static_cast<REAL>(thumbR * 2));
-}
-
-// 列表弹窗(队列/设备)共用外框:面板底 + 描边 + 与歌词区之间的桥接带。
-void DrawListPanelChrome(gd::Graphics& g, const RECT& panel) {
-  const REAL px = static_cast<REAL>(panel.left);
-  const REAL py = static_cast<REAL>(panel.top);
-  const REAL pw = static_cast<REAL>(panel.right - panel.left);
-  const REAL ph = static_cast<REAL>(panel.bottom - panel.top);
-  const int rad = S(10);
-  FillRoundRect(g, px, py, pw, ph, static_cast<REAL>(rad),
-                Gd(kPanelBg, kPopupPanelAlpha));
-  {
-    gd::GraphicsPath* p = RoundRectPath(px, py, pw, ph, static_cast<REAL>(rad));
-    gd::Pen pen(Gd(kPanelBorder), 1.0f);
-    g.DrawPath(&pen, p);
-    delete p;
-  }
-  gd::SolidBrush br(Gd(kPanelBg, kPopupPanelAlpha));
-  g.FillRectangle(&br, px + 1, py + ph, pw - 2,
-                  static_cast<REAL>(g_popupH - panel.bottom));
-}
-
-// 队列弹窗:序号 + 歌名 — 歌手(单行省略),当前曲 accent 高亮 + 行底色。
-void DrawQueuePopup(gd::Graphics& g) {
-  if (g_popup != PopupKind::Queue || g_queueItems.empty()) return;
-  const RECT panel = ListPanelRect();
-  DrawListPanelChrome(g, panel);
-  const RECT rows = ListRowsRect();
-  const int slot = ListRowH() + ListRowGap();
-  const COLORREF kNumColor = RGB(150, 154, 163);
-  gd::StringFormat sf;
-  sf.SetTrimming(gd::StringTrimmingEllipsisCharacter);
-  sf.SetFormatFlags(gd::StringFormatFlagsNoWrap |
-                    gd::StringFormatFlagsMeasureTrailingSpaces);
-  sf.SetLineAlignment(gd::StringAlignmentCenter);
-  g.SetClip(gd::RectF(static_cast<REAL>(rows.left),
-                      static_cast<REAL>(panel.top),
-                      static_cast<REAL>(rows.right - rows.left),
-                      static_cast<REAL>(rows.bottom - rows.top)),
-            gd::CombineModeReplace);
-  for (int i = g_queueScroll;
-       i < static_cast<int>(g_queueItems.size()); ++i) {
-    const int rowTop = rows.top + (i - g_queueScroll) * slot;
-    if (rowTop + ListRowH() > rows.bottom) break;
-    const bool current = i == g_queueIndex;
-    const bool hot = g_hovering && g_hotRow == i && !current;
-    if (current || hot) {
-      FillRoundRect(g, static_cast<REAL>(rows.left),
-                    static_cast<REAL>(rowTop),
-                    static_cast<REAL>(rows.right - rows.left),
-                    static_cast<REAL>(ListRowH()), static_cast<REAL>(S(6)),
-                    Gd(current ? kHoverBg : kBtnBg));
-    }
-    const COLORREF mainColor = current ? g_lyricColor : kTextColor;
-    const COLORREF dimColor = current ? g_lyricColor : kNumColor;
-    wchar_t num[8];
-    swprintf(num, 8, L"%02d", i + 1);
-    if (g_fontPopup) {
-      gd::SolidBrush nb(Gd(dimColor));
-      gd::RectF numRf(static_cast<REAL>(rows.left + S(6)),
-                      static_cast<REAL>(rowTop), static_cast<REAL>(S(36)),
-                      static_cast<REAL>(ListRowH()));
-      // 长度必须按实际字符数(-1=null 结尾):写死 2 会把 3 位以上序号截断。
-      g.DrawString(num, -1, g_fontPopup, numRf, &sf, &nb);
-      gd::SolidBrush tb(Gd(mainColor));
-      gd::RectF titleRf(
-          static_cast<REAL>(rows.left + S(48)), static_cast<REAL>(rowTop),
-          static_cast<REAL>(rows.right - rows.left - S(54)),
-          static_cast<REAL>(ListRowH()));
-      const std::wstring& text = g_queueItems[i];
-      g.DrawString(text.c_str(), static_cast<INT>(text.size()), g_fontPopup,
-                   titleRf, &sf, &tb);
-    }
-  }
-  g.ResetClip();
 }
 
 // 滑条上按 y 反解音量(0..1)。
@@ -790,12 +602,11 @@ void RenderLayered() {
                    Sf(kLyricStrokeW) * 0.5f);
   g.ResetClip();
 
-  // 悬停时:按钮;弹窗展开时:对应面板。
+  // 悬停时:按钮;弹窗展开时:音量面板。
   if (g_hovering) {
-    for (int i = 0; i < 7; ++i) DrawButton(g, i);
+    for (int i = 0; i < 6; ++i) DrawButton(g, i);
   }
   DrawVolumePopup(g);
-  DrawQueuePopup(g);
 
   // 上屏:UpdateLayeredWindow(ptDst=nullptr 保持当前位置)。
   HBITMAP hbmp = nullptr;
@@ -824,24 +635,10 @@ void RenderLayered() {
 
 void RepaintLyric() { RenderLayered(); }
 
-// 弹窗区高度变化后同步窗口几何:窗口顶随之升降,保证歌词区位置不动。
-void SyncWindowHeight(int oldH) {
-  if (!g_hwnd || g_popupH == oldH) return;
-  RECT rc{};
-  GetWindowRect(g_hwnd, &rc);
-  SetWindowPos(g_hwnd, nullptr, rc.left, rc.top + (oldH - g_popupH),
-               g_curWidth, TotalHeight(), SWP_NOZORDER | SWP_NOACTIVATE);
-}
-
-void SetPopup(PopupKind kind) {
-  if (g_popup == kind) return;
-  const int oldH = g_popupH;
-  g_popup = kind;
-  if (kind != PopupKind::Queue) g_queueScroll = 0;
-  if (kind != PopupKind::Volume) g_sliderDragging = false;
-  g_hotRow = -1;
-  g_popupH = S(PopupLogicalHeight(kind));
-  SyncWindowHeight(oldH);
+void SetPopupOpen(bool open) {
+  if (g_popupOpen == open) return;
+  g_popupOpen = open;
+  if (!open) g_sliderDragging = false;
   RepaintLyric();
 }
 
@@ -897,47 +694,19 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       const int hot = HitTestButton(pt);
       const bool inPanel = PtInPanel(pt);
       int newHot = hot;
-      if (newHot < 0 && inPanel) {
-        // 弹窗内视作所属按钮高亮。
-        newHot = g_popup == PopupKind::Volume ? 4 : 6;
-      }
-      int newHotRow = -1;
-      if (inPanel && g_popup != PopupKind::Volume) {
-        newHotRow = HitTestListRow(pt);
-      }
-      if (newHot != g_hotButton || newHotRow != g_hotRow) {
+      if (newHot < 0 && inPanel) newHot = 4;  // 弹窗内视作音量按钮高亮
+      if (newHot != g_hotButton) {
         g_hotButton = newHot;
-        g_hotRow = newHotRow;
         RepaintLyric();
       }
       return 0;
     }
     case WM_MOUSELEAVE: {
-      // SetWindowPos 调整窗口几何(弹窗开合)时系统会误发 WM_MOUSELEAVE;
-      // 用实际光标位置复核:仍悬停在歌词区/展开的弹窗内容上则重新登记
-      // 跟踪并忽略本次,避免弹窗刚展开就被误收。
-      POINT pt{};
-      bool stillInside = false;
-      if (GetCursorPos(&pt) && ScreenToClient(hwnd, &pt)) {
-        if (pt.x >= 0 && pt.x < g_curWidth && pt.y >= g_popupH &&
-            pt.y < TotalHeight()) {
-          stillInside = true;  // 歌词/按钮区
-        } else if (PtInPanel(pt)) {
-          stillInside = true;  // 展开中的弹窗面板
-        }
-      }
-      if (stillInside) {
-        TRACKMOUSEEVENT tme{sizeof(tme), TME_LEAVE, hwnd, 0};
-        TrackMouseEvent(&tme);
-        g_trackingMouse = true;
-        return 0;
-      }
       g_trackingMouse = false;
       g_hovering = false;
       g_hotButton = -1;
-      g_hotRow = -1;
       g_sliderDragging = false;
-      SetPopup(PopupKind::None);
+      SetPopupOpen(false);
       RepaintLyric();
       return 0;
     }
@@ -951,30 +720,19 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         return 0;
       }
       if (PtInPanel(pt)) {
-        if (g_popup == PopupKind::Volume) {
-          // 音量面板:滑条区域开始拖动,其余点击吞掉。
-          const RECT tr = TrackRect();
-          if (pt.x >= tr.left - S(14) && pt.x <= tr.right + S(14) &&
-              pt.y >= tr.top - S(6) && pt.y <= tr.bottom + S(6)) {
-            g_sliderDragging = true;
-            SetCapture(hwnd);
-            SetVolumeAndNotify(VolumeFromY(pt.y));
-          }
-          return 0;
-        }
-        // 队列列表:点击行跳播并收起弹窗。
-        const int row = HitTestListRow(pt);
-        if (row >= 0) {
-          char buf[32];
-          snprintf(buf, sizeof(buf), "queue_jump:%d", row);
-          FireEvent(buf);
-          SetPopup(PopupKind::None);
+        // 弹窗面板内:滑条区域开始拖动,其余点击吞掉。
+        const RECT tr = TrackRect();
+        if (pt.x >= tr.left - S(14) && pt.x <= tr.right + S(14) &&
+            pt.y >= tr.top - S(6) && pt.y <= tr.bottom + S(6)) {
+          g_sliderDragging = true;
+          SetCapture(hwnd);
+          SetVolumeAndNotify(VolumeFromY(pt.y));
         }
         return 0;
       }
-      if (g_popup != PopupKind::None) {
+      if (g_popupOpen) {
         // 点弹窗外(含歌词区):收起弹窗。
-        SetPopup(PopupKind::None);
+        SetPopupOpen(false);
         RepaintLyric();
         return 0;
       }
@@ -1003,21 +761,13 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
             case 1: FireEvent("toggle_play_pause"); break;
             case 2: FireEvent("next"); break;
             case 3: FireEvent("cycle_playback_mode"); break;
-            case 4:
-              SetPopup(g_popup == PopupKind::Volume ? PopupKind::None
-                                                    : PopupKind::Volume);
-              break;
+            case 4: SetPopupOpen(!g_popupOpen); break;
             case 5:
               // 乐观翻转:star/unstar 有网络往返,先立即变红/取消,
               // Dart 稍后推送真实状态,DesktopLyricUpdateState 会校正。
               g_liked = !g_liked;
               RepaintLyric();
               FireEvent("toggle_like");
-              break;
-            case 6:
-              // 播放队列:toggle 展开/收起;数据由 Flutter 持续推送。
-              SetPopup(g_popup == PopupKind::Queue ? PopupKind::None
-                                                   : PopupKind::Queue);
               break;
           }
         }
@@ -1058,20 +808,6 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       if (cmd == 1) DesktopLyricSetVisible(false);
       return 0;
     }
-    case WM_MOUSEWHEEL: {
-      // 队列弹窗滚轮滚动(列表弹窗共用滚动基准,当前只有队列超 7 行)。
-      if (g_popup != PopupKind::Queue) return 0;
-      const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
-      if (delta == 0) return 0;
-      const int step = delta > 0 ? -3 : 3;
-      const int maxScroll =
-          std::max(0, static_cast<int>(g_queueItems.size()) -
-                          ListVisibleRows());
-      const int next = g_queueScroll + step;
-      g_queueScroll = next < 0 ? 0 : (next > maxScroll ? maxScroll : next);
-      RepaintLyric();
-      return 0;
-    }
     case WM_TIMER:
       // 跑马灯滚动重绘(仅超宽歌词时定时器存活)。
       if (wParam == kScrollTimerId) RepaintLyric();
@@ -1098,24 +834,6 @@ void DesktopLyricInit(HINSTANCE instance) {
     gd::GdiplusStartup(&g_gdiplusToken, &input, nullptr);
     g_famUI = new gd::FontFamily(L"Microsoft YaHei UI");
     g_famIcon = new gd::FontFamily(L"Segoe MDL2 Assets");
-    // 播放队列/切换播放器按钮图标与 MINI 播放器同款:私有加载随包分发的
-    // remixicon 字体(失败则 DrawButton 降级 Segoe MDL2 字形)。
-    wchar_t exePath[MAX_PATH]{};
-    if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0) {
-      std::wstring dir(exePath);
-      const size_t slash = dir.find_last_of(L"\\/");
-      if (slash != std::wstring::npos) dir.resize(slash + 1);
-      const std::wstring fontPath =
-          dir + L"data\\flutter_assets\\packages\\remixicon\\fonts\\remix.ttf";
-      if (AddFontResourceExW(fontPath.c_str(), FR_PRIVATE, nullptr) > 0) {
-        auto* fam = new gd::FontFamily(L"remix");
-        if (fam->GetLastStatus() == gd::Ok) {
-          g_famRemix = fam;
-        } else {
-          delete fam;
-        }
-      }
-    }
     ApplyDpiScale(96);
   }
 
@@ -1179,30 +897,6 @@ void DesktopLyricUpdateState(const DesktopLyricState& state) {
   if (changed) RepaintLyric();
 }
 
-void DesktopLyricUpdateQueue(const DesktopLyricQueue& queue) {
-  bool changed =
-      g_queueItems.size() != queue.items.size() || g_queueIndex != queue.index;
-  if (!changed) {
-    for (size_t i = 0; i < queue.items.size(); ++i) {
-      if (g_queueItems[i] != queue.items[i]) {
-        changed = true;
-        break;
-      }
-    }
-  }
-  if (!changed) return;
-  const int oldH = g_popupH;
-  g_queueItems = queue.items;
-  g_queueIndex = queue.index;
-  const int maxScroll = std::max(
-      0, static_cast<int>(g_queueItems.size()) - kQueueMaxRows);
-  if (g_queueScroll > maxScroll) g_queueScroll = maxScroll;
-  // 队列弹窗高度随行数变化,展开中要同步窗口几何。
-  g_popupH = S(PopupLogicalHeight(g_popup));
-  SyncWindowHeight(oldH);
-  RepaintLyric();
-}
-
 void DesktopLyricSetVisible(bool visible) {
   g_visible = visible;
   if (!g_hwnd) return;
@@ -1230,8 +924,6 @@ void DesktopLyricShutdown() {
   g_surface = nullptr;
   delete g_fontPopup;
   g_fontPopup = nullptr;
-  delete g_fontRemix;
-  g_fontRemix = nullptr;
   delete g_fontIcon;
   g_fontIcon = nullptr;
   delete g_fontIconPlay;
@@ -1240,8 +932,6 @@ void DesktopLyricShutdown() {
   g_famUI = nullptr;
   delete g_famIcon;
   g_famIcon = nullptr;
-  delete g_famRemix;
-  g_famRemix = nullptr;
   if (g_gdiplusToken != 0) {
     gd::GdiplusShutdown(g_gdiplusToken);
     g_gdiplusToken = 0;
