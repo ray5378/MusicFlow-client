@@ -347,7 +347,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                             // 紧贴库按钮（对齐箭头音乐的紧凑首屏）；宽屏没有
                             // 分类导航时改为 [kHomeContentTopGap]，把「随机歌曲」
                             // 顶到与侧边栏「主页」行同一水平线。
-                            showCategoryNav ? 0 : kHomeContentTopGap,
+                            showCategoryNav ? 0 : kHomeContentTopGap - 25,
                             context.musicFlowPageHorizontalPadding - 5,
                             context.musicFlowSpacing.xxl +
                                 context.musicFlowShellBottomObstruction,
@@ -417,48 +417,65 @@ class _HomeSearchEntry extends StatelessWidget {
     // Windows 无系统标题栏:右上角是窗口控制按钮(最小化/最大化/关闭),
     // 搜索条右侧留出等宽空白,避免被按钮压住。
     final rightInset = isWindowsDesktop ? kWindowsWindowControlsWidth : 0.0;
-    return Padding(
-      key: const ValueKey<String>('home-search-entry'),
-      padding: EdgeInsets.fromLTRB(
-        context.musicFlowPageHorizontalPadding - 5,
-        spacing.sm,
-        context.musicFlowPageHorizontalPadding - 5 + rightInset,
-        spacing.sm,
-      ),
-      // 首页大搜索框占满整行过于臃肿,收窄为可用宽度的一半并左对齐,
-      // 保留原左侧位置(入口仅 Windows 等宽屏渲染)。
-      child: FractionallySizedBox(
-        widthFactor: 0.5,
-        alignment: Alignment.centerLeft,
-        child: MusicFlowPressable(
-          semanticLabel: loc.discover_search,
-          onPressed: () => _openSearchPage(context),
-          borderRadius: context.musicFlowRadii.pill,
-          child: Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: colors.surface,
+    // 与下方内容分区同一套约束(Align topCenter + maxWidth 1400):宽窗口下
+    // 分区被 maxWidth 居中收窄,搜索框若留在约束盒外会贴窗口左缘,
+    // 永远对不齐内容区左缘(分区标题栏)。套进同一约束后左缘恒对齐。
+    // 注意:约束盒内必须用 SizedBox 撑满宽度——ConstrainedBox 是收缩包裹,
+    // 若直接放 widthFactor 0.5 的 FractionallySizedBox,整条链会收缩成
+    // 半宽并被外层 Align 居中,搜索框反而跑到窗口正中间。
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+          key: const ValueKey<String>('home-search-entry'),
+          padding: EdgeInsets.fromLTRB(
+            context.musicFlowPageHorizontalPadding - 5,
+            // 整体下移 10px,让搜索条与侧边栏顶部留白节奏一致。
+            spacing.sm + 10,
+            context.musicFlowPageHorizontalPadding - 5 + rightInset,
+            spacing.sm,
+          ),
+          // 首页大搜索框占满整行过于臃肿,收窄为可用宽度的一半并左对齐,
+          // 保留原左侧位置(入口仅 Windows 等宽屏渲染)。
+          child: FractionallySizedBox(
+            widthFactor: 0.5,
+            alignment: Alignment.centerLeft,
+            child: MusicFlowPressable(
+              semanticLabel: loc.discover_search,
+              onPressed: () => _openSearchPage(context),
               borderRadius: context.musicFlowRadii.pill,
-              border: Border.all(color: colors.controlBoundary, width: 0.5),
-            ),
-            child: Row(
-              children: <Widget>[
-                Icon(AppIcons.search, size: 20, color: colors.muted),
-                SizedBox(width: spacing.sm),
-                Expanded(
-                  child: Text(
-                    loc.search_hint,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.musicFlowTypography.body.copyWith(
-                      color: colors.muted,
-                    ),
-                  ),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: context.musicFlowRadii.pill,
+                  border:
+                      Border.all(color: colors.controlBoundary, width: 0.5),
                 ),
-              ],
+                child: Row(
+                  children: <Widget>[
+                    Icon(AppIcons.search, size: 20, color: colors.muted),
+                    SizedBox(width: spacing.sm),
+                    Expanded(
+                      child: Text(
+                        loc.search_hint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.musicFlowTypography.body.copyWith(
+                          color: colors.muted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
+        ),
         ),
       ),
     );
