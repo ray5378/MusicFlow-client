@@ -3,6 +3,11 @@
 
 #include <string>
 #include <vector>
+// 独立语法检查(Desktop Lyric Guard 的裸 cl /Zs)不经过 Flutter CMake 的
+// 全局定义,须自带 NOMINMAX,否则 windows.h 的 min/max 宏撞 std::max/min。
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 
 // Native desktop lyric overlay window.
