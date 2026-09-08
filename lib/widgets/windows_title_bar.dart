@@ -90,9 +90,27 @@ Future<void> setDesktopLyricState({
   }
 }
 
-/// 显示/隐藏桌面歌词浮窗(原生层置顶、不抢焦点)。
-Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop) return;
+/// 推送桌面歌词「播放队列」弹窗数据(已组好显示文本的行 + 当前曲下标)。
+/// 行数与当前曲变化时全量推送,原生层据此绘制队列列表弹窗。
+Future<void> setDesktopLyricQueue({
+  required List<String> items,
+  required int index,
+}) async {
+  if (!isWindowsDesktop) return;
   try {
+    await kWindowsWindowChannel.invokeMethod<void>(
+      'update_desktop_lyric_queue',
+      <String, Object>{'items': items, 'index': index},
+    );
+  } on MissingPluginException {
+    // 非 Windows 平台没有对应原生实现,静默忽略。
+  } on PlatformException {
+    // 队列推送失败不影响主流程。
+  }
+}
+
+/// 显示/隐藏桌面歌词浮窗(原生层置顶、不抢焦点)。
+Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop) return;  try {
     await kWindowsWindowChannel.invokeMethod<void>(
       'set_desktop_lyric_visible',
       <String, Object>{'visible': visible},

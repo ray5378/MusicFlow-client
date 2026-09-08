@@ -178,6 +178,16 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         }
         return '';
       }
+      // 桌面歌词「播放队列」弹窗:点行跳播(按当前链路路由)。
+      if (message.startsWith('queue_jump:')) {
+        final index = int.tryParse(message.substring(11));
+        if (index != null) {
+          await ref
+              .read(statusLyricsControllerProvider)
+              .jumpToQueueIndex(index);
+        }
+        return '';
+      }
       switch (message) {
         case 'toggle_play_pause':
           await toggleEffectivePlayback(ref);

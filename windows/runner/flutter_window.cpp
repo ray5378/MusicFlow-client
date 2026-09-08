@@ -248,6 +248,35 @@ void FlutterWindow::HandleWindowMethod(
     result->Success();
     return;
   }
+  if (method == "update_desktop_lyric_queue") {
+    // 桌面歌词「播放队列」弹窗数据:已组好显示文本的队列行 + 当前曲下标。
+    DesktopLyricQueue q;
+    if (const flutter::EncodableValue* arguments = call.arguments()) {
+      if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
+        const auto& m = std::get<flutter::EncodableMap>(*arguments);
+        const auto itemsIt = m.find(flutter::EncodableValue("items"));
+        if (itemsIt != m.end()) {
+          if (const auto* items =
+                  std::get_if<flutter::EncodableList>(&itemsIt->second)) {
+            for (const auto& item : *items) {
+              if (const auto* s = std::get_if<std::string>(&item)) {
+                q.items.push_back(Utf8ToUtf16(*s));
+              }
+            }
+          }
+        }
+        const auto idxIt = m.find(flutter::EncodableValue("index"));
+        if (idxIt != m.end()) {
+          if (const auto* i = std::get_if<int32_t>(&idxIt->second)) {
+            q.index = *i;
+          }
+        }
+      }
+    }
+    DesktopLyricUpdateQueue(q);
+    result->Success();
+    return;
+  }
   if (method == "set_desktop_lyric_visible") {
     // 桌面歌词浮窗:显示/隐藏(不抢焦点)。
     bool visible = false;

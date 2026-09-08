@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Color;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
@@ -7,9 +6,11 @@ import 'package:just_audio/just_audio.dart' show LoopMode;
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/media/desktop_lyric_popup.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
-import 'package:musicflow_client/providers/ui/palette_provider.dart';
 import 'package:musicflow_client/widgets/windows_title_bar.dart';
 
 /// Windows 桌面歌词浮窗开关(默认关闭)。
@@ -86,10 +87,25 @@ class StatusLyricsController {
           currentLyricLineProvider,
           (_, __) => _push(),
         ),
-        // 封面配色变化(切歌/封面加载完成)→ 歌词 accent 变化,同步重推。
-        _ref.listen<MusicFlowMediaVisuals>(
-          resolvedCurrentSongMediaVisualsProvider,
-          (_, __) => _push(),
+        // 「播放队列」弹窗:队列/当前曲/任一链路投屏状态变化时推送
+        // (select 窄化,避免 500ms 进度 tick 触发无谓组拼)。
+        _ref.listen<List<Song>>(
+          playerProvider.select((s) => s.queue),
+          (_, __) => _pushQueue(),
+        ),
+        _ref.listen<int>(
+          playerProvider.select((s) => s.currentIndex),
+          (_, __) => _pushQueue(),
+        ),
+        _ref.listen(
+          castPeerControllerProvider.select(
+            (s) => (s.activePeer, s.castQueue, s.castIndex, s.offline),
+          ),
+          (_, __) => _pushQueue(),
+        ),
+        _ref.listen(
+          dlnaCastProvider.select((s) => (s.isCasting, s.currentIndex)),
+          (_, __) => _pushQueue(),
         ),
       ]);
     } else if (!_enabled && _playerSubs.isNotEmpty) {
@@ -114,7 +130,9 @@ class StatusLyricsController {
     if (_enabled) {
       unawaited(setDesktopLyricVisible(true));
       _lastPushedKey = null;
+      _lastQueueKey = null;
       _push();
+      _pushQueue();
     } else {
       unawaited(setDesktopLyricVisible(false));
     }
@@ -146,15 +164,8 @@ class StatusLyricsController {
       loopMode: player.loopMode,
     );
     final volume = double.parse(player.volume.toStringAsFixed(2));
-    // 歌词填充色:与 MINI 播放器歌词栏同一取色(暖黄对迷你条底色 4.5:1
-    // 自适应),封面配色变化时自动跟随。
-    final visuals = _ref.read(resolvedCurrentSongMediaVisualsProvider);
-    final lyricColor =
-        MusicFlowMediaVisuals.lyricAccentFor(
-          visuals,
-          backgrounds: <Color>[visuals.miniSurface],
-        ).toARGB32() &
-        0xFFFFFF;
+    // 歌词填充色:固定暖黄(不随封面/主题取色变化)。
+    const lyricColor = 0xFFC233;
     // 去重:任何字段都没变就不推。
     final key =
         '$title|$artist|$lyric|$playing|$liked|$mode|$volume|$lyricColor';
@@ -170,6 +181,46 @@ class StatusLyricsController {
       volume: volume,
       lyricColor: lyricColor,
     ));
+  }
+
+  // ==================== 播放队列 / 切换播放器弹窗 ====================
+
+  String? _lastQueueKey;
+
+  /// 组拼并推送「播放队列」弹窗数据(内容没变不推)。
+  void _pushQueue() {
+    if (!_enabled) return;
+    final player = _ref.read(playerProvider);
+    final cast = _ref.read(castPeerControllerProvider);
+    final dlna = _ref.read(dlnaCastProvider);
+    final data = composeDesktopLyricQueue(
+      castActive: cast.activePeer != null,
+      castQueue: cast.castQueue,
+      castIndex: cast.castIndex,
+      localQueue: player.queue,
+      localIndex: player.currentIndex,
+      dlnaCasting: dlna.isCasting,
+      dlnaIndex: dlna.currentIndex,
+    );
+    final key =
+        '${data.index}|${data.items.length}|${data.items.join('\u0001')}';
+    if (key == _lastQueueKey) return;
+    _lastQueueKey = key;
+    unawaited(setDesktopLyricQueue(items: data.items, index: data.index));
+  }
+
+  /// 点队列行回传:按当前链路路由(与右侧队列面板同一跳播链路)。
+  Future<void> jumpToQueueIndex(int index) async {
+    final cast = _ref.read(castPeerControllerProvider);
+    if (cast.activePeer != null) {
+      await _ref.read(castPeerControllerProvider.notifier).jumpTo(index);
+      return;
+    }
+    if (_ref.read(dlnaCastProvider).isCasting) {
+      await _ref.read(dlnaCastProvider.notifier).playAt(index);
+      return;
+    }
+    await _ref.read(playerProvider.notifier).skipToQueueItem(index);
   }
 
   void dispose() {
