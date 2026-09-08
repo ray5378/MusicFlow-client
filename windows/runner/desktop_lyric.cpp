@@ -6,7 +6,6 @@
 #include <gdiplus.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cmath>
 #include <string>
 
@@ -124,6 +123,7 @@ bool g_dragging = false;
 bool g_pressPending = false;   // 按下未判定:未超阈值=单击(开关主窗口),超了=拖动
 POINT g_pressPt{};             // 按下时的客户区坐标(拖动偏移基准/单击判定)
 bool g_hovering = false;       // 鼠标是否在窗口内(决定面板/按钮显示)
+bool g_trackingMouse = false;  // TrackMouseEvent 是否已登记
 bool g_sliderDragging = false; // 正在拖音量滑条
 int g_hotButton = -1;          // 悬停按钮索引
 int g_pressedButton = -1;      // 按下中的按钮索引
@@ -146,20 +146,6 @@ constexpr int kScrollTimerMs = 33;         // 定时器周期(约 30fps)
 double g_lyricOverflow = 0;                // 歌词超出可用宽度(物理 px,<=0 不滚)
 ULONGLONG g_scrollCycle = 0;               // 本轮循环起点 tick,0=待重置
 bool g_scrollTimerOn = false;
-
-// ---- 悬停状态轮询(独立线程,不依赖 WM_MOUSELEAVE/WM_TIMER) ----
-// 分层窗按像素 alpha 命中:歌词笔画间隙/窗口几何变化都会误发或漏发
-// WM_MOUSELEAVE;事件驱动 + 重登记复核又会与系统互相触发形成消息风暴
-// (v4.3.22 卡顿根因)。而 WM_TIMER 是最低优先级消息,只在主线程消息
-// 队列完全空闲时才投递——debug 联调时 Flutter 把平台线程塞满,定时器
-// 会被饿死(悬停滞后/移出后高亮不消)。故用独立线程轮询光标,检测到
-// 进出/移动后 PostMessage 唤醒主线程重算(普通队列消息不会被饿死)。
-constexpr UINT kHoverWakeMsg = WM_APP + 0x51;
-constexpr int kHoverPollMs = 20;
-std::atomic<bool> g_hoverRun{false};
-HANDLE g_hoverThread = nullptr;
-POINT g_lastPollPt{};       // 仅轮询线程读写
-bool g_lastPollInside = false;
 
 DesktopLyricEventCallback g_eventCb = nullptr;
 
@@ -859,56 +845,6 @@ void SetPopup(PopupKind kind) {
   RepaintLyric();
 }
 
-// 按光标客户区坐标刷新按钮/列表行高亮(MOUSEMOVE 与轮询共用)。
-void UpdateHotFromPoint(const POINT& pt) {
-  const int hot = HitTestButton(pt);
-  const bool inPanel = PtInPanel(pt);
-  int newHot = hot;
-  if (newHot < 0 && inPanel) {
-    // 弹窗内视作所属按钮高亮。
-    newHot = g_popup == PopupKind::Volume ? 4 : 6;
-  }
-  int newHotRow = -1;
-  if (inPanel && g_popup != PopupKind::Volume) {
-    newHotRow = HitTestListRow(pt);
-  }
-  if (newHot != g_hotButton || newHotRow != g_hotRow) {
-    g_hotButton = newHot;
-    g_hotRow = newHotRow;
-    RepaintLyric();
-  }
-}
-
-// 悬停状态轮询(30ms 一拍,仅可见时运行):光标落在窗口客户区矩形内
-// 即视为悬停——不按像素 alpha 命中,歌词笔画间隙/按钮边缘高亮稳定;
-// 移出后一拍内清高亮并收起弹窗(拖窗/拖滑条期间跳过,由 capture 接管)。
-void UpdateHoverState() {
-  if (!g_hwnd || !g_visible || g_dragging) return;
-  POINT pt{};
-  bool inside = false;
-  if (GetCursorPos(&pt) && ScreenToClient(g_hwnd, &pt)) {
-    inside = pt.x >= 0 && pt.x < g_curWidth && pt.y >= 0 &&
-             pt.y < TotalHeight();
-  }
-  if (!inside) {
-    if (g_sliderDragging) return;
-    if (g_hovering) {
-      g_hovering = false;
-      g_hotButton = -1;
-      g_hotRow = -1;
-      g_sliderDragging = false;
-      SetPopup(PopupKind::None);
-      RepaintLyric();
-    }
-    return;
-  }
-  if (!g_hovering) {
-    g_hovering = true;
-    RepaintLyric();
-  }
-  UpdateHotFromPoint(pt);
-}
-
 LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
                               LPARAM lParam) {
   switch (message) {
@@ -949,12 +885,60 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         SetVolumeAndNotify(VolumeFromY(pt.y));
         return 0;
       }
-      // 悬停进出由轮询定时器统一判定;这里仅做即时高亮响应(不等下一拍)。
-      if (!g_hovering) {
-        g_hovering = true;
+      if (!g_trackingMouse) {
+        TRACKMOUSEEVENT tme{sizeof(tme), TME_LEAVE, hwnd, 0};
+        TrackMouseEvent(&tme);
+        g_trackingMouse = true;
+        if (!g_hovering) {
+          g_hovering = true;
+          RepaintLyric();
+        }
+      }
+      const int hot = HitTestButton(pt);
+      const bool inPanel = PtInPanel(pt);
+      int newHot = hot;
+      if (newHot < 0 && inPanel) {
+        // 弹窗内视作所属按钮高亮。
+        newHot = g_popup == PopupKind::Volume ? 4 : 6;
+      }
+      int newHotRow = -1;
+      if (inPanel && g_popup != PopupKind::Volume) {
+        newHotRow = HitTestListRow(pt);
+      }
+      if (newHot != g_hotButton || newHotRow != g_hotRow) {
+        g_hotButton = newHot;
+        g_hotRow = newHotRow;
         RepaintLyric();
       }
-      UpdateHotFromPoint(pt);
+      return 0;
+    }
+    case WM_MOUSELEAVE: {
+      // SetWindowPos 调整窗口几何(弹窗开合)时系统会误发 WM_MOUSELEAVE;
+      // 用实际光标位置复核:仍悬停在歌词区/展开的弹窗内容上则重新登记
+      // 跟踪并忽略本次,避免弹窗刚展开就被误收。
+      POINT pt{};
+      bool stillInside = false;
+      if (GetCursorPos(&pt) && ScreenToClient(hwnd, &pt)) {
+        if (pt.x >= 0 && pt.x < g_curWidth && pt.y >= g_popupH &&
+            pt.y < TotalHeight()) {
+          stillInside = true;  // 歌词/按钮区
+        } else if (PtInPanel(pt)) {
+          stillInside = true;  // 展开中的弹窗面板
+        }
+      }
+      if (stillInside) {
+        TRACKMOUSEEVENT tme{sizeof(tme), TME_LEAVE, hwnd, 0};
+        TrackMouseEvent(&tme);
+        g_trackingMouse = true;
+        return 0;
+      }
+      g_trackingMouse = false;
+      g_hovering = false;
+      g_hotButton = -1;
+      g_hotRow = -1;
+      g_sliderDragging = false;
+      SetPopup(PopupKind::None);
+      RepaintLyric();
       return 0;
     }
     case WM_LBUTTONDOWN: {
@@ -1092,10 +1076,6 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       // 跑马灯滚动重绘(仅超宽歌词时定时器存活)。
       if (wParam == kScrollTimerId) RepaintLyric();
       return 0;
-    case kHoverWakeMsg:
-      // 轮询线程检测到光标进出/移动,主线程重算悬停状态。
-      UpdateHoverState();
-      return 0;
     case WM_DPICHANGED: {
       ApplyDpiScale(HIWORD(wParam));
       const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
@@ -1223,45 +1203,6 @@ void DesktopLyricUpdateQueue(const DesktopLyricQueue& queue) {
   RepaintLyric();
 }
 
-// 轮询线程主体:只做变化检测,状态计算/重绘全部在主线程执行。
-DWORD WINAPI HoverPollProc(LPVOID) {
-  while (g_hoverRun) {
-    Sleep(kHoverPollMs);
-    if (!g_hoverRun || !g_visible || !g_hwnd) continue;
-    POINT pt{};
-    if (!GetCursorPos(&pt) || !ScreenToClient(g_hwnd, &pt)) continue;
-    const bool inside = pt.x >= 0 && pt.x < g_curWidth && pt.y >= 0 &&
-                        pt.y < TotalHeight();
-    const bool moved = pt.x != g_lastPollPt.x || pt.y != g_lastPollPt.y;
-    // 进出窗口边界变化,或悬停中发生移动,才唤醒主线程(空闲零消息)。
-    if (inside != g_lastPollInside || (inside && moved)) {
-      g_lastPollInside = inside;
-      g_lastPollPt = pt;
-      PostMessage(g_hwnd, kHoverWakeMsg, 0, 0);
-    }
-  }
-  return 0;
-}
-
-void StartHoverPoll() {
-  if (g_hoverThread) return;
-  g_hoverRun = true;
-  g_lastPollPt = POINT{};
-  g_lastPollInside = false;
-  g_hoverThread = CreateThread(nullptr, 0, HoverPollProc, nullptr, 0, nullptr);
-}
-
-void StopHoverPoll() {
-  if (!g_hoverThread) return;
-  g_hoverRun = false;
-  // 线程最多再睡一拍(20ms),200ms 等不到属异常,兜底强杀。
-  if (WaitForSingleObject(g_hoverThread, 200) == WAIT_TIMEOUT) {
-    TerminateThread(g_hoverThread, 0);
-  }
-  CloseHandle(g_hoverThread);
-  g_hoverThread = nullptr;
-}
-
 void DesktopLyricSetVisible(bool visible) {
   g_visible = visible;
   if (!g_hwnd) return;
@@ -1269,15 +1210,8 @@ void DesktopLyricSetVisible(bool visible) {
     ShowWindow(g_hwnd, SW_SHOWNOACTIVATE);
     SetWindowPos(g_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    StartHoverPoll();
     RepaintLyric();
   } else {
-    StopHoverPoll();
-    g_hovering = false;
-    g_hotButton = -1;
-    g_hotRow = -1;
-    g_sliderDragging = false;
-    SetPopup(PopupKind::None);
     UpdateScrollTimer(false);
     ShowWindow(g_hwnd, SW_HIDE);
   }
@@ -1286,7 +1220,6 @@ void DesktopLyricSetVisible(bool visible) {
 bool DesktopLyricIsVisible() { return g_visible; }
 
 void DesktopLyricShutdown() {
-  StopHoverPoll();
   if (g_hwnd) {
     DestroyWindow(g_hwnd);
     g_hwnd = nullptr;
