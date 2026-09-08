@@ -57,9 +57,62 @@ class _OfflineCachePageState extends ConsumerState<OfflineCachePage> {
     );
   }
 
+  /// 关闭缓存前确认：告知将删除的已缓存内容大小，确认后关闭并清空。
+  Future<void> _confirmDisable() async {
+    final loc = AppLocalizations.of(context);
+    final sizeText = _formatBytes(_cache.totalBytes);
+    final confirmed = await showMusicFlowBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => MusicFlowBottomSheet(
+        title: loc.offline_cache_disable_title,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              loc.offline_cache_disable_confirm(sizeText),
+              style: sheetContext.musicFlowTypography.body.copyWith(
+                color: sheetContext.musicFlowColors.muted,
+              ),
+            ),
+            SizedBox(height: sheetContext.musicFlowSpacing.lg),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: MusicFlowButton.secondary(
+                    label: loc.settings_cancel,
+                    onPressed: () => Navigator.of(sheetContext).pop(false),
+                  ),
+                ),
+                SizedBox(width: sheetContext.musicFlowSpacing.sm),
+                Expanded(
+                  child: MusicFlowButton.destructive(
+                    label: loc.offline_cache_disable_action,
+                    onPressed: () => Navigator.of(sheetContext).pop(true),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(offlineCacheSettingsProvider.notifier).disable();
+    if (!mounted) return;
+    _refresh();
+    showMusicFlowMessage(
+      context,
+      loc.offline_cache_disabled_toast,
+      kind: MusicFlowMessageKind.success,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final size = ref.watch(offlineCacheSettingsProvider);
+    final settings = ref.watch(offlineCacheSettingsProvider);
     final notifier = ref.read(offlineCacheSettingsProvider.notifier);
     final loc = AppLocalizations.of(context);
     final total = _cache.totalBytes;
@@ -135,14 +188,23 @@ class _OfflineCachePageState extends ConsumerState<OfflineCachePage> {
                 title: loc.offline_cache_size_section,
                 description: loc.offline_cache_size_section_desc,
                 children: <Widget>[
+                  MusicFlowChoiceRow(
+                    title: loc.offline_cache_disabled_option,
+                    description: loc.offline_cache_disabled_desc,
+                    selected: !settings.enabled,
+                    icon: AppIcons.sdCard,
+                    onPressed: settings.enabled ? _confirmDisable : () {},
+                  ),
                   for (final option in OfflineCacheSize.values)
                     MusicFlowChoiceRow(
                       title: option.displayName,
                       description: option == OfflineCacheSize.g2
                           ? loc.offline_cache_size_default
                           : option.displayName,
-                      selected: size == option,
+                      selected:
+                          settings.enabled && settings.size == option,
                       icon: AppIcons.sdCard,
+                      // 选择任一容量档位即重新开启缓存。
                       onPressed: () => notifier.setSize(option),
                     ),
                 ],

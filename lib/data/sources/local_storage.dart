@@ -30,6 +30,7 @@ class LocalStorage {
   static const String _keyPlayerVolume = 'player_volume';
   static const String _keyStatusLyricsEnabled = 'status_lyrics_enabled';
   static const String _keyOfflineCacheSize = 'offline_cache_size';
+  static const String _keyOfflineCacheEnabled = 'offline_cache_enabled';
   static const String _keyLyricsScrollDwellSeconds = 'lyrics_scroll_dwell_seconds';
   static const String _keyLoggingEnabled = 'logging_enabled';
   static const String _keySearchHistory = 'search_history_v1';
@@ -69,6 +70,18 @@ class LocalStorage {
   static Future<void> setOfflineCacheSizeName(String name) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyOfflineCacheSize, name);
+  }
+
+  /// 读取离线缓存开关（未设置默认开启，老用户行为不变）。
+  static Future<bool> getOfflineCacheEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyOfflineCacheEnabled) ?? true;
+  }
+
+  /// 保存离线缓存开关。
+  static Future<void> setOfflineCacheEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyOfflineCacheEnabled, value);
   }
 
   /// 是否曾经启动过（用于判断是否显示开屏动画）

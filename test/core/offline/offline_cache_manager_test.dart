@@ -183,4 +183,64 @@ void main() {
 
     await settleIndexFlush();
   });
+
+  test('关闭后所有 put* 均不落盘，重新开启恢复写入', () async {
+    final m = newManager();
+    await m.init();
+
+    // 先正常写入一条作为「已有缓存」基线。
+    await m.putSong('kept', Uint8List.fromList(List.filled(8, 1)));
+    expect(m.hasSong('kept'), isTrue);
+
+    // 关闭：写入全部 no-op。
+    m.setEnabled(false);
+    expect(m.enabled, isFalse);
+    await m.putSong('blocked', Uint8List.fromList(List.filled(8, 2)));
+    await m.putCover('c-blocked', Uint8List.fromList(List.filled(8, 3)),
+        owners: ['blocked']);
+    await m.putLyrics('blocked', 'lyric');
+    await m.putPlaylistCover('p-blocked', Uint8List.fromList(List.filled(8, 4)));
+    await m.putSongFromFile('blocked2', File('definitely_missing_file.bin'));
+
+    expect(m.hasSong('blocked'), isFalse);
+    expect(m.hasCover('c-blocked'), isFalse);
+    expect(m.lyricsCached('blocked'), isFalse);
+    expect(m.hasPlaylistCover('p-blocked'), isFalse);
+    expect(m.countByKind()[OfflineCacheKind.song], 1);
+    // 关闭前的内容不被主动清除（清除由设置层调 clearAll）。
+    expect(m.hasSong('kept'), isTrue);
+
+    // 重新开启：写入恢复。
+    m.setEnabled(true);
+    await m.putSong('again', Uint8List.fromList(List.filled(8, 5)));
+    expect(m.hasSong('again'), isTrue);
+
+    await settleIndexFlush();
+  });
+
+  test('关闭 + clearAll 后磁盘无缓存文件（设置层「关闭并清除」路径）', () async {
+    final m = newManager();
+    await m.init();
+    await m.putSong('s1', Uint8List.fromList(List.filled(8, 1)));
+    await m.putCover('c1', Uint8List.fromList(List.filled(8, 2)),
+        owners: ['s1']);
+    await settleIndexFlush();
+
+    m.setEnabled(false);
+    await m.clearAll();
+
+    expect(m.totalBytes, 0);
+    expect(m.countByKind().values.every((c) => c == 0), isTrue);
+    // index.json 是空索引清单（非缓存内容），数据子目录不应残留任何文件。
+    final root = Directory('${base.path}${Platform.pathSeparator}offline_cache');
+    if (await root.exists()) {
+      await for (final entity in root.list(recursive: true)) {
+        if (entity is File && entity.parent.path != root.path) {
+          fail('关闭清空后不应残留缓存数据文件: ${entity.path}');
+        }
+      }
+    }
+
+    await settleIndexFlush();
+  });
 }

@@ -50,6 +50,17 @@
   "offline_cache_size_section": "总容量",
   "offline_cache_size_section_desc": "容量用满后自动轮转，按最久未使用清理",
   "offline_cache_size_default": "默认",
+  "offline_cache_disabled_option": "关闭",
+  "offline_cache_disabled_desc": "不缓存歌曲、封面与歌词",
+  "offline_cache_disable_title": "关闭离线缓存",
+  "offline_cache_disable_confirm": "关闭后将删除 {size} 已缓存内容，且不再自动缓存任何歌曲、封面与歌词。",
+  "@offline_cache_disable_confirm": {
+    "placeholders": {
+      "size": {"type": "String"}
+    }
+  },
+  "offline_cache_disable_action": "关闭并清除",
+  "offline_cache_disabled_toast": "离线缓存已关闭",
   "offline_cache_unit_mb": "MB",
   "offline_cache_unit_gb": "GB",
   "offline_cache_cached_songs_title": "已缓存音乐",

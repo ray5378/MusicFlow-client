@@ -125,6 +125,9 @@ class OfflineCacheManager {
   final Map<OfflineCacheKind, Directory> _kindDirs = {};
   int _totalBytes = 0;
   int _maxBytes = _defaultMaxBytes;
+  // 离线缓存总开关：关闭后所有写入 no-op（不落任何缓存）。
+  // 由设置层持久化并同步（见 OfflineCacheSettingsNotifier），manager 只负责执行。
+  bool _enabled = true;
   bool _init = false;
   Timer? _flushTimer;
   bool _flushScheduled = false;
@@ -276,6 +279,12 @@ class OfflineCacheManager {
     _scheduleIndexFlush();
   }
 
+  bool get enabled => _enabled;
+
+  /// 打开/关闭缓存写入。关闭后所有 `put*` 直接 no-op，磁盘不再新增任何文件；
+  /// 已有内容是否清除由调用方决定（设置层在关闭时另行调用 [clearAll]）。
+  void setEnabled(bool value) => _enabled = value;
+
   void _touchEntry(_CacheEntry entry) {
     entry.lastAccessMs = DateTime.now().millisecondsSinceEpoch;
   }
@@ -287,6 +296,7 @@ class OfflineCacheManager {
     List<String> owners = const [],
     Map<String, dynamic>? meta,
   }) async {
+    if (!_enabled) return;
     await _synchronized(() async {
       if (bytes.isEmpty) return;
       final composite = '${kind.name}:$key';
@@ -330,7 +340,7 @@ class OfflineCacheManager {
   /// 直接把磁盘源文件拷入缓存（流式落盘，避免大文件整体进内存）。
   Future<void> putSongFromFile(String songId, File src,
       {Map<String, dynamic>? meta}) {
-    if (songId.isEmpty) return Future.value();
+    if (songId.isEmpty || !_enabled) return Future.value();
     return _synchronized(() async {
       if (!src.existsSync()) return;
       final length = await src.length();

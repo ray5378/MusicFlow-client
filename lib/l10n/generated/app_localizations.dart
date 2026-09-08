@@ -398,6 +398,42 @@ abstract class AppLocalizations {
   /// **'默认'**
   String get offline_cache_size_default;
 
+  /// No description provided for @offline_cache_disabled_option.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get offline_cache_disabled_option;
+
+  /// No description provided for @offline_cache_disabled_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'不缓存歌曲、封面与歌词'**
+  String get offline_cache_disabled_desc;
+
+  /// No description provided for @offline_cache_disable_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭离线缓存'**
+  String get offline_cache_disable_title;
+
+  /// No description provided for @offline_cache_disable_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后将删除 {size} 已缓存内容，且不再自动缓存任何歌曲、封面与歌词。'**
+  String offline_cache_disable_confirm(String size);
+
+  /// No description provided for @offline_cache_disable_action.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭并清除'**
+  String get offline_cache_disable_action;
+
+  /// No description provided for @offline_cache_disabled_toast.
+  ///
+  /// In zh, this message translates to:
+  /// **'离线缓存已关闭'**
+  String get offline_cache_disabled_toast;
+
   /// No description provided for @offline_cache_unit_mb.
   ///
   /// In zh, this message translates to:

@@ -50,6 +50,17 @@
   "offline_cache_size_section": "Total capacity",
   "offline_cache_size_section_desc": "Auto-rotates when full, evicting least recently used items",
   "offline_cache_size_default": "Default",
+  "offline_cache_disabled_option": "Off",
+  "offline_cache_disabled_desc": "Do not cache songs, covers, or lyrics",
+  "offline_cache_disable_title": "Turn off offline cache",
+  "offline_cache_disable_confirm": "Turning this off deletes {size} of cached content and stops caching songs, covers, and lyrics.",
+  "@offline_cache_disable_confirm": {
+    "placeholders": {
+      "size": {"type": "String"}
+    }
+  },
+  "offline_cache_disable_action": "Turn off & clear",
+  "offline_cache_disabled_toast": "Offline cache turned off",
   "offline_cache_unit_mb": "MB",
   "offline_cache_unit_gb": "GB",
   "offline_cache_cached_songs_title": "Cached Songs",

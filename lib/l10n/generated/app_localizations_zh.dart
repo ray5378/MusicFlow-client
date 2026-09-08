@@ -159,6 +159,26 @@ class AppLocalizationsZh extends AppLocalizations {
   String get offline_cache_size_default => '默认';
 
   @override
+  String get offline_cache_disabled_option => '关闭';
+
+  @override
+  String get offline_cache_disabled_desc => '不缓存歌曲、封面与歌词';
+
+  @override
+  String get offline_cache_disable_title => '关闭离线缓存';
+
+  @override
+  String offline_cache_disable_confirm(String size) {
+    return '关闭后将删除 $size 已缓存内容，且不再自动缓存任何歌曲、封面与歌词。';
+  }
+
+  @override
+  String get offline_cache_disable_action => '关闭并清除';
+
+  @override
+  String get offline_cache_disabled_toast => '离线缓存已关闭';
+
+  @override
   String get offline_cache_unit_mb => 'MB';
 
   @override

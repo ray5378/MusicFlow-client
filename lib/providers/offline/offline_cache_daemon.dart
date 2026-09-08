@@ -15,6 +15,7 @@ import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/offline/offline_cache_settings_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -60,6 +61,8 @@ class OfflineCacheDaemon {
     Song? upcomingSong,
   }) async {
     if (song.isPreview) return;
+    // 缓存开关关闭：不发起下载、不产生临时文件（写入侧 manager 也有 no-op 兜底）。
+    if (!_ref.read(offlineCacheSettingsProvider).enabled) return;
     // 仅在线时缓存（离线就算有缓存也不去重复拉流）。
     if (_ref.read(isOfflineProvider)) return;
     final cache = _ref.read(offlineCacheManagerProvider);
@@ -190,6 +193,7 @@ class OfflineCacheDaemon {
   Future<void> cachePlaylistCover(String coverKey, {String? playlistName}) async {
     final clean = coverKey.trim();
     if (clean.isEmpty) return;
+    if (!_ref.read(offlineCacheSettingsProvider).enabled) return;
     if (_ref.read(isOfflineProvider)) return;
     if (playlistName != null &&
         DynamicCoverKeys.isDynamicPlaylist(playlistName)) {

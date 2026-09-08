@@ -175,6 +175,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get offline_cache_size_default => 'Default';
 
   @override
+  String get offline_cache_disabled_option => 'Off';
+
+  @override
+  String get offline_cache_disabled_desc =>
+      'Do not cache songs, covers, or lyrics';
+
+  @override
+  String get offline_cache_disable_title => 'Turn off offline cache';
+
+  @override
+  String offline_cache_disable_confirm(String size) {
+    return 'Turning this off deletes $size of cached content and stops caching songs, covers, and lyrics.';
+  }
+
+  @override
+  String get offline_cache_disable_action => 'Turn off & clear';
+
+  @override
+  String get offline_cache_disabled_toast => 'Offline cache turned off';
+
+  @override
   String get offline_cache_unit_mb => 'MB';
 
   @override
