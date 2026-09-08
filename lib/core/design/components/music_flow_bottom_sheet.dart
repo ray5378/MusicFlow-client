@@ -153,6 +153,9 @@ class _AnchoredPopupRoute<T> extends PopupRoute<T> {
   final WidgetBuilder builder;
   final Duration duration;
 
+  /// 面板定位键:外部点击判定时据此取面板矩形。
+  final GlobalKey _panelKey = GlobalKey();
+
   @override
   Duration get transitionDuration => duration;
 
@@ -160,7 +163,7 @@ class _AnchoredPopupRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => true;
 
   // 非全局遮盖:屏障为透明,不铺暗色遮罩,保留「在按钮旁的小弹窗」观感;
-  // 同时透明屏障仍拦截点击弹窗外区域以关闭菜单(对齐 Windows 上下文菜单)。
+  // 点击弹窗外区域由 [_AnchoredPopupOutsideDismiss] 统一关闭(见其注释)。
   @override
   Color? get barrierColor => Colors.transparent;
 
@@ -175,25 +178,70 @@ class _AnchoredPopupRoute<T> extends PopupRoute<T> {
   ) {
     return FadeTransition(
       opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-      child: _AnchoredPopupPosition(
-        anchor: anchor,
-        child: FocusTraversalGroup(
-          policy: OrderedTraversalPolicy(),
-          child: builder(context),
+      child: _AnchoredPopupOutsideDismiss(
+        route: this,
+        panelKey: _panelKey,
+        child: _AnchoredPopupPosition(
+          anchor: anchor,
+          panelKey: _panelKey,
+          child: FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: builder(context),
+          ),
         ),
       ),
     );
   }
 }
 
+/// 全屏透明拦截层:任意按键(左键/右键/中键)点击弹窗面板外部即关闭。
+///
+/// 此前依赖 ModalBarrier 关闭,但其 tap 识别器只认主键——右键点外部不关闭,
+/// 继续在其他卡片上右键会层层叠加多个锚点弹窗;左键每关一层就露出一个
+/// 旧锚点的弹窗,表现为「右键弹窗位置胡乱漂移」。改为显式判定:指针按下
+/// 位置不在面板矩形内立即 pop,一次性杜绝叠加。
+class _AnchoredPopupOutsideDismiss extends StatelessWidget {
+  const _AnchoredPopupOutsideDismiss({
+    required this.route,
+    required this.panelKey,
+    required this.child,
+  });
+
+  final _AnchoredPopupRoute route;
+  final GlobalKey panelKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          final box = panelKey.currentContext?.findRenderObject() as RenderBox?;
+          if (box == null || !box.attached) return;
+          final panelRect = box.localToGlobal(Offset.zero) & box.size;
+          if (panelRect.contains(event.position)) return;
+          if (route.isCurrent) route.navigator?.pop();
+        },
+        child: child,
+      ),
+    );
+  }
+}
+
 class _AnchoredPopupPosition extends StatelessWidget {
-  const _AnchoredPopupPosition({required this.anchor, required this.child});
+  const _AnchoredPopupPosition({
+    required this.anchor,
+    required this.panelKey,
+    required this.child,
+  });
 
   static const double _margin = 8;
   static const double _gap = 6;
   static const double _preferredMaxWidth = 376;
 
   final Offset anchor;
+  final GlobalKey panelKey;
   final Widget child;
 
   @override
@@ -223,12 +271,15 @@ class _AnchoredPopupPosition extends StatelessWidget {
             left: left,
             top: top,
             width: panelWidth,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: panelWidth,
-                maxHeight: maxHeight,
+            child: KeyedSubtree(
+              key: panelKey,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: panelWidth,
+                  maxHeight: maxHeight,
+                ),
+                child: child,
               ),
-              child: child,
             ),
           ),
         ],
