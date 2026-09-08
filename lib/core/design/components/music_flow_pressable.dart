@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/components/music_flow_anchor.dart';
 
 /// Controls how [MusicFlowPressable] exposes the semantics of its
 /// [MusicFlowPressable.child].
@@ -273,7 +274,14 @@ class _MusicFlowPressableState extends State<MusicFlowPressable>
     // 走那里——安卓长按正常、Windows 右键无反应的根因）。
     if (event.buttons == kSecondaryButton) {
       final longPress = widget.onLongPress;
-      if (longPress != null) _invoke(longPress);
+      if (longPress != null) {
+        // 本 Listener 是深层节点,先于根级 MusicFlowTapAnchorScope 收到
+        // onPointerDown;菜单在下面同步打开时,根级还没记录本次坐标,
+        // 锚点会停留在上一次按下的位置,表现为弹窗「偶发正常、偶发漂移」。
+        // 必须在触发前就地写入本次事件的坐标。
+        musicFlowLastTapGlobalPosition = event.position;
+        _invoke(longPress);
+      }
       return;
     }
     // 排除鼠标中键：仅主键(触屏或鼠标左键)触发按压反馈。
