@@ -105,6 +105,10 @@ ULONG_PTR g_gdiplusToken = 0;
 gd::FontFamily* g_famUI = nullptr;    // Microsoft YaHei UI
 gd::FontFamily* g_famIcon = nullptr;  // Segoe MDL2 Assets
 gd::FontFamily* g_famRemix = nullptr; // remixicon(与 MINI 播放器同款图标)
+// FR_PRIVATE 加载的随包 remixicon 字体:退出时必须 RemoveFontResourceExW
+// 卸载,否则字体资源随每次启动累积泄漏(GDI 对象/内核字体表)。
+std::wstring g_remixFontPath;
+bool g_remixFontLoaded = false;
 gd::Font* g_fontPopup = nullptr;      // 弹窗文本(百分比/列表行)
 gd::Font* g_fontRemix = nullptr;      // 队列/切换播放器按钮图标(remixicon)
 gd::Font* g_fontIcon = nullptr;       // 普通按钮图标
@@ -157,6 +161,7 @@ bool g_scrollTimerOn = false;
 constexpr UINT kHoverWakeMsg = WM_APP + 0x51;
 constexpr int kHoverPollMs = 20;
 std::atomic<bool> g_hoverRun{false};
+HANDLE g_hoverExitEvt = nullptr;  // 悬停轮询线程的协作退出事件
 HANDLE g_hoverThread = nullptr;
 POINT g_lastPollPt{};       // 仅轮询线程读写
 bool g_lastPollInside = false;
@@ -1111,13 +1116,24 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
 
 }  // namespace
 
+// 创建 FontFamily 并校验 GetLastStatus:首选字体缺失(如精简版系统)时
+// 降级到兜底字体。返回对象必非空(与原行为一致),状态由现有绘制路径容忍。
+gd::FontFamily* CreateFamilyWithFallback(const wchar_t* preferred,
+                                          const wchar_t* fallback) {
+  auto* fam = new gd::FontFamily(preferred);
+  if (fam->GetLastStatus() == gd::Ok) return fam;
+  delete fam;
+  return new gd::FontFamily(fallback);
+}
+
 void DesktopLyricInit(HINSTANCE instance) {
   if (g_hwnd) return;
   if (g_gdiplusToken == 0) {
     gd::GdiplusStartupInput input;
     gd::GdiplusStartup(&g_gdiplusToken, &input, nullptr);
-    g_famUI = new gd::FontFamily(L"Microsoft YaHei UI");
-    g_famIcon = new gd::FontFamily(L"Segoe MDL2 Assets");
+    g_famUI = CreateFamilyWithFallback(L"Microsoft YaHei UI", L"Segoe UI");
+    g_famIcon =
+        CreateFamilyWithFallback(L"Segoe MDL2 Assets", L"Segoe UI Symbol");
     // 播放队列/切换播放器按钮图标与 MINI 播放器同款:私有加载随包分发的
     // remixicon 字体(失败则 DrawButton 降级 Segoe MDL2 字形)。
     wchar_t exePath[MAX_PATH]{};
@@ -1125,9 +1141,11 @@ void DesktopLyricInit(HINSTANCE instance) {
       std::wstring dir(exePath);
       const size_t slash = dir.find_last_of(L"\\/");
       if (slash != std::wstring::npos) dir.resize(slash + 1);
-      const std::wstring fontPath =
+      g_remixFontPath =
           dir + L"data\\flutter_assets\\packages\\remixicon\\fonts\\remix.ttf";
-      if (AddFontResourceExW(fontPath.c_str(), FR_PRIVATE, nullptr) > 0) {
+      if (AddFontResourceExW(g_remixFontPath.c_str(), FR_PRIVATE, nullptr) >
+          0) {
+        g_remixFontLoaded = true;
         auto* fam = new gd::FontFamily(L"remix");
         if (fam->GetLastStatus() == gd::Ok) {
           g_famRemix = fam;
@@ -1224,9 +1242,10 @@ void DesktopLyricUpdateQueue(const DesktopLyricQueue& queue) {
 }
 
 // 轮询线程主体:只做变化检测,状态计算/重绘全部在主线程执行。
+// 用退出事件替代 Sleep:StopHoverPoll 置位后线程最多一个查询往返即返回。
 DWORD WINAPI HoverPollProc(LPVOID) {
-  while (g_hoverRun) {
-    Sleep(kHoverPollMs);
+  while (g_hoverExitEvt && WaitForSingleObject(g_hoverExitEvt,
+                                               kHoverPollMs) == WAIT_TIMEOUT) {
     if (!g_hoverRun || !g_visible || !g_hwnd) continue;
     POINT pt{};
     if (!GetCursorPos(&pt) || !ScreenToClient(g_hwnd, &pt)) continue;
@@ -1245,6 +1264,12 @@ DWORD WINAPI HoverPollProc(LPVOID) {
 
 void StartHoverPoll() {
   if (g_hoverThread) return;
+  if (!g_hoverExitEvt) {
+    g_hoverExitEvt = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (!g_hoverExitEvt) return;
+  } else {
+    ResetEvent(g_hoverExitEvt);
+  }
   g_hoverRun = true;
   g_lastPollPt = POINT{};
   g_lastPollInside = false;
@@ -1254,10 +1279,11 @@ void StartHoverPoll() {
 void StopHoverPoll() {
   if (!g_hoverThread) return;
   g_hoverRun = false;
-  // 线程最多再睡一拍(20ms),200ms 等不到属异常,兜底强杀。
-  if (WaitForSingleObject(g_hoverThread, 200) == WAIT_TIMEOUT) {
-    TerminateThread(g_hoverThread, 0);
-  }
+  if (g_hoverExitEvt) SetEvent(g_hoverExitEvt);
+  // 事件驱动退出,线程微秒级返回;1s 等不到属极端异常(调度饿死级),
+  // 也绝不 TerminateThread——强杀可能死在持有 GDI+/win32k 内部锁的任意点,
+  // 直接进程级风险。事件已置位,线程随后自退出,句柄照常关闭。
+  WaitForSingleObject(g_hoverThread, 1000);
   CloseHandle(g_hoverThread);
   g_hoverThread = nullptr;
 }
@@ -1287,6 +1313,10 @@ bool DesktopLyricIsVisible() { return g_visible; }
 
 void DesktopLyricShutdown() {
   StopHoverPoll();
+  if (g_hoverExitEvt) {
+    CloseHandle(g_hoverExitEvt);
+    g_hoverExitEvt = nullptr;
+  }
   if (g_hwnd) {
     DestroyWindow(g_hwnd);
     g_hwnd = nullptr;
@@ -1310,6 +1340,12 @@ void DesktopLyricShutdown() {
   delete g_famRemix;
   g_famRemix = nullptr;
   if (g_gdiplusToken != 0) {
+    // 先卸载 FR_PRIVATE 字体再关停 GDI+(顺序无关,但必须成对)。
+    if (g_remixFontLoaded && !g_remixFontPath.empty()) {
+      RemoveFontResourceExW(g_remixFontPath.c_str(), FR_PRIVATE, nullptr);
+      g_remixFontLoaded = false;
+    }
+    g_remixFontPath.clear();
     gd::GdiplusShutdown(g_gdiplusToken);
     g_gdiplusToken = 0;
   }

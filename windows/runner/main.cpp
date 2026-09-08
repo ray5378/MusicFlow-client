@@ -75,9 +75,19 @@ void TrayShutdown() {
 
 void TraySetTooltip(const std::wstring& tip) {
   if (!g_nid.hWnd) return;
+  // 防御性节流:NIM_MODIFY 走 Shell_NotifyIcon,最终在平台线程处理。
+  // 若状态栏歌词逐行高频刷新,必须限流——文本未变直接跳过;500ms 内的
+  // 连发丢弃(后续行会带来新文本,tooltip 短暂滞后一行可接受)。
+  static std::wstring s_lastTip;
+  static ULONGLONG s_lastModify = 0;
   // 空文本恢复默认应用名;非空时用于显示「状态栏歌词」当前行。
-  // szTip 是 WCHAR[128],超出部分截断,末尾补 '\0'。
   const std::wstring& text = tip.empty() ? L"MusicFlow" : tip;
+  if (text == s_lastTip) return;
+  const ULONGLONG now = GetTickCount64();
+  if (s_lastModify != 0 && now - s_lastModify < 500) return;
+  s_lastTip = text;
+  s_lastModify = now;
+  // szTip 是 WCHAR[128],超出部分截断,末尾补 '\0'。
   const size_t copy_len = text.size() < 127 ? text.size() : 127;
   text.copy(g_nid.szTip, copy_len);
   g_nid.szTip[copy_len] = L'\0';
