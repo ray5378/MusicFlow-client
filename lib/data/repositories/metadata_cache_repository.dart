@@ -1,15 +1,22 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:musicflow_client/core/utils/logger.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:musicflow_client/data/models/album.dart';
 import 'package:musicflow_client/data/models/artist.dart';
 import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/repositories/music_repository.dart';
+import 'package:musicflow_client/data/sources/json_file_store.dart';
 
-/// 元数据缓存仓库（基于 SharedPreferences）
+/// 元数据缓存仓库（基于 JsonFileStore：每键独立 JSON 文件、原子写）。
+///
+/// 历史：曾基于 SharedPreferences 存储。Windows 的 shared_preferences 每次
+/// 写任意键都会把整个 prefs map 全量 jsonEncode + 同步重写整个文件；一条
+/// 全库歌曲缓存曾膨胀到 87MB，任何一次缓存写入/播放会话落盘都会全量重写
+/// 93MB——平台线程被烧满，滚动假死（Android 是原生 KV 增量提交所以无感）。
+/// 现迁出至独立文件存储，写入成本只与本键大小相关。
 class MetadataCacheRepository {
   static const _tag = 'META_CACHE';
   static const String _prefix = 'metadata_cache_v1';
@@ -18,49 +25,16 @@ class MetadataCacheRepository {
   String _key(String libraryId, String scope) =>
       '${_prefix}_${libraryId}_$scope';
 
-  /// 平台存储访问的容错入口。
-  ///
-  /// Windows 上 `SharedPreferences.getInstance()` 加载共享存储文件失败时会抛
-  /// `FormatException`(存储文件损坏/上次写入不完整/编码异常)。若任其冒泡,会导致
-  /// 所有用到缓存的路径(.restore/随机歌曲/歌单兜底)集体失败——这正是第一份日志里
-  /// PLAYER / STATUS_LYRICS / DISCOVER 的 restore 全部 FormatException 的根因:
-  /// 不是个别数据坏,而是**整个 SharedPreferences 存储不可用**。
-  /// 这里统一降级:存储不可用时返回 null,缓存读/写静默跳过,不让平台存储异常
-  /// 反噬正常的数据展示/播放。
-  SharedPreferences? _cachedPrefs;
-  bool _prefsFailedLogged = false;
-
-  Future<SharedPreferences?> _prefs() async {
-    if (_cachedPrefs != null) return _cachedPrefs;
-    try {
-      return _cachedPrefs = await SharedPreferences.getInstance();
-    } catch (e) {
-      if (!_prefsFailedLogged) {
-        _prefsFailedLogged = true;
-        Logger.warnWithTag(
-          _tag,
-          'SharedPreferences unavailable (platform storage broken)',
-          e,
-        );
-      }
-      return null;
-    }
-  }
-
   /// 记录最近使用的库 ID。冷启动时活跃库尚未从 drift 就绪（libraryId 为 null），
   /// 缓存先行需据此定位上次会话的元数据缓存。
   Future<void> setLastLibraryId(String libraryId) async {
     if (libraryId.isEmpty) return;
-    final prefs = await _prefs();
-    if (prefs == null) return;
-    await prefs.setString(_lastLibraryKey, libraryId);
+    await JsonFileStore.instance.writeString(_lastLibraryKey, libraryId);
   }
 
   /// 读取最近使用的库 ID（冷启动缓存先行用），无则返回 null。
   Future<String?> getLastLibraryId() async {
-    final prefs = await _prefs();
-    if (prefs == null) return null;
-    final value = prefs.getString(_lastLibraryKey);
+    final value = await JsonFileStore.instance.readString(_lastLibraryKey);
     if (value == null || value.isEmpty) return null;
     return value;
   }
@@ -70,16 +44,17 @@ class MetadataCacheRepository {
     String scope,
     Map<String, dynamic> value,
   ) async {
-    final prefs = await _prefs();
-    if (prefs == null) return;
-    await prefs.setString(_key(libraryId, scope), jsonEncode(value));
+    // 大 payload（全库歌曲可达数十 MB）在 isolate 编码，避免 UI 线程长停顿。
+    // Map 内仅 JSON 基元类型，可安全跨 isolate 拷贝。
+    final encoded = await Isolate.run(() => jsonEncode(value));
+    await JsonFileStore.instance.writeString(_key(libraryId, scope), encoded);
     Logger.debugWithTag(_tag, 'cache saved libraryId=$libraryId scope=$scope');
   }
 
   Future<Map<String, dynamic>?> _readMap(String libraryId, String scope) async {
-    final prefs = await _prefs();
-    if (prefs == null) return null;
-    final raw = prefs.getString(_key(libraryId, scope));
+    final raw = await JsonFileStore.instance.readString(
+      _key(libraryId, scope),
+    );
     if (raw == null || raw.isEmpty) {
       Logger.debugWithTag(_tag, 'cache miss libraryId=$libraryId scope=$scope');
       return null;
@@ -339,11 +314,10 @@ class MetadataCacheRepository {
 
   /// Clears playlist caches when a post-mutation cache repair cannot finish.
   Future<void> clearPlaylistCaches(String libraryId, String playlistId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await Future.wait(<Future<bool>>[
-      prefs.remove(_key(libraryId, 'playlist_detail_$playlistId')),
-      prefs.remove(_key(libraryId, 'playlists')),
-    ]);
+    await JsonFileStore.instance.remove(
+      _key(libraryId, 'playlist_detail_$playlistId'),
+    );
+    await JsonFileStore.instance.remove(_key(libraryId, 'playlists'));
     Logger.warnWithTag(
       _tag,
       'playlist caches cleared libraryId=$libraryId playlistId=$playlistId',

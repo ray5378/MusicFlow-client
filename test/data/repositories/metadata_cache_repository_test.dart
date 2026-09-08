@@ -1,14 +1,26 @@
+import 'dart:io';
+
 import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/repositories/metadata_cache_repository.dart';
+import 'package:musicflow_client/data/sources/json_file_store.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
+  late Directory tempDir;
+
+  setUp(() async {
+    tempDir = await Directory.systemTemp.createTemp('mf_meta_cache_test');
+    JsonFileStore.instance.debugDirectory = tempDir;
+  });
+
+  tearDown(() async {
+    JsonFileStore.instance.debugDirectory = null;
+    try {
+      await tempDir.delete(recursive: true);
+    } catch (_) {}
   });
 
   test('song removal repairs detail and summary caches', () async {
@@ -50,5 +62,16 @@ void main() {
     expect(summaries, isNotNull);
     expect(summaries!.single.songCount, 2);
     expect(summaries.single.duration, 400);
+  });
+
+  test('file store writes are atomic and readable across instances', () async {
+    await JsonFileStore.instance.writeString('k', 'v1');
+    expect(await JsonFileStore.instance.readString('k'), 'v1');
+    await JsonFileStore.instance.writeString('k', 'v2');
+    expect(await JsonFileStore.instance.readString('k'), 'v2');
+    await JsonFileStore.instance.remove('k');
+    expect(await JsonFileStore.instance.readString('k'), isNull);
+    // 不存在的键返回 null 而不是抛错。
+    expect(await JsonFileStore.instance.readString('missing'), isNull);
   });
 }

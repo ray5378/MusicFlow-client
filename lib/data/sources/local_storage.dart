@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:musicflow_client/core/services/credentials_store.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/server_config.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
 import 'package:musicflow_client/data/models/search_history.dart';
+import 'package:musicflow_client/data/sources/json_file_store.dart';
+import 'package:musicflow_client/data/sources/prefs_gate.dart';
 
 /// 本地存储封装（SharedPreferences）
 class LocalStorage {
@@ -37,62 +38,62 @@ class LocalStorage {
 
   /// 是否开启日志抓取（默认关闭，需用户手动开启）。
   static Future<bool> getLoggingEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     return prefs.getBool(_keyLoggingEnabled) ?? false;
   }
 
   /// 设置日志抓取开关。
   static Future<void> setLoggingEnabled(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setBool(_keyLoggingEnabled, value);
   }
 
   /// 是否开启 Windows 托盘/任务栏歌词(状态栏歌词)。
   static Future<bool> getStatusLyricsEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     return prefs.getBool(_keyStatusLyricsEnabled) ?? false;
   }
 
   /// 设置 Windows 托盘/任务栏歌词开关。
   static Future<void> setStatusLyricsEnabled(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setBool(_keyStatusLyricsEnabled, value);
   }
 
 
   /// 读取离线缓存总容量档位名（未设置返回 null，由调用方回落到默认 2G）。
   static Future<String?> getOfflineCacheSizeName() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     return prefs.getString(_keyOfflineCacheSize);
   }
 
   /// 保存离线缓存总容量档位名（enum.name）。
   static Future<void> setOfflineCacheSizeName(String name) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setString(_keyOfflineCacheSize, name);
   }
 
   /// 读取离线缓存开关（未设置默认开启，老用户行为不变）。
   static Future<bool> getOfflineCacheEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     return prefs.getBool(_keyOfflineCacheEnabled) ?? true;
   }
 
   /// 保存离线缓存开关。
   static Future<void> setOfflineCacheEnabled(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setBool(_keyOfflineCacheEnabled, value);
   }
 
   /// 是否曾经启动过（用于判断是否显示开屏动画）
   static Future<bool> hasLaunchedBefore() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     return prefs.getBool(_keyHasLaunchedBefore) ?? false;
   }
 
   /// 标记已完成首次启动
   static Future<void> setHasLaunchedBefore() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setBool(_keyHasLaunchedBefore, true);
     Logger.infoWithTag(_logTag, 'hasLaunchedBefore set to true');
   }
@@ -100,7 +101,7 @@ class LocalStorage {
   /// 读取搜索历史(已按时间倒序,空词/过期项由调用方用
   /// [pruneSearchHistory] 清理后写入)。文件缺失或损坏时返回空列表。
   static Future<List<SearchHistoryEntry>> getSearchHistory() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final raw = prefs.getString(_keySearchHistory);
     if (raw == null || raw.isEmpty) return const <SearchHistoryEntry>[];
 
@@ -127,7 +128,7 @@ class LocalStorage {
   static Future<void> saveSearchHistory(
     List<SearchHistoryEntry> entries,
   ) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final json = jsonEncode(
       entries.map((entry) => entry.toJson()).toList(growable: false),
     );
@@ -136,7 +137,7 @@ class LocalStorage {
 
   /// 清除搜索历史。
   static Future<void> clearSearchHistory() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.remove(_keySearchHistory);
   }
 
@@ -150,7 +151,7 @@ class LocalStorage {
       'main',
       {'password': config.password, 'apiKey': config.apiKey},
     );
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final sanitized = Map<String, dynamic>.from(config.toJson())
       ..['password'] = null
       ..['apiKey'] = null;
@@ -160,7 +161,7 @@ class LocalStorage {
 
   /// 读取服务器配置（凭据从钥匙串回填；旧版本明文残留自动迁移进钥匙串）。
   static Future<ServerConfig?> getServerConfig() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final json = prefs.getString(_keyServerConfig);
     if (json == null) {
       Logger.debugWithTag(_logTag, 'server config not found');
@@ -210,14 +211,14 @@ class LocalStorage {
       'main',
       const ['password', 'apiKey'],
     );
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.remove(_keyServerConfig);
     Logger.infoWithTag(_logTag, 'server config cleared');
   }
 
   /// 检查是否有已保存的配置
   static Future<bool> hasServerConfig() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final result = prefs.containsKey(_keyServerConfig);
     Logger.debugWithTag(_logTag, 'hasServerConfig=$result');
     return result;
@@ -225,7 +226,7 @@ class LocalStorage {
 
   /// 读取自动回退开关（默认开启）
   static Future<bool> getAutoFallback() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final value = prefs.getBool(_keyAutoFallback) ?? true;
     Logger.debugWithTag(_logTag, 'autoFallback=$value');
     return value;
@@ -233,14 +234,14 @@ class LocalStorage {
 
   /// 保存自动回退开关
   static Future<void> setAutoFallback(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setBool(_keyAutoFallback, value);
     Logger.infoWithTag(_logTag, 'autoFallback updated: $value');
   }
 
   /// 读取音质设置
   static Future<AudioQualitySettings> getAudioQualitySettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final json = prefs.getString(_keyAudioQualitySettings);
     if (json == null) {
       Logger.debugWithTag(
@@ -263,14 +264,14 @@ class LocalStorage {
   static Future<void> setAudioQualitySettings(
     AudioQualitySettings settings,
   ) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setString(_keyAudioQualitySettings, settings.toJsonString());
     Logger.infoWithTag(_logTag, 'audio quality settings saved');
   }
 
   /// 读取播放模式（shuffle / repeatAll / repeatOne）
   static Future<String> getPlaybackMode() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final mode = prefs.getString(_keyPlaybackMode);
     if (mode == null) {
       Logger.debugWithTag(_logTag, 'playback mode not found, use default');
@@ -291,14 +292,14 @@ class LocalStorage {
 
   /// 保存播放模式（shuffle / repeatAll / repeatOne）
   static Future<void> setPlaybackMode(String mode) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setString(_keyPlaybackMode, mode);
     Logger.infoWithTag(_logTag, 'playback mode saved: $mode');
   }
 
   /// 读取「打开时自动播放上次本机音乐」设置（默认 false）
   static Future<bool> getAutoPlayOnLaunch() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final value = prefs.getBool(_keyAutoPlayOnLaunch) ?? false;
     Logger.debugWithTag(_logTag, 'autoPlayOnLaunch=$value');
     return value;
@@ -306,22 +307,27 @@ class LocalStorage {
 
   /// 保存「打开时自动播放上次本机音乐」设置
   static Future<void> setAutoPlayOnLaunch(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setBool(_keyAutoPlayOnLaunch, value);
     Logger.infoWithTag(_logTag, 'autoPlayOnLaunch updated: $value');
   }
 
-  /// 保存播放会话（队列 + 索引 + 进度 + 播放状态）
+  /// 保存播放会话（队列 + 索引 + 进度 + 播放状态）。
+  ///
+  /// 走 JsonFileStore（独立文件+原子写）而非 prefs：本方法每 5 秒节流调用，
+  /// 若走 prefs，Windows 实现会把整个 prefs 全量序列化+同步重写——历史上一条
+  /// metadata 键膨胀到 87MB 时，正是这里把平台线程持续烧满导致滚动假死。
   static Future<void> savePlaybackSession(Map<String, dynamic> session) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyPlaybackSession, jsonEncode(session));
+    await JsonFileStore.instance.writeString(
+      _keyPlaybackSession,
+      jsonEncode(session),
+    );
     Logger.debugWithTag(_logTag, 'playback session saved');
   }
 
   /// 读取播放会话
   static Future<Map<String, dynamic>?> getPlaybackSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_keyPlaybackSession);
+    final raw = await JsonFileStore.instance.readString(_keyPlaybackSession);
     if (raw == null || raw.isEmpty) {
       Logger.debugWithTag(_logTag, 'playback session not found');
       return null;
@@ -345,14 +351,13 @@ class LocalStorage {
 
   /// 清除播放会话
   static Future<void> clearPlaybackSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyPlaybackSession);
+    await JsonFileStore.instance.remove(_keyPlaybackSession);
     Logger.debugWithTag(_logTag, 'playback session cleared');
   }
 
   /// 读取主题模式（system / light / dark）
   static Future<String> getThemeModeSetting() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final mode = prefs.getString(_keyThemeMode) ?? 'system';
     switch (mode) {
       case 'light':
@@ -368,14 +373,14 @@ class LocalStorage {
 
   /// 保存主题模式（system / light / dark）
   static Future<void> setThemeModeSetting(String mode) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setString(_keyThemeMode, mode);
     Logger.infoWithTag(_logTag, 'theme mode saved: $mode');
   }
 
   /// 读取主题主色（ARGB int）
   static Future<int> getThemeSeedColorValue() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final color = prefs.getInt(_keyThemeSeedColor) ?? 0xFF4CAF50;
     Logger.debugWithTag(
       _logTag,
@@ -386,7 +391,7 @@ class LocalStorage {
 
   /// 读取界面语言（system / zh / en，默认 zh，非法值回退 zh）。
   static Future<String> getAppLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final lang = prefs.getString(_keyAppLanguage) ?? 'zh';
     switch (lang) {
       case 'system':
@@ -402,14 +407,14 @@ class LocalStorage {
 
   /// 保存界面语言（system / zh / en）。
   static Future<void> setAppLanguage(String lang) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setString(_keyAppLanguage, lang);
     Logger.infoWithTag(_logTag, 'app language saved: ');
   }
 
   /// 保存主题主色（ARGB int）
   static Future<void> setThemeSeedColorValue(int color) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setInt(_keyThemeSeedColor, color);
     Logger.infoWithTag(
       _logTag,
@@ -423,7 +428,7 @@ class LocalStorage {
   }) async {
     if (libraryId.trim().isEmpty) return 0;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final raw = prefs.getString(_keyMobileCacheSavedBytesByLibrary);
     if (raw == null || raw.isEmpty) return 0;
 
@@ -448,7 +453,7 @@ class LocalStorage {
     final normalizedLibraryId = libraryId.trim();
     if (normalizedLibraryId.isEmpty || bytes <= 0) return;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final raw = prefs.getString(_keyMobileCacheSavedBytesByLibrary);
 
     Map<String, dynamic> map = <String, dynamic>{};
@@ -495,7 +500,7 @@ class LocalStorage {
 
   /// 读取音频缓存上限设置（字节）
   static Future<int?> getMaxCacheSize() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final value = prefs.getInt(_keyMaxCacheSizeBytes);
     if (value != null) {
       Logger.debugWithTag(_logTag, 'maxCacheSize loaded: $value');
@@ -505,14 +510,14 @@ class LocalStorage {
 
   /// 保存音频缓存上限设置（字节）
   static Future<void> setMaxCacheSize(int bytes) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setInt(_keyMaxCacheSizeBytes, bytes);
     Logger.infoWithTag(_logTag, 'maxCacheSize saved: $bytes');
   }
 
   /// 读取淡入淡出时长（毫秒，0 = 关闭）
   static Future<int> getCrossfadeDurationMs() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final value = prefs.getInt(_keyCrossfadeDurationMs) ?? 0;
     Logger.debugWithTag(_logTag, 'crossfadeDurationMs loaded: $value');
     return value;
@@ -520,14 +525,14 @@ class LocalStorage {
 
   /// 保存淡入淡出时长（毫秒）
   static Future<void> setCrossfadeDurationMs(int ms) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setInt(_keyCrossfadeDurationMs, ms);
     Logger.infoWithTag(_logTag, 'crossfadeDurationMs saved: $ms');
   }
 
   /// 读取歌词停下跟随滚动的停靠时长（秒，默认 3）
   static Future<int> getLyricsScrollDwellSeconds() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     final value = prefs.getInt(_keyLyricsScrollDwellSeconds) ?? 3;
     Logger.debugWithTag(_logTag, 'lyricsScrollDwellSeconds loaded: $value');
     return value;
@@ -535,7 +540,7 @@ class LocalStorage {
 
   /// 保存歌词停靠时长（秒）
   static Future<void> setLyricsScrollDwellSeconds(int seconds) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await getPrefs();
     await prefs.setInt(_keyLyricsScrollDwellSeconds, seconds);
     Logger.infoWithTag(
       _logTag,
@@ -543,20 +548,35 @@ class LocalStorage {
     );
   }
 
-  /// 读取本机播放音量（0.0~1.0，默认 0.8）
+  /// 读取本机播放音量（0.0~1.0，默认 0.8）。
+  /// 走 JsonFileStore：随播放会话周期反复落盘，不应触发 prefs 全量重写。
   static Future<double> getPlayerVolume() async {
-    final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getDouble(_keyPlayerVolume);
-    final volume = value == null ? 0.8 : value.clamp(0.0, 1.0).toDouble();
-    Logger.debugWithTag(_logTag, 'playerVolume loaded: $volume');
-    return volume;
+    final raw = await JsonFileStore.instance.readString(_keyPlayerVolume);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          final value = decoded['v'];
+          if (value is num) {
+            final volume = value.toDouble().clamp(0.0, 1.0).toDouble();
+            Logger.debugWithTag(_logTag, 'playerVolume loaded: $volume');
+            return volume;
+          }
+        }
+      } catch (e) {
+        Logger.warnWithTag(_logTag, 'failed to parse player volume', e);
+      }
+    }
+    return 0.8;
   }
 
   /// 保存本机播放音量（0.0~1.0）
   static Future<void> setPlayerVolume(double volume) async {
     final clamped = volume.clamp(0.0, 1.0).toDouble();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyPlayerVolume, clamped);
+    await JsonFileStore.instance.writeString(
+      _keyPlayerVolume,
+      jsonEncode(<String, Object?>{'v': clamped}),
+    );
     Logger.infoWithTag(_logTag, 'playerVolume saved: $clamped');
   }
 
@@ -569,7 +589,7 @@ class LocalStorage {
   /// 会永久挂起)。
   static Future<void> repairCorruptPreferences() async {
     try {
-      await SharedPreferences.getInstance();
+      await getPrefs();
       return; // 文件健康
     } catch (e) {
       Logger.warnWithTag(_logTag, 'preferences broken, repairing: $e');
@@ -590,7 +610,7 @@ class LocalStorage {
     }
     // 删除损坏文件后重试一次:应能正常初始化空配置。
     try {
-      await SharedPreferences.getInstance();
+      await getPrefs();
     } catch (e) {
       Logger.warnWithTag(_logTag, 'preferences still broken after repair', e);
     }
