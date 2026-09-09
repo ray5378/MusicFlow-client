@@ -1,10 +1,61 @@
-# 首页分区客户端自治：手动排序 + 显隐 + 隐藏即不拉取（含推荐模块重定位）总览
+# 播放链路兜底改造：投前预探测 + 失效源缓存逐出（最新）
+
+> 上一轮主题（首页分区客户端自治）见下方历史章节。
 
 ## 发版与收尾（最新）
 
 | 仓库 | 版本 | 内容 | 状态 |
 | --- | --- | --- | --- |
-| MusicFlow-client | **v4.3.31** | 首页分区自治 + 推荐模块重定位；修复 CI 交互反馈守卫拦截 | Release 三产物齐全，uploader 均为 `github-actions[bot]` |
+| MusicFlow-client | **v4.3.32** | DLNA 投前预探测（服务端 409 + 客户端 probe 钩子）、绕圈上限守卫、移除死歌机制 | ✅ Release 三产物齐全，uploader 均为 `github-actions[bot]` |
+| MusicFlow（主仓库） | **v2.3.20** | `/api/v1/dlna/stream-url` 投前预检 409、`evictStreamFallbackCache`、QueueController 去停播阈值、前端去 deadSongs（commit `a1913f3` + `e6149dc`） | ✅ 已发布：CI 全绿（ci / build-and-push / security / pentest / frontend-responsive / sync-to-gitee），Release author `github-actions[bot]`（0 assets 正常，仅指向镜像 tag），已补用户升级步骤 |
+| MusicFlow-client | v4.3.31 | 首页分区自治 + 推荐模块重定位；修复 CI 交互反馈守卫拦截 | Release 三产物齐全，uploader 均为 `github-actions[bot]` |
+
+## 本次改造要点
+
+| 项 | 说明 |
+| --- | --- |
+| 问题（P1-2） | 客户端直投 DLNA **无投前预探测**：死源要等设备播不出 + stall×2 才跳，每首浪费 10-30s，还消耗 failStreak 上限 |
+| 修法·服务端 | 签发 cast token 前预检全类型音源，验不过返回 **409 `errors.song.noPlayableSource`**（一处改动，四端受益） |
+| 修法·客户端 | `probeSong` 钩子（`/stream/probe`）+ 捕获 `DlnaSongUnplayableException`，命中即按播放模式推进下一曲 |
+| 关键坑 | 最初用 `_playSwitch` 递归跳曲，**整队全死源 + all 模式会让 startCast 无限 await 挂死 UI**；改为 while 循环 +「单次激活内绕圈上限 = 队列长度」，圈满停下交看门狗 |
+| 问题（P1-1） | 换源/可播缓存命中即返回不重探，网易等 ~20 分钟过期直链被锁死到 FIFO 淘汰或服务重启 |
+| 修法 | 拉流实测失败且结果来自缓存命中时 `evictStreamFallbackCache` 逐出双缓存 → 真实重搜一次 |
+| 连带清理 | 客户端/前端「死歌机制」（`_deadSongs`/`deadSongs`/`localFailStreak`）与服务端 `skipCounters` 停播阈值全部移除——预探测标记的是歌曲不是源，坏源被换源救回后仍永久跳过 = 误杀 |
+| 守卫 | 客户端 `dlna_chain_guard_test.dart`（12 条，内置迷你模拟设备）+ 后端 `dlnaStreamUrlGuard.test.ts`（5 条）+ 两仓 `playback-chain-guard.yml`（阻塞型 CI） |
+| 验证 | 客户端 analyze 0 error / `flutter test` **568/568**；主仓库 tsc 无错 / vitest **783/783** |
+
+完整审计与逐链路矩阵见 `docs/playback_chain_audit.md`。
+
+## 守卫补齐（v4.3.32 / v2.3.20 之后，仅测试与 CI，不改功能）
+
+首轮守卫只钉住了两条主链路，另有 3 个缺口「改坏不会红」，已全部补齐，且每条都做了**变异验证**
+（故意破坏实现 → 确认测试转红，证明不是摆设）：
+
+| 缺口 | 补法 | 变异验证 |
+| --- | --- | --- |
+| `evictStreamFallbackCache`（P1-1）无测试 | 主仓库 `streamFallbackEvict.test.ts` 3 条：缓存命中不重搜 → evict 后必须重新真实搜索、playableCache 同规则、只逐出指定 songId | evict 改成空实现 → 3 条全红 |
+| 客户端本机失败跳曲无行为测试 | `playback_error_guard_test.dart` 4 条（源码契约）：`_handlePlaybackError` 必须调 `next()`、不得置停止态、不得回归黑名单/阈值、调用点不得被删 | 删掉 `next()` → 失败即红 |
+| Web 前端跳下一曲无测试（前端无单测框架） | 主仓库 `tests/frontend/playerContract.test.ts` 3 条（源码契约）：`onloaderror`/`onplayerror` → `localHandlePlaybackError` → `localNext()` | 删掉 `localNext()` → 失败即红 |
+| 跨仓 409 契约：两边各测各的，服务端改状态码两边都绿 | 两仓 workflow 各加一条对称静态断言（服务端：409 + i18n key；客户端：409 → `DlnaSongUnplayableException`） | 本地 grep 已复现 PASS |
+
+验证：主仓库 vitest **789/789**（+3 +3）、客户端 `flutter test` **572/572**（+4）。
+CI：两仓 `Playback Chain Guard` 均 **success**（新静态断言一起过）；主仓库 pentest 首跑挂在
+「安装后端依赖」（环境类偶发），用 `rerun-failed-jobs` 重跑即 success。
+本次只改测试与 CI，**未发新版本**（v2.3.20 / v4.3.32 产物不变）。
+
+### 踩坑：新建 workflow 的 YAML 语法错误会「静默失效」
+
+两仓的 `playback-chain-guard.yml` 首跑都是 `failure`，但**没有 job、没有可读报错**。根因是 step 的
+`name` 里写了两个冒号：`- name: Guard: no stop threshold in QueueController` → YAML 解析
+「mapping values are not allowed here」→ GitHub 把整个 workflow 当无效文件（API 里 `name` 退化成
+文件路径、`workflow_dispatch` 也识别不到、run 直接 failure）。加引号即修复。**排查手法**：
+`GET /repos/{o}/{r}/actions/workflows/{file}` 若 `name` 等于 `path` 就说明没解析成功；
+`commits/{sha}/check-runs` 里没有该 workflow 也能佐证（真正的失败会生成 check run）。
+已固化守卫：`dart run tool/check_workflow_yaml.dart`（扫全部 workflow，拦 BOM / TAB / 值内第二个冒号 / 顶层重复键）。
+
+---
+
+# 历史：首页分区客户端自治：手动排序 + 显隐 + 隐藏即不拉取（含推荐模块重定位）总览
 | MusicFlow（主仓库） | **v2.3.15** | 首页分区清单推荐模块重定位（后端） | 已发布 |
 | MusicFlow（主仓库） | **v2.3.16** | 前端播放队列「打开即定位 + 封面延载」，对齐客户端 | 已发布 |
 | MusicFlow（主仓库） | **v2.3.17** | 修复插件歌单选择器只能看到前 100 个歌单 | 已发布（修复不完整，见下） |
