@@ -620,15 +620,19 @@
       }
     }
   },
-  "discover_local_random": "Local random",
-  "discover_local_random_load_failed": "Failed to load local random playlists",
+  "discover_local_random": "Platform recommendations",
+  "discover_local_random_load_failed": "Failed to load platform recommendation playlists",
   "discover_music_suffix": "Music",
   "discover_network_failed_play_playlist": "Network error; unable to play the playlist",
   "discover_no_library_selected": "No music library selected",
   "discover_not_connected_library": "Not connected to a music library",
   "discover_open_app_menu": "Open app menu",
-  "discover_platform_load_failed": "Failed to load platform recommendations",
-  "discover_platform_recommend": "Platform recommendations",
+  "discover_platform_load_failed": "Failed to load plugin recommendations",
+  "discover_platform_recommend": "Plugin recommendations",
+  "home_section_customize": "Customize home",
+  "home_section_customize_entry": "Edit home sections",
+  "home_section_customize_hint": "Drag to reorder, toggle off to hide",
+  "home_section_customize_done": "Done",
   "discover_play_playlist": "Play playlist",
   "discover_play_playlist_failed": "Failed to play playlist: {msg}",
   "@discover_play_playlist_failed": {
@@ -664,7 +668,7 @@
   },
   "discover_recently_played": "Recently played",
   "discover_recommend_load_failed": "Failed to load recommendations",
-  "discover_recommend_service_unavailable": "Recommendation service is temporarily unavailable; check whether the platform recommendation plugin is enabled",
+  "discover_recommend_service_unavailable": "Recommendation service is temporarily unavailable; check whether the recommendation plugin is enabled",
   "discover_refresh_recent_playlists": "Refresh recently updated playlists",
   "discover_search": "Search",
   "discover_section_unavailable_playlist": "Playlists are temporarily unavailable",
@@ -687,8 +691,8 @@
       }
     }
   },
-  "discover_unavailable_local_random": "Local random playlists are temporarily unavailable",
-  "discover_unavailable_platform": "Platform recommendations are temporarily unavailable",
+  "discover_unavailable_local_random": "Platform recommendation playlists are temporarily unavailable",
+  "discover_unavailable_platform": "Plugin recommendations are temporarily unavailable",
   "discover_unavailable_recommend": "Recommendations are temporarily unavailable",
   "search_back": "Back",
   "search_clear": "Clear search",

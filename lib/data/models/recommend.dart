@@ -100,7 +100,7 @@ class LocalRecommendPlaylist {
 }
 
 /// 本地随机频道(一个平台一个),按平台分组展示。
-/// 后端透传展示文案:subtag 为分区标题后缀(如「每日更新」,缺省回落「本地随机」),
+/// 后端透传展示文案:subtag 为分区标题后缀(如「每日更新」,缺省回落「平台推荐」),
 /// tagline 为副标题说明文案(缺省回落歌单数量)。
 class LocalRecommendChannel {
   final String source;

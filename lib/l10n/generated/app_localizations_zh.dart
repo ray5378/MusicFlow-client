@@ -998,10 +998,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get discover_local_random => '本地随机';
+  String get discover_local_random => '平台推荐';
 
   @override
-  String get discover_local_random_load_failed => '本地随机加载失败';
+  String get discover_local_random_load_failed => '平台推荐加载失败';
 
   @override
   String get discover_music_suffix => '音乐';
@@ -1019,10 +1019,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discover_open_app_menu => '打开应用菜单';
 
   @override
-  String get discover_platform_load_failed => '平台推荐加载失败';
+  String get discover_platform_load_failed => '插件推荐加载失败';
 
   @override
-  String get discover_platform_recommend => '平台推荐';
+  String get discover_platform_recommend => '插件推荐';
+
+  @override
+  String get home_section_customize => '自定义首页';
+
+  @override
+  String get home_section_customize_entry => '编辑首页模块';
+
+  @override
+  String get home_section_customize_hint => '长按拖动调整顺序，关闭开关可隐藏模块';
+
+  @override
+  String get home_section_customize_done => '完成';
 
   @override
   String get discover_play_playlist => '播放歌单';
@@ -1064,8 +1076,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discover_recommend_load_failed => '为你推荐加载失败';
 
   @override
-  String get discover_recommend_service_unavailable =>
-      '推荐服务暂不可用，请检查平台推荐插件是否已启用';
+  String get discover_recommend_service_unavailable => '推荐服务暂不可用，请检查推荐插件是否已启用';
 
   @override
   String get discover_refresh_recent_playlists => '刷新最近更新歌单';
@@ -1090,10 +1101,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get discover_unavailable_local_random => '本地随机暂时不可用';
+  String get discover_unavailable_local_random => '平台推荐暂时不可用';
 
   @override
-  String get discover_unavailable_platform => '平台推荐暂时不可用';
+  String get discover_unavailable_platform => '插件推荐暂时不可用';
 
   @override
   String get discover_unavailable_recommend => '为你推荐暂时不可用';

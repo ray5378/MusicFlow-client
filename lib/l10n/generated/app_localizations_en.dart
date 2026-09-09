@@ -1063,11 +1063,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get discover_local_random => 'Local random';
+  String get discover_local_random => 'Platform recommendations';
 
   @override
   String get discover_local_random_load_failed =>
-      'Failed to load local random playlists';
+      'Failed to load platform recommendation playlists';
 
   @override
   String get discover_music_suffix => 'Music';
@@ -1088,10 +1088,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discover_platform_load_failed =>
-      'Failed to load platform recommendations';
+      'Failed to load plugin recommendations';
 
   @override
-  String get discover_platform_recommend => 'Platform recommendations';
+  String get discover_platform_recommend => 'Plugin recommendations';
+
+  @override
+  String get home_section_customize => 'Customize home';
+
+  @override
+  String get home_section_customize_entry => 'Edit home sections';
+
+  @override
+  String get home_section_customize_hint =>
+      'Drag to reorder, toggle off to hide';
+
+  @override
+  String get home_section_customize_done => 'Done';
 
   @override
   String get discover_play_playlist => 'Play playlist';
@@ -1135,7 +1148,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discover_recommend_service_unavailable =>
-      'Recommendation service is temporarily unavailable; check whether the platform recommendation plugin is enabled';
+      'Recommendation service is temporarily unavailable; check whether the recommendation plugin is enabled';
 
   @override
   String get discover_refresh_recent_playlists =>
@@ -1164,11 +1177,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discover_unavailable_local_random =>
-      'Local random playlists are temporarily unavailable';
+      'Platform recommendation playlists are temporarily unavailable';
 
   @override
   String get discover_unavailable_platform =>
-      'Platform recommendations are temporarily unavailable';
+      'Plugin recommendations are temporarily unavailable';
 
   @override
   String get discover_unavailable_recommend =>

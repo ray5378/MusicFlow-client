@@ -8,6 +8,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/recommend.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/data/models/home_section_layout.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/discover/pages/discover_page.dart';
 import 'package:musicflow_client/features/discover/pages/search_page.dart';
@@ -18,6 +19,9 @@ import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:musicflow_client/providers/library/recommend_provider.dart';
+import 'package:musicflow_client/data/sources/prefs_gate.dart';
+import 'package:musicflow_client/features/discover/pages/home_section_edit_page.dart';
+import 'package:musicflow_client/providers/ui/home_section_layout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -321,13 +325,103 @@ void main() {
     );
 
     // 顺序:按 sortOrder 升序 → local-recommend 在 home-recommend 之前。
-    expect(find.text('本地随机'), findsOneWidget);
+    expect(find.text('平台推荐'), findsOneWidget);
     expect(find.text('为你推荐'), findsOneWidget);
     // 随机歌曲不可见(visible=false)且未在清单 → 不渲染。
     expect(find.text('随机歌曲'), findsNothing);
-    // 未在清单中的分区(平台推荐/最近更新)不渲染。
-    expect(find.text('平台推荐'), findsNothing);
+    // 未在清单中的分区(插件推荐/最近更新)不渲染。
+    expect(find.text('插件推荐'), findsNothing);
     expect(find.text('最近更新的歌单'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('user layout overrides manifest: hidden skips, order wins', (
+    tester,
+  ) async {
+    // 客户端自治:用户本地布局覆盖服务端清单 —— 隐藏「为你推荐」后首页
+    // 不渲染该分区(分区 widget 不构建 → 数据 provider 无人 watch → 不拉取);
+    // 用户排序覆盖服务端 sortOrder。
+    await _pumpDiscover(
+      tester,
+      extraOverrides: <Override>[
+        homeSectionsProvider.overrideWith((ref) async => const <HomeSection>[
+              HomeSection(
+                key: 'random-songs',
+                title: '随机歌曲',
+                sortOrder: 1,
+                visible: true,
+              ),
+              HomeSection(
+                key: 'recent-playlists',
+                title: '最近更新的歌单',
+                sortOrder: 2,
+                visible: true,
+              ),
+              HomeSection(
+                key: 'home-recommend',
+                title: '为你推荐',
+                sortOrder: 3,
+                visible: true,
+              ),
+            ]),
+        homeSectionLayoutProvider.overrideWith(
+          () => _FixedHomeSectionLayoutNotifier(
+            const HomeSectionLayout(
+              order: <String>['recent-playlists', 'random-songs'],
+              hidden: <String>['home-recommend'],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    // 隐藏分区不渲染。
+    expect(find.text('为你推荐'), findsNothing);
+    // 用户顺序生效:最近更新的歌单在随机歌曲之前。
+    final recent = find.text('最近更新的歌单');
+    final random = find.text('随机歌曲');
+    expect(recent, findsOneWidget);
+    expect(random, findsOneWidget);
+    expect(
+      tester.getTopLeft(recent).dy,
+      lessThan(tester.getTopLeft(random).dy),
+      reason: '用户排序应覆盖服务端清单顺序',
+    );
+    // 分区列表最末有客户端自治入口。
+    expect(find.text('编辑首页模块'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home edit entry opens the section edit page', (tester) async {
+    await _pumpDiscover(tester);
+
+    // 底部编辑入口位于分区列表最末,列表超视口需滚动到可见后点击。
+    final entry = find.text('编辑首页模块');
+    await tester.scrollUntilVisible(
+      entry,
+      200,
+      scrollable: find
+          .byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.vertical)
+          .first,
+    );
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+
+    // 打开编辑页:5 个分区行全量展示,每行开关 + 拖拽把手 + 右上角「完成」。
+    expect(find.byType(HomeSectionEditPage), findsOneWidget);
+    for (final name
+        in <String>['随机歌曲', '最近更新的歌单', '为你推荐', '平台推荐', '插件推荐']) {
+      expect(
+        find.descendant(
+          of: find.byType(HomeSectionEditPage),
+          matching: find.text(name),
+        ),
+        findsOneWidget,
+        reason: '编辑页应展示分区行「$name」',
+      );
+    }
+    expect(find.byType(Switch), findsNWidgets(5));
+    expect(find.text('完成'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -463,6 +557,9 @@ Future<void> _pumpDiscover(
   _RecordingPlayerNotifier? player,
   List<Override> extraOverrides = const <Override>[],
 }) async {
+  // 首页分区布局(homeSectionLayoutProvider)经 LocalStorage 读 prefs,
+  // 测试环境必须 mock,否则 SharedPreferences.getInstance() 平台通道永不返回。
+  SharedPreferences.setMockInitialValues(<String, Object>{});
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -555,6 +652,16 @@ Future<void> _pumpDiscover(
   // 「歌单变更」信号触发一次按需拉取,与生产环境「插件推送更新」一致。
   notifyRandomSongsChanged();
   await tester.pumpAndSettle();
+}
+
+/// 固定初始布局的 Fake notifier:首页用例注入用户分区布局,不落盘。
+class _FixedHomeSectionLayoutNotifier extends HomeSectionLayoutNotifier {
+  _FixedHomeSectionLayoutNotifier(this._initial);
+
+  final HomeSectionLayout _initial;
+
+  @override
+  Future<HomeSectionLayout> build() async => _initial;
 }
 
 Playlist _playlist([String name = '默认歌单']) => Playlist(

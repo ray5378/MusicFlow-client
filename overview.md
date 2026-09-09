@@ -1,3 +1,64 @@
+# 首页分区客户端自治：手动排序 + 显隐 + 隐藏即不拉取（含推荐模块重定位）总览
+
+> 目标（用户原话）：**「客户端的首页可以随意手动在自身修改需要显示的顺序和内容，不显示的内容模块就不拉服务器的信息」**，并要求安卓 + Windows 两端一致、入口放在首页最底部。
+
+## 一、推荐模块重命名与定位对调
+
+| 分区 key | 新名称 | 说明 |
+| --- | --- | --- |
+| `local-recommend` | **平台推荐** | 本地库随机歌单（原「本地随机」），排在前面 |
+| `platform-recommend` | **插件推荐** | 插件提供方推荐（原「平台推荐」），排在平台推荐下面 |
+
+- 客户端 arb 改 7 个 key 的 value（key 不动）+ gen-l10n 重生成，中英文同步（Platform / Plugin recommendations）。
+- 订单由**客户端归一**（`normalizeRecommendSectionOrder`），无论服务端下发顺序如何，平台推荐恒在插件推荐之前。
+
+## 二、客户端自治架构（核心）
+
+服务端 `/rest/api/v1/home/sections` 清单仍是基准（key / sortOrder / visible），客户端用**本地用户布局覆盖**它：
+
+1. **顺序**：用户排过序的分区按用户顺序在前；**服务端新增分区按 sortOrder 自动追加尾部**（新分区不丢）。
+2. **可见性**：最终显示 = 服务端 `visible` **且** 用户未隐藏。
+3. **隐藏 = 不拉取**：隐藏分区不渲染 → 分区 widget 不构建 → 该分区数据 provider（autoDispose / 从未被 watch 的 keepAlive）不初始化 → **零服务端请求**。这是既有架构天然满足的，无需额外开关。
+
+### 新增 / 改动文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `lib/features/discover/home_section_registry.dart` | 纯函数层（首页与编辑页共用，避免循环 import）：默认清单、定序归一、合并规则、分区显示名、编辑顺序 |
+| `lib/data/models/home_section_layout.dart` | `HomeSectionLayout{order, hidden}` 模型 + JSON |
+| `lib/providers/ui/home_section_layout_provider.dart` | AsyncNotifier（keepAlive，`save()` 先更内存再落盘） |
+| `lib/data/sources/local_storage.dart` | prefs key `home_section_layout_v1` 读/存/清（经 `getPrefs()` 门，小 JSON 符合 prefs 约束） |
+| `lib/features/discover/pages/home_section_edit_page.dart` | **新增编辑页**：拖拽把手排序 + 每行显隐 Switch + 右上角「完成」保存 |
+| `lib/features/discover/pages/discover_page.dart` | 接入布局合并 + 列表最末「编辑首页模块」入口 |
+| `lib/core/theme/app_icons.dart` | 新增 `AppIcons.drag`（Remix `drag_move_2_line`） |
+
+编辑页交互（两端一致）：列表最末点击「编辑首页模块」→ 全屏编辑页 → 拖动行尾把手调整顺序 / 每行开关控制显隐 →「完成」保存并即时生效（首页无需重启）。
+
+## 三、服务端配合（MusicFlow 主仓库 backend）
+
+- `backend/src/routes/rest/index.ts` `/api/v1/home/sections`：`local-recommend` → title「平台推荐」/ sortOrder 4；`platform-recommend` → title「插件推荐」/ sortOrder 5（对调），注释同步客户端自治说明。
+- `backend/tests/rest/opensubsonic.test.ts`：清单顺序与两个 title 断言同步 → **32/32 通过**。
+
+## 四、验证
+
+- 客户端 `flutter analyze`：本次新增/改动文件 **0 error**。
+- 客户端测试：**全量 563/563 全绿**（基线 548 + 新增 15）。
+
+| 新增测试 | 数量 | 覆盖 |
+| --- | --- | --- |
+| `home_section_registry_test.dart` | 10 | 定序归一、用户排序覆盖、隐藏过滤、追加尾部、淘汰已下线 key、编辑顺序构建 |
+| `home_section_edit_page_test.dart` | 3 | 5 行全量展示、Switch 隐藏后保存落库、真实拖拽把手重排后保存 |
+| `discover_page_test.dart`（新增用例） | 2 | 用户布局隐藏分区不渲染 + 顺序覆盖服务端、底部入口打开编辑页 |
+
+- Windows debug 已重建并启动（PID 20288），可直接验证。
+
+## 五、待办
+
+- 代码尚未提交/发版：**待你验证后再发 v4.3.30**。
+- 后续可选：编辑页支持「恢复默认」（`clearHomeSectionLayout` 已备好，尚未接 UI）。
+
+---
+
 # v3.4.67 GPU 门控修复：watch 不触发 didChangeDependencies + 大屏开关参数化 总览
 
 ## v3.4.67（本轮）

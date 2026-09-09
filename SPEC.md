@@ -374,6 +374,24 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - 首页卡片：`GET /rest/api/v1/recommend/home-cards`；每日推荐：`GET /rest/api/v1/daily-recommend`；本地推荐：`GET /rest/api/v1/recommend/local`；推荐导入：`POST /rest/api/v1/online/:providerId/recommend/import` / `recommend/sync-all`。
 - **首页展示内容与交互以现有 Android/Windows 实现为基准，不得改版**（§1.1 / §7.3）。
 
+### 6.1 首页分区：服务端清单 + 客户端用户自治（重点）
+
+- **服务端清单**：`GET /rest/api/v1/home/sections` 下发 `{key, title, sortOrder, visible}`，
+  客户端按 sortOrder 升序渲染；清单未就绪/失败时回落 `kDefaultHomeSectionKeys`
+  （`lib/features/discover/home_section_registry.dart`）。
+- **推荐两模块定位**（定序由客户端归一，服务端 sortOrder 保持一致）：
+  `local-recommend` = **平台推荐**（本地库随机歌单）在前，`platform-recommend` = **插件推荐**
+  （插件提供方，原「平台推荐」）在后。
+- **用户本地布局覆盖服务端**：persist key `home_section_layout_v1`（SharedPreferences，小 JSON，
+  经 `getPrefs()` 门；由 `homeSectionLayoutProvider` 暴露）。
+  1. **顺序**：用户排过的分区按用户顺序在前，**服务端新增**分区按服务端 sortOrder **追加尾部**；
+  2. **可见性**：最终显示 = 服务端 `visible` **且** 用户未隐藏。
+- **隐藏 = 不拉取**：用户隐藏的分区不渲染 → 分区 widget 不构建 → 该分区数据 provider
+  （autoDispose / 从未被 watch 的 keepAlive）不初始化 → **不会发起任何服务端请求**。
+- **编辑入口**：首页分区列表最末「编辑首页模块」→ `HomeSectionEditPage`（拖拽把手排序 +
+  每行显隐开关 + 右上角「完成」保存，保存后首页经 provider 即时重建，无需重启）。
+  两端（Android / Windows）共用同一套交互与持久化。
+
 ---
 
 ## 七、UI 与页面

@@ -1904,13 +1904,13 @@ abstract class AppLocalizations {
   /// No description provided for @discover_local_random.
   ///
   /// In zh, this message translates to:
-  /// **'本地随机'**
+  /// **'平台推荐'**
   String get discover_local_random;
 
   /// No description provided for @discover_local_random_load_failed.
   ///
   /// In zh, this message translates to:
-  /// **'本地随机加载失败'**
+  /// **'平台推荐加载失败'**
   String get discover_local_random_load_failed;
 
   /// No description provided for @discover_music_suffix.
@@ -1946,14 +1946,38 @@ abstract class AppLocalizations {
   /// No description provided for @discover_platform_load_failed.
   ///
   /// In zh, this message translates to:
-  /// **'平台推荐加载失败'**
+  /// **'插件推荐加载失败'**
   String get discover_platform_load_failed;
 
   /// No description provided for @discover_platform_recommend.
   ///
   /// In zh, this message translates to:
-  /// **'平台推荐'**
+  /// **'插件推荐'**
   String get discover_platform_recommend;
+
+  /// No description provided for @home_section_customize.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义首页'**
+  String get home_section_customize;
+
+  /// No description provided for @home_section_customize_entry.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑首页模块'**
+  String get home_section_customize_entry;
+
+  /// No description provided for @home_section_customize_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'长按拖动调整顺序，关闭开关可隐藏模块'**
+  String get home_section_customize_hint;
+
+  /// No description provided for @home_section_customize_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成'**
+  String get home_section_customize_done;
 
   /// No description provided for @discover_play_playlist.
   ///
@@ -2024,7 +2048,7 @@ abstract class AppLocalizations {
   /// No description provided for @discover_recommend_service_unavailable.
   ///
   /// In zh, this message translates to:
-  /// **'推荐服务暂不可用，请检查平台推荐插件是否已启用'**
+  /// **'推荐服务暂不可用，请检查推荐插件是否已启用'**
   String get discover_recommend_service_unavailable;
 
   /// No description provided for @discover_refresh_recent_playlists.
@@ -2066,13 +2090,13 @@ abstract class AppLocalizations {
   /// No description provided for @discover_unavailable_local_random.
   ///
   /// In zh, this message translates to:
-  /// **'本地随机暂时不可用'**
+  /// **'平台推荐暂时不可用'**
   String get discover_unavailable_local_random;
 
   /// No description provided for @discover_unavailable_platform.
   ///
   /// In zh, this message translates to:
-  /// **'平台推荐暂时不可用'**
+  /// **'插件推荐暂时不可用'**
   String get discover_unavailable_platform;
 
   /// No description provided for @discover_unavailable_recommend.

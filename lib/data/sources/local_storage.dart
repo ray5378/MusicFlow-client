@@ -7,6 +7,7 @@ import 'package:musicflow_client/core/services/credentials_store.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/server_config.dart';
 import 'package:musicflow_client/data/models/audio_quality.dart';
+import 'package:musicflow_client/data/models/home_section_layout.dart';
 import 'package:musicflow_client/data/models/search_history.dart';
 import 'package:musicflow_client/data/sources/json_file_store.dart';
 import 'package:musicflow_client/data/sources/prefs_gate.dart';
@@ -35,6 +36,7 @@ class LocalStorage {
   static const String _keyLyricsScrollDwellSeconds = 'lyrics_scroll_dwell_seconds';
   static const String _keyLoggingEnabled = 'logging_enabled';
   static const String _keySearchHistory = 'search_history_v1';
+  static const String _keyHomeSectionLayout = 'home_section_layout_v1';
 
   /// 是否开启日志抓取（默认关闭，需用户手动开启）。
   static Future<bool> getLoggingEnabled() async {
@@ -139,6 +141,44 @@ class LocalStorage {
   static Future<void> clearSearchHistory() async {
     final prefs = await getPrefs();
     await prefs.remove(_keySearchHistory);
+  }
+
+  /// 读取首页分区用户布局（顺序 + 显隐）。
+  /// 未自定义或 payload 损坏时返回 null（回落服务端清单，等价 [HomeSectionLayout.empty]）。
+  static Future<HomeSectionLayout?> getHomeSectionLayout() async {
+    final prefs = await getPrefs();
+    final raw = prefs.getString(_keyHomeSectionLayout);
+    if (raw == null || raw.isEmpty) return null;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        Logger.warnWithTag(_logTag, 'invalid home section layout payload type');
+        return null;
+      }
+      return HomeSectionLayout.fromJson(
+        decoded.map((key, value) => MapEntry(key.toString(), value)),
+      );
+    } catch (e) {
+      Logger.warnWithTag(_logTag, 'failed to parse home section layout', e);
+      return null;
+    }
+  }
+
+  /// 保存首页分区用户布局（覆盖写，小 JSON，符合 prefs「只放小设置」约束）。
+  static Future<void> saveHomeSectionLayout(HomeSectionLayout layout) async {
+    final prefs = await getPrefs();
+    await prefs.setString(
+      _keyHomeSectionLayout,
+      jsonEncode(layout.toJson()),
+    );
+    Logger.infoWithTag(_logTag, 'home section layout saved');
+  }
+
+  /// 清除首页分区用户布局（恢复完全遵循服务端清单）。
+  static Future<void> clearHomeSectionLayout() async {
+    final prefs = await getPrefs();
+    await prefs.remove(_keyHomeSectionLayout);
   }
 
   /// 保存服务器配置。

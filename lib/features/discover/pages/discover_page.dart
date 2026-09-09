@@ -9,9 +9,11 @@ import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/offline/dynamic_cover_keys.dart';
 import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/data/models/home_section_layout.dart';
 import 'package:musicflow_client/data/models/recommend.dart';
 import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/ui/home_section_layout_provider.dart';
 import 'package:musicflow_client/providers/ui/locale_provider.dart';
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/ui/navigation_provider.dart';
@@ -26,6 +28,8 @@ import 'package:musicflow_client/features/library/widgets/playlist_options_sheet
 import 'package:musicflow_client/widgets/windows_title_bar.dart'
     show isWindowsDesktop, kWindowsWindowControlsWidth;
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/features/discover/home_section_registry.dart';
+import 'package:musicflow_client/features/discover/pages/home_section_edit_page.dart';
 import 'package:musicflow_client/features/discover/widgets/discover_media_widgets.dart';
 import 'package:musicflow_client/features/discover/widgets/section_shift.dart';
 import 'package:musicflow_client/features/discover/widgets/category_nav_bar.dart';
@@ -80,15 +84,6 @@ Widget? _homeSectionWidget(String key) {
   }
 }
 
-/// 分区清单加载失败/未就绪时的回落顺序(与历史首页一致)。
-const List<String> kDefaultHomeSectionKeys = <String>[
-  'random-songs',
-  'recent-playlists',
-  'home-recommend',
-  'platform-recommend',
-  'local-recommend',
-];
-
 /// 音乐流首页 - Tab 1
 /// 打开全屏搜索页。首页标题行搜索按钮与搜索条共用同一入口，
 /// 保证各端搜索功能/逻辑一致（所有输入都在搜索页完成）。
@@ -100,6 +95,12 @@ void _openSearchPage(BuildContext context) {
     ),
   );
 }
+
+/// 分区清单加载失败/未就绪时的回落顺序(与历史首页一致,仅推荐两模块按
+/// 新定位排序:「平台推荐」(本地库,local-recommend)在「插件推荐」
+/// (platform-recommend)之前)。
+// kDefaultHomeSectionKeys / normalizeRecommendSectionOrder / 分区显示名与
+// 编辑模式顺序构建已迁至 home_section_registry.dart(首页与编辑页共用)。
 
 /// 播放本地歌单（供首页歌单卡封面播放按钮与长按菜单使用）。
 /// 加载歌单全部歌曲后整单播放，并记录队列来源为歌单（封面叠加跳动竖条）。
@@ -247,6 +248,50 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     );
   }
 
+  /// 打开首页分区编辑页（拖拽排序 + 显隐开关；保存后本页经 provider
+  /// 状态即时重建，隐藏分区随之停止拉取）。
+  void _openHomeSectionEditPage(BuildContext context) {
+    Navigator.of(context).push<void>(
+      MusicFlowPageRoute<void>(
+        context: context,
+        builder: (context) => const HomeSectionEditPage(),
+      ),
+    );
+  }
+
+  /// 首页分区列表最末的「编辑首页模块」入口（客户端自治入口，安静样式，
+  /// 不与内容分区抢视觉焦点）。
+  Widget _buildHomeSectionEditEntry(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = context.musicFlowColors;
+    final spacing = context.musicFlowSpacing;
+    return Center(
+      child: MusicFlowPressable(
+        semanticLabel: loc.home_section_customize_entry,
+        onPressed: () => _openHomeSectionEditPage(context),
+        borderRadius: context.musicFlowRadii.pill,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: spacing.md,
+            vertical: spacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(AppIcons.settings, size: 16, color: colors.muted),
+              SizedBox(width: spacing.xs),
+              Text(
+                loc.home_section_customize_entry,
+                style: context.musicFlowTypography.label
+                    .copyWith(color: colors.muted),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
@@ -267,8 +312,15 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             .map((s) => s.key)
             .toSet(),
     ];
-    final sectionKeys =
-        orderedKeys.isEmpty ? kDefaultHomeSectionKeys : orderedKeys;
+    final baseSectionKeys = normalizeRecommendSectionOrder(
+      orderedKeys.isEmpty ? kDefaultHomeSectionKeys : orderedKeys,
+    );
+    // 客户端自治:用户本地布局覆盖服务端清单 —— 顺序以用户排序优先
+    // (服务端新增分区追加尾部),用户隐藏的分区不渲染(分区 widget 不构建,
+    // 其数据 provider 无人 watch,自然不会向服务端拉取)。
+    final userLayout = ref.watch(homeSectionLayoutProvider).valueOrNull ??
+        HomeSectionLayout.empty;
+    final sectionKeys = applyHomeSectionLayout(baseSectionKeys, userLayout);
     final sectionWidgets = <String, Widget>{};
     for (final key in sectionKeys) {
       final sectionWidget = _homeSectionWidget(key);
@@ -353,9 +405,14 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                 context.musicFlowShellBottomObstruction,
                           ),
                           sliver: SliverList.separated(
-                            itemCount: visibleSectionKeys.length,
+                            itemCount: visibleSectionKeys.length + 1,
                             // KeyedSubtree 保证分区顺序变化时各分区(尤其状态型 RandomSongsSection)状态稳定。
                             itemBuilder: (context, index) {
+                              // 列表最末:客户端自治入口 —— 打开首页分区编辑页
+                              // (拖拽排序 + 显隐开关,用户手动管理首页模块)。
+                              if (index == visibleSectionKeys.length) {
+                                return _buildHomeSectionEditEntry(context);
+                              }
                               final key = visibleSectionKeys[index];
                               final child = KeyedSubtree(
                                 key: ValueKey<String>('home-section-$key'),
@@ -648,7 +705,7 @@ class FixedRecommendSection extends ConsumerWidget {
                 onRetry: () => ref.invalidate(homeRecommendSectionProvider),
               );
             }
-            // 固定卡 + 随机歌单合并为横向卡片行，样式与「平台推荐」完全一致：
+            // 固定卡 + 随机歌单合并为横向卡片行，样式与「插件推荐」完全一致：
             // 152 宽封面、playlistRailHeight 行高、HoverableHorizontalScroll 左右滑动。
             final cards = <({String id, String name, String coverArt, int songCount, String playlistId})>[
               for (final c in section.fixed)
@@ -755,7 +812,7 @@ class FixedRecommendSection extends ConsumerWidget {
   }
 }
 
-/// 打开平台推荐歌单。
+/// 打开插件推荐歌单。
 /// - **已入库**的歌单（recommend 数据带 imported 标记）：直接经
 ///   /recommend/local 反查本地 playlistId 打开，**不再重新导入刷新**；
 /// - **未入库**的歌单：与主项目一致，先经 /v1/online/:providerId/recommend/import
@@ -824,7 +881,7 @@ Future<void> _openRecommendPlaylist(
   }
 }
 
-/// 播放平台推荐歌单（封面播放按钮）。
+/// 播放插件推荐歌单（封面播放按钮）。
 /// - **已入库**：直接反查本地 playlistId 后整单播放，不再导入刷新；
 /// - **未入库**：先经 /v1/online/:providerId/recommend/import 幂等导入，
 ///   拿到真实 library playlistId 再整单播放（与 _openRecommendPlaylist 同链路）。
@@ -873,8 +930,8 @@ Future<void> _playRecommendPlaylist(
   }
 }
 
-/// 不同插件的平台推荐歌单:整体上下滚动不同平台,
-/// 同一平台内歌单横向滑动(与网页一致)。
+/// 插件推荐(原「平台推荐」):不同插件提供方(网易云/QQ 等)的推荐歌单,
+/// 整体上下滚动不同平台,同一平台内歌单横向滑动(与网页一致)。
 class PlatformRecommendSection extends ConsumerWidget {
   const PlatformRecommendSection({super.key});
 
@@ -901,7 +958,7 @@ class PlatformRecommendSection extends ConsumerWidget {
             final allPlaylists =
                 channels.expand((c) => c.playlists).toList();
             if (allPlaylists.isEmpty) {
-              // 数据驱动解耦:服务端暂无平台推荐数据时整块隐藏;仅加载失败才保留
+              // 数据驱动解耦:服务端暂无插件推荐数据时整块隐藏;仅加载失败才保留
               // 错误提示(可重试),避免空数据/失败占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
@@ -998,7 +1055,7 @@ class PlatformRecommendSection extends ConsumerWidget {
   }
 }
 
-/// 本地随机分区标题:优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
+/// 本地随机分区标题:优先用后端透传的 subtag(如「每日更新」),缺省回落「平台推荐」。
 /// 名称去掉末尾「音乐」与主项目前端保持一致。
 String localChannelTitle(AppLocalizations loc, LocalRecommendChannel channel) {
   final base = channel.name.endsWith(loc.discover_music_suffix)
@@ -1010,8 +1067,8 @@ String localChannelTitle(AppLocalizations loc, LocalRecommendChannel channel) {
   return '$base·$tag';
 }
 
-/// 本地随机(按平台):由后端 /v1/local-recommend 提供,从本地库按平台随机挑歌单。
-/// 与主项目前端一致:歌单均已入库,点击直接打开本地歌单,无需导入刷新。
+/// 平台推荐(按平台,原「本地随机」):由后端 /v1/local-recommend 提供,
+/// 从本地库按平台随机挑歌单。歌单均已入库,点击直接打开本地歌单,无需导入刷新。
 class LocalPlatformRecommendSection extends ConsumerWidget {
   const LocalPlatformRecommendSection({super.key});
 
@@ -1035,7 +1092,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
             final allPlaylists =
                 channels.expand((c) => c.playlists).toList();
             if (allPlaylists.isEmpty) {
-              // 数据驱动解耦:服务端暂无本地随机数据时整块隐藏;仅加载失败才保留
+              // 数据驱动解耦:服务端暂无平台推荐数据时整块隐藏;仅加载失败才保留
               // 错误提示(可重试),避免空数据/失败占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
               return DiscoverSectionMessage(
@@ -1052,7 +1109,7 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
                   if (channel.playlists.isNotEmpty) ...<Widget>[
                     if (channels.length > 1) ...<Widget>[
                       SizedBox(height: context.musicFlowSpacing.sm),
-                      // 分区标题优先用后端透传的 subtag(如「每日更新」),缺省回落「本地随机」。
+                      // 分区标题优先用后端透传的 subtag(如「每日更新」),缺省回落「平台推荐」。
                       Text(
                         localChannelTitle(loc, channel),
                         maxLines: 1,

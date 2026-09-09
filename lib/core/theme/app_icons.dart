@@ -28,6 +28,8 @@ abstract final class AppIcons {
   static const settings = Remix.settings_4_line;
   static const menu = Remix.menu_4_line;
   static const search = Remix.search_2_line;
+  // 拖拽把手(首页分区编辑等排序场景)。
+  static const drag = Remix.drag_move_2_line;
   static const more = Remix.more_2_fill;
 
   // Playback and listening modes.
