@@ -79,10 +79,17 @@ class _HomeSectionEditPageState extends ConsumerState<HomeSectionEditPage> {
       backgroundColor: colors.canvas,
       appBar: MusicFlowAppBar(
         title: Text(loc.home_section_customize),
+        // 完成按钮走 MusicFlowPressable 体系(CI 守卫禁止裸用 TextButton)。
         actions: <Widget>[
-          TextButton(
-            onPressed: _saveAndClose,
-            child: Text(loc.home_section_customize_done),
+          Padding(
+            padding: EdgeInsetsDirectional.only(end: spacing.xs),
+            child: Center(
+              child: MusicFlowButton.ghost(
+                label: loc.home_section_customize_done,
+                onPressed: _saveAndClose,
+                height: 36,
+              ),
+            ),
           ),
         ],
       ),
