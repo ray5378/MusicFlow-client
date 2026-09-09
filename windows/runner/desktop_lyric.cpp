@@ -178,6 +178,13 @@ float Sf(int v) { return static_cast<float>(v) * g_scale; }
 // 天然透明且不接收鼠标(等价旧 SetWindowRgn 裁剪)。
 int TotalHeight() { return g_curHeight + g_popupH; }
 
+// 悬停判定的客户区 y 下限:弹窗未展开时从歌词区顶(g_popupH)算起——上方
+// 弹窗区 alpha=0 不接收系统鼠标,轮询/即时高亮也必须同样忽略,否则鼠标
+// 掠过歌词上方空白区会误点亮整条悬停高亮;弹窗展开时整窗可停留(离开即收起)。
+// 轮询线程(HoverPollProc)与主线程(UpdateHoverState/WM_MOUSEMOVE)共用,
+// 保证「唤醒判定」与「状态判定」同规则。
+int HoverTopLimit() { return g_popup == PopupKind::None ? g_popupH : 0; }
+
 // GDI+ COLORREF → Color(COLoRREF 布局 0x00bbggrr;不用 GetXValue 宏,
 // 对 constexpr 截断会触发 C4310)。
 gd::Color Gd(COLORREF c, int alpha = 255) {
@@ -958,15 +965,18 @@ void UpdateHotFromPoint(const POINT& pt) {
   }
 }
 
-// 悬停状态轮询(30ms 一拍,仅可见时运行):光标落在窗口客户区矩形内
-// 即视为悬停——不按像素 alpha 命中,歌词笔画间隙/按钮边缘高亮稳定;
-// 移出后一拍内清高亮并收起弹窗(拖窗/拖滑条期间跳过,由 capture 接管)。
+// 悬停状态轮询(30ms 一拍,仅可见时运行):光标落在歌词区矩形内(弹窗展开时
+// 含弹窗条带,见 HoverTopLimit)即视为悬停——不按像素 alpha 命中,歌词笔画
+// 间隙/按钮边缘高亮稳定;移出后一拍内清高亮并收起弹窗(拖窗/拖滑条期间
+// 跳过,由 capture 接管)。弹窗未展开时上方弹窗区不计入悬停:alpha=0 本就
+// 不接收系统鼠标,若按整窗矩形判定,鼠标掠过歌词上方空白区就会误点亮
+// 整条悬停高亮(2026-09-09 用户反馈,音量弹窗收起后残留可交互区域)。
 void UpdateHoverState() {
   if (!g_hwnd || !g_visible || g_dragging) return;
   POINT pt{};
   bool inside = false;
   if (GetCursorPos(&pt) && ScreenToClient(g_hwnd, &pt)) {
-    inside = pt.x >= 0 && pt.x < g_curWidth && pt.y >= 0 &&
+    inside = pt.x >= 0 && pt.x < g_curWidth && pt.y >= HoverTopLimit() &&
              pt.y < TotalHeight();
   }
   if (!inside) {
@@ -1029,7 +1039,9 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         return 0;
       }
       // 悬停进出由轮询定时器统一判定;这里仅做即时高亮响应(不等下一拍)。
-      if (!g_hovering) {
+      // 与轮询同规则(弹窗未展开时弹窗条带不计入):过滤弹窗刚收起后队列中
+      // 残留的 MOUSEMOVE,防止高亮闪一下再被下一拍轮询熄灭。
+      if (!g_hovering && pt.y >= HoverTopLimit()) {
         g_hovering = true;
         RepaintLyric();
       }
@@ -1303,8 +1315,8 @@ DWORD WINAPI HoverPollProc(LPVOID) {
     if (!g_hoverRun || !g_visible || !g_hwnd) continue;
     POINT pt{};
     if (!GetCursorPos(&pt) || !ScreenToClient(g_hwnd, &pt)) continue;
-    const bool inside = pt.x >= 0 && pt.x < g_curWidth && pt.y >= 0 &&
-                        pt.y < TotalHeight();
+    const bool inside = pt.x >= 0 && pt.x < g_curWidth &&
+                        pt.y >= HoverTopLimit() && pt.y < TotalHeight();
     const bool moved = pt.x != g_lastPollPt.x || pt.y != g_lastPollPt.y;
     // 进出窗口边界变化,或悬停中发生移动,才唤醒主线程(空闲零消息)。
     if (inside != g_lastPollInside || (inside && moved)) {
