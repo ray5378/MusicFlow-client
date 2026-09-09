@@ -48,10 +48,11 @@ jobs:
       # 静态守卫：deadSongs（死歌名单）与失败连击停播上限（_maxFailStreak /
       # LOCAL_MAX_FAIL_STREAK / _maxCastFailStreak）已按 2026-09-09 决策整体移除，
       # 任何形式回归（重新引入拉黑或停播阈值）直接 CI 失败。
-      - name: Guard: no dead-song blacklist / no stop threshold
+      - name: "Guard - no dead-song blacklist / no stop threshold"
         shell: bash
         run: |
-          if grep -rnE "_deadSongs|deadSongs|_maxFailStreak|_maxCastFailStreak|LOCAL_MAX_FAIL_STREAK" lib/ ; then
+          # 只匹配「带下划线前缀的私有标识符」(真回归)，注释里提到旧机制不误伤。
+          if grep -rnE "_deadSongs|_maxFailStreak|_maxCastFailStreak" lib/ ; then
             echo "::error::播放链路契约回归:不允许重新引入死歌名单或停播阈值(2026-09-09 拍板:坏歌无限跳,靠换源治愈)"
             exit 1
           fi

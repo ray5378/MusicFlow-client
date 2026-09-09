@@ -179,7 +179,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
   /// 预探测缓存：songId -> 是否可用（session 级别，重启失效）。
   /// 带上限（FIFO 逐出），防止常驻无界增长（SPEC §1.5 内存红线）。
-  /// 仅用于探测去重；不再据此跳歌（旧 deadSongs 机制已删）。
+  /// 仅用于探测去重；不再据此跳歌（旧的永久拉黑机制已删）。
   final Map<String, bool> _probeCache = <String, bool>{};
 
   /// 防止并发预探测。
