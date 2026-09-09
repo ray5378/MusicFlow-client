@@ -45,6 +45,28 @@ jobs:
           flutter test test/core/dlna/dlna_auto_next_sim_test.dart
           flutter test test/providers/dlna_provider_test.dart
 
+      - name: Run local playback chain guard tests
+        run: flutter test test/core/player/playback_error_guard_test.dart
+
+      # 跨仓契约(客户端侧):客户端靠服务端 409 判定「无可用音源」,服务端哪天把
+      # 409 改成 404/400,两仓测试各自仍绿、线上直接失效。这里钉死客户端的
+      # 409 → DlnaSongUnplayableException 映射;服务端对称断言见 MusicFlow 仓库
+      # 同名 workflow 的 "409 no-playable-source contract" 步骤。
+      - name: "Guard - 409 to DlnaSongUnplayableException contract (cross-repo)"
+        shell: bash
+        run: |
+          miss=0
+          if ! grep -A 3 "statusCode == 409" lib/data/sources/subsonic_api_client.dart | grep -q "DlnaSongUnplayableException"; then
+            echo "::error::跨仓契约回归:getDlnaCastStreamUrl 必须把服务端 409 映射为 DlnaSongUnplayableException"
+            miss=1
+          fi
+          if ! grep -rq "class DlnaSongUnplayableException\|DlnaSongUnplayableException(" lib/core/dlna/; then
+            echo "::error::跨仓契约回归:lib/core/dlna 缺少 DlnaSongUnplayableException"
+            miss=1
+          fi
+          if [ "$miss" -eq 0 ]; then echo "OK: 409 映射契约在位"; fi
+          exit "$miss"
+
       # 静态守卫：deadSongs（死歌名单）与失败连击停播上限（_maxFailStreak /
       # LOCAL_MAX_FAIL_STREAK / _maxCastFailStreak）已按 2026-09-09 决策整体移除，
       # 任何形式回归（重新引入拉黑或停播阈值）直接 CI 失败。
