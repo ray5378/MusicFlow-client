@@ -35,8 +35,10 @@ class MusicFlowSongRow extends StatelessWidget {
     this.isPreview,
     this.showMoreButton = true,
     this.titleMaxLines = 2,
+    this.metadataMaxLines = 2,
     this.coverSize = 48,
     this.richMetadata = false,
+    this.deferCover = false,
   });
 
   static const double _numberWidth = 36;
@@ -62,6 +64,15 @@ class MusicFlowSongRow extends StatelessWidget {
   /// 歌名最大行数。默认 2 行（常规列表）；首页随机歌曲传 1，
   /// 过长截断，保持行高与参考稿一致。
   final int titleMaxLines;
+
+  /// 底部信息行(歌手 · 时长)最大行数。默认 2;队列等**固定行高**列表传 1,
+  /// 保证行高等值(配合外层 itemExtent 精确定位,长队列随机定位必中)。
+  final int metadataMaxLines;
+
+  /// 延迟加载封面:置 true 时不构建封面图(不发请求/不解码),仅渲染同尺寸
+  /// 占位。队列面板打开瞬间先用占位完成定位帧,定位落地后再展示真封面,
+  /// 避免定位逼近期间产生的临时行触发无效封面请求。
+  final bool deferCover;
 
   /// 封面尺寸。默认 48；首页随机歌曲传 56 以匹配参考比例。
   final double coverSize;
@@ -179,7 +190,12 @@ class MusicFlowSongRow extends StatelessWidget {
 
   Widget _buildDetails(BuildContext context, String artistText) {
     final loc = AppLocalizations.of(context);
-    final showFullText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    // 大字号无障碍:默认 2 行布局放宽为不截断;但调用方显式要求单行
+    // (titleMaxLines/metadataMaxLines == 1 的固定行高列表,如播放队列配合
+    // itemExtent 精确定位)时保持单行,行高不可膨胀。
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final relaxTitle = textScale > 1.3 && titleMaxLines > 1;
+    final relaxMetadata = textScale > 1.3 && metadataMaxLines > 1;
     final statusMarkers = <Widget>[
       if (_favorite)
         _SongStatusMarker(icon: AppIcons.heart, label: loc.widgets_song_favorite),
@@ -200,8 +216,8 @@ class MusicFlowSongRow extends StatelessWidget {
         Flexible(
           child: Text(
             song.title,
-            maxLines: showFullText ? null : titleMaxLines,
-            overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
+            maxLines: relaxTitle ? null : titleMaxLines,
+            overflow: relaxTitle ? TextOverflow.visible : TextOverflow.ellipsis,
             style: context.musicFlowTypography.title.copyWith(
               color: isCurrent
                   ? context.musicFlowColors.accent
@@ -238,7 +254,7 @@ class MusicFlowSongRow extends StatelessWidget {
                 )
               : MusicFlowMetadataLine(
                   items: <String?>[artistText, song.durationString],
-                  maxLines: showFullText ? null : 2,
+                  maxLines: relaxMetadata ? null : metadataMaxLines,
                 ),
         ),
         if (statusMarkers.isNotEmpty) ...<Widget>[
@@ -264,13 +280,24 @@ class MusicFlowSongRow extends StatelessWidget {
           clipBehavior: Clip.none,
           children: <Widget>[
             Positioned.fill(
-              child: MusicFlowArtwork(
-                coverArtId: coverArtId ?? song.artworkReference,
-                semanticLabel: loc.widgets_song_cover_semantics(song.title),
-                size: coverSize,
-                requestSize: 192,
-                borderRadius: context.musicFlowRadii.detail,
-              ),
+              // deferCover:定位帧不构建封面(不发请求/不解码),仅渲染同色
+              // 占位;定位落地后由调用方解锁,再换回真封面。
+              child: deferCover
+                  ? DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: context.musicFlowColors.divider,
+                        borderRadius: context.musicFlowRadii.detail,
+                      ),
+                    )
+                  : MusicFlowArtwork(
+                      coverArtId: coverArtId ?? song.artworkReference,
+                      semanticLabel: loc.widgets_song_cover_semantics(
+                        song.title,
+                      ),
+                      size: coverSize,
+                      requestSize: 192,
+                      borderRadius: context.musicFlowRadii.detail,
+                    ),
             ),
             // 正在播放：封面中央叠加半透明遮罩 + 白色跳动竖条（网易云风格）。
             // 队列等小封面直接正中间展示；大封面场景由上层组件另行处理。

@@ -618,10 +618,9 @@ class CastQueueSheetView extends StatelessWidget {
 }
 
 /// 投屏/遥控队列列表:自动把「当前播放」滚动到视口中间(对齐上层 _AutoCenterQueueList)。
-/// 复用同一套居中策略:行高不定,不依赖 itemExtent,目标行未构建时用
-/// 比例法粗估(maxScrollExtent × index/last)+ 逐轮逼近,构建后
-/// Scrollable.ensureVisible(alignment: 0.5) 精确居中。仍保持 ReorderableListView
-/// 以支持拖拽排序。
+/// 行高恒定(itemExtent + 行内 title/metadata 均单行):目标偏移 = 行中心 −
+/// 视口中心,一次 jumpTo 必中;当前行建好后 Scrollable.ensureVisible(alignment:
+/// 0.5) 仅做微调兜底。仍保持 ReorderableListView 以支持拖拽排序。
 class _AutoCenterCastList extends StatefulWidget {
   const _AutoCenterCastList({
     required this.queue,
@@ -645,14 +644,26 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
   final ScrollController _controller = ScrollController();
   final GlobalKey _currentKey = GlobalKey();
 
-  // 比例法粗估的最多逼近轮数:目标行未实例化时逐轮向队列尾部推进。
-  static const int _kMaxApproachRounds = 4;
+  // 封面延载 gate:false=定位帧只渲染同尺寸占位(不发封面请求/不解码),
+  // 精确定位落地后放行真封面。打开长队列时只有最终可视区的一屏行会发起请求。
+  bool _coversReady = false;
+
+  // 行高基准(与 MusicFlowSongRow 默认值一致):封面 48 + 上下 xs 内边距
+  // (投屏列表行间不加空隙)。
+  static const double _kCoverSize = 48;
 
   @override
   void initState() {
     super.initState();
     if (widget.queue.isNotEmpty && widget.currentIndex >= 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+      // 首帧布局完成后一次性定位并解锁封面(下一帧即见真封面)。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _jumpToCurrent();
+      });
+    } else {
+      // 无当前曲目可定位:直接放行封面,避免占位卡死。
+      _coversReady = true;
     }
   }
 
@@ -661,7 +672,10 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
     super.didUpdateWidget(oldWidget);
     // 只响应「当前曲目下标」变化而居中;列表引用变化不触发,避免抖动。
     if (widget.currentIndex != oldWidget.currentIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _jumpToCurrent();
+      });
     }
   }
 
@@ -671,44 +685,46 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
     super.dispose();
   }
 
-  void _centerOnCurrent() {
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _attemptCenter(round: 0);
-    });
+  void _unlockCovers() {
+    if (_coversReady) return;
+    setState(() => _coversReady = true);
   }
 
-  /// 把「当前播放行」滚动到视口中间(与 _AutoCenterQueueListState 同策略):
-  /// 目标行未构建时用**比例法**粗估(maxScrollExtent × index/last),
-  /// 避免固定行高在长队列下误差累积导致目标行永不实例化;未命中则逐轮
-  /// 推进,命中后 Scrollable.ensureVisible(alignment: 0.5) 精确居中。
-  void _attemptCenter({required int round}) {
-    if (!mounted) return;
-    final ctx = _currentKey.currentContext;
-    if (ctx != null) {
-      _revealCentered(ctx);
+  /// 行高(所有行等高):基准(封面 + 上下 padding)× textScaler,无障碍
+  /// 大字号下同步放大;行内 title/metadata 均单行,不会超出行高。
+  double _rowExtent(BuildContext context) {
+    final spacing = context.musicFlowSpacing;
+    final scale = MediaQuery.textScalerOf(context).scale(1.0);
+    return (_kCoverSize + spacing.xs * 2) * scale;
+  }
+
+  /// 把「当前播放行」一次性精确定位到视口中间。
+  ///
+  /// 行高恒定(itemExtent)后无需猜测:目标偏移 = 顶部 padding + 行中心 −
+  /// 视口中心,一次 jumpTo 必中;旧比例法(maxScrollExtent × index/last)依赖
+  /// 「行高均匀」假设,行高参差时长队列深下标必偏且需逐轮逼近(每轮重建一屏行
+  /// + 触发大量封面请求,打开即卡),已随固定行高整体废弃。
+  void _jumpToCurrent() {
+    final last = widget.queue.length - 1;
+    if (last < 0 || !_controller.hasClients) {
+      // 无可定位目标:放行封面,避免占位卡死。
+      _unlockCovers();
       return;
     }
-    if (!_controller.hasClients || widget.queue.isEmpty) return;
-    final last = widget.queue.length - 1;
-    if (last <= 0) return;
     final index = widget.currentIndex.clamp(0, last).toInt();
-    final maxExtent = _controller.position.maxScrollExtent;
-    var ratio = index / last;
-    if (round > 0) {
-      // 上一轮未命中(行高不均致粗估偏小):向队列尾部增量推进,最多数轮。
-      ratio = (ratio + 0.15 * round).clamp(0.0, 1.0);
-    }
-    _controller.jumpTo(maxExtent * ratio);
+    final position = _controller.position;
+    final extent = _rowExtent(context);
+    final padTop = context.musicFlowSpacing.xs;
+    final target =
+        padTop + index * extent + extent / 2 - position.viewportDimension / 2;
+    _controller.jumpTo(target.clamp(0.0, position.maxScrollExtent).toDouble());
+    // 定位落地:解锁真封面(下一帧起才发起请求,此前的帧全部为占位),
+    // 再由 ensureVisible 做一次微调兜底(textScaler 放大时 extent 是近似值)。
+    _unlockCovers();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final refined = _currentKey.currentContext;
-      if (refined != null) {
-        _revealCentered(refined);
-      } else if (round < _kMaxApproachRounds) {
-        _attemptCenter(round: round + 1);
-      }
+      final ctx = _currentKey.currentContext;
+      if (ctx != null) _revealCentered(ctx);
     });
   }
 
@@ -725,11 +741,13 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final current = widget.currentIndex;
+    final spacing = context.musicFlowSpacing;
     return ReorderableListView.builder(
       scrollController: _controller,
-      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: spacing.xs),
       buildDefaultDragHandles: false,
       itemCount: widget.queue.length,
+      itemExtent: _rowExtent(context),
       onReorder: (from, to) {
         // onReorder 的 to 为移除后的净插入位(>from 时为原始坐标+1),
         // 与 reorderQueue 的约定一致,直接下发后端 reorder。
@@ -752,11 +770,14 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
               song: song,
               variant: MusicFlowSongRowVariant.standard,
               isCurrent: isCurrent,
+              titleMaxLines: 1,
+              metadataMaxLines: 1,
+              deferCover: !_coversReady,
               contentPadding: EdgeInsetsDirectional.fromSTEB(
-                context.musicFlowSpacing.md,
-                context.musicFlowSpacing.xs,
-                context.musicFlowSpacing.xs,
-                context.musicFlowSpacing.xs,
+                spacing.md,
+                spacing.xs,
+                spacing.xs,
+                spacing.xs,
               ),
               onPressed: () => unawaited(widget.onSelect(index)),
               onMorePressed: () => widget.onRemove(index),
@@ -765,7 +786,7 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
             ),
           ),
         );
-        // 只在当前行挂 GlobalKey,供 ensureVisible 精确定位居中。
+        // 只在当前行挂 GlobalKey,供 ensureVisible 微调兜底居中。
         return isCurrent ? KeyedSubtree(key: _currentKey, child: row) : row;
       },
     );
@@ -773,10 +794,11 @@ class _AutoCenterCastListState extends State<_AutoCenterCastList> {
 }
 
 /// 桌面右下侧队列列表:自动把「当前播放」滚动到视口中间(对齐网易云客户端)。
-/// 行高不定(文本可换行),不依赖固定 itemExtent:目标行未构建时用比例法
-/// 粗估(maxScrollExtent × index/last,不随 index 累积误差)+ 逐轮逼近,
-/// 构建后 Scrollable.ensureVisible(alignment: 0.5) 精确居中;当前曲目变化后
-/// 重新滚动到中间。
+/// 行高恒定(itemExtent + 行内 title/metadata 均单行):目标偏移 = 行中心 −
+/// 视口中心,一次 jumpTo 必中;当前行建好后 Scrollable.ensureVisible(alignment:
+/// 0.5) 仅做微调兜底;定位落地前封面延载(同尺寸占位),打开 2000 首级长队列
+/// 只构建/请求最终一屏,杜绝逐轮逼近导致的连环构建与封面请求洪峰。当前曲目
+/// 变化后重新定位到中间。
 class _AutoCenterQueueList extends StatefulWidget {
   const _AutoCenterQueueList({
     required this.queue,
@@ -806,14 +828,26 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
       widget.scrollController ?? ScrollController();
   final GlobalKey _currentKey = GlobalKey();
 
-  // 比例法粗估的最多逼近轮数:目标行未实例化时逐轮向队列尾部推进。
-  static const int _kMaxApproachRounds = 4;
+  // 封面延载 gate:false=定位帧只渲染同尺寸占位(不发封面请求/不解码),
+  // 精确定位落地后放行真封面。打开长队列时只有最终可视区的一屏行会发起请求。
+  bool _coversReady = false;
+
+  // 行高基准(与 MusicFlowSongRow 默认值一致):封面 48 + 上下 xs 内边距
+  // + 行间 xxs 空隙(吸收原 ListView.separated 的 separator,视觉不变)。
+  static const double _kCoverSize = 48;
 
   @override
   void initState() {
     super.initState();
     if (widget.queue.isNotEmpty && widget.currentIndex >= 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+      // 首帧布局完成后一次性定位并解锁封面(下一帧即见真封面)。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _jumpToCurrent();
+      });
+    } else {
+      // 无当前曲目可定位:直接放行封面,避免占位卡死。
+      _coversReady = true;
     }
   }
 
@@ -823,7 +857,10 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
     // 只响应「当前选中曲目下标」变化而居中(点选未在播的曲目也会切换下标,
     // 故无论是否在播都居中对齐;列表引用变化不触发,避免抖动)。
     if (widget.currentIndex != oldWidget.currentIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _centerOnCurrent());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _jumpToCurrent();
+      });
     }
   }
 
@@ -833,48 +870,48 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
     super.dispose();
   }
 
-  void _centerOnCurrent() {
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _attemptCenter(round: 0);
-    });
+  void _unlockCovers() {
+    if (_coversReady) return;
+    setState(() => _coversReady = true);
   }
 
-  /// 把「当前播放行」滚动到视口中间。
+  /// 行高(所有行等高):基准(封面 + 上下 padding + 行间距)× textScaler,
+  /// 无障碍大字号下同步放大;行内 title/metadata 均单行,不会超出行高。
+  double _rowExtent(BuildContext context) {
+    final spacing = context.musicFlowSpacing;
+    final scale = MediaQuery.textScalerOf(context).scale(1.0);
+    return (_kCoverSize + spacing.xs * 2 + spacing.xxs) * scale;
+  }
+
+  /// 把「当前播放行」一次性精确定位到视口中间。
   ///
-  /// 目标行尚未构建时(ListView 懒加载)先用**比例法**粗估偏移——
-  /// 按当前行在队列中的位置比例乘以 maxScrollExtent,而非固定行高:
-  /// 固定行高在长队列(如随机模式 100+ 首)下误差随 index 线性累积,
-  /// 粗估位置偏出可视区后目标行始终不实例化,居中彻底失效。
-  /// 比例法误差仅来自行高不均,且每轮按比例推进兜底,直到目标行被构建,
-  /// 再由 Scrollable.ensureVisible(alignment: 0.5) 精确定位居中。
-  void _attemptCenter({required int round}) {
-    if (!mounted) return;
-    final ctx = _currentKey.currentContext;
-    if (ctx != null) {
-      _revealCentered(ctx);
+  /// 行高恒定(itemExtent)后无需猜测:目标偏移 = 顶部 padding + 行中心 −
+  /// 视口中心,一次 jumpTo 必中。旧比例法(maxScrollExtent × index/last)依赖
+  /// 「行高均匀」假设——行内标题/元信息可换行导致行高参差,窄面板放大换行
+  /// 概率,长队列随机模式(下标深)粗估必偏,只能逐轮逼近:每轮重建一屏行 +
+  /// 触发大量封面请求,打开即卡;逼近偏小时目标行永不实例化,即「随机不居中」。
+  /// 固定行高 + 精确偏移把卡顿与不居中一起根治。
+  void _jumpToCurrent() {
+    final last = widget.queue.length - 1;
+    if (last < 0 || !_controller.hasClients) {
+      // 无可定位目标:放行封面,避免占位卡死。
+      _unlockCovers();
       return;
     }
-    if (!_controller.hasClients || widget.queue.isEmpty) return;
-    final last = widget.queue.length - 1;
-    if (last <= 0) return;
     final index = widget.currentIndex.clamp(0, last).toInt();
-    final maxExtent = _controller.position.maxScrollExtent;
-    var ratio = index / last;
-    if (round > 0) {
-      // 上一轮未命中(行高不均致粗估偏小):向队列尾部增量推进,最多数轮。
-      ratio = (ratio + 0.15 * round).clamp(0.0, 1.0);
-    }
-    _controller.jumpTo(maxExtent * ratio);
+    final position = _controller.position;
+    final extent = _rowExtent(context);
+    final padTop = context.musicFlowSpacing.xs;
+    final target =
+        padTop + index * extent + extent / 2 - position.viewportDimension / 2;
+    _controller.jumpTo(target.clamp(0.0, position.maxScrollExtent).toDouble());
+    // 定位落地:解锁真封面(下一帧起才发起请求,此前的帧全部为占位),
+    // 再由 ensureVisible 做一次微调兜底(textScaler 放大时 extent 是近似值)。
+    _unlockCovers();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final refined = _currentKey.currentContext;
-      if (refined != null) {
-        _revealCentered(refined);
-      } else if (round < _kMaxApproachRounds) {
-        _attemptCenter(round: round + 1);
-      }
+      final ctx = _currentKey.currentContext;
+      if (ctx != null) _revealCentered(ctx);
     });
   }
 
@@ -891,12 +928,12 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final current = widget.currentIndex;
-    return ListView.separated(
+    final spacing = context.musicFlowSpacing;
+    return ListView.builder(
       controller: _controller,
-      padding: EdgeInsets.symmetric(vertical: context.musicFlowSpacing.xs),
+      padding: EdgeInsets.symmetric(vertical: spacing.xs),
       itemCount: widget.queue.length,
-      separatorBuilder: (context, index) =>
-          SizedBox(height: context.musicFlowSpacing.xxs),
+      itemExtent: _rowExtent(context),
       itemBuilder: (context, i) {
         final song = widget.queue[i];
         final isCurrent = i == current;
@@ -905,11 +942,14 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
           song: song,
           variant: MusicFlowSongRowVariant.standard,
           isCurrent: isCurrent,
+          titleMaxLines: 1,
+          metadataMaxLines: 1,
+          deferCover: !_coversReady,
           contentPadding: EdgeInsetsDirectional.fromSTEB(
-            context.musicFlowSpacing.md,
-            context.musicFlowSpacing.xs,
-            context.musicFlowSpacing.xs,
-            context.musicFlowSpacing.xs,
+            spacing.md,
+            spacing.xs,
+            spacing.xs,
+            spacing.xs,
           ),
           onPressed: () => unawaited(widget.onSelect(i)),
           onLongPress: () => unawaited(
@@ -921,7 +961,7 @@ class _AutoCenterQueueListState extends State<_AutoCenterQueueList> {
           moreSemanticLabel: loc.queue_more_actions_semantic(song.title),
           showMoreButton: false,
         );
-        // 只在当前行挂 GlobalKey,供 ensureVisible 精确定位居中。
+        // 只在当前行挂 GlobalKey,供 ensureVisible 微调兜底居中。
         return isCurrent ? KeyedSubtree(key: _currentKey, child: row) : row;
       },
     );
