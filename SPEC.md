@@ -487,6 +487,30 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 验收方式：Windows 机器 `flutter build windows --profile` 实测（本地调试允许 profile 构建；发布产物仍走 CI release）。未附验收数据视为未完成。
 
+### 8.6 原生窗口渲染自定义 icon font 字形：禁止运行时加载字体，必须离线提取硬编码（v4.3.28 教训）
+
+> 背景：桌面歌词浮窗（`windows/runner/desktop_lyric.cpp`，GDI+ 分层窗口）要渲染与 Flutter 端同款 remixicon 图标（播放队列/顺序播放）。运行时加载字体在本机已实测三连败，全部走不通，每次失败形态还不同（静默降级 → 图标不对 → 直接崩溃）。
+
+运行时加载三连败（均已实测定性，禁止再试）：
+
+1. `AddFontResourceExW(FR_PRIVATE)`：注册成功但**只对 GDI TextOut 可见**，GDI+ `FontFamily(name)` 构造完全查不到（status 14）——曾致歌词窗 remix 图标全部静默降级为 Segoe 字形，且 `GetLastStatus` 校验只降级不报警，失效无人知。
+2. FR_PRIVATE 字体的 family 名必须用**字体内部名**（fontTools 读 name 表 nameID=1），remix.ttf 是 `remixicon` 而非文件名/别名 `remix`；名字对了 FR_PRIVATE 依然喂不动 GDI+（见 1）。
+3. `PrivateFontCollection`（`AddFontFile` + `GetFamilies`）：family 构造成功，但本机 gdiplus 10.0.19041 上，集合内 family **首次进入 `GraphicsPath::AddString` 即 c0000005 崩溃**（启动约 11s、hover 触发按钮绘制才炸；事件日志实锤 gdiplus.dll 访问违例）。
+
+**硬性约束：原生窗口要用随包 icon font 的字形，一律离线提取轮廓硬编码为矢量路径：**
+
+- 工具：`tool/gen_lyric_glyphs.py`（venv Python，fontTools RecordingPen 提取 → 二次贝塞尔升三次 `c1=P0+⅔(P1−P0)` 含 off-point 链中点插值 → Y 翻转为向下为正 → 生成 `PointF`/`BYTE` 类型数组）；`--patch windows/runner/desktop_lyric.cpp` 自动回写标记区段（读写 utf-8 + `newline=""` 保 CRLF）。
+- 绘制：`DrawRemixGlyph`（em 等比缩放、ink 外接框居中于按钮圆心、`GraphicsPath(pts, types, count)` 构造 + `FillPath`；PathPointType：Start=0/Line=1/Bezier=3，每轮廓末点 |0x80 CloseSubpath）。
+- 新增字形：改脚本 `GLYPHS` 列表 → 跑 `--patch` → `DrawButton` 加 case。**禁止重新引入任何运行时字体加载**（FR_PRIVATE / PFC）。
+- 优点：与 Flutter 端同字体同源天然一致；字形随包固定一次提取永久有效；零字体加载崩溃面。
+
+配套坑（均实测）：
+
+- runner 目标开 `/WX`：数据字面量**必须带 `f` 后缀**（double→float 截断 C4305 被当 error；且整数不能拼 `1100f`——非法，要 `1100.0f`）。
+- patch 标记必须用**完整唯一行**：数据区起始标记 `// ---- 硬编码 remixicon 字形轮廓(由 tool/gen_lyric_glyphs.py 生成` 与函数说明注释 `// ---- 硬编码 remixicon 字形 ----` 前 20 字符相同，截短匹配会吞掉 struct 定义区。
+- `windows/flutter/ephemeral/cpp_client_wrapper/*.cc` 残缺报 C1083：从 SDK 缓存 `bin/cache/artifacts/engine/windows-x64/cpp_client_wrapper/` cp 补齐即可，无需 clean。
+- 桌面歌词按钮图标的语义对齐：与迷你条共用语义（队列=播放三角列表 `play_list_2_line`，顺序播放=数字有序列表 `list_ordered_2`，经 `AppIcons.queue`/`AppIcons.orderPlayback`），原生侧硬编码轮廓必须与 pub 包 remixicon 同码点同字体文件。
+
 ---
 
 ## 九、测试规范
@@ -573,6 +597,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 12. **禁止**在 Windows 引入/保留导致卡顿的高成本特效（§8.1）与未节流的高频重建（§8.2）。
 13. **禁止**在本地机器执行 `flutter build`（apk/windows 等）；构建产物只由 CI 产出。
 14. **禁止**为链路 B 的 DLNA 发现/状态模块使用单发递归轮询（`Future.delayed`/`Timer` 递归）——新代码统一用 `Timer.periodic`/`Stream.periodic` 且 `dispose`（链路 B 状态轮询已遵循，§3.6）。
+15. **禁止**在 Windows 原生窗口运行时加载自定义字体（`AddFontResourceExW`/`PrivateFontCollection` 均已实测失败）——icon font 字形一律离线提取硬编码（§8.6，工具 `tool/gen_lyric_glyphs.py`）。
 
 ---
 

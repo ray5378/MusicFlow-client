@@ -1106,7 +1106,7 @@ class _PlayModeButton extends StatelessWidget {
     final modeIcon = switch (mode) {
       'shuffle' => AppIcons.shuffle,
       'one' => AppIcons.repeatOne,
-      'order' => AppIcons.queue,
+      'order' => AppIcons.orderPlayback,
       _ => AppIcons.repeat,
     };
     final modeLabel = switch (mode) {

@@ -21,8 +21,8 @@ import 'package:musicflow_client/features/library/pages/starred_page.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
-import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/effective_volume.dart';
 import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/random_songs_push_provider.dart';
@@ -152,6 +152,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   Timer? _initialNetworkStateTimer;
   NetworkType? _observedNetworkType;
 
+  /// 桌面歌词音量滑条回传的节流下发器(首次收到 volume: 消息时创建)。
+  ThrottledVolumeSender? _lyricVolumeSender;
+
   @override
   void initState() {
     super.initState();
@@ -170,11 +173,17 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   void _initTrayListener() {
     _trayChannel.setMessageHandler((message) async {
       if (!mounted || message == null) return '';
-      // 桌面歌词浮窗音量滑条:volume:<0..1>,调整播放器自身音量(不动系统音量)。
-      if (message!.startsWith('volume:')) {
-        final v = double.tryParse(message!.substring(7));
+      // 桌面歌词浮窗音量滑条:volume:<0..1>,按当前链路路由(直投→SOAP 设备/
+      // 投屏→POST 后端/本机→just_audio),与迷你播放条音量按钮同一套逻辑;
+      // 原生层拖动消息很密,经 ThrottledVolumeSender 节流 + 尾部补发保证
+      // 最终值到达(本机 setVolume 自带 1s 落盘防抖,拖动期间不会刷盘)。
+      if (message.startsWith('volume:')) {
+        final v = double.tryParse(message.substring(7));
         if (v != null) {
-          await ref.read(playerProvider.notifier).setVolume(v);
+          _lyricVolumeSender ??= ThrottledVolumeSender(
+            onSend: (val) => setEffectiveVolume(ref, val),
+          );
+          _lyricVolumeSender!.send(v);
         }
         return '';
       }
@@ -193,18 +202,21 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           await toggleEffectivePlayback(ref);
           break;
         case 'previous':
-          await ref.read(castPeerControllerProvider.notifier).previous();
+          // 上下曲按链路路由(直投→SOAP 推新曲 URL 给设备;投屏→POST 后端;
+          // 本机→本地播放器),对齐迷你播放条 onPrevious/onNext。
+          await previousEffectivePlayback(ref);
           break;
         case 'next':
-          await ref.read(castPeerControllerProvider.notifier).next();
+          await nextEffectivePlayback(ref);
           break;
         case 'toggle_status_lyrics':
           // 托盘菜单「显示桌面歌词」:与客户端设置页开关共用同一个入口。
           await ref.read(statusLyricsControllerProvider).toggle();
           break;
         case 'cycle_playback_mode':
-          // 桌面歌词浮窗「播放模式」按钮:循环切换 随机/列表循环/单曲循环。
-          await ref.read(playerProvider.notifier).cyclePlaybackMode();
+          // 桌面歌词浮窗「播放模式」按钮:按链路路由切换 随机/列表循环/
+          // 单曲循环(直投→设备模式;投屏→后端;本机→本地),对齐迷你条。
+          await cycleEffectivePlayMode(ref);
           break;
         case 'toggle_like':
           // 桌面歌词浮窗「喜欢」按钮:与主窗口喜欢按钮同一条链路。
@@ -237,6 +249,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
 
   @override
   void dispose() {
+    _lyricVolumeSender?.dispose();
     _stopNetworkObservation();
     super.dispose();
   }

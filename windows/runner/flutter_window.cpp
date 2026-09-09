@@ -234,7 +234,10 @@ void FlutterWindow::HandleWindowMethod(
         st.playing = getBool("playing", false);
         st.liked = getBool("liked", false);
         const std::string mode = getStr("mode");
-        st.mode = mode == "shuffle" ? 0 : (mode == "repeatOne" ? 2 : 1);
+        // 0=shuffle 1=repeatAll 2=repeatOne 3=order(顺序播放,remix 有序列表图形)。
+        st.mode = mode == "shuffle"
+                      ? 0
+                      : (mode == "repeatOne" ? 2 : (mode == "order" ? 3 : 1));
         st.volume = getDouble("volume", 0.8);
         // 歌词填充色 0xRRGGBB,随 MINI 播放器歌词栏 accent;缺省保持默认粉。
         const int32_t colorRaw = getInt("lyricColor", -1);

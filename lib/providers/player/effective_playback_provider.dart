@@ -91,6 +91,22 @@ Future<void> toggleEffectivePlayback(WidgetRef ref) async {
   await ref.read(castPeerControllerProvider.notifier).toggle();
 }
 
+/// 播放模式循环切换：链路 B 直投→设备模式；投屏→后端；本机→本地播放器。
+/// 对齐迷你播放条模式按钮的路由(mini_player onCyclePlayMode),
+/// 桌面歌词浮窗模式按钮与迷你条共用本入口。
+Future<void> cycleEffectivePlayMode(WidgetRef ref) async {
+  if (ref.read(_dlnaCastingProvider)) {
+    await ref.read(dlnaCastProvider.notifier).cyclePlayMode();
+    return;
+  }
+  final cast = ref.read(castPeerControllerProvider);
+  if (cast.activePeer != null) {
+    await ref.read(castPeerControllerProvider.notifier).cyclePlayMode();
+    return;
+  }
+  await ref.read(playerProvider.notifier).cyclePlaybackMode();
+}
+
 /// 暂停（定时停止等场景的显式暂停）:链路 B 直投→指挥 DLNA 设备暂停;
 /// 链路 A 投屏→后端暂停;本机→本地暂停。cast_peer.pause() 内部无 activePeer
 /// 时会自动回退到本机暂停,因此这里统一经由它即可。

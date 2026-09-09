@@ -62,6 +62,28 @@ void main() {
     });
   });
 
+  group('castPlayModeToLyricMode', () {
+    test('shuffle → shuffle', () {
+      expect(castPlayModeToLyricMode('shuffle'), 'shuffle');
+    });
+
+    test('one → repeatOne', () {
+      expect(castPlayModeToLyricMode('one'), 'repeatOne');
+    });
+
+    test('order 透传(顺序播放图形与列表循环不同)', () {
+      expect(castPlayModeToLyricMode('order'), 'order');
+    });
+
+    test('all → repeatAll', () {
+      expect(castPlayModeToLyricMode('all'), 'repeatAll');
+    });
+
+    test('未知值兜底 → repeatAll', () {
+      expect(castPlayModeToLyricMode('unknown'), 'repeatAll');
+    });
+  });
+
   group('setDesktopLyricState', () {
     test('非 Windows 平台安全 no-op(不抛错)', () async {
       // flutter test 默认 defaultTargetPlatform != windows,

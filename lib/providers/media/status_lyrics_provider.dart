@@ -10,6 +10,8 @@ import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
 import 'package:musicflow_client/providers/media/desktop_lyric_popup.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
+import 'package:musicflow_client/providers/player/effective_volume.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/widgets/windows_title_bar.dart';
 
@@ -26,6 +28,24 @@ String deriveDesktopLyricMode({
 }) {
   if (shuffleEnabled) return 'shuffle';
   return loopMode == LoopMode.one ? 'repeatOne' : 'repeatAll';
+}
+
+/// cast 链路 playMode(order|one|all|shuffle) → 歌词窗模式串
+/// (shuffle/repeatOne/repeatAll/order,原生层按 0=shuffle/1=repeatAll/
+/// 2=repeatOne/3=order 解释)。order 单独透传:迷你条顺序播放图形是
+/// 有序列表(list_ordered_2),与列表循环(repeat_2 箭头)不同,歌词窗同步区分。
+/// 纯函数,带单测。
+String castPlayModeToLyricMode(String playMode) {
+  switch (playMode) {
+    case 'shuffle':
+      return 'shuffle';
+    case 'one':
+      return 'repeatOne';
+    case 'order':
+      return 'order';
+    default:
+      return 'repeatAll';
+  }
 }
 
 /// 桌面歌词控制器:持久化开关,监听播放状态(歌名/歌手/歌词行/播放/喜欢/
@@ -67,12 +87,25 @@ class StatusLyricsController {
           playerProvider.select((s) => s.currentSong),
           (_, __) => _push(),
         ),
+        // 播放态/音量:统一链路源(effective provider)——投屏时是设备侧
+        // 状态,与迷你播放条同源;设备端/其他端改音量也实时反映到歌词窗。
         _ref.listen<bool>(
-          playerProvider.select((s) => s.isPlaying),
+          effectiveIsPlayingProvider,
           (_, __) => _push(),
         ),
         _ref.listen<double>(
-          playerProvider.select((s) => s.volume),
+          effectiveVolumeProvider,
+          (_, __) => _push(),
+        ),
+        // 播放模式:投屏链路是设备/后端独立的 playMode,变化也要推。
+        _ref.listen(
+          dlnaCastProvider.select((s) => (s.isCasting, s.playMode)),
+          (_, __) => _push(),
+        ),
+        _ref.listen(
+          castPeerControllerProvider.select(
+            (s) => (s.activePeer != null, s.playMode),
+          ),
           (_, __) => _push(),
         ),
         _ref.listen<bool>(
@@ -156,14 +189,15 @@ class StatusLyricsController {
     final title = song?.title ?? '';
     final artist = song?.artist?.trim() ?? '';
     final lyric = _ref.read(currentLyricLineProvider) ?? '';
-    final playing = player.isPlaying;
+    // 播放态/音量:统一链路源(直投/peer 投屏时取设备侧状态,与本机无关)。
+    final playing = _ref.read(effectiveIsPlayingProvider);
     final liked = player.currentSong?.starred ?? false;
-    // 播放模式:推导规则在 deriveDesktopLyricMode(纯函数,带单测)。
-    final mode = deriveDesktopLyricMode(
-      shuffleEnabled: player.shuffleEnabled,
-      loopMode: player.loopMode,
+    // 播放模式:本机按 deriveDesktopLyricMode 推导(纯函数,带单测);
+    // 投屏链路取设备/后端独立 playMode(对齐迷你播放条模式按钮)。
+    final mode = _effectiveLyricMode(player);
+    final volume = double.parse(
+      _ref.read(effectiveVolumeProvider).toStringAsFixed(2),
     );
-    final volume = double.parse(player.volume.toStringAsFixed(2));
     // 歌词填充色:固定暖黄(不随封面/主题取色变化)。
     const lyricColor = 0xFFC233;
     // 去重:任何字段都没变就不推。
@@ -181,6 +215,19 @@ class StatusLyricsController {
       volume: volume,
       lyricColor: lyricColor,
     ));
+  }
+
+  /// 歌词窗播放模式串:投屏链路取设备/后端 playMode(order|one|all|shuffle),
+  /// 与本机 shuffle/loopMode 无关;本机沿用 deriveDesktopLyricMode。
+  String _effectiveLyricMode(PlayerState player) {
+    final dlna = _ref.read(dlnaCastProvider);
+    if (dlna.isCasting) return castPlayModeToLyricMode(dlna.playMode);
+    final cast = _ref.read(castPeerControllerProvider);
+    if (cast.activePeer != null) return castPlayModeToLyricMode(cast.playMode);
+    return deriveDesktopLyricMode(
+      shuffleEnabled: player.shuffleEnabled,
+      loopMode: player.loopMode,
+    );
   }
 
   // ==================== 播放队列 / 切换播放器弹窗 ====================

@@ -6,16 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/song.dart';
-import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
-import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/effective_volume.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/widgets/cover_art_image.dart';
 
 
 /// 桌面端音量控制按钮：点击弹出滑块调节音量。
-/// 对齐主项目前端 setVolume：
+/// 链路路由与显示统一走 effective_volume.dart(与桌面歌词浮窗共用):
 /// - 投屏(选中远端 peer) → POST /peers/:id/volume {volume:0-100}；
+/// - DLNA 直投 → SOAP SetVolume；
 /// - 本机 → just_audio setVolume(0-1)，并持久化供下次启动恢复。
 class VolumeButton extends ConsumerStatefulWidget {
   const VolumeButton({super.key, this.anchorTop = false});
@@ -34,17 +34,11 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
   /// 拖动中的临时音量（0.0~1.0）。拖动期间优先显示它，松手后置空。
   double? _dragValue;
 
-  /// 投屏端节流发送时间戳：拖动时 ≤10 次/秒，避免刷爆网络。
-  DateTime? _lastCastVolumeSend;
-
-  /// 链路 B（DLNA 直投）端节流发送时间戳。
-  DateTime? _lastDlnaVolumeSend;
-
-  /// 本机端节流：拖动时避免每次 onChanged 都走 media_kit FFI（全局锁串行，
-  /// 高频调用会堆积造成 UI 假死）。仅保留最新值，≤13 次/秒。
-  DateTime? _lastLocalVolumeSend;
-  double? _pendingLocalVolume;
-  Timer? _localVolumeThrottleTimer;
+  /// 拖动实时下发节流器:投屏链路 ≤10 次/秒防刷爆网络,静默后尾部补发;
+  /// 本机走 setVolumeLive(live 路径,实时跟手、不逐次落盘)。
+  late final ThrottledVolumeSender _sender = ThrottledVolumeSender(
+    onSend: (v) => setEffectiveVolume(ref, v, live: true),
+  );
 
   /// 音量浮层内实时音量（0.0~1.0）：驱动滑杆滑块与百分比文本即时刷新，
   /// 不依赖 provider 重建（浮层位于根 Overlay，父 setState 不会重建它）。
@@ -52,113 +46,6 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
 
   /// 拖动手感触感节流：音量跨越 ≥4% 才给一次 selectionClick，避免每帧震。
   double _lastVolumeHaptic = -1;
-
-  /// 当前控制目标音量（0.0~1.0）：投屏取 peer status.volume(0-100)，
-  /// 本机取 playerState.volume。peer 未回报音量时回退本机音量。
-  double _effectiveVolume() {
-    final cast = ref.watch(castPeerControllerProvider);
-    if (cast.activePeer != null && cast.status.volume != null) {
-      return (cast.status.volume! / 100).clamp(0.0, 1.0).toDouble();
-    }
-    final dlnaCast = ref.watch(dlnaCastProvider);
-    if (dlnaCast.isCasting && dlnaCast.status.volume > 0) {
-      return (dlnaCast.status.volume / 100).clamp(0.0, 1.0).toDouble();
-    }
-    return ref.watch(playerProvider.select((s) => s.volume));
-  }
-
-  /// 本机音量实时跟手：节流合并，避免刷爆 media_kit FFI。
-  void _sendLocalVolumeLive(double v) {
-    _pendingLocalVolume = v;
-    final now = DateTime.now();
-    if (_lastLocalVolumeSend != null &&
-        now.difference(_lastLocalVolumeSend!).inMilliseconds < 80) {
-      // 距上次发送不足 80ms：记录最新值，由定时器统一发送。
-      _localVolumeThrottleTimer ??= Timer(const Duration(milliseconds: 80), () {
-        _localVolumeThrottleTimer = null;
-        final pending = _pendingLocalVolume;
-        if (pending != null) {
-          _lastLocalVolumeSend = DateTime.now();
-          ref.read(playerProvider.notifier).setVolumeLive(pending);
-        }
-      });
-      return;
-    }
-    _lastLocalVolumeSend = now;
-    ref.read(playerProvider.notifier).setVolumeLive(v);
-  }
-
-  /// 链路 B（DLNA 直投）音量实时下发：SOAP SetVolume 节流发送（≤10 次/秒），
-  /// 避免拖动时高频 SOAP 请求刷爆设备/网络。
-  void _sendDlnaVolumeLive(double v) {
-    final now = DateTime.now();
-    if (_lastDlnaVolumeSend == null ||
-        now.difference(_lastDlnaVolumeSend!).inMilliseconds >= 100) {
-      _lastDlnaVolumeSend = now;
-      unawaited(
-        ref.read(dlnaCastProvider.notifier).setVolume((v * 100).round()),
-      );
-    }
-  }
-
-  /// 拖动中：按「切换播放器」所选目标**只写一路**——
-  /// 本机 → setVolumeLive（节流，just_audio 实时跟手）；
-  /// 投屏 → 节流 POST 到所选播放器（≤10 次/秒，不刷爆网络）。
-  void _onSliderChanged(double v) {
-    final clamped = v.clamp(0.0, 1.0).toDouble();
-    setState(() => _dragValue = clamped);
-    // 链路 B（DLNA 直投）优先：音量直下发给设备。
-    if (ref.read(dlnaCastProvider).isCasting) {
-      _sendDlnaVolumeLive(clamped);
-      return;
-    }
-    final cast = ref.read(castPeerControllerProvider);
-    if (cast.activePeer == null) {
-      _sendLocalVolumeLive(clamped);
-      return;
-    }
-    // 投屏：只写所选播放器，节流发送保持跟手。
-    final now = DateTime.now();
-    if (_lastCastVolumeSend == null ||
-        now.difference(_lastCastVolumeSend!).inMilliseconds >= 100) {
-      _lastCastVolumeSend = now;
-      unawaited(
-        ref
-            .read(castPeerControllerProvider.notifier)
-            .setVolume((clamped * 100).round()),
-      );
-    }
-  }
-
-  /// 松手：按所选播放器提交（本机落盘 / 投屏发最终值）。
-  void _onSliderCommit(double v) {
-    final clamped = v.clamp(0.0, 1.0).toDouble();
-    setState(() => _dragValue = null);
-    _lastCastVolumeSend = null;
-    _lastDlnaVolumeSend = null;
-    _localVolumeThrottleTimer?.cancel();
-    _localVolumeThrottleTimer = null;
-    _pendingLocalVolume = null;
-    // 链路 B（DLNA 直投）优先：松手下发最终音量。
-    if (ref.read(dlnaCastProvider).isCasting) {
-      unawaited(
-        ref
-            .read(dlnaCastProvider.notifier)
-            .setVolume((clamped * 100).round()),
-      );
-      return;
-    }
-    final cast = ref.read(castPeerControllerProvider);
-    if (cast.activePeer != null) {
-      unawaited(
-        ref
-            .read(castPeerControllerProvider.notifier)
-            .setVolume((clamped * 100).round()),
-      );
-    } else {
-      unawaited(ref.read(playerProvider.notifier).setVolume(clamped));
-    }
-  }
 
   /// 竖向滑杆拖动/点击：即时刷新浮层，再按当前目标路由（节流下发）。
   void _onVerticalChanged(double v) {
@@ -179,10 +66,25 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
     _onSliderCommit(clamped);
   }
 
+  /// 拖动中：节流实时下发(链路路由统一走 setEffectiveVolume)。
+  void _onSliderChanged(double v) {
+    final clamped = v.clamp(0.0, 1.0).toDouble();
+    setState(() => _dragValue = clamped);
+    _sender.send(clamped);
+  }
+
+  /// 松手：复位节流并提交最终值(本机落盘 / 投屏发最终值,均不经节流)。
+  void _onSliderCommit(double v) {
+    final clamped = v.clamp(0.0, 1.0).toDouble();
+    setState(() => _dragValue = null);
+    _sender.reset();
+    unawaited(setEffectiveVolume(ref, clamped));
+  }
+
   /// 步进键：以当前有效音量为基准，每次 ±3%，立即命中当前播放目标。
   void _stepVolume(int dir) {
     if (dir == 0) return;
-    final base = _dragValue ?? _effectiveVolume();
+    final double base = _dragValue ?? ref.read(effectiveVolumeProvider);
     final next = (base + 0.03 * dir).clamp(0.0, 1.0).toDouble();
     _onVerticalChanged(next);
     _onVerticalCommit(next);
@@ -194,7 +96,7 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
       _removeOverlay();
       return;
     }
-    _overlayVolume.value = _effectiveVolume();
+    _overlayVolume.value = ref.read(effectiveVolumeProvider);
     _lastVolumeHaptic = -1;
     // 弹出面板挂在根 Overlay 上,位于播放器 MusicFlowMediaColorScope 之外,
     // 直接使用根主题色会造成音量条与播放控件底色脱节。这里在打开时
@@ -232,24 +134,11 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
                       // overlay 内仍需响应外部音量变化（设备端/其它端修改）。
                       child: Consumer(
                         builder: (context, ref, _) {
-                          final cast = ref.watch(castPeerControllerProvider);
-                          final dlnaCast = ref.watch(dlnaCastProvider);
-                          final double sourceVolume;
-                          if (cast.activePeer != null &&
-                              cast.status.volume != null) {
-                            sourceVolume = (cast.status.volume! / 100)
-                                .clamp(0.0, 1.0)
-                                .toDouble();
-                          } else if (dlnaCast.isCasting &&
-                              dlnaCast.status.volume > 0) {
-                            sourceVolume = (dlnaCast.status.volume / 100)
-                                .clamp(0.0, 1.0)
-                                .toDouble();
-                          } else {
-                            sourceVolume = ref.watch(
-                              playerProvider.select((s) => s.volume),
-                            );
-                          }
+                          // 有效音量统一取 effectiveVolumeProvider:
+                          // 投屏取设备/peer 回报值,未回报回退本机。
+                          final double sourceVolume = ref.watch(
+                            effectiveVolumeProvider,
+                          );
                           // 拖动中显示拖动值，否则显示真实值。
                           final volume = _dragValue ?? sourceVolume;
                           // 音量浮层内即时值：驱动滑块与百分比实时刷新。
@@ -346,14 +235,14 @@ class VolumeButtonState extends ConsumerState<VolumeButton> {
   void dispose() {
     _removeOverlay();
     _overlayVolume.dispose();
-    _localVolumeThrottleTimer?.cancel();
+    _sender.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final volume = _dragValue ?? _effectiveVolume();
+    final double volume = _dragValue ?? ref.watch(effectiveVolumeProvider);
     final percent = (volume * 100).round();
     // 对齐主项目前端音量按钮:音量>0 显示扬声器+声波,=0 显示静音;
     // 弹窗展开时高亮(对应前端 vol-active)。
@@ -421,7 +310,6 @@ class _VerticalVolumeSlider extends StatelessWidget {
           onChanged(next);
         }
 
-        final colors = context.musicFlowColors;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (d) => apply(d.localPosition.dy),

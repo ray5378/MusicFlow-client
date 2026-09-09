@@ -31,7 +31,7 @@ void main() {
       isEmpty,
       reason: 'Every AppIcons call must resolve through the semantic map.',
     );
-    expect(declarations, hasLength(103));
+    expect(declarations, hasLength(104));
   });
 
   test('product symbols use Remix and platform actions use Cupertino', () {
@@ -61,6 +61,9 @@ void main() {
     expect(AppIcons.profile, isNot(AppIcons.profileFilled));
     expect(AppIcons.lyrics, isNot(AppIcons.lyricsFilled));
     expect(AppIcons.queue, isNot(AppIcons.playlist));
+    // v4.3.28 语义拆分:顺序播放(orderPlayback=list_ordered_2)不得与
+    // 播放队列(queue=play_list_2_line)共用图形(曾撞车)。
+    expect(AppIcons.orderPlayback, isNot(AppIcons.queue));
     expect(AppIcons.warning, isNot(AppIcons.error));
     expect(AppIcons.download, isNot(AppIcons.offline));
   });

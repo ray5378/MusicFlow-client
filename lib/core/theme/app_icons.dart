@@ -39,7 +39,10 @@ abstract final class AppIcons {
   static const shuffle = Remix.shuffle_fill;
   static const repeat = Remix.repeat_2_line;
   static const repeatOne = Remix.repeat_one_fill;
-  static const queue = Remix.list_ordered_2;
+  // 播放队列按钮:带播放三角的列表(「正在播放的队列」语义);
+  // 顺序播放模式(order)用数字有序列表,两者图形必须可区分。
+  static const queue = Remix.play_list_2_line;
+  static const orderPlayback = Remix.list_ordered_2;
   static const queueAdd = Remix.menu_add_line;
   static const playlist = Remix.play_list_2_fill;
   static const playlistAdd = Remix.play_list_add_fill;

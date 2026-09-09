@@ -7,8 +7,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cfloat>
 #include <cmath>
 #include <string>
+#include <vector>
 
 // UpdateLayeredWindow 逐像素 alpha 合成需要 GDI+。
 #pragma comment(lib, "gdiplus.lib")
@@ -78,10 +80,12 @@ constexpr int kListPopupPadH = 8;     // 列表弹窗左右外边距
 constexpr int kListRowPadX = 14;      // 行内左右留白
 constexpr int kListRowGap = 6;        // 行与行之间的间隙
 
-// 播放模式(与 Dart PlaybackMode 枚举顺序对齐: 0=shuffle,1=repeatAll,2=repeatOne)
+// 播放模式(与 Dart 歌词窗模式串对齐: 0=shuffle,1=repeatAll,2=repeatOne,
+// 3=order 顺序播放)
 constexpr int kModeShuffle = 0;
 constexpr int kModeRepeatAll = 1;
 constexpr int kModeRepeatOne = 2;
+constexpr int kModeOrder = 3;
 
 // Segoe MDL2 Assets 图标码点(Windows 10/11 系统自带)。
 constexpr wchar_t kGlyphPrev = L'\uE892';
@@ -94,23 +98,14 @@ constexpr wchar_t kGlyphRepeatAll = L'\uE8EE';
 constexpr wchar_t kGlyphRepeatOne = L'\uE8ED';
 constexpr wchar_t kGlyphHeart = L'\uEB51';       // 描边心形
 constexpr wchar_t kGlyphHeartFill = L'\uEB52';   // 实心心形
-// 播放队列按钮:与客户端 MINI 播放器同款 remixicon 字形
-// (list_ordered_2),字体经 AddFontResourceExW 私有加载。
-constexpr wchar_t kGlyphQueue = L'\uF399';        // remix list_ordered_2
-// remix 字体加载失败时的 Segoe MDL2 降级字形(列表)。
-constexpr wchar_t kGlyphQueueFallback = L'\uE8FD';
+// 播放队列与顺序播放(order)按钮:与 MINI 播放器同款 remixicon 字形,
+// 轮廓离线提取后硬编码(见 DrawRemixGlyph 处注释),无需字符码点常量。
 
 HWND g_hwnd = nullptr;
 ULONG_PTR g_gdiplusToken = 0;
 gd::FontFamily* g_famUI = nullptr;    // Microsoft YaHei UI
 gd::FontFamily* g_famIcon = nullptr;  // Segoe MDL2 Assets
-gd::FontFamily* g_famRemix = nullptr; // remixicon(与 MINI 播放器同款图标)
-// FR_PRIVATE 加载的随包 remixicon 字体:退出时必须 RemoveFontResourceExW
-// 卸载,否则字体资源随每次启动累积泄漏(GDI 对象/内核字体表)。
-std::wstring g_remixFontPath;
-bool g_remixFontLoaded = false;
 gd::Font* g_fontPopup = nullptr;      // 弹窗文本(百分比/列表行)
-gd::Font* g_fontRemix = nullptr;      // 队列/切换播放器按钮图标(remixicon)
 gd::Font* g_fontIcon = nullptr;       // 普通按钮图标
 gd::Font* g_fontIconPlay = nullptr;   // 播放按钮图标(大一号)
 gd::Bitmap* g_surface = nullptr;      // 分层窗口内容(PARGB,按需重建)
@@ -339,20 +334,11 @@ void ApplyDpiScale(int dpi) {
   g_dpi = dpi;
   g_scale = dpi / 96.0f;
   delete g_fontPopup;
-  delete g_fontRemix;
   delete g_fontIcon;
   delete g_fontIconPlay;
   g_fontPopup =
       new gd::Font(g_famUI, Sf(kPopupFontSize), gd::FontStyleRegular,
                    gd::UnitPixel);
-  g_fontRemix = g_famRemix
-                    ? new gd::Font(g_famRemix, Sf(19), gd::FontStyleRegular,
-                                   gd::UnitPixel)
-                    : nullptr;
-  if (g_famRemix && g_fontRemix && g_fontRemix->GetLastStatus() != gd::Ok) {
-    delete g_fontRemix;
-    g_fontRemix = nullptr;
-  }
   g_fontIcon = new gd::Font(g_famIcon, Sf(20), gd::FontStyleRegular,
                             gd::UnitPixel);
   g_fontIconPlay = new gd::Font(g_famIcon, Sf(26), gd::FontStyleRegular,
@@ -466,6 +452,93 @@ void DrawGlyphGd(gd::Graphics& g, const BtnGeom& b, wchar_t glyph,
   g.FillPath(&br, &path);
 }
 
+// ---- 硬编码 remixicon 字形 ----
+// 队列与顺序播放(order)两枚图标要与 MINI 播放器同款(remixicon)。运行时
+// 加载字体两条路都走不通:AddFontResourceExW(FR_PRIVATE) 只对 GDI TextOut
+// 可见,GDI+ FontFamily 查不到(status 14);PrivateFontCollection 在本机
+// 旧版 gdiplus(10.0.19041)上,集合内 family 首次进入
+// GraphicsPath::AddString 即 c0000005 崩溃。故用 tool/gen_lyric_glyphs.py
+// 离线从随包 remix.ttf 提取轮廓(upm=1200)硬编码:二次贝塞尔已升为三次,
+// Y 已翻转为向下为正。字体随包固定、字形不变,一次提取永久有效,且与
+// Flutter 端渲染同字体同源。
+struct GlyphPt {
+  float x, y;
+};
+struct RemixGlyphDef {
+  const GlyphPt* pts;
+  const BYTE* types;
+  int count;
+};
+
+// ---- 硬编码 remixicon 字形轮廓(由 tool/gen_lyric_glyphs.py 生成, upm=1200, Y 已翻转为向下为正) ----
+// U+F00D play_list_2_line (play-list-2-line): 5 contours, 18 points, ink bbox x[100..1100] y[-833..-8]
+static const GlyphPt kRemixQueuePts[] = {
+    {1100.0f,-108.0f}, {1100.0f,-8.0f}, {100.0f,-8.0f}, {100.0f,-108.0f}, {100.0f,-833.0f},
+    {500.0f,-583.0f}, {100.0f,-333.0f}, {1100.0f,-458.0f}, {1100.0f,-358.0f}, {600.0f,-358.0f},
+    {600.0f,-458.0f}, {200.0f,-652.0f}, {200.0f,-513.0f}, {311.0f,-583.0f}, {1100.0f,-808.0f},
+    {1100.0f,-708.0f}, {600.0f,-708.0f}, {600.0f,-808.0f},
+};
+static const BYTE kRemixQueueTypes[] = {
+    0x00, 0x01, 0x01, 0x81, 0x00, 0x01, 0x81, 0x00, 0x01, 0x01, 0x81, 0x00, 0x01, 0x81, 0x00,
+    0x01, 0x01, 0x81,
+};
+static const RemixGlyphDef kRemixQueue{
+    kRemixQueuePts, kRemixQueueTypes, 18};
+// ops: {'moveTo': 5, 'lineTo': 13, 'closePath': 5}
+// U+F399 list_ordered_2 (list-ordered-2): 5 contours, 68 points, ink bbox x[147..1053] y[-833..-8]
+static const GlyphPt kRemixOrderPts[] = {
+    {291.0f,-833.0f}, {239.0f,-833.0f}, {166.0f,-813.0f}, {166.0f,-735.0f}, {216.0f,-749.0f},
+    {216.0f,-583.0f}, {153.0f,-583.0f}, {153.0f,-508.0f}, {353.0f,-508.0f}, {353.0f,-583.0f},
+    {291.0f,-583.0f}, {503.0f,-808.0f}, {1053.0f,-808.0f}, {1053.0f,-708.0f}, {503.0f,-708.0f},
+    {503.0f,-458.0f}, {1053.0f,-458.0f}, {1053.0f,-358.0f}, {503.0f,-358.0f}, {503.0f,-108.0f},
+    {1053.0f,-108.0f}, {1053.0f,-8.0f}, {503.0f,-8.0f}, {147.0f,-226.0f}, {147.0f,-245.33f},
+    {151.67f,-263.17f}, {161.0f,-279.5f}, {170.33f,-295.83f}, {183.17f,-308.67f},
+    {199.5f,-318.0f}, {215.83f,-327.33f}, {233.67f,-332.17f}, {253.0f,-332.5f},
+    {272.33f,-332.83f}, {290.17f,-328.17f}, {306.5f,-318.5f}, {322.83f,-308.83f},
+    {335.67f,-295.83f}, {345.0f,-279.5f}, {354.33f,-263.17f}, {359.0f,-245.33f},
+    {359.0f,-226.0f}, {359.0f,-202.0f}, {351.67f,-180.67f}, {337.0f,-162.0f}, {269.0f,-83.0f},
+    {353.0f,-83.0f}, {353.0f,-8.0f}, {153.0f,-8.0f}, {153.0f,-64.0f}, {277.0f,-206.0f},
+    {281.67f,-212.0f}, {284.0f,-219.0f}, {284.0f,-227.0f}, {284.0f,-235.0f}, {281.0f,-242.17f},
+    {275.0f,-248.5f}, {269.0f,-254.83f}, {261.83f,-258.0f}, {253.5f,-258.0f}, {245.17f,-258.0f},
+    {238.0f,-255.17f}, {232.0f,-249.5f}, {226.0f,-243.83f}, {222.67f,-237.0f}, {222.0f,-229.0f},
+    {221.0f,-214.0f}, {147.0f,-214.0f},
+};
+static const BYTE kRemixOrderTypes[] = {
+    0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x81, 0x00, 0x01, 0x01, 0x81,
+    0x00, 0x01, 0x01, 0x81, 0x00, 0x01, 0x01, 0x81, 0x00, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x81,
+};
+static const RemixGlyphDef kRemixOrder{
+    kRemixOrderPts, kRemixOrderTypes, 68};
+// ops: {'moveTo': 5, 'lineTo': 27, 'closePath': 5, 'qCurveTo': 3}
+// ---- end glyph data ----
+
+// 按 remix 字号 Sf(19)(ink 尺寸与相邻 Segoe em20 字形相近)等比缩放,
+// ink 外接框居中于按钮圆心后填充。轮廓数据内嵌、无法加载失败,无降级分支。
+void DrawRemixGlyph(gd::Graphics& g, const RemixGlyphDef& def,
+                    const BtnGeom& b, const gd::Color& color) {
+  const REAL scale = Sf(19) / 1200.0f;
+  REAL minX = FLT_MAX, minY = FLT_MAX, maxX = -FLT_MAX, maxY = -FLT_MAX;
+  for (int i = 0; i < def.count; ++i) {
+    minX = std::min(minX, def.pts[i].x);
+    maxX = std::max(maxX, def.pts[i].x);
+    minY = std::min(minY, def.pts[i].y);
+    maxY = std::max(maxY, def.pts[i].y);
+  }
+  const REAL ox = static_cast<REAL>(b.cx) - (minX + maxX) * 0.5f * scale;
+  const REAL oy = static_cast<REAL>(b.cy) - (minY + maxY) * 0.5f * scale;
+  std::vector<gd::PointF> pts(def.count);
+  for (int i = 0; i < def.count; ++i) {
+    pts[i] = gd::PointF(def.pts[i].x * scale + ox, def.pts[i].y * scale + oy);
+  }
+  gd::GraphicsPath path(pts.data(), def.types, def.count);
+  if (path.GetLastStatus() != gd::Ok) return;
+  gd::SolidBrush br(color);
+  g.FillPath(&br, &path);
+}
+
 void DrawButton(gd::Graphics& g, int idx) {
   const BtnGeom b = ButtonGeom(idx);
   const bool hot = g_hovering && g_hotButton == idx;
@@ -483,7 +556,7 @@ void DrawButton(gd::Graphics& g, int idx) {
   g.FillEllipse(&br, static_cast<REAL>(b.cx - b.r),
                 static_cast<REAL>(b.cy - b.r), static_cast<REAL>(b.r * 2),
                 static_cast<REAL>(b.r * 2));
-  // 图标(Segoe MDL2 Assets 字形)。
+  // 图标(Segoe MDL2 Assets 字形;队列/顺序播放为硬编码 remix 轮廓)。
   const gd::Color iconColor =
       Gd(hot ? RGB(255, 255, 255)
              : (idx == 5 && g_liked ? kLikeColor : kIconColor));
@@ -497,6 +570,12 @@ void DrawButton(gd::Graphics& g, int idx) {
       break;
     case 2: glyph = kGlyphNext; break;
     case 3:
+      // 顺序播放(order):与 MINI 播放器同款 remix 有序列表图形
+      // (硬编码轮廓);其余模式用 Segoe 字形。
+      if (g_mode == kModeOrder) {
+        DrawRemixGlyph(g, kRemixOrder, b, iconColor);
+        return;
+      }
       glyph = g_mode == kModeShuffle
                   ? kGlyphShuffle
                   : (g_mode == kModeRepeatOne ? kGlyphRepeatOne
@@ -505,14 +584,9 @@ void DrawButton(gd::Graphics& g, int idx) {
     case 4: glyph = kGlyphVolume; break;
     case 5: glyph = g_liked ? kGlyphHeartFill : kGlyphHeart; break;
     case 6:
-      // 播放队列:MINI 播放器同款 remix 图标,加载失败降级 Segoe 字形。
-      if (g_fontRemix) {
-        glyph = kGlyphQueue;
-        font = g_fontRemix;
-      } else {
-        glyph = kGlyphQueueFallback;
-      }
-      break;
+      // 播放队列:MINI 播放器同款 remix 图标(硬编码轮廓)。
+      DrawRemixGlyph(g, kRemixQueue, b, iconColor);
+      return;
   }
   DrawGlyphGd(g, b, glyph, font, iconColor);
 }
@@ -1134,26 +1208,6 @@ void DesktopLyricInit(HINSTANCE instance) {
     g_famUI = CreateFamilyWithFallback(L"Microsoft YaHei UI", L"Segoe UI");
     g_famIcon =
         CreateFamilyWithFallback(L"Segoe MDL2 Assets", L"Segoe UI Symbol");
-    // 播放队列/切换播放器按钮图标与 MINI 播放器同款:私有加载随包分发的
-    // remixicon 字体(失败则 DrawButton 降级 Segoe MDL2 字形)。
-    wchar_t exePath[MAX_PATH]{};
-    if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0) {
-      std::wstring dir(exePath);
-      const size_t slash = dir.find_last_of(L"\\/");
-      if (slash != std::wstring::npos) dir.resize(slash + 1);
-      g_remixFontPath =
-          dir + L"data\\flutter_assets\\packages\\remixicon\\fonts\\remix.ttf";
-      if (AddFontResourceExW(g_remixFontPath.c_str(), FR_PRIVATE, nullptr) >
-          0) {
-        g_remixFontLoaded = true;
-        auto* fam = new gd::FontFamily(L"remix");
-        if (fam->GetLastStatus() == gd::Ok) {
-          g_famRemix = fam;
-        } else {
-          delete fam;
-        }
-      }
-    }
     ApplyDpiScale(96);
   }
 
@@ -1327,8 +1381,6 @@ void DesktopLyricShutdown() {
   g_surface = nullptr;
   delete g_fontPopup;
   g_fontPopup = nullptr;
-  delete g_fontRemix;
-  g_fontRemix = nullptr;
   delete g_fontIcon;
   g_fontIcon = nullptr;
   delete g_fontIconPlay;
@@ -1337,15 +1389,7 @@ void DesktopLyricShutdown() {
   g_famUI = nullptr;
   delete g_famIcon;
   g_famIcon = nullptr;
-  delete g_famRemix;
-  g_famRemix = nullptr;
   if (g_gdiplusToken != 0) {
-    // 先卸载 FR_PRIVATE 字体再关停 GDI+(顺序无关,但必须成对)。
-    if (g_remixFontLoaded && !g_remixFontPath.empty()) {
-      RemoveFontResourceExW(g_remixFontPath.c_str(), FR_PRIVATE, nullptr);
-      g_remixFontLoaded = false;
-    }
-    g_remixFontPath.clear();
     gd::GdiplusShutdown(g_gdiplusToken);
     g_gdiplusToken = 0;
   }

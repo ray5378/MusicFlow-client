@@ -30,7 +30,7 @@ struct DesktopLyricState {
   std::wstring lyric;   // 当前歌词行(空则显示 MusicFlow)
   bool playing = false;
   bool liked = false;
-  int mode = 1;  // 0=shuffle 1=repeatAll 2=repeatOne
+  int mode = 1;  // 0=shuffle 1=repeatAll 2=repeatOne 3=order
   double volume = 0.8;
   // 歌词行填充色(Flutter 推送,固定暖黄 0xFFC233,不随封面变化)。
   COLORREF lyricColor = RGB(240, 149, 149);
