@@ -29,6 +29,18 @@ class DlnaCastHttpUnavailableException implements Exception {
   String toString() => 'DlnaCastHttpUnavailable: no http cast base (add an http connection in the music library)';
 }
 
+/// 服务端投前预检判定「无可用音源」时抛出（/v1/dlna/stream-url 返回 409）。
+/// 上层（DlnaManager._playCurrentTrack）捕获后按播放模式跳下一首，不把死链
+/// 扔给设备干等；与一般网络失败区分开——一般失败仍回退带鉴权流 URL。
+class DlnaSongUnplayableException implements Exception {
+  const DlnaSongUnplayableException(this.songId);
+
+  final String songId;
+
+  @override
+  String toString() => 'DlnaSongUnplayable: server pre-check found no playable source for $songId';
+}
+
 /// 判断服务器地址是否为明文 http。
 bool isHttpServerUrl(String url) => url.toLowerCase().startsWith('http://');
 

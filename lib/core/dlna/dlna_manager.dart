@@ -7,6 +7,7 @@ import 'package:musicflow_client/core/dlna/dlna_models.dart';
 import 'package:musicflow_client/core/dlna/ssdp_discovery.dart';
 import 'package:musicflow_client/core/dlna/device_description.dart';
 import 'package:musicflow_client/core/dlna/soap_control.dart';
+import 'package:musicflow_client/core/dlna/cast_http.dart';
 
 /// DLNA 管理器
 /// 统一管理设备发现、投屏控制。
@@ -59,10 +60,10 @@ class DlnaManager {
   bool _userPaused = false;
   /// 曲中段连续异常停止的连击计数（≥2 判定为播放失败，触发自动跳过兜底）。
   int _stallCount = 0;
-  /// 「音源失败 → 自动跳过」的连击计数，达到上限后停止（防死循环，对齐本机连续失败上限）。
-  int _failStreak = 0;
-  /// 自动跳过上限：连续失败达到该值即不再自动跳，避免坏源无限循环。
-  static const int _maxCastFailStreak = 8;
+  /// 投前预检钩子（可选）：按 songId 问服务端「这首歌当前是否真的有可用音源」。
+  /// 本地曲秒回 true；web 曲 Range 探测/多源换源。探测请求自身网络失败时实现方
+  /// 应返回 true（不误杀，交设备实测兜底）。返回 false → 按播放模式跳下一首。
+  Future<bool> Function(String songId)? _probeSong;
 
   /// 投屏播放模式(order|one|all|shuffle),默认列表循环(对齐链路 A cast.playMode)。
   String _playMode = 'all';
@@ -157,12 +158,16 @@ class DlnaManager {
   /// 初始化 DLNA 管理器（A 档·直传直连）
   /// [streamUrlBuilder] 根据 songId 构建**服务端直接可拉的流 URL**（异步，先换无鉴权
   /// token），交给 DLNA 设备让其自拉流播放（设备不连本机，直连服务器）。
+  /// [probeSong] 可选投前预检钩子：换 token 前先确认该歌有可用音源（服务端
+  /// /v1/dlna/stream-url 409 → 抛 DlnaSongUnplayableException → 实现方转 false）。
   Future<void> init({
     required Future<String> Function(String songId) streamUrlBuilder,
+    Future<bool> Function(String songId)? probeSong,
   }) async {
     if (_initialized) return;
 
     _streamUrlBuilder = streamUrlBuilder;
+    _probeSong = probeSong;
 
     // 启动被动监听
     _discovery.startListening(
@@ -307,7 +312,6 @@ class DlnaManager {
     _provisionedIndex = null;
     _userPaused = false;
     _stallCount = 0;
-    _failStreak = 0;
 
     try {
       await _playCurrentTrack();
@@ -373,9 +377,50 @@ class DlnaManager {
   /// 播放队列中的当前曲目（A 档·直传直连：设服务端直连 URL/播）+ 预置下一首
   Future<void> _playCurrentTrack() async {
     final device = _currentDevice!;
-    final track = _queue[_queueIndex];
-    // A 档：先换无鉴权 token 流 URL，再交给设备自拉流。
-    final url = await _directStreamUrl(track.songId);
+    // 投前预检（P1-2）+ 无限跳：投递前先确认该歌当前真的有可用音源
+    // （probeSong 钩子问 /stream/probe；换 token 时服务端 409 → DlnaSongUnplayableException
+    // 双重保险）。判无源时在**本次激活内**按播放模式推进重试（one 模式也前进，
+    // 不重放死曲），最多绕队列一整圈 —— 不会挂死 startCast/切歌链；一整圈都
+    // 无源则停在本状态，由轮询看门狗/曲末续播驱动下一圈重试（源治愈后自动复活）。
+    // 预检请求自身失败（网络抖）≠ 源失效：不误杀，照投交设备实测兜底。
+    var probeSkips = 0;
+    String url;
+    DlnaCastTrack track;
+    while (true) {
+      // 圈数守卫：已绕队列一整圈仍全部无源 → 停在本状态，交看门狗/用户接手。
+      if (probeSkips >= _queue.length) return;
+      track = _queue[_queueIndex];
+      if (_probeSong != null) {
+        bool playable;
+        try {
+          playable = await _probeSong!(track.songId);
+        } catch (_) {
+          playable = true;
+        }
+        if (!playable) {
+          debugPrint('DLNA pre-cast probe: no playable source for '
+              '${track.title} (${track.songId}), skipping');
+          if (_queue.length > 1 && _advanceIndexForSkip()) {
+            probeSkips++;
+            continue;
+          }
+          return;
+        }
+      }
+      // A 档：先换无鉴权 token 流 URL，再交给设备自拉流。
+      try {
+        url = await _directStreamUrl(track.songId);
+      } on DlnaSongUnplayableException {
+        debugPrint('DLNA stream-url 409 (no playable source): '
+            '${track.title} (${track.songId}), skipping');
+        if (_queue.length > 1 && _advanceIndexForSkip()) {
+          probeSkips++;
+          continue;
+        }
+        return;
+      }
+      break;
+    }
     final metadata = buildDidlLite(
       title: track.title,
       uri: url,
@@ -388,9 +433,8 @@ class DlnaManager {
     _currentRealDuration = track.duration ?? 0;
     _restartPlaybackClock();
 
-    // 新一轮主动播放：清除用户暂停态与失败连击（对齐链路 A「成功开播即清零」）。
+    // 新一轮主动播放：清除用户暂停态（无失败连击概念：坏源无限跳）。
     _userPaused = false;
-    _failStreak = 0;
     _stallCount = 0;
 
     await SoapControl.stop(device.avTransportUrl!);
@@ -472,8 +516,16 @@ class DlnaManager {
 
     final device = _currentDevice!;
     final next = _queue[nextIndex];
-    // A 档：预置下一首同样用无鉴权 token 流 URL。
-    final url = await _directStreamUrl(next.songId);
+    // A 档：预置下一首同样用无鉴权 token 流 URL。下一首预检判无源（409）时
+    // 跳过预置（_provisionedIndex 置 null 交运行时切歌兜底），不影响当前曲播放。
+    final String url;
+    try {
+      url = await _directStreamUrl(next.songId);
+    } on DlnaSongUnplayableException {
+      debugPrint('DLNA provision next skipped (no playable source): ${next.songId}');
+      _provisionedIndex = null;
+      return;
+    }
     final metadata = buildDidlLite(
       title: next.title,
       uri: url,
@@ -1022,15 +1074,29 @@ class DlnaManager {
     _playSegmentStart = DateTime.now();
   }
 
-  /// 播放失败/流中断兜底：记连击，达到上限则停止（防坏源死循环）；
-  /// 否则自动跳到按播放模式计算的下一首（对齐链路 A 的失败自动跳过）。
+  /// 播放失败/流中断兜底：无停播阈值，无限跳到按播放模式计算的下一首。
+  /// 坏源每首都真试（服务端换源治愈后自动复活）；顺序模式到队尾自然结束。
   Future<void> _handleCastPlaybackError() async {
-    _failStreak++;
-    if (_failStreak >= _maxCastFailStreak) {
-      // 连续失败过多：停止自动跳过，保持在当前（待机/停止）状态。
-      return;
-    }
     await _advanceAfterCompletion();
+  }
+
+  /// 按播放模式推进 `_queueIndex`（不触发播放），返回是否推进成功。
+  /// one 模式也前进（死曲不重放）；order 模式到队尾返回 false（自然停止）。
+  bool _advanceIndexForSkip() {
+    switch (_playMode) {
+      case 'shuffle':
+        if (_queue.length <= 1) return false;
+        _queueIndex = _randomOtherIndex();
+        return true;
+      case 'all':
+        if (_queue.length <= 1) return false;
+        _queueIndex = (_queueIndex + 1) % _queue.length;
+        return true;
+      default: // order / one
+        if (_queueIndex + 1 >= _queue.length) return false;
+        _queueIndex++;
+        return true;
+    }
   }
 
   // ==================== 辅助方法 ====================

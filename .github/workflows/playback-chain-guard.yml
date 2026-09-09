@@ -1,0 +1,58 @@
+name: Playback Chain Guard
+
+# 播放链路专用门禁（blocking），与 test-suite.yml 的全量非阻塞观察流水线解耦。
+# 钉死 2026-09-09 拍板的播放链路契约，防止被改坏：
+#   1. 直投 DLNA 投前预检：判无源（probe false / 换 token 409）→ 按播放模式跳下一首，
+#      绝不把死链扔给设备干等（dlna_chain_guard_test.dart 五分支）；
+#   2. 直投自动续播语义：order/all/shuffle/one 各模式推进与不跨曲（dlna_auto_next_sim_test.dart）；
+#   3. 直投 provider 接线（dlna_provider_test.dart）；
+#   4. 「无死歌名单 + 无停播阈值」决策：本机与直投均无限跳，坏歌每首都真试
+#      （服务端换源治愈后自动复活）。静态扫描拦截 deadSongs/失败连击上限回归。
+# 服务端侧由 MusicFlow 仓库 .github/workflows/playback-chain-guard.yml 对称覆盖。
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dlna-chain-guard:
+    name: dlna chain guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run DLNA chain guard tests
+        run: |
+          flutter test test/core/dlna/dlna_chain_guard_test.dart
+          flutter test test/core/dlna/dlna_auto_next_sim_test.dart
+          flutter test test/providers/dlna_provider_test.dart
+
+      # 静态守卫：deadSongs（死歌名单）与失败连击停播上限（_maxFailStreak /
+      # LOCAL_MAX_FAIL_STREAK / _maxCastFailStreak）已按 2026-09-09 决策整体移除，
+      # 任何形式回归（重新引入拉黑或停播阈值）直接 CI 失败。
+      - name: Guard: no dead-song blacklist / no stop threshold
+        shell: bash
+        run: |
+          if grep -rnE "_deadSongs|deadSongs|_maxFailStreak|_maxCastFailStreak|LOCAL_MAX_FAIL_STREAK" lib/ ; then
+            echo "::error::播放链路契约回归:不允许重新引入死歌名单或停播阈值(2026-09-09 拍板:坏歌无限跳,靠换源治愈)"
+            exit 1
+          fi
+          echo "OK: 无死歌名单/停播阈值回归"

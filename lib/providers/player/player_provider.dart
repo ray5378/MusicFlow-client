@@ -174,16 +174,13 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _pendingRetryAutoPlay = true;
 
   // ── 播放失败自动跳过 + 预探测 ──────────────────────────────────────────
-  /// 连续播放失败计数；达到上限后停止自动跳过，避免整队不可播时死循环。
-  int _failStreak = 0;
-  static const int _maxFailStreak = 5;
+  /// 无停播阈值：坏歌无限跳（每首都真试，服务端换源治愈后自动复活）；
+  /// 顺序模式到队尾自然结束，循环模式由用户手动停（用户拍板，2026-09-09）。
 
   /// 预探测缓存：songId -> 是否可用（session 级别，重启失效）。
   /// 带上限（FIFO 逐出），防止常驻无界增长（SPEC §1.5 内存红线）。
+  /// 仅用于探测去重；不再据此跳歌（旧 deadSongs 机制已删）。
   final Map<String, bool> _probeCache = <String, bool>{};
-
-  /// 预探测确认不可播的歌曲 ID 集合，播放前自动跳过（与 _probeCache 同步带上限）。
-  final Set<String> _deadSongs = <String>{};
 
   /// 防止并发预探测。
   bool _probing = false;
@@ -221,7 +218,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _isSameQueueBySongId(List<Song> currentQueue, List<Song> nextQueue); // ignore: unused_element, unused_element_parameter
   bool _isSeekRequestCurrent({ required int seekGeneration, required int playbackSession, required String songId, }); // ignore: unused_element, unused_element_parameter
   Duration _logicalPlayerPosition(Duration sourcePosition); // ignore: unused_element, unused_element_parameter
-  void _markSongDead(String songId); // ignore: unused_element, unused_element_parameter
   String? _needsTranscoding(String? suffix); // ignore: unused_element, unused_element_parameter
   int _normalizeBitRateKbps(int? bitRate); // ignore: unused_element, unused_element_parameter
   Duration _normalizeSeekPosition(Duration position); // ignore: unused_element, unused_element_parameter
@@ -479,12 +475,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         unawaited(_applyPendingSeekIfNeeded());
       }
 
-      // 播放成功：重置连续失败计数（与主项目前端 onplay 回调一致）。
-      if (playerState.processingState == ProcessingState.ready &&
-          playerState.playing) {
-        _failStreak = 0;
-      }
-
       if (playerState.processingState != ProcessingState.completed) {
         _isHandlingCompletion = false;
         _completionHandlingSongId = null;
@@ -686,27 +676,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         index: playIndex,
         autoPlay: autoPlay,
       );
-      return;
-    }
-
-    // 跳过预探测确认不可播的歌曲（与主项目前端 deadSongs 跳过一致）。
-    if (_deadSongs.contains(song.id) && playQueue.length > 1) {
-      Logger.warnWithTag(
-        _playerLogTag,
-        'skip confirmed-unplayable song: ${song.title} (${song.id})',
-      );
-      // 尝试下一首
-      final nextIdx = playIndex + 1;
-      if (nextIdx < playQueue.length) {
-        await playSong(
-          playQueue[nextIdx],
-          queue: playQueue,
-          index: nextIdx,
-          recordShuffleHistory: recordShuffleHistory,
-          clearShuffleForwardHistory: clearShuffleForwardHistory,
-          autoPlay: autoPlay,
-        );
-      }
       return;
     }
 
@@ -1052,7 +1021,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
       // 已尝试转码仍失败（或音源加载阶段就失败、本就不走转码）：
       // 自动跳到下一首，避免"播放失败后卡在第一首"（对齐主项目前端
-      // localHandlePlaybackError；连续失败达 _maxFailStreak 会停止并提示）。
+      // localHandlePlaybackError；无停播阈值，坏歌无限跳）。
       _handlePlaybackError(song.id);
     }
   }
@@ -1285,38 +1254,15 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  /// 播放失败自动跳过：与主项目前端 localHandlePlaybackError 一致。
-  /// 连续失败过多时**不再硬停**，而是把失败歌曲记入死歌集合继续向前跳过，
-  /// 直到找到可播歌曲；仅当整队都已确认不可播时才停止并提示，
-  /// 避免"随机歌单/平台歌单连续坏源"时客户端卡在暂停。
+  /// 播放失败自动跳过：无停播阈值，无限跳（用户拍板，2026-09-09）。
+  /// 不记死歌 —— 坏歌每次都真试，服务端换源治愈（probe/拉流写回新链）后
+  /// 自动复活；顺序模式到队尾自然结束，循环模式由用户手动停。
   void _handlePlaybackError(String? songId) {
     if (!mounted) return;
-    _failStreak++;
-    // 把本次失败歌曲记入死歌集合：后续队列项直接跳过，不反复尝试。
-    if (songId != null && songId.isNotEmpty) {
-      _markSongDead(songId);
-    }
     Logger.warnWithTag(
       _playerLogTag,
-      'play fail (${_failStreak}/$_maxFailStreak) songId=$songId, auto-skip',
+      'play fail songId=$songId, auto-skip (no stop threshold)',
     );
-    // 整队都已确认不可播：停止并提示，避免整队坏源时无限跳过。
-    final queue = state.queue;
-    if (queue.isNotEmpty && queue.every((s) => _deadSongs.contains(s.id))) {
-      Logger.warnWithTag(_playerLogTag, 'whole queue unplayable, stop auto-skip');
-      _failStreak = 0;
-      state = state.copyWith(isPlaying: false);
-      // 给用户可见反馈，避免"点了播放没反应"的假象（Windows 排查关键）。
-      NetworkErrorNotifier.show(
-        l10nNowCurrent().provider_playback_all_unavailable,
-      );
-      return;
-    }
-    if (_failStreak >= _maxFailStreak) {
-      // 连续失败过多：重置计数并继续向前跳过（长段坏源时不再中途停住）。
-      Logger.warnWithTag(_playerLogTag, 'too many consecutive failures, continue skipping forward');
-      _failStreak = 0;
-    }
     next();
   }
 
@@ -1391,10 +1337,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     } catch (e) {
       Logger.error('Failed to resolve preview song', e);
       if (_playDebugSession == debugSession) {
-        // 试听链接解析失败 → 记入死歌并在当前试听队列内自动跳下一首。
+        // 试听链接解析失败 → 在当前试听队列内自动跳下一首（不记死歌）。
         // 注意:此处 state 尚未切换到本试听队列,不能走 _handlePlaybackError
         // (它的 next() 会推进旧队列),只能在本队列内就地跳转。
-        _markSongDead(song.id);
         final nextIdx = index + 1;
         if (nextIdx < queue.length) {
           await playSong(

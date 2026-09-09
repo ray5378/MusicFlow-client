@@ -63,6 +63,30 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
       // 与主机无关，重写后仍有效。
       return rewriteUrlToBase(url, castBase);
     },
+    // 投前预检钩子：POST /rest/api/v1/stream/probe 单曲探测（批量接口传单个）。
+    // 本地曲服务端 existsSync 秒回 ok；web 曲 Range 探测/多源换源。探测请求
+    // 自身失败（网络抖）返回 true 不误杀，交设备实测兜底；409 在
+    // getDlnaCastStreamUrl 内已转为 DlnaSongUnplayableException，同样按「无源」处理。
+    probeSong: (songId) async {
+      final client = ref.read(subsonicApiClientProvider);
+      try {
+        final res = await client.postRaw(
+          '/rest/api/v1/stream/probe',
+          data: <String, dynamic>{'songIds': <String>[songId]},
+        );
+        final items = (res is Map ? (res['results'] as List?) : null) ?? const [];
+        final hit = items.whereType<Map>().firstWhere(
+              (r) => (r['songId'] as String?) == songId,
+              orElse: () => const <String, dynamic>{},
+            );
+        if (hit.isEmpty) return true; // 服务端未返回该曲结果：不误杀
+        return hit['ok'] == true;
+      } on DlnaSongUnplayableException {
+        return false;
+      } catch (_) {
+        return true; // 探测失败不误杀
+      }
+    },
   );
 }
 

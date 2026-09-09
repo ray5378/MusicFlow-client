@@ -1,7 +1,6 @@
 part of 'player_provider.dart';
 
 const int _probeCacheMaxEntries = 500;
-const int _deadSongsMaxEntries = 200;
 const int _probeWindow = 3;
 
 mixin PlayerPlaybackInternals on PlayerNotifier {
@@ -64,22 +63,11 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
     }
   }
 
-  /// 把歌曲标记为已确认不可播（与预探测结果共用 _deadSongs 集合，带上限）。
-  void _markSongDead(String songId) {
-    if (_probeCache.length >= _probeCacheMaxEntries) {
-      _probeCache.clear();
-      _deadSongs.clear();
-    }
-    _probeCache[songId] = false;
-    if (_deadSongs.length >= _deadSongsMaxEntries) {
-      _deadSongs.clear();
-    }
-    _deadSongs.add(songId);
-  }
-
   /// 预探测接下来可能播放的歌曲是否可用（与主项目前端 probeUpcoming 一致）。
   /// 后端 POST /rest/api/v1/stream/probe 对本地歌曲零开销,
-  /// 对 web 歌曲做 Range 探测并自动换源写回 DB；不可用的歌提前标记跳过。
+  /// 对 web 歌曲做 Range 探测并自动换源写回 DB —— 价值在「提前治愈」源
+  /// （服务端把失效链换成可用源并持久化）；不再据此预先跳歌，坏歌由
+  /// 播放失败兜底无限跳（无死歌集合、无停播阈值）。
   Future<void> _probeUpcoming() async {
     if (_probing || state.queue.isEmpty) return;
     final queue = state.queue;
@@ -134,20 +122,13 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
         // 带上限：超限时整体重置（一次性清空），避免无界增长。
         if (_probeCache.length >= _probeCacheMaxEntries) {
           _probeCache.clear();
-          _deadSongs.clear();
         }
         _probeCache[songId] = ok;
         if (!ok) {
-          if (_deadSongs.length >= _deadSongsMaxEntries) {
-            _deadSongs.clear();
-          }
-          _deadSongs.add(songId);
           Logger.warnWithTag(
             _playerLogTag,
-            'pre-probe unplayable, skip ahead: $songId (${r['reason'] ?? 'no usable audio source'})',
+            'pre-probe unplayable (runtime skip/heal will handle): $songId (${r['reason'] ?? 'no usable audio source'})',
           );
-        } else {
-          _deadSongs.remove(songId);
         }
       }
     } catch (e) {

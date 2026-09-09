@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/constants/api_constants.dart';
+import 'package:musicflow_client/core/dlna/cast_http.dart';
 import 'package:musicflow_client/core/network/fallback_interceptor.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/utils/subsonic_auth.dart';
@@ -274,6 +275,15 @@ class SubsonicApiClient {
       }
       final uri = Uri.parse(joinServerUrl(baseUrl, path));
       return uri.toString();
+    } on DioException catch (e) {
+      // 409 = 服务端投前预检判定「无可用音源」（本地文件缺失/WebDAV 断链/在线源
+      // 全挂且换源无果）。这不是网络/鉴权问题，回退带鉴权流也一样放不出来 ——
+      // 上抛给直投层按播放模式跳下一首，不再回退旧链路。
+      if (e.response?.statusCode == 409) {
+        throw DlnaSongUnplayableException(songId);
+      }
+      Logger.warn('DLNA unauthenticated stream fetch failed, falling back to authenticated stream', e);
+      return getStreamUrl(songId, maxBitRate: maxBitRate);
     } catch (e) {
       Logger.warn('DLNA unauthenticated stream fetch failed, falling back to authenticated stream', e);
       return getStreamUrl(songId, maxBitRate: maxBitRate);

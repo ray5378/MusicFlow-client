@@ -29,6 +29,7 @@ class _FakeManager extends DlnaManager {
   @override
   Future<void> init({
     required Future<String> Function(String songId) streamUrlBuilder,
+    Future<bool> Function(String songId)? probeSong,
   }) async {
     // 静默：测试环境不建 SSDP 套接字。
   }
