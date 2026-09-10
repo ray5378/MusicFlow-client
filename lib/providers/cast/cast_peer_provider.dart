@@ -57,6 +57,21 @@ Duration queueTransferBudget(int itemCount) =>
 /// 拉取队列快照时的保守预算（规模未知，按最坏 5000 首量级给）。
 const Duration kQueueFetchBudget = Duration(seconds: 60);
 
+/// **主通道**（`POST /rest/api/v1/play`，服务端内容点播）的超时预算。
+///
+/// 为什么不能像历史那样固定 15s：
+/// - 该端点虽只有几百字节载荷（客户端零上传），但**语义是同步的**——后端要
+///   `resolveContentSongs` 查库解析出整队 + `playFrom` 落库 + 等设备
+///   Stop→SetAVTransportURI→Play 完成（含 ~5s GENA 乐观窗口）才返回；
+/// - 队列规模越大，后端解析/落库/投递的耗时越长。大歌单（数千首）实测会顶穿
+///   15s → 客户端误判失败 → 回落 [playQueueOnPeer] 再推 2MB 整队，**等于把
+///   一件事做两遍**，用户观感是「音箱先响一下又重来」或长时间无响应。
+///
+/// 公式与 [queueTransferBudget] 同源（10s 基线 + 30ms/首，封顶 180s），保证
+/// 两条通道对「同一规模」的耐心一致，不会出现主通道先放弃、回落通道还在等的错位。
+Duration contentPlayBudget(int itemCount) =>
+    queueTransferBudget(itemCount);
+
 class CastPeerController extends StateNotifier<CastPeerState> {
   CastPeerController(this._ref) : super(const CastPeerState());
 
@@ -516,17 +531,26 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   // ==================== 投屏队列操作 ====================
 
-  /// **服务端内容点播**（投屏主通道，零传输）：
-  /// 只把「内容类型 + 内容 ID + 起始索引」交给后端，由后端自行
-  /// `resolveContentSongs(type, id)` 查库 → `songsToQueueItems` → `playFrom`
-  /// 落库并投屏。客户端**一个字节的歌曲数据都不上传**。
+  /// **服务端内容点播**（投屏主通道，遥控器语义）：
+  /// 只把「内容类型 + 内容 ID + 起始歌曲 ID」交给后端，由后端自行
+  /// `resolveContentSongs(type, id)` 查库 → `songsToQueueItems` → 按 songId
+  /// 定位起点 → `playFrom` 落库并投屏。客户端**一个字节的歌曲数据都不上传**。
   ///
-  /// 适用：`type` ∈ {playlist, album, artist, song, genre} 且内容在服务端库里。
+  /// [type] = 服务端能自行解析的内容种类：playlist / album / artist / song / genre。
+  /// （`song` 即「只播这一首」——服务端解析出的队列就只有它一首；这不代表
+  /// 「歌单里只有一首」，后者应传 `type=playlist`。）
+  ///
   /// 相比 [playQueueOnPeer]（整队推送）的优势：
   /// - 5000 首歌单的起播从「拉 25 页 + 推 2MB」压缩成**一个几百字节的请求**，
   ///   彻底没有大 body 超时问题（安卓弱网推流失败的真正根因）；
   /// - 服务端解析出的队列带完整元数据（track/discNumber/albumArtist/year/genre），
   ///   且享有服务端的多源优选与本地源失效回退（客户端推的是本地快照，没有这些）。
+  ///
+  /// **[songId] 是定位起点的方式（身份，非行号）**：服务端在解析出的队列里
+  /// `findIndex(songId)`，与两侧排序无关。历史用 `startIndex`（本地列表行号）
+  /// 定位时，因服务端/客户端排序不同源而静默播错歌，客户端不得不加「投后拉队列
+  /// 比对槽位、不一致就回落推 2MB」的补丁——补丁比问题本身更糟，已随 songId
+  /// 定位一并移除。传了 songId 但服务端队列里没有 → 服务端返 404，此处返回 false。
   ///
   /// [localItems]/[localStartIndex] 仅用于成功后的**乐观镜像**（调用方手上已有
   /// 列表时直接跟随，省一次轮询）；没有则只置起播态，队列由轮询回写后端权威。
@@ -534,7 +558,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<bool> playContentOnPeer({
     required String type,
     required String id,
-    int startIndex = 0,
+    String? songId,
+    int? startIndex,
     List<Map<String, dynamic>>? localItems,
     int? localStartIndex,
   }) async {
@@ -543,6 +568,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final client = _ref.read(subsonicApiClientProvider);
     _markUserCommand();
     final sw = Stopwatch()..start();
+    // 超时随队列规模缩放：大歌单后端解析+投递慢，固定 15s 会误判失败并触发
+    // 回落重推 2MB 整队（见 contentPlayBudget 文档）。预算同时下发给 Dio。
+    final budget = contentPlayBudget(localItems?.length ?? 0);
     try {
       final resp = await client
           .postRaw(
@@ -551,75 +579,51 @@ class CastPeerController extends StateNotifier<CastPeerState> {
               'peerId': peerId,
               'type': type,
               'id': id,
-              'startIndex': startIndex,
+              if (songId != null && songId.isNotEmpty) 'songId': songId,
+              if (songId == null || songId.isEmpty)
+                'startIndex': startIndex ?? 0,
             },
+            receiveTimeout: budget,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(budget);
       if (resp is! Map || resp['success'] != true) return false;
 
+      // 起点以服务端回执为准（它按 songId 定位出的真实下标），不用本地行号。
+      final queueStart = localStartIndex ?? startIndex ?? 0;
+
       final items = localItems;
-      final start = localStartIndex ?? startIndex;
-
-      // ==================== 槽位身份校验（必备，非防御性冗余） ====================
-      // `startIndex` 是**本地列表的行号**，服务端按自己的解析顺序取第 N 首。
-      // 两侧顺序实测并不同源：服务端 `resolveContentSongs('playlist')` 走
-      // `where(playlistId).all().filter(playable)`（**无 ORDER BY**，SQLite 返回
-      // rowid 序），而客户端走 `/v1/playlists/:id/tracks` 的 `orderBy(position, id)`。
-      // 2026-09-10 对真实服务端抽 24 个歌单实测：**6 个「同集异序」**（集合相同、
-      // 顺序不同，如 175/175、19/19），长度校验**一个都抓不到** —— 若不校验就是
-      // 静默播错歌（服务端 startIndex 越界还会静默归 0，更隐蔽）。
-      // 故取服务端该槽位的一条（`?offset=start&size=1`，~0.6KB）核对 songId：
-      // 不一致 → 返回 false，调用方回落 [playQueueOnPeer]（以客户端列表为权威）。
-      // 校验请求本身失败不阻断（网络抖动不该退化成推 2MB），仅记日志放行。
-      final expected = (items != null && start >= 0 && start < items.length)
-          ? items[start]['songId'] as String?
-          : null;
-      if (expected != null && expected.isNotEmpty) {
-        try {
-          final slot = await client
-              .getRaw(
-                '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue',
-                queryParameters: <String, String>{
-                  'offset': '$start',
-                  'size': '1',
-                },
-              )
-              .timeout(const Duration(seconds: 6));
-          final rawItems = (slot is Map ? slot['items'] : null);
-          if (rawItems is List && rawItems.isNotEmpty) {
-            final got = (rawItems.first as Map?)?['songId'];
-            if (got != expected) {
-              Logger.warnWithTag(
-                'CAST-PEER',
-                'playContentOnPeer($type:$id) slot mismatch: '
-                'local#$start=$expected server#$start=$got -> falling back',
-              );
-              return false;
-            }
-          }
-        } catch (e) {
-          Logger.debugWithTag(
-            'CAST-PEER',
-            'playContentOnPeer slot verify skipped: $e',
-          );
-        }
-      }
-
       if (items != null && items.isNotEmpty) {
+        // 本地也按 songId 对齐游标：服务端按身份定位，本地镜像跟随同一身份，
+        // 避免两边按各自行号算导致高亮/进度指向不同曲目。
+        final idx = songId != null && songId.isNotEmpty
+            ? items.indexWhere((e) => e['songId'] == songId)
+            : -1;
+        final start = idx >= 0 ? idx : queueStart.clamp(0, items.length - 1);
         _ref.read(playerProvider.notifier).syncQueueForCast(items, start);
+        _lastPollPosition = -1;
+        state = state.copyWith(
+          castQueue: items,
+          castIndex: start,
+          smoothPositionSeconds: 0,
+          offline: false,
+          status: state.status.copyWith(
+            state: 'PLAYING',
+            active: true,
+            positionSeconds: 0,
+          ),
+        );
+      } else {
+        _lastPollPosition = -1;
+        state = state.copyWith(
+          smoothPositionSeconds: 0,
+          offline: false,
+          status: state.status.copyWith(
+            state: 'PLAYING',
+            active: true,
+            positionSeconds: 0,
+          ),
+        );
       }
-      _lastPollPosition = -1;
-      state = state.copyWith(
-        castQueue: items ?? state.castQueue,
-        castIndex: items == null ? state.castIndex : start,
-        smoothPositionSeconds: 0,
-        offline: false,
-        status: state.status.copyWith(
-          state: 'PLAYING',
-          active: true,
-          positionSeconds: 0,
-        ),
-      );
       unawaited(pollOnce());
       return true;
     } catch (e) {

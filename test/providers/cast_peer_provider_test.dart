@@ -1009,6 +1009,74 @@ void main() {
       expect(body!.containsKey('items'), isFalse);
     });
 
+    // songId 定位：起点是**身份**而非行号。服务端在解析出的队列里 findIndex，
+    // 与两侧排序是否同源无关 → 从根上消除「静默播错歌」，客户端因此不再需要
+    // 投后拉队列比对槽位的补丁（补丁本身会把失败退化成推 2MB 整队）。
+    test('songId is sent as the start locator (identity, not row index)', () async {
+      await setupCasting();
+      Map<String, dynamic>? body;
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((inv) async {
+        body = inv.namedArguments[#data] as Map<String, dynamic>;
+        return <String, dynamic>{'success': true};
+      });
+
+      final ok = await controller.playContentOnPeer(
+        type: 'playlist',
+        id: 'pl-1',
+        songId: 's42',
+      );
+
+      expect(ok, isTrue);
+      expect(body!['songId'], 's42');
+      // 传了 songId 就不该再传行号：两者语义不同，混传会让服务端误按行号取。
+      expect(body!.containsKey('startIndex'), isFalse);
+    });
+
+    test('no slot verification round-trip: never GETs a single queue slot', () async {
+      await setupCasting();
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+
+      final ok = await controller.playContentOnPeer(
+        type: 'playlist',
+        id: 'pl-1',
+        songId: 's42',
+        localItems: <Map<String, dynamic>>[songToQueueItem(song)],
+        localStartIndex: 0,
+      );
+
+      expect(ok, isTrue);
+      // songId 定位后不再需要「投后拉服务端队列的某一槽位比对 songId」这一额外往返。
+      // 注意：常规轮询 pollOnce() 仍会拉队列回写镜像，属正常行为——这里只锁死
+      // 「不再有带 offset/size 的**槽位探测**」。
+      //
+      // 不能直接用 mocktail 的 verifyNever + 具名 matcher：verifyNever 进入校验模式后
+      // 不再匹配已登记的桩，任何真实调用（含 queryParameters 为 null 的全量轮询）都会被
+      // 报成 Unexpected call，断言必然假失败。故直接检查调用记录。
+      final slotProbes = verify(
+        () => client.getRaw(
+          queuePath('dlna-1'),
+          queryParameters: captureAny(named: 'queryParameters'),
+        ),
+      ).captured.whereType<Map>().where((q) => q.containsKey('offset')).toList();
+      expect(
+        slotProbes,
+        isEmpty,
+        reason: '不应再有带 offset 的槽位探测往返（补丁已随 songId 定位移除）',
+      );
+    });
+
     test('rejects when server refuses so caller can fall back', () async {
       await setupCasting();
       when(
@@ -1030,95 +1098,46 @@ void main() {
         await controller.playContentOnPeer(type: 'playlist', id: 'pl-1'),
         isFalse,
       );
+      // 无活跃 peer 时提前返回，连请求都不该发出。注意 postRaw 现在恒带
+      // receiveTimeout 具名参数，matcher 必须一并放行，否则 verify 不匹配。
       verifyNever(
-        () => client.postRaw('/rest/api/v1/play', data: any(named: 'data')),
+        () => client.postRaw(
+          any(),
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
       );
     });
 
-    // 槽位身份校验：startIndex 是**本地列表的行号**，服务端按自己的解析顺序取第 N 首。
-    // 2026-09-10 实测 24 个歌单里 6 个「同集异序」（集合相同、顺序不同，长度校验
-    // 一个都抓不到）→ 不校验就是静默播错歌。这里锁死「槽位 songId 不一致必须返回
-    // false」，让调用方回落整队推送（以客户端列表为权威）。
-    test('slot mismatch means wrong song → returns false for fallback', () async {
+    // 本地队列镜像按 songId 对齐游标：服务端按身份定位，本地高亮必须跟随同一
+    // 身份，否则两边各按行号算会让界面指向与设备实际播放不同的曲目。
+    test('local mirror aligns cursor by songId, not by row index', () async {
       await setupCasting();
       when(
         () => client.postRaw(
           '/rest/api/v1/play',
           data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
         ),
       ).thenAnswer((_) async => <String, dynamic>{'success': true});
-      when(
-        () => client.getRaw(
-          queuePath('dlna-1'),
-          queryParameters: <String, String>{'offset': '1', 'size': '1'},
-        ),
-      ).thenAnswer(
-        (_) async => <String, dynamic>{
-          'currentIndex': 1,
-          'total': 2,
-          // 服务端第 1 槽位是**别的歌** → 两侧顺序不同源。
-          'items': <Map<String, dynamic>>[
-            <String, dynamic>{'songId': 'server-other'},
-          ],
-        },
-      );
 
+      // 本地列表顺序与服务端不同源：目标歌在本地第 2 位，但服务端会按身份找到它。
       final ok = await controller.playContentOnPeer(
         type: 'playlist',
         id: 'pl-1',
-        startIndex: 1,
+        songId: 's2',
         localItems: <Map<String, dynamic>>[
           songToQueueItem(song),
           songToQueueItem(Song(id: 's2', title: '第二首', duration: 200)),
         ],
-        localStartIndex: 1,
-      );
-
-      expect(ok, isFalse);
-    });
-
-    test('slot match keeps the main channel (no queue upload)', () async {
-      await setupCasting();
-      when(
-        () => client.postRaw(
-          '/rest/api/v1/play',
-          data: any(named: 'data'),
-        ),
-      ).thenAnswer((_) async => <String, dynamic>{'success': true});
-      when(
-        () => client.getRaw(
-          queuePath('dlna-1'),
-          queryParameters: <String, String>{'offset': '1', 'size': '1'},
-        ),
-      ).thenAnswer(
-        (_) async => <String, dynamic>{
-          'currentIndex': 1,
-          'total': 2,
-          'items': <Map<String, dynamic>>[
-            <String, dynamic>{'songId': 's2'},
-          ],
-        },
-      );
-
-      final ok = await controller.playContentOnPeer(
-        type: 'playlist',
-        id: 'pl-1',
-        startIndex: 1,
-        localItems: <Map<String, dynamic>>[
-          songToQueueItem(song),
-          songToQueueItem(Song(id: 's2', title: '第二首', duration: 200)),
-        ],
-        localStartIndex: 1,
+        localStartIndex: 0,
       );
 
       expect(ok, isTrue);
-      // 主通道命中时绝不回落整队推送（那是 2MB 上传的错链路）。
-      verifyNever(
-        () => client.postRaw(
-          '/rest/api/v1/peers/dlna-1/queue/play',
-          data: any(named: 'data'),
-        ),
-      );
+      // 游标应指向 songId == 's2' 的那一行（下标 1），而不是传入的 localStartIndex 0。
+      // 这里在轮询回写之前断言：pollOnce 是 unawaited 的异步收尾，会把服务端权威
+      // 游标再覆盖回来，故只锁定「本地乐观镜像按身份对齐」这一契约。
+      expect(controller.state.castIndex, 1);
     });
   });
 
@@ -1142,6 +1161,7 @@ void main() {
         () => client.postRaw(
           '/rest/api/v1/play',
           data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
         ),
       ).thenAnswer((_) async => <String, dynamic>{'success': false});
 
@@ -1178,8 +1198,13 @@ void main() {
       );
 
       expect(ok, isTrue);
+      // 服务端无从解析 → 不该走主通道 /v1/play（那条路径服务端会 404）。
       verifyNever(
-        () => client.postRaw('/rest/api/v1/play', data: any(named: 'data')),
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
       );
       verify(
         () => client.postRaw(

@@ -172,18 +172,21 @@ Future<bool> playEffectiveQueue(
   }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
-    // 主通道:服务端内容点播——只传「内容类型 + ID + 起始索引」,由后端自行
-    // 查库解析队列并投屏,客户端零上传。5000 首歌单的起播从「拉全量 + 推 2MB」
-    // 压成一个几百字节的请求(安卓大队列推流失败的真正根因在这条链路上)。
+    // 主通道:服务端内容点播——只传「内容类型 + ID + 起始歌曲 ID」,由后端自行
+    // 查库解析队列、按 songId 身份定位起点并投屏,客户端零上传。
+    // 5000 首歌单的起播从「拉全量 + 推 2MB」压成一个几百字节的请求。
     final contentType = origin?.serverContentType;
     final contentId = origin?.id;
     if (contentType != null && contentId != null && contentId.isNotEmpty) {
+      // 起点用**歌曲 ID（身份）**而非行号：与两侧排序无关，不需要任何投后校验。
+      final startSongId =
+          (startIndex >= 0 && startIndex < songs.length) ? songs[startIndex].id : null;
       final ok = await ref
           .read(castPeerControllerProvider.notifier)
           .playContentOnPeer(
             type: contentType,
             id: contentId,
-            startIndex: startIndex,
+            songId: startSongId,
             localItems:
                 songs.map(songToQueueItem).toList(growable: false),
             localStartIndex: startIndex,
@@ -222,13 +225,19 @@ Future<bool> playEffectiveSong(
   }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
-    // 单曲点播(无队列上下文,如搜索结果里的一首):服务端按 songId 解析,
-    // 零上传且享有服务端多源优选;失败再回落整队推送。
-    final single = queue == null || queue.length <= 1;
-    if (single && song.id.isNotEmpty) {
+    // **「单曲路径」判据 = 手上没有「服务端能自行解析的队列上下文」**，
+    // 与队列长度无关（历史用 `queue.length <= 1` 是错的）：
+    // - 有 queue 且长度 > 1：调用方已给出整条本地队列（列表页点行）→ 走
+    //   [playQueueOnPeer] 整队推送，保持与页面列表完全一致；
+    // - 无 queue 或长度 <= 1：手上只有这一首，没有成形的队列 → 交给服务端
+    //   按 songId 自行解析（单曲点播，零上传）。
+    // 注意「歌单里只有一首」不等于「单曲路径」：那是**有歌单 ID 的播放队列**，
+    // 走 playEffectiveQueue 的主通道（type=playlist），与本函数无关。
+    final hasQueueContext = queue != null && queue.length > 1;
+    if (!hasQueueContext && song.id.isNotEmpty) {
       final ok = await ref
           .read(castPeerControllerProvider.notifier)
-          .playContentOnPeer(type: 'song', id: song.id);
+          .playContentOnPeer(type: 'song', id: song.id, songId: song.id);
       if (ok) return true;
     }
     return ref
