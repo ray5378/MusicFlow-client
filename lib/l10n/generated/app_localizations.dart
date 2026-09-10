@@ -4116,6 +4116,48 @@ abstract class AppLocalizations {
   /// **'设备离线,已暂停轮询'**
   String get player_source_offline;
 
+  /// player_peer_not_playing
+  ///
+  /// In zh, this message translates to:
+  /// **'未在播放'**
+  String get player_peer_not_playing;
+
+  /// player_peer_state_unknown
+  ///
+  /// In zh, this message translates to:
+  /// **'状态获取中…'**
+  String get player_peer_state_unknown;
+
+  /// player_handoff_pull
+  ///
+  /// In zh, this message translates to:
+  /// **'接回本机 · 从「{name}」搬回播放队列'**
+  String player_handoff_pull(String name);
+
+  /// player_handoff_push
+  ///
+  /// In zh, this message translates to:
+  /// **'推到「{name}」 · 搬出本机播放队列'**
+  String player_handoff_push(String name);
+
+  /// player_handoff_push_success
+  ///
+  /// In zh, this message translates to:
+  /// **'已推送到「{name}」,从当前曲继续播放'**
+  String player_handoff_push_success(String name);
+
+  /// player_handoff_pull_success
+  ///
+  /// In zh, this message translates to:
+  /// **'已接回本机,从当前曲继续播放'**
+  String get player_handoff_pull_success;
+
+  /// player_handoff_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'接续失败,当前播放未受影响'**
+  String get player_handoff_failed;
+
   /// player_stop_cast
   ///
   /// In zh, this message translates to:

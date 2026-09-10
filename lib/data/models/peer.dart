@@ -103,6 +103,30 @@ class PeerStatus {
   }
 }
 
+/// peer 实时队列摘要（GET /v1/peers/:id/queue 的弹窗消费子集）：
+/// 当前曲目 + 游标 + 是否在播，用于「选择播放器」弹窗第二行与接续按钮可用性。
+class PeerNowPlaying {
+  const PeerNowPlaying({
+    required this.isActive,
+    required this.currentIndex,
+    required this.total,
+    required this.title,
+    this.artist,
+  });
+
+  final bool isActive;
+  final int currentIndex;
+  final int total;
+  final String title;
+  final String? artist;
+
+  /// 「歌曲 - 歌手」展示串;无曲目返回空串。
+  String get trackLabel {
+    if (title.isEmpty) return '';
+    return artist == null || artist!.isEmpty ? title : '$title - $artist';
+  }
+}
+
 /// 队列条目：投递给后端 queue/play 的形状（对齐前端 songToQueueItem）。
 Map<String, dynamic> songToQueueItem(dynamic song) => <String, dynamic>{
       'songId': song.id as String?,

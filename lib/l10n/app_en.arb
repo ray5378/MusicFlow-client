@@ -2232,6 +2232,49 @@
   "@player_source_offline": {
     "description": "player_source_offline"
   },
+  "player_peer_not_playing": "Not playing",
+  "@player_peer_not_playing": {
+    "description": "player_peer_not_playing"
+  },
+  "player_peer_state_unknown": "Loading state…",
+  "@player_peer_state_unknown": {
+    "description": "player_peer_state_unknown"
+  },
+  "player_handoff_pull": "Resume here · move queue back from {name}",
+  "@player_handoff_pull": {
+    "description": "player_handoff_pull",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_handoff_push": "Push to {name} · move local queue over",
+  "@player_handoff_push": {
+    "description": "player_handoff_push",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_handoff_push_success": "Pushed to {name}, continuing from the current song",
+  "@player_handoff_push_success": {
+    "description": "player_handoff_push_success",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_handoff_pull_success": "Resumed on this device from the current song",
+  "@player_handoff_pull_success": {
+    "description": "player_handoff_pull_success"
+  },
+  "player_handoff_failed": "Handoff failed, current playback untouched",
+  "@player_handoff_failed": {
+    "description": "player_handoff_failed"
+  },
   "player_stop_cast": "Stop casting",
   "@player_stop_cast": {
     "description": "player_stop_cast"

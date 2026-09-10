@@ -2232,6 +2232,49 @@
   "@player_source_offline": {
     "description": "player_source_offline"
   },
+  "player_peer_not_playing": "未在播放",
+  "@player_peer_not_playing": {
+    "description": "player_peer_not_playing"
+  },
+  "player_peer_state_unknown": "状态获取中…",
+  "@player_peer_state_unknown": {
+    "description": "player_peer_state_unknown"
+  },
+  "player_handoff_pull": "接回本机 · 从「{name}」搬回播放队列",
+  "@player_handoff_pull": {
+    "description": "player_handoff_pull",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_handoff_push": "推到「{name}」 · 搬出本机播放队列",
+  "@player_handoff_push": {
+    "description": "player_handoff_push",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_handoff_push_success": "已推送到「{name}」,从当前曲继续播放",
+  "@player_handoff_push_success": {
+    "description": "player_handoff_push_success",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_handoff_pull_success": "已接回本机,从当前曲继续播放",
+  "@player_handoff_pull_success": {
+    "description": "player_handoff_pull_success"
+  },
+  "player_handoff_failed": "接续失败,当前播放未受影响",
+  "@player_handoff_failed": {
+    "description": "player_handoff_failed"
+  },
   "player_stop_cast": "停止投屏",
   "@player_stop_cast": {
     "description": "player_stop_cast"

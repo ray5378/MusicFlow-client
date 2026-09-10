@@ -2365,6 +2365,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get player_source_offline => 'Device offline, polling paused';
 
   @override
+  String get player_peer_not_playing => 'Not playing';
+
+  @override
+  String get player_peer_state_unknown => 'Loading state…';
+
+  @override
+  String player_handoff_pull(String name) {
+    return 'Resume here · move queue back from $name';
+  }
+
+  @override
+  String player_handoff_push(String name) {
+    return 'Push to $name · move local queue over';
+  }
+
+  @override
+  String player_handoff_push_success(String name) {
+    return 'Pushed to $name, continuing from the current song';
+  }
+
+  @override
+  String get player_handoff_pull_success =>
+      'Resumed on this device from the current song';
+
+  @override
+  String get player_handoff_failed =>
+      'Handoff failed, current playback untouched';
+
+  @override
   String get player_stop_cast => 'Stop casting';
 
   @override

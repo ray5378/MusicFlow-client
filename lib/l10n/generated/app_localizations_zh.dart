@@ -2238,6 +2238,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String get player_source_offline => '设备离线,已暂停轮询';
 
   @override
+  String get player_peer_not_playing => '未在播放';
+
+  @override
+  String get player_peer_state_unknown => '状态获取中…';
+
+  @override
+  String player_handoff_pull(String name) {
+    return '接回本机 · 从「$name」搬回播放队列';
+  }
+
+  @override
+  String player_handoff_push(String name) {
+    return '推到「$name」 · 搬出本机播放队列';
+  }
+
+  @override
+  String player_handoff_push_success(String name) {
+    return '已推送到「$name」,从当前曲继续播放';
+  }
+
+  @override
+  String get player_handoff_pull_success => '已接回本机,从当前曲继续播放';
+
+  @override
+  String get player_handoff_failed => '接续失败,当前播放未受影响';
+
+  @override
   String get player_stop_cast => '停止投屏';
 
   @override

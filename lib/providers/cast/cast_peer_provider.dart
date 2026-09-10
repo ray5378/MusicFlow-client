@@ -255,6 +255,102 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     await backToLocal();
   }
 
+  // ==================== 接续搬移（本机 ⇄ DLNA 设备） ====================
+
+  /// 拉取 peer 实时队列摘要：当前曲目（歌名/歌手）+ 游标 + 是否在播。
+  /// 供「选择播放器」弹窗第二行展示与「接回本机」按钮可用性判断。
+  /// 请求失败（设备掉线/网络抖）返回 null，调用方按「未知」处理。
+  Future<PeerNowPlaying?> fetchPeerNowPlaying(String peerId) async {
+    final client = _ref.read(subsonicApiClientProvider);
+    try {
+      final data = await client
+          .getRaw('/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue')
+          .timeout(const Duration(seconds: 6)) as Map<String, dynamic>;
+      final media = data['currentMedia'];
+      return PeerNowPlaying(
+        isActive: data['isActive'] == true,
+        currentIndex: (data['currentIndex'] as num?)?.toInt() ?? -1,
+        total: (data['total'] as num?)?.toInt() ?? 0,
+        title: media is Map ? '${media['title'] ?? ''}' : '',
+        artist: media is Map ? (media['artist'] as String?) : null,
+      );
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'fetchPeerNowPlaying failed: $e');
+      return null;
+    }
+  }
+
+  /// 推到音箱：把**本机**的播放队列 + 当前进度推给 [peer]，从同一进度接续播放，
+  /// 本机暂停（接续搬移语义：搬完原边停止）。
+  ///
+  /// 仅在本机真正在放（无 activePeer）时可用——投屏态下本机队列只是远端镜像，
+  /// 没有「本机播放现场」可搬。链路：switchTo(快照+暂停本机) → queue/play
+  /// (startIndex=当前曲) → seek(当前秒)。
+  Future<bool> pushLocalToPeer(PeerInfo peer) async {
+    if (peer.isLocal) return false;
+    final ps = _ref.read(playerProvider);
+    if (ps.queue.isEmpty) return false;
+    final items = ps.queue.map(songToQueueItem).toList(growable: false);
+    final start = ps.currentIndex.clamp(0, items.length - 1);
+    if (state.activePeer?.peerId != peer.peerId) {
+      final switched = await switchTo(peer);
+      if (!switched) return false;
+    }
+    // 只搬队列 + 当前曲自动起播(不搬进度):从当前曲开头继续,队列顺延。
+    return _pushQueueAndPlay(peer.peerId, items, start);
+  }
+
+  /// 接回本机：把 [peer] 的播放队列搬回本机，从当前曲开头自动接续播放，
+  /// 设备停止（接续搬移语义：搬完原边停止）。不搬进度。
+  ///
+  /// 链路：GET queue(队列+游标) → 停设备 → 本机 playSong(同队同曲自动播)。
+  Future<bool> pullPeerToLocal(PeerInfo peer) async {
+    final client = _ref.read(subsonicApiClientProvider);
+    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peer.peerId)}';
+    final Map<String, dynamic> queueData;
+    try {
+      queueData = await client
+          .getRaw('$base/queue')
+          .timeout(const Duration(seconds: 6)) as Map<String, dynamic>;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'pullPeerToLocal: queue failed: $e');
+      return false;
+    }
+    final rawItems = (queueData['items'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    if (rawItems.isEmpty) return false;
+    final songs =
+        rawItems.map(castQueueItemToSong).toList(growable: false);
+    var index = (queueData['currentIndex'] as num?)?.toInt() ?? 0;
+    if (index < 0 || index >= songs.length) index = 0;
+
+    // 先停设备(数据已到手):active 时走完整 stopCasting(停+失活+切回本机),
+    // 非 active 设备只尽力 stop,不影响当前投屏会话。
+    if (state.activePeer?.peerId == peer.peerId) {
+      await stopCasting();
+    } else {
+      _markUserCommand();
+      try {
+        await client.postRaw('$base/stop').timeout(const Duration(seconds: 8));
+      } catch (_) {}
+    }
+
+    // 本机从当前曲开头自动接续(不搬进度)。
+    try {
+      await _ref.read(playerProvider.notifier).playSong(
+            songs[index],
+            queue: songs,
+            index: index,
+            autoPlay: true,
+          );
+      return true;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'pullPeerToLocal: local resume failed: $e');
+      return false;
+    }
+  }
+
   // ==================== 传输控制 ====================
 
   Future<void> toggle() async {
@@ -744,4 +840,13 @@ final isCastingProvider = Provider<bool>((ref) {
   return ref.watch(
     castPeerControllerProvider.select((s) => s.activePeer != null),
   );
+});
+
+/// 单个 peer 的实时队列摘要(FutureProvider.family):「选择播放器」弹窗
+/// 每个设备行 watch 自己的 peerId,打开弹窗即拉、autoDispose 自动回收。
+/// 刷新时 invalidate 全部条目;失败返回 null(按「未知/未在播放」展示)。
+final peerNowPlayingProvider = FutureProvider.autoDispose
+    .family<PeerNowPlaying?, String>((ref, peerId) async {
+  final controller = ref.read(castPeerControllerProvider.notifier);
+  return controller.fetchPeerNowPlaying(peerId);
 });

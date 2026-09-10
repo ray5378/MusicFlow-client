@@ -5,8 +5,242 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
+
+/// 单个远端播放器行的实时队列摘要订阅:「打开弹窗即拉、行销毁自动回收」。
+/// 接续按钮可用性/第二行歌名都从这份数据来。
+class PeerCastRow extends ConsumerWidget {
+  const PeerCastRow({
+    super.key,
+    required this.peer,
+    required this.selected,
+    required this.onSwitch,
+    required this.onHandoff,
+    this.onRefresh,
+  });
+
+  final PeerInfo peer;
+  final bool selected;
+
+  /// 点击行主体 = 切换控制目标(原有语义,不变)。
+  final Future<void> Function() onSwitch;
+
+  /// 按下接续按钮(direction: true=推到音箱, false=接回本机)。
+  /// 由调用方统一弹 toast/关弹窗。
+  final Future<void> Function(bool push) onHandoff;
+
+  /// 接续失败后的可选回调(如刷新 nowPlaying)。
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
+    final colors = context.musicFlowColors;
+    final typography = context.musicFlowTypography;
+    final localQueue = ref.watch(
+      castPeerControllerProvider.select((s) => s.activePeer == null),
+    );
+    final playerQueue = ref.watch(
+      playerProvider.select((ps) => ps.queue),
+    );
+    final nowAsync = ref.watch(peerNowPlayingProvider(peer.peerId));
+    final now = nowAsync.valueOrNull;
+    final canPull = (now?.isActive ?? false) && (now?.total ?? 0) > 0;
+    // 本机是否真有播放现场可推:非投屏态且本机队列非空
+    //(投屏态下本机队列只是远端镜像,没有「现场」可推)。
+    final canPush = localQueue && playerQueue.isNotEmpty;
+
+    return MusicFlowPressable(
+      onPressed: onSwitch,
+      selected: selected,
+      borderRadius: context.musicFlowRadii.control,
+      semanticLabel: peer.name,
+      child: Ink(
+        decoration: BoxDecoration(
+          // 对齐 MusicFlowActionRow 选中态:accent 10% 薄染,不用实色。
+          color: selected
+              ? colors.accent.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: context.musicFlowRadii.control,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              switch (peer.kind) {
+                'group' => AppIcons.people,
+                _ => AppIcons.signalTower,
+              },
+              size: 22,
+              color: selected ? colors.accent : colors.ink,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: typography.title.copyWith(
+                            color: selected ? colors.accent : colors.ink,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _DlnaBadge(colors: colors),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    now == null
+                        ? loc.player_peer_state_unknown
+                        : (now.trackLabel.isEmpty
+                            ? loc.player_peer_not_playing
+                            : now.trackLabel),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.body.copyWith(
+                      color: colors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _HandoffButton(
+              up: false,
+              enabled: canPull,
+              tooltip: loc.player_handoff_pull(peer.name),
+              onPressed: () {
+                onHandoff(false);
+              },
+            ),
+            const SizedBox(width: 6),
+            _HandoffButton(
+              up: true,
+              enabled: canPush,
+              tooltip: loc.player_handoff_push(peer.name),
+              onPressed: () {
+                onHandoff(true);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 「DLNA」小徽章:设备类型标签,跟设备名同行(替代原第二行的 kind 字样)。
+class _DlnaBadge extends StatelessWidget {
+  const _DlnaBadge({required this.colors});
+
+  final MusicFlowColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: colors.controlBoundary, width: 0.5),
+      ),
+      child: Text(
+        'DLNA',
+        style: context.musicFlowTypography.body.copyWith(
+          fontSize: 10,
+          height: 1.4,
+          color: colors.muted,
+        ),
+      ),
+    );
+  }
+}
+
+/// 接续按钮:只画一支粗箭头,朝下=接回本机(拉),朝上=推到音箱(推)。
+/// 桌面端悬停高亮 + Tooltip 文字注释;无「现场」可搬时置灰。
+class _HandoffButton extends StatelessWidget {
+  const _HandoffButton({
+    required this.up,
+    required this.enabled,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final bool up;
+  final bool enabled;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.musicFlowColors;
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: MusicFlowPressable(
+        minimumSize: const Size.square(34),
+        borderRadius: BorderRadius.circular(9),
+        semanticLabel: tooltip,
+        onPressed: enabled ? onPressed : null,
+        child: Center(
+          child: CustomPaint(
+            size: const Size(18, 18),
+            painter: _HandoffArrowPainter(
+              color: enabled ? colors.accent : colors.onDisabled,
+              up: up,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 单箭头图标:粗竖杆 + 三角箭头头,朝向由 [up] 决定。
+class _HandoffArrowPainter extends CustomPainter {
+  _HandoffArrowPainter({required this.color, required this.up});
+
+  final Color color;
+  final bool up;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+    // 箭头头:占上半约 55%,竖杆补满剩余长度。
+    final tipY = up ? h * 0.08 : h * 0.92;
+    final headBaseY = up ? h * 0.52 : h * 0.48;
+    final headHalf = w * 0.34;
+    final tailY = up ? h * 0.92 : h * 0.08;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.14
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path()
+      ..moveTo(cx - headHalf, headBaseY)
+      ..lineTo(cx, tipY)
+      ..lineTo(cx + headHalf, headBaseY);
+    canvas.drawPath(path, paint);
+    canvas.drawLine(Offset(cx, headBaseY), Offset(cx, tailY), paint);
+  }
+
+  @override
+  bool shouldRepaint(_HandoffArrowPainter old) =>
+      old.color != color || old.up != up;
+}
 
 class PlayerSwitcherSheet extends ConsumerStatefulWidget {
   const PlayerSwitcherSheet({super.key});
@@ -31,6 +265,38 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     final controller = ref.read(castPeerControllerProvider.notifier);
     final peers = await controller.loadPeers();
     if (mounted) setState(() => _peers = peers);
+  }
+
+  /// 接续搬移统一入口:push=true 本机→设备,false 设备→本机。
+  /// 成功弹轻提示并关闭弹窗;失败报错且不动现有播放。
+  Future<void> _doHandoff(
+    BuildContext context,
+    CastPeerController controller,
+    PeerInfo peer,
+    bool push,
+  ) async {
+    final loc = AppLocalizations.of(context);
+    final ok = push
+        ? await controller.pushLocalToPeer(peer)
+        : await controller.pullPeerToLocal(peer);
+    if (mounted) {
+      ref.invalidate(peerNowPlayingProvider(peer.peerId));
+    }
+    if (!context.mounted) return;
+    if (ok) {
+      showMusicFlowMessage(
+        context,
+        push ? loc.player_handoff_push_success(peer.name) : loc.player_handoff_pull_success,
+        kind: MusicFlowMessageKind.success,
+      );
+      if (context.mounted) Navigator.of(context).pop();
+    } else {
+      showMusicFlowMessage(
+        context,
+        loc.player_handoff_failed,
+        kind: MusicFlowMessageKind.error,
+      );
+    }
   }
 
   @override
@@ -82,20 +348,11 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                 ),
               if (remotePeers.isNotEmpty)
                 for (final peer in remotePeers)
-                  MusicFlowActionRow(
-                    icon: switch (peer.kind) {
-                      'group' => AppIcons.people,
-                      'airplay' => AppIcons.signalTower,
-                      _ => AppIcons.signalTower,
-                    },
-                    title: peer.name,
-                    subtitle: <String>[
-                      peer.kindLabel,
-                      if (peer.queueTotal > 0) peer.queueLabel,
-                    ].join(' · '),
+                  PeerCastRow(
+                    key: ValueKey('sheet-peer-${peer.peerId}'),
+                    peer: peer,
                     selected: cast.activePeer?.peerId == peer.peerId,
-                    onPressed: () async {
-                      final navigator = Navigator.of(context);
+                    onSwitch: () async {
                       final ok = await controller.switchTo(peer);
                       if (!ok && context.mounted) {
                         showMusicFlowMessage(
@@ -105,8 +362,10 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                         );
                         return;
                       }
-                      navigator.pop();
+                      if (context.mounted) Navigator.of(context).pop();
                     },
+                    onHandoff: (push) =>
+                        _doHandoff(context, controller, peer, push),
                   )
               else
                 Padding(
@@ -167,6 +426,35 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
     final controller = ref.read(castPeerControllerProvider.notifier);
     final peers = await controller.loadPeers();
     if (mounted) setState(() => _peers = peers);
+  }
+
+  /// 接续搬移(Popover 版):成功经 [_close] 弹右上角 Toast 并收起弹窗。
+  Future<void> _doHandoffPopover(
+    BuildContext context,
+    CastPeerController controller,
+    PeerInfo peer,
+    bool push,
+  ) async {
+    final loc = AppLocalizations.of(context);
+    final ok = push
+        ? await controller.pushLocalToPeer(peer)
+        : await controller.pullPeerToLocal(peer);
+    if (mounted) {
+      ref.invalidate(peerNowPlayingProvider(peer.peerId));
+    }
+    if (ok) {
+      _close(
+        toast: push
+            ? loc.player_handoff_push_success(peer.name)
+            : loc.player_handoff_pull_success,
+      );
+    } else if (context.mounted) {
+      showMusicFlowMessage(
+        context,
+        loc.player_handoff_failed,
+        kind: MusicFlowMessageKind.error,
+      );
+    }
   }
 
   void _close({String? toast}) {
@@ -273,19 +561,14 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                               ),
                             if (remotePeers.isNotEmpty)
                               for (final peer in remotePeers)
-                                MusicFlowActionRow(
-                                  icon: switch (peer.kind) {
-                                    'group' => AppIcons.people,
-                                    _ => AppIcons.signalTower,
-                                  },
-                                  title: peer.name,
-                                  subtitle: <String>[
-                                    peer.kindLabel,
-                                    if (peer.queueTotal > 0) peer.queueLabel,
-                                  ].join(' · '),
+                                PeerCastRow(
+                                  key: ValueKey(
+                                    'popover-peer-${peer.peerId}',
+                                  ),
+                                  peer: peer,
                                   selected:
                                       cast.activePeer?.peerId == peer.peerId,
-                                  onPressed: () async {
+                                  onSwitch: () async {
                                     final ok = await controller.switchTo(peer);
                                     if (!ok) {
                                       if (context.mounted) {
@@ -297,8 +580,18 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                                       }
                                       return;
                                     }
-                                    _close(toast: loc.player_remote_control(peer.name));
+                                    _close(
+                                      toast: loc.player_remote_control(
+                                        peer.name,
+                                      ),
+                                    );
                                   },
+                                  onHandoff: (push) => _doHandoffPopover(
+                                    context,
+                                    controller,
+                                    peer,
+                                    push,
+                                  ),
                                 )
                             else
                               Padding(
