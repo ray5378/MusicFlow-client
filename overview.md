@@ -1,8 +1,27 @@
 # 接续搬移主通道优先 + 4 链路坏源守卫固化
 
 **日期**：2026-09-10
-**版本**：客户端 v4.3.39
-**commit**：fcc412d
+**版本**：客户端 v4.3.39 / 主仓库 v2.3.24
+**commit**：fcc412d（客户端）、33029c5 + 62e9c86（主仓库）
+
+---
+
+## 补记：遗留问题收口（主仓库 v2.3.24）
+
+`resolveContentSongs('playlist')` 缺 `ORDER BY position` 的部分**早已修复**
+（`c942adf`，在 `v2.3.23`，有 `contentOrder.test.ts` 行为守卫）。
+
+但同一根因「两侧排序不同源」还有**第二个漏斗**：**Web 前端从未走过主通道** ——
+`grep -rn "v1/play\"" frontend/src` 结果为空，所有投屏起播一律整队推送 →
+大歌单在公网入口撞 **Lucky WAF 体积闸门**（≈300 首即 403）→ 起播失败。
+
+**v2.3.24 修复**：`RemoteState.contentOrigin` + `startCastPlaybackMainChannelFirst`
+（整份内容点播走 `/v1/play` 下发 `songId`，失败才回落整队推送）；
+新增 `playContentContract.test.ts`（6 项，**payload 级断言**，5 个变异全被抓）；
+CI 接入两个测试文件 + 新增静态守卫步骤。
+
+→ 至此客户端 / Web 前端 / HA 集成**三仓全部主通道优先**。
+详见 `outputs/遗留问题修复与全链路最终汇报.md`。
 
 ---
 
