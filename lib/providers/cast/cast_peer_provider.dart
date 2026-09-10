@@ -591,8 +591,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
             if (got != expected) {
               Logger.warnWithTag(
                 'CAST-PEER',
-                'playContentOnPeer($type:$id) 槽位错位: 本地#$start=$expected '
-                '服务端#$start=$got → 回落整队推送',
+                'playContentOnPeer($type:$id) slot mismatch: '
+                'local#$start=$expected server#$start=$got -> falling back',
               );
               return false;
             }
