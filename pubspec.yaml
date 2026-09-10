@@ -17,9 +17,15 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # 发版规则已改为「纯 tag 驱动」：正式发布版本号只由 git 版本 tag(vX.Y.Z) 决定，
-# CI 在构建时通过 --build-name/--build-number 覆盖此值。因此这里的版本号只是
-# 本地开发/工具的无语义基准占位，不再随每次发版手动维护，请勿再改动它。
-version: 1.1.9+52
+# CI 在构建时通过 --build-name/--build-number 覆盖此值。
+#
+# ⚠️ 这里的 0.0.0+0 是**刻意写成一眼可辨的假版本号**，不是可用的版本。
+#    - 本地 `flutter build apk`（不带 --build-name）产出的包会显示 0.0.0，
+#      使用者立刻能看出「这是本地构建，不是正式发版」。
+#    - 此前该值是 `1.1.9+52`，看起来像个真实版本，导致本地 debug 包被误当成
+#      已发布的 1.1.9（真实发版线是 v4.3.x）。刻意留假值以消除这种误判。
+#    - 请勿改成任何「看起来真实」的版本号，也不要随发版手动维护它。
+version: 0.0.0+0
 environment:
   sdk: ^3.10.8
 
