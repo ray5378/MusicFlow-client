@@ -175,7 +175,7 @@ jobs:
           retention-days: 30
 
   build-windows:
-    name: Windows Portable
+    name: Windows Installer
     needs: [resolve-version]
     runs-on: windows-latest
     steps:
@@ -206,12 +206,9 @@ jobs:
       - name: Build Windows (Release)
         run: flutter build windows --release --build-name="${{ needs.resolve-version.outputs.version }}" --build-number=${{ needs.resolve-version.outputs.build_number }}
 
-      - name: Package portable zip
-        run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip"
-
-      # 安装包版本(单文件):windows-latest 预装 Inno Setup 6。
+      # 发布物只保留单文件安装包，不再产出绿色版(portable zip)。
       # 安装向导支持勾选「开始菜单快捷方式 / 桌面快捷方式」(见 windows/installer.iss Tasks)。
+      # 注意：flutter build 产物仍留在 build\windows\x64\runner\Release\，ISCC 从这里取文件。
       - name: Build installer (Inno Setup single-file)
         shell: powershell
         run: |
@@ -221,9 +218,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: musicflow-windows
-          path: |
-            MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
-            MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe
+          path: MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe
           retention-days: 30
 
   publish-versioned:
@@ -268,7 +263,7 @@ jobs:
           提交: ${{ github.sha }}
 
           - **Android**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk`
-          - **Windows**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip` (绿色版,解压即用) / `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe` (安装版,安装时可勾选开始菜单/桌面快捷方式)
+          - **Windows**: `MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe` (安装版,安装时可勾选开始菜单/桌面快捷方式)
           EOF
 
       - name: Publish GitHub Release
@@ -279,7 +274,6 @@ jobs:
           body_path: changelog_body.md
           files: |
             artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-android.apk
-            artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows.zip
             artifacts/MusicFlow-${{ needs.resolve-version.outputs.artifact_tag }}-windows-setup.exe
           prerelease: false
         env:

@@ -55,7 +55,7 @@
 **方案**：在 `build-android.yml` / 新增 Windows 打包 job 里构建 `app-release.apk` 与 Windows zip，随 tag Release 上传（用 `--build-name/--build-number`）。
 
 **完成项**（✅，审计时已实现，无需改动）：
-- `build-android.yml` 由版本 tag (v*) 触发：`resolve-version` 解析版本并注入、`build-android` 产 `MusicFlow-<tag>-android.apk`（arm64-only + 签名）、`build-windows` 产 `-windows.zip`（绿色版）与 `-windows-setup.exe`（Inno Setup 安装版）、`publish-versioned` 下载双端产物随 Release 发布。
+- `build-android.yml` 由版本 tag (v*) 触发：`resolve-version` 解析版本并注入、`build-android` 产 `MusicFlow-<tag>-android.apk`（arm64-only + 签名）、`build-windows` 产 `-windows-setup.exe`（Inno Setup 安装版，单文件；绿色版 zip 已于 2026-09-10 取消发布）、`publish-versioned` 下载双端产物随 Release 发布。
 - Release 附带的正是预编译 APK / Windows 安装包，非源码；`--build-name/--build-number` 保证应用内「检查更新」版本与本次 tag 一致。
 
 ---

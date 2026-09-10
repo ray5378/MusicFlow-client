@@ -101,7 +101,7 @@ flutter analyze
 flutter test
 ```
 
-> **构建约束**：禁止在本地机器执行 `flutter build`（apk / windows 等）。Android APK 与 Windows 便携包一律由 **GitHub Actions CI** 构建（push `main` 或手动 `workflow_dispatch`），产物发布为滚动 Release：`MusicFlow-{run_number}-android.apk` + `MusicFlow-{run_number}-windows.zip`。
+> **构建约束**：禁止在本地机器执行 `flutter build`（apk / windows 等）。Android APK 与 Windows 安装包一律由 **GitHub Actions CI** 构建（打 `v*` tag 触发），产物发布为正式 Release：`MusicFlow-<tag>-android.apk` + `MusicFlow-<tag>-windows-setup.exe`。
 
 ## 项目结构
 
