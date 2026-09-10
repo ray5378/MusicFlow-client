@@ -85,11 +85,15 @@ void main() {
     String playMode = 'all',
     int currentIndex = 0,
     List<Map<String, dynamic>>? items,
+    List<int>? shuffleOrder,
+    int? shufflePos,
   }) =>
       <String, dynamic>{
         'currentIndex': currentIndex,
         'total': items?.length ?? 1,
         'playMode': playMode,
+        'shuffleOrder': shuffleOrder ?? const <int>[],
+        'shufflePos': shufflePos ?? -1,
         'items': items ??
             <Map<String, dynamic>>[
               <String, dynamic>{
@@ -390,6 +394,100 @@ void main() {
       expect(controller.state.status.state, 'PLAYING');
       expect(controller.state.castQueue, isNotEmpty);
       expect(controller.state.offline, isFalse);
+    });
+
+    // ==================== 服务端权威洗牌序列（镜像，客户端不自行洗牌） ====================
+    //
+    // 背景：历史 bug 是「遥控器指定第 N 首，设备却播别的歌」——根因在服务端
+    // `QueueController.playFrom` 于 shuffle 模式下用 `Math.random` 覆盖调用方起点，
+    // 而客户端又各自维护一份洗牌序列，两侧必然不一致。
+    // 拍板方案：**洗牌权威唯一在服务端**，客户端只镜像 `shuffleOrder`/`shufflePos`
+    // （GET /peers/:id/queue 回传，轻量轮询外层也带），绝不自行洗牌。
+    // 回退本节任一条 = 双份洗牌回归 → 必然再次出现「播的不是指定的歌」。
+    group('server-authoritative shuffle order (mirror only)', () {
+      test('★ mirrors backend shuffleOrder/shufflePos into state', () async {
+        await setupCasting();
+        stubQueuePoll(queueSnapshot(
+          playMode: 'shuffle',
+          currentIndex: 3,
+          items: <Map<String, dynamic>>[
+            <String, dynamic>{'songId': 's0', 'title': 'A'},
+            <String, dynamic>{'songId': 's1', 'title': 'B'},
+            <String, dynamic>{'songId': 's2', 'title': 'C'},
+            <String, dynamic>{'songId': 's3', 'title': 'D'},
+          ],
+          shuffleOrder: <int>[3, 1, 0, 2],
+          shufflePos: 0,
+        ));
+
+        await controller.pollOnce();
+
+        expect(controller.state.playMode, 'shuffle');
+        expect(controller.state.shuffleOrder, <int>[3, 1, 0, 2]);
+        expect(controller.state.shufflePos, 0);
+      });
+
+      test('★ 轻量轮询（size=1）也能对齐 shuffleOrder，不依赖全量补拉', () async {
+        await setupCasting();
+        // 先建立 4 首全量镜像。
+        stubQueuePoll(queueSnapshot(
+          playMode: 'shuffle',
+          currentIndex: 0,
+          items: <Map<String, dynamic>>[
+            <String, dynamic>{'songId': 's0', 'title': 'A'},
+            <String, dynamic>{'songId': 's1', 'title': 'B'},
+            <String, dynamic>{'songId': 's2', 'title': 'C'},
+            <String, dynamic>{'songId': 's3', 'title': 'D'},
+          ],
+          shuffleOrder: <int>[0, 1, 2, 3],
+          shufflePos: 0,
+        ));
+        await controller.pollOnce();
+        expect(controller.state.shuffleOrder, <int>[0, 1, 2, 3]);
+
+        // 服务端自行推进洗牌序列（设备侧下一首）→ 轻量 tick 必须跟上。
+        stubQueuePoll(queueSnapshot(
+          playMode: 'shuffle',
+          currentIndex: 2,
+          items: <Map<String, dynamic>>[
+            <String, dynamic>{'songId': 's2', 'title': 'C'},
+          ],
+          shuffleOrder: <int>[2, 3, 0, 1],
+          shufflePos: 1,
+        ));
+        await controller.pollOnce();
+
+        expect(controller.state.shuffleOrder, <int>[2, 3, 0, 1]);
+        expect(controller.state.shufflePos, 1);
+      });
+
+      test('非 shuffle 模式：空序列与 -1 位置（不需要洗牌）', () async {
+        await setupCasting();
+        stubQueuePoll(queueSnapshot(playMode: 'all'));
+        await controller.pollOnce();
+
+        expect(controller.state.playMode, 'all');
+        expect(controller.state.shuffleOrder, isEmpty);
+        expect(controller.state.shufflePos, -1);
+      });
+
+      test('服务端缺字段/类型不对：保持原值，不崩溃', () async {
+        await setupCasting();
+        // 老版本服务端不返回 shuffleOrder/shufflePos（滚动升级窗口）。
+        stubQueuePoll(<String, dynamic>{
+          'currentIndex': 0,
+          'total': 1,
+          'playMode': 'shuffle',
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{'songId': 's1', 'title': '测试曲'},
+          ],
+        });
+        await controller.pollOnce();
+
+        expect(controller.state.playMode, 'shuffle');
+        expect(controller.state.shuffleOrder, isEmpty);
+        expect(controller.state.shufflePos, -1);
+      });
     });
 
     test('leaving local saves snapshot + pauses; backToLocal restores it',

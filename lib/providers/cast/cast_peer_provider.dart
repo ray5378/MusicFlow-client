@@ -924,6 +924,23 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       var items = state.castQueue;
       var needFull = fullQueue || items.isEmpty;
       var knownTotal = items.length;
+      // 服务端权威洗牌序列(镜像)。轻量路径也会带下来(shuffleOrder/shufflePos
+      // 都在响应外层,不随分页丢失),所以每次 tick 都能对齐,不必补拉全量。
+      var shuffleOrder = state.shuffleOrder;
+      var shufflePos = state.shufflePos;
+
+      /// 从快照外层解析权威洗牌序列(缺失/类型不对则保持原值)。
+      void readShuffle(Map<String, dynamic> s) {
+        final rawOrder = s['shuffleOrder'];
+        if (rawOrder is List) {
+          shuffleOrder = rawOrder
+              .whereType<num>()
+              .map((e) => e.toInt())
+              .toList(growable: false);
+        }
+        final sp = s['shufflePos'];
+        if (sp is num) shufflePos = sp.toInt();
+      }
 
       Future<Map<String, dynamic>?> fetchQueue({required bool full}) async {
         final res = await client
@@ -947,6 +964,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         final total = (snap['total'] as num?)?.toInt() ?? 0;
         final sm = snap['playMode'];
         if (sm is String && sm.isNotEmpty) mode = sm;
+        readShuffle(snap);
         final raw = snap['items'];
         final edge = raw is List
             ? raw.whereType<Map<String, dynamic>>().toList()
@@ -978,6 +996,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
             final siFull = (snap['currentIndex'] as num?)?.toInt() ?? si;
             final smFull = snap['playMode'];
             if (smFull is String && smFull.isNotEmpty) mode = smFull;
+            readShuffle(snap);
             if (siFull >= 0 && siFull < total && items.isNotEmpty) idx = siFull;
           }
         }
@@ -1001,6 +1020,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         playMode: mode,
         castQueue: items,
         offline: false,
+        shuffleOrder: shuffleOrder,
+        shufflePos: shufflePos,
       );
     } on TimeoutException {
       _handlePollFailure();

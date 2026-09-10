@@ -797,9 +797,9 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 | 7 | ~~本地镜像全量重建~~ | **已解决（§12.1）**：常规 tick 只取槽位一条并**就地替换**，不再重建整个列表；`syncQueueForCast` 只在全量路径调用。 | ✅ 已解决 |
 | 8 | ~~回落通道无守卫~~ | `主通道 → 兜底通道 回落` group 2 例已补 | ✅ 已完成 |
 | 9 | **（新发现）服务端 `resolveContentSongs` 静默丢弃悬空 songId** | 歌单条目 `playlistSongs` 存在且 `playable/isMatched=true`，但对应 `songs` 行已删 → `rows = entries.map(...).filter(Boolean)` **静默丢一首**，服务端队列比客户端列表**少 1 首** → 该位置之后**全部错位**。实测在「华语经典」「欧美万评优质女声」上偶发（两次运行丢的是**不同的歌**，说明是扫描/删除过程中的**瞬时脏数据**，非固定记录）。<br>**已被客户端槽位校验兜住**（不一致即回落整队推送，以客户端列表为权威）。<br>**可选加固**：服务端改为「日志告警 + 保留占位」或清理悬空条目——**属数据卫生问题，不阻塞发版**。 | ⚠ 已兜底 |
+| 10 | **洗牌序列双份冲突（恒播错歌）** | 见 **§13.8**（本轮根治） | ✅ 已根治 |
 
 ### 13.5 顺带发现的既有缺陷（**不属于本次改动，勿混提**）
-
 `lib/features/library/pages/playlist_detail_page.dart` 的 `_playAt(int index)`：
 
 - `index` 来自**渲染序**列表（`_songList` → `_loadAllSortedSongs()` 已按
@@ -815,13 +815,13 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 | 项 | 结果 |
 | --- | --- |
 | `flutter analyze` | **0 error**（154 条存量 info，与本轮无关） |
-| `flutter test test/providers/cast_peer_provider_test.dart` | **44/44 通过**（songId 定位 / 无槽位往返 / 按身份对齐镜像 / 回落 4 / 轻量轮询 4 …） |
-| 全量 `flutter test` | **587/587 通过，0 失败** |
+| `flutter test test/providers/cast_peer_provider_test.dart` | **48/48 通过**（songId 定位 / 无槽位往返 / 按身份对齐镜像 / 回落 4 / 轻量轮询 4 / **服务端洗牌镜像 4**） |
+| 全量 `flutter test` | **591/591 通过，0 失败**（含本轮新增洗牌镜像 4 例） |
 | 发版前置守卫 | `check_interaction_feedback` ✅ / `gpu_guard_scan` ✅ / `check_workflow_yaml` ✅ / `check-l10n --gate-cjk` ✅ |
 | 主仓库 `tsc` | 0 error |
-| 主仓库后端全量测试 | **799/799 通过**（含新增起点定位契约 4 例 + 顺序契约 6 例，无回归） |
-| 主仓库发版 | **v2.3.22**（songId 身份定位），CI 全绿 |
-| 客户端发版 | **v4.3.37**，五条 workflow（GPU Render Guard / UI Guard / Test Suite / Desktop Lyric Guard / Build Client） |
+| 主仓库后端全量测试 | **808/808 通过**（含新增起点定位契约 4 例 + 顺序契约 6 例 + **起点归属 9 例**，无回归） |
+| 主仓库发版 | **v2.3.23**（洗牌权威化 + songId 身份定位），CI 全绿 |
+| 客户端发版 | **v4.3.37 → 本轮 待发**（洗牌镜像），五条 workflow（GPU Render Guard / UI Guard / Test Suite / Desktop Lyric Guard / Build Client） |
 | 真机联调（Windows） | 三条路径跑通；端到端 `tool/cast_play_chain_probe.py` **68 次探测 → 67 一致、0 顺序错位、2 跳过**（跳过来自网络抖动，非逻辑问题） |
 | 顺序修复对照 | 原先 5 个「同集异序」歌单修复后**全部完全同序**（19/19、265/265、140/140、81/81） |
 | queue 体积实测 | 3251 首：**863 935 B → 338 B（2 556×）** |
@@ -846,6 +846,88 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 - [x] 结项完成——§13.1–§13.4 可整体存档；**下次开工前先看 §13.4 风险 4/9 与 §13.5**
 
 ---
+
+### 13.8 洗牌序列权威化（**2026-09-10 根治，跨两仓**）
+
+**ray 的原始观测**：「客户端推的**百分百不是当前播放的歌曲**」+「安卓客户端大歌单推服务器**仍然百分百不成功**」。
+
+**真根因（不是排序、不是传输规模）**：**两份洗牌序列互不知晓**。
+`QueueController.playFrom` 在 `shuffle` 模式下用 `Math.random()` **无条件覆盖调用方起点**：
+
+```ts
+// 修复前（backend/src/services/player/QueueController.ts）
+const idx = mode === "shuffle" && items.length > 1
+  ? Math.floor(Math.random() * items.length)   // ← 丢弃 startIndex/songId 定位结果
+  : startIndex;
+```
+
+调用方（客户端传 songId、Web 前端/HA 传 startIndex）**指哪都没用**，服务端自己随机挑一首。
+
+**真实服务器实测（192.168.10.240，修复前）**：
+
+| 场景 | 结果 |
+| --- | --- |
+| shuffle + 指定首曲 ×3 | currentIndex = **2952 / 2426 / 2248**（乱漂） |
+| all + 指定首曲 ×3 | currentIndex = **0 / 0 / 0**（精确） |
+
+同一份请求只因 `playMode` 不同就天差地别 → 坐实「随机起播吞掉起点」。
+
+**既有测试的 workaround（长期痛点旁证）**：`tests/player/integration.test.ts`、
+`tests/group/GroupPlayback.test.ts`、`tests/group/GroupWatchdog.test.ts` 都在
+**手工把 playMode 钉成 `"order"`** 来绕开随机 —— 说明这是早就存在、一直被回避的坑。
+
+**拍板方案（ray 四点确认）**：① 走现有 `GET /peers/:id/queue` 回传；
+② 都改为服务端随机；③ 两仓一起改一起发；④ HA 卡片也有随机模式切换，一起做。
+
+**起点归属原则（唯一随机点）**：
+
+| 调用方 | 行为 |
+| --- | --- |
+| **指定起点**（songId 命中 / startIndex 非负整数） | **绝不随机**，精确使用 |
+| **未指定** + shuffle | **服务端随机**（唯一随机点） |
+| 未指定 + 非 shuffle | 0 |
+
+**主仓库改动（v2.3.23）**：
+- `QueueController.playFrom`：加 `specified` 判定
+  （`typeof number && Number.isInteger && >= 0`），指定则精确用；**返回实际起播下标**。
+- `QueueController.snapshot`：新增 `shuffleOrder`（0..n-1 排列）/ `shufflePos`。
+- `/v1/play` 回执：带 `startIndex` / `songId` / `shuffleOrder` / `shufflePos`；
+  `start` 用 `null` 表达「调用方未指定」，与 `0` 明确区分。
+- 守卫 `tests/player/PlayStartOwnership.test.ts`（9 例，阻塞型）：
+  ★指定起点 0 + shuffle 必须播第 0 首（连跑 8 次）／★指定中间下标 17 精确命中／
+  未指定 + shuffle → 随机（40 次至少两个不同落点）／snapshot 排列完整性／
+  ★next 沿服务端 shuffleOrder 走。**变异验证：改回旧行为 → 4 个守卫转红。**
+
+**客户端改动（本轮）**：
+- `CastPeerState` 新增 `shuffleOrder` / `shufflePos`（镜像，只读）。
+- `pollOnce` 解析服务端快照外层字段；**轻量轮询（`size=1`）也带这两个字段**
+  → 不必补拉全量即可对齐。老服务端缺字段 → 保持原值，不崩。
+- **客户端链路 A 本来就没有本地洗牌**（切歌由服务端驱动），本次只是把权威序列
+  显式镜像进 state，供 UI 后续使用。
+- 守卫 `cast_peer_provider_test.dart` 新增 4 例（★镜像到 state／★轻量轮询也能对齐／
+  非 shuffle 空序列／缺字段不崩）。**变异验证：`if (rawOrder is List)` 改 `false` → 2 例转红。**
+
+**部署后实测（真实服务器 + 模拟器，全部通过）**：
+
+| 验证项 | 结果 |
+| --- | --- |
+| shuffle + 指定首曲 ×5 | **5/5 精确命中** |
+| shuffle + 指定中间曲 ×5 | **5/5 精确命中**（身份定位，非行号） |
+| shuffle + 不指定 ×6 | 1483/2282/3109/1325/849/815 —— **仍随机**（服务端是唯一随机点 ✅） |
+| 3251 首大歌单 | queued=**3251**、耗时 **0.4s**、currentIndex 精确 |
+| 回执 shuffleOrder | 长度 **3251**、完整 0..n-1 排列、`order[shufflePos] == startIndex` |
+| 四模式切换回读 | shuffle/all/order/one **全部正确**，且切换**不打断当前曲** |
+| **next 沿服务端序列** | 连续 4 次 `order[shufflePos] == currentIndex` **全 OK** |
+| **安卓端到端**（模拟器 + 主卧音箱） | 客户端点第 2 行「哀人i」→ 服务端 `currentIndex=1`、`currentMedia` 完全一致 |
+
+**取证工具（可复跑）**：
+- `tool/verify_shuffle_rootcause.py` —— 修复前基线复现（A/B/C 对照）
+- `tool/verify_fix_deployed.py` —— **部署后严格验证**（10 项断言，显式先设 shuffle 再投，
+  避免上轮残留 `playMode` 导致假绿）
+
+> **踩坑**：`verify_shuffle_rootcause.py` 的 A 段依赖「服务器当前恰好是 shuffle」，
+> 一旦上轮跑完残留 `playMode=one`，A 段会退化成非 shuffle 路径 → **假绿**。
+> 新脚本必须**显式设置模式**后再投。
 
 ## 十、国际化（i18n）契约（强制）
 

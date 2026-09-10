@@ -36,6 +36,8 @@ class CastPeerState {
     this.castIndex = -1,
     this.offline = false,
     this.endOfQueueCount = 0,
+    this.shuffleOrder = const <int>[],
+    this.shufflePos = -1,
   });
 
   /// null = 本机播放。
@@ -61,6 +63,15 @@ class CastPeerState {
   /// 随机歌曲「播完自动换一批」等场景监听此值变化触发续播。
   final int endOfQueueCount;
 
+  /// **服务端权威洗牌序列**(镜像,只读):shuffle 模式下服务端给出的播放顺序,
+  /// 元素是 castQueue 的下标。客户端**绝不自行洗牌**——洗牌权威唯一在服务端,
+  /// 否则两侧各洗一份必然不一致(历史 bug:遥控器指定第 N 首,设备却播别的歌)。
+  /// 非 shuffle 模式为空。
+  final List<int> shuffleOrder;
+
+  /// 服务端在当前洗牌序列中的位置(对应 [shuffleOrder] 的下标),-1 = 无。
+  final int shufflePos;
+
   bool get isCasting => activePeer != null;
 
   /// 设备是否真的在播(后端 state 判定)。
@@ -79,6 +90,8 @@ class CastPeerState {
     int? castIndex,
     bool? offline,
     int? endOfQueueCount,
+    List<int>? shuffleOrder,
+    int? shufflePos,
   }) {
     return CastPeerState(
       activePeer: clearActivePeer ? null : (activePeer ?? this.activePeer),
@@ -90,6 +103,8 @@ class CastPeerState {
       castIndex: castIndex ?? this.castIndex,
       offline: offline ?? this.offline,
       endOfQueueCount: endOfQueueCount ?? this.endOfQueueCount,
+      shuffleOrder: shuffleOrder ?? this.shuffleOrder,
+      shufflePos: shufflePos ?? this.shufflePos,
     );
   }
 }
