@@ -2,11 +2,11 @@
 // DLNA 纯音频渲染器模拟设备 (HiVi H5MKII 行为)
 // ----------------------------------------------------------------------------
 // 用途:全量集成测试中的"纯 renderer"一侧。模拟 HiVi H5MKII:
-//   - 只暴露 AVTransport + RenderingControl,【无 ContentDirectory】(不能 CDS 清单)
+//   - 只暴露 AVTransport + RenderingControl (纯渲染器)
 //   - 不支持 SetNextAVTransportURI(返回 701)
 //   - GetPositionInfo 位置/时长按拉流进度估算(RawHTTP 风格,时长常为 0)
-// 关键校验:客户端走 B2 连续流档(/rest/castStream)时,设备 SetAVTransportURI 一个
-//   URL → Play,即自主 GET 该 URL 把整根流拉到队列末尾——跨曲连播不依赖客户端。
+// 关键校验:客户端逐首 SetAVTransportURI(服务端直连流 URL) → Play,设备自主 GET
+//   该 URL 拉流;曲毕由客户端轮询/看门狗 Set 下一首——跨曲连播由客户端驱动。
 // ============================================================================
 import http from 'node:http';
 import dgram from 'node:dgram';

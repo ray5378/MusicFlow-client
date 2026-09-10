@@ -25,16 +25,14 @@ class DlnaCastTrack {
   });
 }
 
-/// 投屏路径档位（A 档·直传直连）。
+/// 投屏路径档位。
 /// 客户端逐首 `SetAVTransportURI(服务端直连流 URL) → Play`，设备用自己的网卡
 /// **直连服务器自拉流**，客户端仅遥控；曲毕由客户端轮询检测自动 Set 下一首续播。
-/// 不做本地中继/推流（v3.2 起已删除 `local_relay.dart`）。
 enum DlnaCastPath { direct }
 
 /// 设备投屏能力（由描述文件 + 实探结果组合判定）。
-/// 仅 A 档·直传直连：设备持有一根 AVTransport 控制点即可逐首 Set 自拉流。
 class DeviceCapability {
-  /// 能直连服务器 URL 拉流（绝大多数渲染器都具备，A 档前提）。
+  /// 能直连服务器 URL 拉流（绝大多数渲染器都具备）。
   final bool supportsDirectHttp;
 
   /// 支持 SetNextAVTransportURI 无缝预置下一首。
@@ -60,7 +58,6 @@ class DlnaDevice {
   final String? model;
   final String? avTransportUrl; // AVTransport 控制 URL
   final String? renderingControlUrl; // RenderingControl 控制 URL
-  final String? contentDirectoryUrl; // ContentDirectory(CDS) 控制 URL，B 档前提
   final DateTime lastSeen;
   final bool available;
   final bool disabled;
@@ -74,16 +71,12 @@ class DlnaDevice {
     this.model,
     this.avTransportUrl,
     this.renderingControlUrl,
-    this.contentDirectoryUrl,
     required this.lastSeen,
     this.available = true,
     this.disabled = false,
   });
 
   String get displayName => alias?.isNotEmpty == true ? alias! : name;
-
-  /// 是否暴露 ContentDirectory 服务（能否走 B 档 CDS 清单）。
-  bool get supportsContentDirectory => contentDirectoryUrl != null;
 
   DlnaDevice copyWith({
     String? id,
@@ -94,7 +87,6 @@ class DlnaDevice {
     String? model,
     String? avTransportUrl,
     String? renderingControlUrl,
-    String? contentDirectoryUrl,
     DateTime? lastSeen,
     bool? available,
     bool? disabled,
@@ -108,7 +100,6 @@ class DlnaDevice {
       model: model ?? this.model,
       avTransportUrl: avTransportUrl ?? this.avTransportUrl,
       renderingControlUrl: renderingControlUrl ?? this.renderingControlUrl,
-      contentDirectoryUrl: contentDirectoryUrl ?? this.contentDirectoryUrl,
       lastSeen: lastSeen ?? this.lastSeen,
       available: available ?? this.available,
       disabled: disabled ?? this.disabled,

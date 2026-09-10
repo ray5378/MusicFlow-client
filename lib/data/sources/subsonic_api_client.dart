@@ -261,7 +261,7 @@ class SubsonicApiClient {
     return urlWithParams.toString();
   }
 
-  /// 生成 DLNA 设备可直拉的「无鉴权」流 URL（A 档·直传直连投屏专用）。
+  /// 生成 DLNA 设备可直拉的「无鉴权」流 URL（投屏专用）。
   ///
   /// 部分渲染器（尤其 OpenWrt 上的 GMediaRender）拉流时无法携带 Subsonic 的
   /// `u/t/s` 鉴权参数，客户端直接把带鉴权的 `/rest/stream?...` 交给设备会因

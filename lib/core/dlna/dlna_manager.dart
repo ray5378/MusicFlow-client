@@ -11,15 +11,14 @@ import 'package:musicflow_client/core/dlna/cast_http.dart';
 
 /// DLNA 管理器
 /// 统一管理设备发现、投屏控制。
-/// 架构：A 档·直传直连 —— 客户端把每首歌**服务端直连流 URL**(getStreamUrl, 含鉴权)
-/// 交给设备，设备用自己的网卡从服务器**自拉流**播放；曲毕由客户端轮询检测自动
-/// Set 下一首直连 URL 续播。不再做本地中继/推流(已删除 local_relay.dart)、不再用
-/// 服务端 CDS 清单(/castPlaylist, 纯 renderer 兼容性差)。
+/// 架构：客户端把每首歌**服务端直连流 URL**(getStreamUrl, 含鉴权)交给设备，
+/// 设备用自己的网卡从服务器**自拉流**播放；曲毕由客户端轮询检测自动
+/// Set 下一首直连 URL 续播。
 class DlnaManager {
   final SsdpDiscovery _discovery = SsdpDiscovery();
 
   /// 服务端直连流 URL 构造器：给定 songId 返回设备可直拉的流 URL。
-  /// A 档投屏时该 URL 应为**无鉴权**的 token 流地址 `/rest/dlna/stream/:token`
+  /// 投屏时该 URL 应为**无鉴权**的 token 流地址 `/rest/dlna/stream/:token`
   /// （见 SubsonicApiClient.getDlnaCastStreamUrl），避免向设备下发带 `u/t/s`
   /// 鉴权参数的 URL 导致 GMediaRender 等渲染器拉流失败无声。异步以便先去服务端换 token。
   Future<String> Function(String songId)? _streamUrlBuilder;
@@ -50,7 +49,7 @@ class DlnaManager {
   int _queueIndex = -1;
   bool _nextSupported = true;
 
-  /// 当前投屏采用的路径档位（A 档·直传直连恒为 direct）。
+  /// 当前投屏采用的路径档位。
   DlnaCastPath _castPath = DlnaCastPath.direct;
 
   /// 当前设备的能力（探测结果，供路径选择与 UI 展示）。
@@ -136,13 +135,13 @@ class DlnaManager {
   /// 当前投屏设备是否静音。
   bool get isMuted => _currentStatus.muted;
 
-  /// 当前投屏路径档位（A 直传 / B CDS）。
+  /// 当前投屏路径档位。
   DlnaCastPath get castPath => _castPath;
 
   /// 当前设备能力（探测结果，供 UI 展示 / 测试断言）。
   DeviceCapability get capability => _capability;
 
-  /// 设备是否自主循环整队列。A 档·直传直连下客户端逐首续播，恒为 false。
+  /// 设备是否自主循环整队列。客户端逐首续播，恒为 false。
   bool get isSelfLooping => false;
 
   /// 设置投屏播放模式(对齐链路 A cast.playMode):列表循环 all/顺序 order/单曲 one/随机 shuffle。
@@ -155,7 +154,7 @@ class DlnaManager {
 
   // ==================== 初始化 ====================
 
-  /// 初始化 DLNA 管理器（A 档·直传直连）
+  /// 初始化 DLNA 管理器
   /// [streamUrlBuilder] 根据 songId 构建**服务端直接可拉的流 URL**（异步，先换无鉴权
   /// token），交给 DLNA 设备让其自拉流播放（设备不连本机，直连服务器）。
   /// [probeSong] 可选投前预检钩子：换 token 前先确认该歌有可用音源（服务端
@@ -179,7 +178,7 @@ class DlnaManager {
     _initialized = true;
   }
 
-  /// 为 songId 生成交给 DLNA 设备的直接可拉流 URL（A 档·直传直连）。
+  /// 为 songId 生成交给 DLNA 设备的直接可拉流 URL。
   /// 先经服务端换一次性无鉴权 token（见 SubsonicApiClient.getDlnaCastStreamUrl），
   /// 返回的 URL 无 `u/t/s` 鉴权，设备自拉流，不经本机。
   Future<String> _directStreamUrl(String songId) => _streamUrlBuilder!(songId);
@@ -288,7 +287,7 @@ class DlnaManager {
 
   // ==================== 投屏控制 ====================
 
-  /// 开始投屏：投整个队列（A 档·直传直连）。
+  /// 开始投屏：投整个队列。
   /// 把每首歌的服务端直连流 URL 依次 Set 给设备，设备自拉流；客户端看门狗自动续播。
   Future<bool> startCast(
     DlnaDevice device,
@@ -301,7 +300,7 @@ class DlnaManager {
       return false;
     }
 
-    // 能力探测：A 档·直传直连恒走 DlnaCastPath.direct（客户端逐首 Set + 轮询续播）。
+    // 能力探测（档位恒为逐首 Set + 轮询续播）。
     _capability = await _probeDevice(device);
     _castPath = DlnaCastPath.direct;
 
@@ -374,7 +373,7 @@ class DlnaManager {
     return i;
   }
 
-  /// 播放队列中的当前曲目（A 档·直传直连：设服务端直连 URL/播）+ 预置下一首
+  /// 播放队列中的当前曲目（设服务端直连 URL + Play）+ 预置下一首
   Future<void> _playCurrentTrack() async {
     final device = _currentDevice!;
     // 投前预检（P1-2）+ 无限跳：投递前先确认该歌当前真的有可用音源
@@ -407,7 +406,7 @@ class DlnaManager {
           return;
         }
       }
-      // A 档：先换无鉴权 token 流 URL，再交给设备自拉流。
+      // 先换无鉴权 token 流 URL，再交给设备自拉流。
       try {
         url = await _directStreamUrl(track.songId);
       } on DlnaSongUnplayableException {
@@ -473,7 +472,7 @@ class DlnaManager {
     onTrackChanged?.call(_queueIndex);
   }
 
-  /// 用户主动切歌的统一入口：A 档·直传直连下逐首重放当前曲。
+  /// 用户主动切歌的统一入口：逐首重放当前曲。
   ///
   /// 所有切歌（播放某曲/下一首/上一首/自动续播）都经由此入口串行化：
   /// 快速连点或看门狗与 UI 并发时，上一轮切歌未落地前不重叠下发，
@@ -486,8 +485,8 @@ class DlnaManager {
     await next;
   }
 
-  /// 设备能力探测：A 档·直传直连只要一根 AVTransport 即可逐首 Set。
-  ///  - supportsDirectHttp：仅 AVTransport 存在即视为可直连服务端 URL 自拉流（A 档前提）。
+  /// 设备能力探测：只要一根 AVTransport 即可逐首 Set。
+  ///  - supportsDirectHttp：仅 AVTransport 存在即视为可直连服务端 URL 自拉流。
   ///  - supportsSetNext / reportsDuration：开播前无法可靠预判，走惰性探测
   ///    （SetNext 以首次调用成功确立 _nextSupported；RawHTTP 时长以墙钟兜底），
   ///    此处给保守默认，避免一次过重的实探拉长投屏启动。
@@ -503,7 +502,7 @@ class DlnaManager {
   /// 设备不支持 SetNext 则回退为手动切歌）。同时记录 _provisionedIndex 供自动续播对齐游标。
   Future<void> _provisionNextTrack() async {
     if (!_nextSupported) return;
-    if (_castPath != DlnaCastPath.direct) return; // 仅 A 档·直传直连做逐首预置。
+    if (_castPath != DlnaCastPath.direct) return; // 仅逐首直传做预置。
     // 计算按播放模式应预置的下一首下标（one/shuffle 预置本曲以支持自循环/随机缓冲）。
     final int? nextIndex = switch (_playMode) {
       'shuffle' => _queue.length <= 1 ? null : _randomOtherIndex(),
@@ -516,7 +515,7 @@ class DlnaManager {
 
     final device = _currentDevice!;
     final next = _queue[nextIndex];
-    // A 档：预置下一首同样用无鉴权 token 流 URL。下一首预检判无源（409）时
+    // 预置下一首同样用无鉴权 token 流 URL。下一首预检判无源（409）时
     // 跳过预置（_provisionedIndex 置 null 交运行时切歌兜底），不影响当前曲播放。
     final String url;
     try {
@@ -895,7 +894,7 @@ class DlnaManager {
 
       // 曲末硬触发：设备一直报 PLAYING、但上报位置已连续多帧停滞(卡住不动/重复回绕)，
       // 且墙钟已推进到曲末附近——判定实际已放完，强制推下一首（覆盖「报 PLAYING 永不
-      // 停播」的异常设备）。B 档自循环设备不在此列（advance 分支另行把关）。
+      // 停播」的异常设备）。
       final positionStuck = !_userPaused &&
           state == 'PLAYING' &&
           advanceDuration > 0 &&
@@ -905,9 +904,6 @@ class DlnaManager {
       // 最近 2s 内已续播过一次 → 本轮轮询仅回写状态、不再重复推进/对齐
       // （避免「近尾主动推」与「墙钟/设备停播」两路检测对同一曲重复推进到下一首）。
       final freshlyAdvanced = _isCompletionAdvanceFresh();
-
-      // 设备已自循环整队列(B1 CDS/B2 连续流)时，客户端退化为纯遥控，不做逐首续播/看门狗。
-      final selfLooping = false;
 
       // —— 自动续播决策追踪（排障用）——
       // 直投若出现「播放结束不推下一首」，靠此日志可定位三路触发(曲末/墙钟/自然停播)
@@ -921,7 +917,7 @@ class DlnaManager {
           'adv=$advanceDuration near=$nearEnd started=$startedOver '
           'wall=$wallDone devEnd=$deviceEnded stuck=$positionStuck '
           'played=$playedEnough '
-          'loop=$selfLooping fresh=$freshlyAdvanced '
+          'fresh=$freshlyAdvanced '
           'paused=$_userPaused next=$_provisionedIndex');
 
       // 续播动作相互隔离：任一续播/对齐步骤抛错不得中断本帧的状态回写与后续轮询，
@@ -929,16 +925,12 @@ class DlnaManager {
       try {
         if (freshlyAdvanced) {
           // 已续播，交给下一轮轮询跟随新曲进度。
-        } else if (!selfLooping &&
-            nearEnd &&
-            startedOver &&
-            posInfo.position > 0) {
+        } else if (nearEnd && startedOver && posInfo.position > 0) {
           // 设备已自行切到预置的下一首(SetNext 生效)——仅对齐游标与重算预置，避免重复下发。
           // 仅当设备上报有效位置(>0)时才信任其已真正切歌(RawHTTP 恒报 position=0，无法感知
           // 是否自切，须走下方 advance 由客户端主动推新 URI，否则游标前移而设备仍卡在旧曲)。
           await _alignToNext();
-        } else if (!selfLooping &&
-            (nearEnd || wallDone || deviceEnded || positionStuck)) {
+        } else if (nearEnd || wallDone || deviceEnded || positionStuck) {
           // 曲已到尾/已放完：客户端主动按播放模式推下一首直链(SetAVTransportURI → Play)。
           Logger.infoWithTag('DLNA-AUTO',
               '-> resume advance($_queueIndex) '
@@ -1047,11 +1039,10 @@ class DlnaManager {
   /// 每个轮询帧都会用最新剩余时长重建，并对齐到当帧下标，防止旧曲残留定时器误触发。
   void _rescheduleEndTimer(double? remaining, int queueIndex) {
     _endScheduler?.cancel();
-    // 已到曲末（剩余过短）或暂停/自循环：不排额外定时，交给轮询立即续播。
+    // 已到曲末（剩余过短）或暂停：不排额外定时，交给轮询立即续播。
     if (remaining == null ||
         remaining <= 0.5 ||
-        _userPaused ||
-        isSelfLooping) {
+        _userPaused) {
       return;
     }
     _endScheduler = Timer(

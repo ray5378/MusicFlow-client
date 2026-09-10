@@ -34,7 +34,7 @@ final dlnaCastHttpBaseProvider = Provider<String?>((ref) {
 });
 
 /// 确保链路 B 管理器已初始化（幂等）：接入服务端直连流 URL 构建。
-/// A 档·直传直连：先经服务端 `getDlnaCastStreamUrl` 换**无鉴权** token 流 URL
+/// 先经服务端 `getDlnaCastStreamUrl` 换**无鉴权** token 流 URL
 /// （`<baseUrl>/rest/dlna/stream/:token`），再交给 DLNA 设备让其直连服务器自拉流。
 /// 设备不连本机、无本地中继/监听端口；无鉴权 URL 与 GMediaRender 等渲染器兼容，
 /// 避免带 `u/t/s` 鉴权的 /rest/stream URL 被设备拉流失败而无声。
@@ -183,7 +183,7 @@ class DlnaCastState {
   /// 平滑进度(秒):插值 tick 递增,设备轮询回写修正 —— 对齐链路 A [CastPeerState]。
   final double smoothPositionSeconds;
 
-  /// 当前投屏路径档位(A direct 直传 / B cdsList CDS 清单)。空则为未投屏。
+  /// 当前投屏路径档位。空则为未投屏。
   final DlnaCastPath? castPath;
 
   const DlnaCastState({
