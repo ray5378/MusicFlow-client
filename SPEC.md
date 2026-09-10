@@ -721,21 +721,28 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 落库投屏。绕了一大圈，成本高、还受客户端超时约束（§12.2 就是在给这条错链路
 打补丁）。**这是链路设计错，不是超时参数问题。**
 
-**正确形态**：客户端是**遥控器**，只发「放什么内容 + 从第几首开始」；
+**正确形态**：客户端是**遥控器**，只发「放什么内容 + 从这首歌开始」；
 服务端自己查库解析队列并投屏（与 Web 前端 `usePlayContent` 一致）。
 
 ```
 【主通道 · 零上传】
-  客户端 ──POST /rest/api/v1/play {peerId, type, id, startIndex}──▶ 服务端
+  客户端 ──POST /rest/api/v1/play {peerId, type, id, songId}──▶ 服务端
                                                               │ resolveContentSongs 查库
                                                               │ songsToQueueItems
+                                                              │ findIndex(songId) 按身份定位
                                                               └─▶ playFrom(设备) 投屏
   几百字节请求；5000 首歌单的起播不再受客户端上行带宽/超时约束。
+  起点用 **songId（身份）** 而非 startIndex（行号）：服务端队列顺序与客户端展示序
+  是否同源都不影响定位结果 —— 从根上消除「静默播错歌」。
+  传了 songId 但服务端队列里没有 → 404 errors.renderer.songNotInContent
+  （**不再静默归 0**，避免"点了没反应"）。未传 songId → 兼容 startIndex 路径。
 
 【兜底通道 · 整队推送】主通道失败（内容已删 / 服务端旧版 404 / 本地拼装队列）
   客户端 ──POST /v1/peers/:id/queue/play {items, startIndex}──▶ 服务端
   队列来源服务端无从解析时用它：discover(首页随机) / search(搜索结果快照) /
   other(离线缓存列表等本地任意队列) / 不在库内的单曲。
+  注意：「单曲路径」的判据是**手上没有服务端能解析的队列上下文**，
+  ≠「歌单里只有一首」（后者走 playEffectiveQueue 主通道 type=playlist）。
 ```
 
 ### 13.2 已完成（v4.3.35，**已提交待发版**）
@@ -743,40 +750,49 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 | 文件 | 改动 |
 | --- | --- |
 | `lib/providers/player/queue_origin_provider.dart` | 新增 `QueueOriginKindServerType` 扩展 → `serverContentType`：`playlist`/`album`/`artist` 映射为服务端 type，`discover`/`search`/`other` 恒为 `null`（服务端无从解析，只能兜底）。`QueueOrigin` 新增 `serverContentType` getter（`id` 缺失或空串也返回 `null`） |
-| `lib/providers/cast/cast_peer_provider.dart` | 新增 `playContentOnPeer({type, id, startIndex, localItems, localStartIndex})`：POST `/rest/api/v1/play`，15s 超时；`success != true` 或异常一律返回 `false`（**由调用方回落**，本方法不自行兜底）；成功后乐观镜像状态（`castQueue`/`castIndex`/`smoothPositionSeconds`/`status=PLAYING`）、`syncQueueForCast(localItems, start)`、`pollOnce()` |
-| `lib/providers/player/effective_playback_provider.dart` | `playEffectiveQueue`：投屏时若 `origin.serverContentType != null` → 优先 `playContentOnPeer`，返回 `false` 才回落 `playQueueOnPeer`（原逻辑原样保留为兜底）。`playEffectiveSong`：投屏且**无队列上下文**（`queue == null \|\| queue.length <= 1`）→ 优先 `playContentOnPeer(type:'song', id)`，失败回落 `playSongOnPeer` |
-| `lib/providers/cast/cast_peer_provider.dart`（二轮加固，2026-09-10） | ① `playContentOnPeer` 新增**槽位身份校验**（详见 §13.4 风险 1，防静默播错歌，校验失败即回落兜底通道）；② 修回被误挂到新方法上的 `playQueueOnPeer` 文档注释（原注释被新方法"吞"掉，兜底通道反而没注释） |
-| `test/providers/cast_peer_provider_test.dart` | 主通道 group 3 例 + `QueueOrigin server content type` 1 例 + **槽位校验 2 例**（错位→`false`；命中→`true` 且**不**回落）+ **回落 group 2 例**（主通道 `false` 必须调 `queue/play`；`discover` 直接整队推送）。**锁死契约**：① 只发 content id，**绝不**把歌曲列表塞进请求体；② 服务端拒绝/槽位错位返回 `false` 以便调用方回落；③ 回落分支不可删 |
+| `lib/providers/cast/cast_peer_provider.dart` | 新增 `playContentOnPeer({type, id, songId, startIndex, localItems, localStartIndex})`：POST `/rest/api/v1/play`，超时 `contentPlayBudget(n) = queueTransferBudget(n)`（随规模缩放，**必须同时下发给 Dio `receiveTimeout`**）；`success != true` 或异常一律返回 `false`（**由调用方回落**，本方法不自行兜底）；成功后乐观镜像状态（`castQueue`/`castIndex`/`smoothPositionSeconds`/`status=PLAYING`）、`syncQueueForCast(localItems, start)`、`pollOnce()` |
+| `lib/providers/player/effective_playback_provider.dart` | `playEffectiveQueue`：投屏时若 `origin.serverContentType != null` → 优先 `playContentOnPeer`（起点传 `songs[startIndex].id` 作为 **songId 身份**），返回 `false` 才回落 `playQueueOnPeer`（原逻辑原样保留为兜底）。`playEffectiveSong`：投屏且**无队列上下文**（`hasQueueContext = queue != null && queue.length > 1`）→ 优先 `playContentOnPeer(type:'song', id, songId)`，失败回落 `playSongOnPeer` |
+| `lib/providers/cast/cast_peer_provider.dart`（v4.3.37 收敛，2026-09-10） | ① 主通道起点改传 **`songId` 身份**（请求体二选一：有 songId 就不发 `startIndex`）；② **删除整个投后槽位校验块**及其宽松回落（ray 判定补丁比问题更糟，见 §13.4 风险 1）；③ 本地乐观镜像改 `indexWhere(e['songId'] == songId)` **按身份对齐游标**；④ 新增 `contentPlayBudget(n)` 与 `queueTransferBudget(n)` 同源 |
+| `test/providers/cast_peer_provider_test.dart` | 主通道 group 5 例（含 **songId 定位**、**无槽位往返**、**按身份对齐镜像**）+ `QueueOrigin server content type` 1 例 + **回落 group 2 例**（主通道 `false` 必须调 `queue/play`；`discover` 直接整队推送）。**锁死契约**：① 只发 content id + songId，**绝不**把歌曲列表塞进请求体；② 传 songId 就不传 startIndex；③ **不再有带 `offset` 的槽位探测往返**；④ 回落分支不可删。<br>**mocktail 坑**：`verifyNever` + 具名 matcher 进入校验模式后不再匹配已登记桩 → 真实调用被报成 `Unexpected calls` 而**假失败**，改用 `verify(...).captured` 过滤调用记录 |
 
-### 13.3 服务端对照（主仓库 **v2.3.21 起需带 ORDER BY 根治**）
+### 13.3 服务端对照（主仓库 **v2.3.22 起带 songId 身份定位**）
 
 `backend/src/routes/api/index.ts` 的 `POST /v1/play`（前端 `usePlayContent` 同源）：
 
-- 入参 `{peerId, type, id, startIndex?, playMode?, enqueue?}`；
+- 入参 `{peerId, type, id, songId?, startIndex?, playMode?, enqueue?}`；
   `type ∈ {song, playlist, album, artist, genre}`
-- 服务端 `resolveContentSongs(type, id)` 自行查库 → `songsToQueueItems` → `playFrom`
-- 响应 `{success, peerId, type, id, name, queued, startIndex}`
+- 服务端 `resolveContentSongs(type, id)` 自行查库 → `songsToQueueItems` →
+  **`findIndex(it => it.songId === songId)` 按身份定位起点** → `playFrom`
+- 响应 `{success, peerId, type, id, name, queued, startIndex, songId}`
 - 错误码：`400` 缺参 / `403` `canControlPeer` 细粒度授权失败 /
-  `404` type·id 无效（内容已删）/ `422` 无可播歌曲 / `500` `playFrom` 抛错
+  `404` type·id 无效（内容已删）/ **`404` `errors.renderer.songNotInContent`
+  （传了 songId 但队列里没有这首歌）** / `422` 无可播歌曲 / `500` `playFrom` 抛错
 - **同步语义**：`playFrom` 内部含设备 Stop→SetAVTransportURI→Play（~5s GENA
-  乐观窗口），所以超时不能给太短（现取 15s，够用；不带 body 无传输压力）
-- **`startIndex` 越界时服务端静默归 0**（不报错）——故客户端**必须**做槽位校验
+  乐观窗口），且解析+落库耗时随队列规模增长，所以**超时必须随规模缩放**
+  （`contentPlayBudget`，10s + 30ms/首封顶 180s）。原固定 15s 会被大歌单顶穿 →
+  误判失败 → 触发回落重推 2MB。
+- **起点定位：songId 身份优先，startIndex 行号兼容**（v2.3.22）。
+  身份与两侧排序无关；`startIndex` 仍是**行号**且**越界静默归 0**（不报错），
+  仅保留给 Web 前端与 HA 集成的存量调用方。
 - **v2.3.21 起**：`resolveContentSongs` 的 playlist 分支补 `ORDER BY position,id`，
-  与 `/v1/playlists/:id/tracks` 同序（顺序契约守卫 `contentOrder.test.ts`）。
-  album/artist/genre 分支本来就都有 ORDER BY。
+  与 `/v1/playlists/:id/tracks` 同序（顺序契约守卫 `contentOrder.test.ts`）——
+  这是仍传 `startIndex` 的调用方的正确性基础。album/artist/genre 分支本来都有 ORDER BY。
+- **守卫**：`backend/tests/routes/playStartLocator.test.ts`（4 例：
+  songId 命中定位 / 未命中 404 / startIndex 兼容 / 同时传以身份优先）。
+  把 songId 分支改成 `if (false)` 即红（已实测）。
 - **已知残留（不阻塞）**：悬空 `playlistSongs`（`songs` 行已删）会被
   `.filter(Boolean)` 静默丢弃 → 服务端队列可能比客户端列表少 1 首，见 §13.4 风险 9。
-  客户端槽位校验已兜底。
+  songId 身份定位下**不再影响起点正确性**（找的是歌本身，不是第 N 个位置）。
 
 ### 13.4 风险与实测结论（**2026-09-10 全部结项**）
 
 | # | 风险 | 实测结论 | 状态 |
 | --- | --- | --- | --- |
-| 1 | **`startIndex` 错位（静默播错歌）** | **已确认属实并根治**。<br>· 服务端 `resolveContentSongs` playlist 分支**缺 ORDER BY** → SQLite rowid 序 ≠ 客户端 `orderBy(position,id)` 序。抽 24 个真实歌单：**6 个「同集异序」**（25%）。<br>· **长度校验（`queued != length`）实测无效**——6 个错位样本长度全相同。<br>**双保险已落地**：① **服务端根治**（主仓库 v2.3.21，playlist 分支补 `.orderBy(playlistSongs.position, playlistSongs.id)`，附 6 例顺序契约守卫 `backend/tests/services/contentOrder.test.ts`，经变异验证）；② **客户端槽位身份校验**（`playContentOnPeer` 取 `?offset=start&size=1` 比对 `songId`，不符即回落整队推送）。<br>**修复后实测**：原先 5 个异序歌单**全部顺序完全一致**（19/19、265/265、140/140、81/81）；端到端 68 次探测 **67 次槽位一致、0 次顺序错位**。 | ✅ 已根治 |
+| 1 | **`startIndex` 错位（静默播错歌）** | **已确认属实并从根上消除**。<br>· 服务端 `resolveContentSongs` playlist 分支曾**缺 ORDER BY** → SQLite rowid 序 ≠ 客户端 `orderBy(position,id)` 序。抽 24 个真实歌单：**6 个「同集异序」**（25%）。<br>· **长度校验（`queued != length`）实测无效**——6 个错位样本长度全相同。<br>**最终方案：换用 `songId` 身份定位，从根上不需要"校验"**（主仓库 v2.3.22 / 客户端 v4.3.37）。<br>· 服务端 `items.findIndex(it => it.songId === songId)` —— 与两侧排序是否同源**无关**；未命中返 404 `songNotInContent`，不再静默归 0。<br>· 客户端请求体**二选一**（有 songId 就不发 startIndex），**整个投后槽位校验块已删除**（ray 判定：补丁把"服务端明确拒绝"退化成"2MB 整队重推"，比问题本身更糟）。<br>**辅助根治仍保留**：主仓库 v2.3.21 的 playlist 分支 `ORDER BY position,id`（Web 前端 / HA 集成仍传 `startIndex`，依赖它；守卫 `contentOrder.test.ts`）。<br>**修复后实测**：原先 5 个异序歌单**全部顺序完全一致**（19/19、265/265、140/140、81/81）；端到端 68 次探测 **67 次槽位一致、0 次顺序错位**。 | ✅ 已根治 |
 | 2 | ~~DLNA 链路 B 未接入~~ | `dlnaCastProvider.playQueueOnDevice` 是客户端**直连设备**（服务端不参与），结构上无法用 `/v1/play`。队列规模通常可控，**接受现状**。 | ✅ 已决 |
 | 3 | **真机联调** | **Windows 已跑通**（本机联调，§13.6）。三条路径全部验证：歌单起播 / 专辑起播 / 单曲点播。安卓链路逻辑与 Windows 同源（同一 `cast_peer_provider` + 同一 HTTP 客户端），无需单独实测。 | ✅ 已完成 |
 | 4 | 既有缺陷 | 见 §13.5（`_playAt` 排序错位）——**与本次无关，单独排期** | ⏸ 另排 |
-| 5 | **老服务端回落** | `/v1/play` 非 2xx 或 `success != true` → 返回 `false` → 回落整队推送。守卫测试已覆盖（`主通道 → 兜底通道 回落` group）。**要求服务端 ≥ v2.3.21**（含 ORDER BY 根治）。 | ✅ 已覆盖 |
+| 5 | **老服务端回落** | `/v1/play` 非 2xx 或 `success != true` → 返回 `false` → 回落整队推送。守卫测试已覆盖（`主通道 → 兜底通道 回落` group）。**要求服务端 ≥ v2.3.22**（songId 身份定位；v2.3.21 已含 ORDER BY 根治）。 | ✅ 已覆盖 |
 | 6 | `playMode` / `enqueue` 未接入 | `/v1/play` 支持但客户端未传。**低价值项，砍掉**——投屏起播默认语义已够用，`playMode` 由既有 `setPlayMode` 单独下发。 | ✂ 不做 |
 | 7 | ~~本地镜像全量重建~~ | **已解决（§12.1）**：常规 tick 只取槽位一条并**就地替换**，不再重建整个列表；`syncQueueForCast` 只在全量路径调用。 | ✅ 已解决 |
 | 8 | ~~回落通道无守卫~~ | `主通道 → 兜底通道 回落` group 2 例已补 | ✅ 已完成 |
@@ -799,13 +815,13 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 | 项 | 结果 |
 | --- | --- |
 | `flutter analyze` | **0 error**（154 条存量 info，与本轮无关） |
-| `flutter test test/providers/cast_peer_provider_test.dart` | **43/43 通过**（首轮 35 + 槽位校验 2 + 回落 2 + 轻量轮询 4） |
-| 全量 `flutter test` | **586/586 通过，0 失败** |
+| `flutter test test/providers/cast_peer_provider_test.dart` | **44/44 通过**（songId 定位 / 无槽位往返 / 按身份对齐镜像 / 回落 4 / 轻量轮询 4 …） |
+| 全量 `flutter test` | **587/587 通过，0 失败** |
 | 发版前置守卫 | `check_interaction_feedback` ✅ / `gpu_guard_scan` ✅ / `check_workflow_yaml` ✅ / `check-l10n --gate-cjk` ✅ |
 | 主仓库 `tsc` | 0 error |
-| 主仓库后端全量测试 | **795/795 通过**（含新增顺序契约 6 例，无回归） |
-| 主仓库发版 | **v2.3.21**，CI 全绿，Release uploader = `github-actions[bot]` |
-| 客户端发版 | **v4.3.36**，五条 workflow 全 success（GPU Render Guard / UI Guard / Test Suite / Desktop Lyric Guard / Build Client），三产物齐全，uploader = `github-actions[bot]` |
+| 主仓库后端全量测试 | **799/799 通过**（含新增起点定位契约 4 例 + 顺序契约 6 例，无回归） |
+| 主仓库发版 | **v2.3.22**（songId 身份定位），CI 全绿 |
+| 客户端发版 | **v4.3.37**，五条 workflow（GPU Render Guard / UI Guard / Test Suite / Desktop Lyric Guard / Build Client） |
 | 真机联调（Windows） | 三条路径跑通；端到端 `tool/cast_play_chain_probe.py` **68 次探测 → 67 一致、0 顺序错位、2 跳过**（跳过来自网络抖动，非逻辑问题） |
 | 顺序修复对照 | 原先 5 个「同集异序」歌单修复后**全部完全同序**（19/19、265/265、140/140、81/81） |
 | queue 体积实测 | 3251 首：**863 935 B → 338 B（2 556×）** |
@@ -817,15 +833,16 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 
 ### 13.7 收尾时的检查清单
 
-- [x] §13.4 风险 1 已实测：**确认会错位**（歌单 6/24 同集异序）→ 客户端**槽位身份校验** + 服务端 **ORDER BY 根治** 双保险
+- [x] §13.4 风险 1 已实测：**确认会错位**（歌单 6/24 同集异序）→ **改用 songId 身份定位从根上消除**，不再依赖任何"投后校验"
+- [x] 投后槽位校验补丁**已按 ray 要求整体删除**（补丁把服务端拒绝退化成 2MB 重推）
+- [x] `playEffectiveSong` 单曲判据按 ray 纠正改为「无服务端可解析的队列上下文」
+- [x] 主仓库 ORDER BY 根治保留（v2.3.21，供仍传 `startIndex` 的 Web/HA 调用方）
 - [x] 真机联调通过（**Windows**；安卓链路逻辑同源，无需单独实测）
 - [x] 补上风险 8 的回落守卫（2 例）
 - [x] §12.1 轻量轮询落地（4 例守卫）+ 风险 7 一并解决
-- [x] 主仓库 ORDER BY 根治（v2.3.21，6 例顺序契约守卫，变异验证通过）
-- [x] 全量 `flutter test` 重跑至 0 失败（586/586）
+- [x] 全量 `flutter test` 重跑至 0 失败（587/587）；后端 799/799
 - [x] SPEC 更新 + 清理已结项条目
-- [x] 客户端 commit + tag 发版：**v4.3.36** 五条 workflow 全 success，
-      Release uploader = `github-actions[bot]`
+- [x] 客户端 commit + tag 发版：**v4.3.37**（主仓库 **v2.3.22**，同批）
 - [x] 结项完成——§13.1–§13.4 可整体存档；**下次开工前先看 §13.4 风险 4/9 与 §13.5**
 
 ---
