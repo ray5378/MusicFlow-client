@@ -1,14 +1,54 @@
-# 选择播放器弹窗改造：DLNA 行排版 + 双向接续搬移（最新）
+# 大队列推流超时修复：Dio 硬顶解锁 + 预算随规模缩放（最新）
 
-> 上一轮主题（播放链路兜底改造 + 守卫补齐）见下方历史章节。
+> 上一轮主题（选择播放器弹窗改造）见下方历史章节。
 
 ## 发版与收尾（最新）
 
 | 仓库 | 版本 | 内容 | 状态 |
 | --- | --- | --- | --- |
-| MusicFlow-client | **v4.3.33** | 选择播放器弹窗 DLNA 行改造：徽章同行、第二行设备正在播歌名、↓↑双接续按钮（只搬队列+当前曲自动起播，不搬进度） | ✅ Release 三产物齐全（apk 46.2MB / setup 31.8MB / zip 38.6MB），五个 workflow 全 success，uploader 均为 `github-actions[bot]` |
+| MusicFlow-client | **v4.3.34** | 大队列推流超时「真缩放」：`postRaw/getRaw` 支持逐请求 `receiveTimeout`（同时设 `sendTimeout`）解开 Dio 30s 硬顶；`queueTransferBudget` = 10s + 30ms/首，封顶 180s（5000 首 = 160s）；GET 队列快照 12s→60s、轮询 12s→25s；新增预算守卫 2 例 | ✅ analyze 0 error、交互守卫 PASS、`flutter test` **574/574** |
+| MusicFlow-client | v4.3.33 | 选择播放器弹窗 DLNA 行改造：徽章同行、第二行设备正在播歌名、↓↑双接续按钮（只搬队列+当前曲自动起播，不搬进度） | ✅ Release 三产物齐全（apk 46.2MB / setup 31.8MB / zip 38.6MB），五个 workflow 全 success，uploader 均为 `github-actions[bot]` |
 | MusicFlow-client | v4.3.32 | DLNA 投前预探测 + 移除死歌机制 | ✅ 三产物齐全 |
 | MusicFlow（主仓库） | v2.3.20 | 播放链路四端兜底统一（409 预检 / evict / 去阈值） | ✅ 已发布 |
+
+## 大队列推流修复要点（v4.3.34）
+
+**症状**：安卓推队列 >~800 首必然「推流失败」（500 首可过），Windows 正常。
+
+**根因两层**（第二层是上一轮漏掉的关键）：
+
+| 层 | 内容 |
+| --- | --- |
+| 表层 | `_pushQueueAndPlay` 对 `POST /v1/peers/:id/queue/play` 写死 8s `Future.timeout`。该端点是**同步语义**（落库整队 + 等设备 Stop→SetAVTransportURI→Play，含 ~5s GENA 乐观窗口），800 首 payload ~300KB，手机 WiFi 上传叠加 cast 耗时破 8s；Windows 有线低延迟不越线 |
+| **致命层** | 只放大 `Future.timeout()` **是无效的**——Dio 全局 `receiveTimeout`/`sendTimeout` 均为 30s（`ApiConstants`），会**先于**外层 Future 抛 `DioException`。所以「封顶 30s」= 5000 首必挂，缩放形同虚设 |
+
+**服务端侧核实**（读 MusicFlow 后端源码，结论：后端不是瓶颈）：
+`playFrom` → `setQueue`（内存赋值 + `JSON.stringify` + **单条 `deviceQueues` upsert**）→ `playCurrent`（DLNA ≤5s）。**耗时不随规模线性劣化**，5000 首只多 ~1-2s。Hono 无 `bodyLimit` 中间件、无全局请求超时。**服务端零改动**。
+
+**修复**：
+
+| 项 | 说明 |
+| --- | --- |
+| 解开硬顶 | `SubsonicApiClient.getRaw/postRaw` 新增可选 `receiveTimeout`，内部 `_rawOptions()` **同时设 `sendTimeout`**（大 body 上传也要放行） |
+| 真缩放 | 顶层 `queueTransferBudget(n) = (10s + 30ms×n).clamp(10s, 180s)`。500 首=25s / 800 首=34s / 2000 首=70s / 5000 首=160s / ≥5600 首触顶 180s |
+| 下发 dio | `queue/play` 与 `queue/enqueue` 都把预算**同时**传给 `postRaw`，不再是摆设 |
+| 放宽拉取 | GET 队列快照（`fetchPeerNowPlaying` / `pullPeerToLocal`）12s→60s；轮询快照 12s→25s（25s < dio 30s 无需 override，避免 2MB 快照拉不完被误判离线） |
+| 余量 | 单条 queue item ≈400B，5000 首 ≈2MB；160s 预算等效传输门槛仅 **~12KB/s**，正常局域网不可能触顶 |
+
+**守卫**：`cast_peer_provider_test.dart` 新增 `cast queue transfer timeout budget` group（2 例），锁死「随规模缩放」+「预算必须下发 dio」两条约束——以后只改 `Future.timeout()` 会直接红。
+
+**文档沉淀**：SPEC §12.2（已固化约束 + 勿回退）、负面清单第 16 条、自检清单第 15/16 条。
+
+## 已知隐患（本轮新发现，已写入 SPEC §12.1，**未修**）
+
+**投屏轮询每 2s 拉取全量队列快照** —— 5000 首 ≈ **2MB JSON/次**，且 `syncQueueForCast`
+每次重建 5000 个 `Song` 对象并触发 Riverpod 通知。手机上表现为持续流量 + CPU 开销，
+弱网时还可能拉不完被判离线（本轮已把超时放宽到 25s 兜底，但没减量）。
+
+根治需要**跨仓改后端**：新增轻量 snapshot 端点（只回 `currentIndex`/`total`/`playMode`/当前曲，
+不回 `items`），客户端队列面板改为窗口懒加载（对齐 SPEC §4.2）。**待 ray 排期**。
+
+---
 
 ## 弹窗改造要点（v4.3.33）
 

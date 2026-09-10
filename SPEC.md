@@ -616,13 +616,14 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 13. **禁止**在本地机器执行 `flutter build`（apk/windows 等）；构建产物只由 CI 产出。
 14. **禁止**为链路 B 的 DLNA 发现/状态模块使用单发递归轮询（`Future.delayed`/`Timer` 递归）——新代码统一用 `Timer.periodic`/`Stream.periodic` 且 `dispose`（链路 B 状态轮询已遵循，§3.6）。
 15. **禁止**在 Windows 原生窗口运行时加载自定义字体（`AddFontResourceExW`/`PrivateFontCollection` 均已实测失败）——icon font 字形一律离线提取硬编码（§8.6，工具 `tool/gen_lyric_glyphs.py`）。
+16. **禁止**只放大外层 `Future.timeout()` 来放宽某个请求的超时——Dio 全局 `receiveTimeout`/`sendTimeout` 是 30s，会先触发。必须成对设置（§12.2）。
 
 ---
 
 ## 十一、AI 自检清单（交付前逐项勾选）
 
 ```
-□ 1. 负面清单（§十）14 条逐条确认未违反
+□ 1. 负面清单（§十）16 条逐条确认未违反
 □ 2. 仅修改任务指定文件；未波及无关代码；未把 /workspace/_MusicFlow-main 入库（git status 核对）
 □ 3. flutter analyze 0 错误
 □ 4. 新增/修改逻辑的测试已编写并通过；相关回归全绿
@@ -637,10 +638,47 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 □ 13. 若动到 CI：观察型流水线未接入 publish needs 链、每个 job/step 都 continue-on-error（§9.4）
 □ 14. 发版产物全部由 GitHub CI 构建（§1.6）：只打 tag 推送、绝不本地 `flutter build` 后手动上传；
       Release 产物 uploader 必须是 `github-actions[bot]`（安卓签名证书只在仓库 Secrets）
+□ 15. 放宽请求超时时 dio `receiveTimeout`/`sendTimeout` 与外层 `Future.timeout()` 已成对设置（§12.2）
+□ 16. 新增的已知隐患已写入 §十二（含触发条件/影响面/根治方案），未留无文档的暗坑
 ```
 
 ---
 
+## 十二、已知隐患与技术债（待排期）
+
+> 记录**已定位但未修**的性能/稳定性隐患。每条必须写明触发条件、影响面、根治方案，
+> 避免下一个人重新踩一遍或误判成新 bug。修复后从本节移出并在 §十一 自检清单留守卫。
+
+### 12.1 投屏轮询拉取全量队列快照（未修，v4.3.34 记录）
+
+| 项 | 内容 |
+| --- | --- |
+| 位置 | `cast_peer_provider` 轮询：`GET /rest/api/v1/peers/:id/queue`；回写 `playerProvider.syncQueueForCast(items, idx)` |
+| 触发条件 | 投屏中且后端队列规模大（≥1000 首量级）。2s 一次轮询，每次拉**整队** `items` |
+| 影响面 | 单条 queue item ≈400B → 5000 首 ≈**2MB JSON/次**，每 2s 一次；再加上 `syncQueueForCast` 每次重建 5000 个 `Song` 对象并触发 Riverpod 通知。手机上表现为**持续流量 + CPU 开销**，弱网时还可能拉不完被判离线（超时已放宽到 25s 兜底，§12.2） |
+| 现状 | 仅放宽超时，未减量 |
+| 根治方案 | 后端新增**轻量 snapshot 端点**：只回 `currentIndex` / `total` / `playMode` / 当前曲，不回 `items`；客户端队列面板改为按窗口懒加载（对齐 §4.2 窗口化）。全量快照只在「队列增删改」事件后按需拉一次 |
+| 依赖 | 需改 MusicFlow 主仓库后端（跨仓，须 ray 排期） |
+
+### 12.2 已固化：队列传输超时预算（v4.3.34 修，勿回退）
+
+`POST /v1/peers/:id/queue/play` 是**同步语义**——整队落库后还要等设备
+Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观窗口）。
+后端实测**不随规模线性劣化**（`setQueue` = 单条 `deviceQueues` upsert + 一次
+`JSON.stringify`，5000 首只多 ~1-2s），Hono 无 `bodyLimit`、无全局请求超时；
+所以大队列失败**只可能是传输或客户端超时，不要去怀疑后端**。
+
+- 预算一律走顶层 `queueTransferBudget(n) = (10s + 30ms × n).clamp(10s, 180s)`
+  （`lib/providers/cast/cast_peer_provider.dart`）：500 首=25s / 800 首=34s /
+  2000 首=70s / 5000 首=160s / ≥5600 首触顶 180s。
+- **必须成对设置**：Dio 全局 `receiveTimeout`/`sendTimeout` 均为 30s
+  （`ApiConstants`），只放大外层 `Future.timeout()` 是无效的，Dio 会先炸。
+  调用方要把预算同时传给 `postRaw`/`getRaw` 的 `receiveTimeout`（内部同时设
+  `sendTimeout`，大 body 上传同样要放行）。
+- 守卫：`test/providers/cast_peer_provider_test.dart` 的
+  `cast queue transfer timeout budget` group 锁死上述两条约束。
+
+---
 
 ## 十、国际化（i18n）契约（强制）
 
