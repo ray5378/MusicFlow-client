@@ -1,12 +1,30 @@
-# 播放链路兜底改造：投前预探测 + 失效源缓存逐出（最新）
+# 选择播放器弹窗改造：DLNA 行排版 + 双向接续搬移（最新）
 
-> 上一轮主题（首页分区客户端自治）见下方历史章节。
+> 上一轮主题（播放链路兜底改造 + 守卫补齐）见下方历史章节。
 
 ## 发版与收尾（最新）
 
 | 仓库 | 版本 | 内容 | 状态 |
 | --- | --- | --- | --- |
-| MusicFlow-client | **v4.3.32** | DLNA 投前预探测（服务端 409 + 客户端 probe 钩子）、绕圈上限守卫、移除死歌机制 | ✅ Release 三产物齐全，uploader 均为 `github-actions[bot]` |
+| MusicFlow-client | **v4.3.33** | 选择播放器弹窗 DLNA 行改造：徽章同行、第二行设备正在播歌名、↓↑双接续按钮（只搬队列+当前曲自动起播，不搬进度） | ✅ Release 三产物齐全（apk 46.2MB / setup 31.8MB / zip 38.6MB），五个 workflow 全 success，uploader 均为 `github-actions[bot]` |
+| MusicFlow-client | v4.3.32 | DLNA 投前预探测 + 移除死歌机制 | ✅ 三产物齐全 |
+| MusicFlow（主仓库） | v2.3.20 | 播放链路四端兜底统一（409 预检 / evict / 去阈值） | ✅ 已发布 |
+
+## 弹窗改造要点（v4.3.33）
+
+| 项 | 说明 |
+| --- | --- |
+| 用户需求 | 「主卧 DLNA」徽章跟设备名同行；第二行显示该设备正在播的「歌曲-歌手」；右侧两个等大按钮做**接续搬移**（搬完原边停止） |
+| 按钮 | 单箭头自绘（CustomPainter）：↓=接回本机，↑=推到音箱；hover 高亮 + Tooltip；按方向置灰 |
+| 接续语义 | **不搬进度**（ray 二轮反馈砍掉）：只搬队列 + 当前曲，从曲首自动播放；push=switchTo+queue/play(startIndex)，pull=queue→stop→本机 playSong |
+| 关键架构 | 「选择播放器」的 DLNA 设备来自**后端 /v1/peers**（非客户端 SSDP）；服务端端点已齐备，**零服务端改动** |
+| 底色修复（二轮反馈） | 自绘行误用 `contentTint` 实色深绿 → 对齐 `MusicFlowActionRow` 选中态：`accent.withValues(alpha:0.1)` 薄染 + `selected:true` + `typography.title` |
+| 图标迭代 | 手机+音箱写实版 → 竖排上下箭头 → 手机内嵌箭头（精修2）→ **终稿：只留单箭头**（ray 三轮反馈） |
+| 验证 | analyze 0 error、交互守卫 PASS、`flutter test` **572/572**；真机 debug 联调三轮反馈全部闭环 |
+
+---
+
+# 播放链路兜底改造：投前预探测 + 失效源缓存逐出
 | MusicFlow（主仓库） | **v2.3.20** | `/api/v1/dlna/stream-url` 投前预检 409、`evictStreamFallbackCache`、QueueController 去停播阈值、前端去 deadSongs（commit `a1913f3` + `e6149dc`） | ✅ 已发布：CI 全绿（ci / build-and-push / security / pentest / frontend-responsive / sync-to-gitee），Release author `github-actions[bot]`（0 assets 正常，仅指向镜像 tag），已补用户升级步骤 |
 | MusicFlow-client | v4.3.31 | 首页分区自治 + 推荐模块重定位；修复 CI 交互反馈守卫拦截 | Release 三产物齐全，uploader 均为 `github-actions[bot]` |
 
