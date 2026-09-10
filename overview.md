@@ -6,6 +6,28 @@
 
 ---
 
+## 最新：真机 + WAF 端到端验收 —— **通过**
+
+公网入口 `https://music.cmct.fun:35378`（**Lucky WAF 开启**）实机验证：
+安卓本机播「今日漫游」3251 首 → 投屏「主卧」，**三重判据全部通过**。
+
+| 判据 | 结果 |
+|---|---|
+| 主通道请求体 **170 B** → `HTTP 200`，2.46 s 返回 `queued=3251` + `shuffleOrder` | ✅ |
+| 对照：整队 **606.3 KB** → `403 Lucky WAF` | ✅（闸门存在且被绕过） |
+| 设备队列前 50 槽 vs 歌单默认序 → **0 处不一致**（`ORDER BY position,id` 生效） | ✅ |
+| `shuffleOrder` = `0..3250` 合法排列，客户端 170 B 请求体不含该数组 → 服务端产物 | ✅ |
+| 槽 0 songId == 本机在播「莫忙」songId，逐字一致 | ✅ |
+| 设备 `position` 稳定推进（10→13→…→31，每 3 s +3 s）→ **真实出声** | ✅ |
+
+> ⚠️ 该设备 `state` 恒为 `STOPPED`（2017 MUZO 固件不回传 transport state），
+> **判「是否在播」看 `position`，不看 `state`**。
+> ⚠️ 操作顺序：**必须先本机播放，再点投屏**（切播器按钮点击点 `(959, 2052)`，主卧行 `(540, 1882)`）。
+
+详见 `outputs/waf_e2e_verification.md`。
+
+---
+
 ## 补记：遗留问题收口（主仓库 v2.3.24）
 
 `resolveContentSongs('playlist')` 缺 `ORDER BY position` 的部分**早已修复**
