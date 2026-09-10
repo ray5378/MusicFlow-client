@@ -929,6 +929,61 @@ const idx = mode === "shuffle" && items.length > 1
 > 一旦上轮跑完残留 `playMode=one`，A 段会退化成非 shuffle 路径 → **假绿**。
 > 新脚本必须**显式设置模式**后再投。
 
+### 13.9 HA 两仓跟随改造（**2026-09-10 已发版**）
+
+服务端 v2.3.23 修好「起点归属」后，客户端之外的两个消费方同步收敛。
+ray 拍板：集成侧**改传 songId**（身份），卡片侧**改走主通道**。
+
+**hass-musicflow（集成）v1.5.0**：
+
+- `async_play_content` 新增 `song_id` 参数，与 `start_index` **二选一**
+  （有身份就不发行号，避免后端在「身份命中」与「行号」之间产生歧义）；
+  `song_id` 未命中后端返 404，由调用方决定是否回退。
+- `media_player` 服务 schema 加 `vol.Optional(ATTR_SONG_ID)`；`const.ATTR_SONG_ID`；
+  `services.yaml` 补全 `play_content` 全部字段说明。
+- **根因写进 docstring**：集成侧 `start_index` 来自 HA 浏览树的渲染序，
+  后端 `resolveContentSongs` 用自己的 SQL 排序序，两侧**不同源** →
+  指定非 0 起点会**静默播错歌**；`song_id` 走 `findIndex` 定位，与排序无关。
+
+**hass-musicflow-card（卡片）v1.8.0**：
+
+- `backend-client.js` 新增 `playContent(peerId, type, id, {songId, startIndex, playMode, enqueue})`
+  → `POST /api/v1/play`。
+- `_browserPlayCollection`：**主通道优先 + 整队推送兜底**；
+  首页 `remote` 推荐歌单先 import 拿 `playlistId` 再走主通道。
+  这正是「**大歌单推不动**」的根因修复（推进 3MB → 几百字节）。
+- `_playRemoteCollection`：专辑/歌单导入后走主通道；
+  **艺术家分支仍走整队推送**（逐曲聚合的临时队列，服务端无对应内容 id）。
+- 更新 `_appendAndPlay` / `_jumpTo` 两段过时注释 —— 原文称
+  「后端 playFrom 在 shuffle 下会随机起播、忽视 startIndex」，
+  该 bug 已由服务端 v2.3.23 修复，注释与新事实对齐
+  （jump 端点仍保留：它是「在既有队列里定位第 N 位」的正确工具，与起点 bug 无关）。
+
+**四仓发版矩阵（全部 GitHub CI 构建，uploader 已核验 = `github-actions[bot]`）**：
+
+| 仓库 | 版本 | 说明 |
+| --- | --- | --- |
+| MusicFlow（服务端） | **v2.3.23** | 起点归属修复 + `shuffleOrder`/`shufflePos` 快照 |
+| MusicFlow-client | **v4.3.38** | 镜像服务端洗牌序列，移除客户端自行洗牌 |
+| hass-musicflow（集成） | **v1.5.0** | `play_content` 支持 `song_id` |
+| hass-musicflow-card（卡片） | **v1.8.0** | 起播改走 `/v1/play` 主通道 |
+
+**HA 两仓踩坑（发版必查）**：
+
+- **卡片 `dist/` 必须与源码一致**：CI 有 `Verify dist is committed and up to date`
+  （`git diff --exit-code dist/hass-musicflow-card.js`）。改完 `src/` 必须
+  `npx rollup -c` 重新构建并提交 dist（构建确定性，同源码两次 md5 相同）。
+- **卡片版本号有两处**：`package.json` 的 `version` 与
+  `src/musicflow-remote-card.js` 的 `CARD_VERSION` 常量（bundle 里是 `mt="x.y.z"`，
+  控制台横幅用它核对 HACS/浏览器缓存）。只改一处 → dist 横幅与 package.json 不一致。
+- **卡片 `release.yml` 的 body 是硬编码 changelog**（不是 `${{ github.ref_name }}` 模板），
+  发版必须同步改写，否则 Release 页面挂着上一版说明。
+- **集成 `release.yml` 校验 `manifest.json` 的 version == tag**（去 `v` 前缀比较），
+  不一致直接失败——bump manifest 是发版的必要动作。
+- 两仓 README 校验规则是「**合法 UTF-8、无 BOM**」，**不要求纯 ASCII**。
+- **改 JSON 不要用 `json.dumps` 整文件重写**：会把紧凑数组（`["a", "b"]`）展开成多行，
+  产生与语义无关的巨大 diff。正确姿势：`git show HEAD:<file>` 取原文 → `str.replace` 只改目标行。
+
 ## 十、国际化（i18n）契约（强制）
 
 > 语言方向：**中文默认 + English**，支持跟随系统 / 中文 / English 三档切换（已接入）。任何面向用户的新增文案必须走 l10n，禁止硬编码中文；CI 守卫强制（未接入即红）。
