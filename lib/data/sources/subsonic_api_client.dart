@@ -125,29 +125,51 @@ class SubsonicApiClient {
   /// Raw GET for non-Subsonic endpoints (e.g. /rest/api/v1/...).
   /// Returns the decoded JSON body directly (no subsonic-response unwrap,
   /// no status check), but still carries the auth interceptor.
+  ///
+  /// [receiveTimeout] 覆盖全局 30s（队列快照动辄 MB 级，弱网下必须放行）；
+  /// 不传则沿用 Dio 全局配置。
   Future<dynamic> getRaw(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
   }) async {
-    final response = await _dio.get(path, queryParameters: queryParameters);
+    final response = await _dio.get(
+      path,
+      queryParameters: queryParameters,
+      options: _rawOptions(receiveTimeout),
+    );
     return response.data;
   }
 
   /// Raw POST for non-Subsonic endpoints (e.g. /rest/api/v1/online/.../recommend/import).
   /// Sends [data] as JSON and returns the decoded JSON body directly.
+  ///
+  /// [receiveTimeout] 覆盖全局 30s：大队列 queue/play 的响应要等设备
+  /// Stop→SetAVTransportURI→Play 完成，再叠加 MB 级 body 上传，30s 不够。
   Future<dynamic> postRaw(
     String path, {
     Map<String, dynamic>? queryParameters,
     dynamic data,
+    Duration? receiveTimeout,
   }) async {
     final response = await _dio.post(
       path,
       queryParameters: queryParameters,
       data: data,
-      options: Options(contentType: 'application/json'),
+      options: _rawOptions(receiveTimeout).copyWith(
+        contentType: 'application/json',
+      ),
     );
     return response.data;
   }
+
+  Options _rawOptions(Duration? receiveTimeout) => receiveTimeout == null
+      ? Options()
+      : Options(
+          receiveTimeout: receiveTimeout,
+          // 大 body 上传同样要放行，否则 sendTimeout 会先于 Future.timeout 触发。
+          sendTimeout: receiveTimeout,
+        );
 
   /// Raw DELETE for non-Subsonic endpoints (e.g. /rest/api/v1/...).
   /// Returns the decoded JSON body directly (no subsonic-response unwrap).

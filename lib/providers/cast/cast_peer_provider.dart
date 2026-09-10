@@ -36,6 +36,27 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 /// 9. 群组/AirPlay 差异化:switcher 按 kind 区分图标/标签(群组/离线)。
 /// 10. 投屏失败:queue/play 失败返回 false,保持本机,不产生脏状态。
 
+/// 队列传输超时预算（**随队列规模缩放**）。
+///
+/// 为什么必须缩放：
+/// - 后端 `POST /v1/peers/:id/queue/play` 是**同步语义**——落库整队后还要等设备
+///   Stop→SetAVTransportURI→Play 完成才返回（内含最长 ~5s 的 GENA 乐观窗口）；
+/// - 再叠加 MB 级 JSON 的上传/下载：单条 queue item ≈ 400B，5000 首 ≈ 2MB，
+///   手机 WiFi 上行抖动时单是传完 body 就可能几十秒；
+/// - Windows 有线网低延迟所以历史固定 8s 无感，安卓弱网下必然先超时。
+///
+/// 公式：10s 基线 + 每首 30ms，封顶 180s（≈5600 首触顶）。
+/// 5000 首 ≈ 160s / 2MB，等效传输门槛仅 ~12KB/s，正常局域网不可能触顶。
+///
+/// 注意：只放宽 `Future.timeout()` 无效——Dio 全局 receiveTimeout/sendTimeout
+/// 是 30s，会先于外层 Future 触发。调用方必须把本预算**同时**传给
+/// `postRaw/getRaw` 的 `receiveTimeout`。
+Duration queueTransferBudget(int itemCount) =>
+    Duration(milliseconds: (10000 + itemCount * 30).clamp(10000, 180000));
+
+/// 拉取队列快照时的保守预算（规模未知，按最坏 5000 首量级给）。
+const Duration kQueueFetchBudget = Duration(seconds: 60);
+
 class CastPeerController extends StateNotifier<CastPeerState> {
   CastPeerController(this._ref) : super(const CastPeerState());
 
@@ -264,8 +285,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final client = _ref.read(subsonicApiClientProvider);
     try {
       final data = await client
-          .getRaw('/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue')
-          .timeout(const Duration(seconds: 6)) as Map<String, dynamic>;
+          .getRaw(
+            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue',
+            receiveTimeout: kQueueFetchBudget,
+          )
+          .timeout(kQueueFetchBudget) as Map<String, dynamic>;
       final media = data['currentMedia'];
       return PeerNowPlaying(
         isActive: data['isActive'] == true,
@@ -310,8 +334,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final Map<String, dynamic> queueData;
     try {
       queueData = await client
-          .getRaw('$base/queue')
-          .timeout(const Duration(seconds: 6)) as Map<String, dynamic>;
+          .getRaw('$base/queue', receiveTimeout: kQueueFetchBudget)
+          .timeout(kQueueFetchBudget) as Map<String, dynamic>;
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'pullPeerToLocal: queue failed: $e');
       return false;
@@ -543,13 +567,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ) async {
     final client = _ref.read(subsonicApiClientProvider);
     _markUserCommand();
+    // 超时随队列规模缩放(见 queueTransferBudget):800 首 ≈ 39s、5000 首 ≈ 165s。
+    // 必须同时下发给 Dio——全局 receiveTimeout 30s 会先于外层 Future 触发。
+    final budget = queueTransferBudget(items.length);
+    final sw = Stopwatch()..start();
     try {
       final resp = await client
           .postRaw(
             '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue/play',
             data: <String, dynamic>{'items': items, 'startIndex': startIndex},
+            receiveTimeout: budget,
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(budget);
       final success = resp is Map && resp['success'] == true;
       if (!success) return false;
 
@@ -583,7 +612,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       unawaited(pollOnce());
       return true;
     } catch (e) {
-      Logger.debugWithTag('CAST-PEER', '_pushQueueAndPlay failed: $e');
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '_pushQueueAndPlay failed after ${sw.elapsedMilliseconds}ms '
+        '(budget=${budget.inMilliseconds}ms, items=${items.length}): $e',
+      );
       return false;
     }
   }
@@ -593,7 +626,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final peerId = state.activePeer?.peerId;
     if (peerId == null || songs.isEmpty) return;
     final items = songs.map(songToQueueItem).toList();
-    await _post('queue/enqueue', data: <String, dynamic>{'items': items});
+    await _post(
+      'queue/enqueue',
+      data: <String, dynamic>{'items': items},
+      budget: queueTransferBudget(items.length),
+    );
     unawaited(pollOnce());
   }
 
@@ -741,9 +778,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       }
 
       // 队列权威在后端:同步 currentIndex/playMode/队列快照(UI 曲目/歌词/队列跟随设备)。
+      // 5000 首量级快照 ~2MB，12s 会误判离线；放宽到 25s（仍远低于传输预算，
+      // 避免轮询堆积）。25s < dio 全局 30s，无需 override。
       final snap = await client
           .getRaw('$base/queue')
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 25));
       // 二次校验:两次 HTTP 请求期间控制目标可能已切换/回本机,再确认一次,
       // 防止把旧 peer 的队列镜像到刚恢复的本地播放状态上。
       if (state.activePeer?.peerId != peerId) return;
@@ -796,18 +835,24 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
   }
 
-  Future<dynamic> _post(String action, {Object? data}) async {
+  Future<dynamic> _post(
+    String action, {
+    Object? data,
+    Duration? budget,
+  }) async {
     final peerId = state.activePeer?.peerId;
     final client = _ref.read(subsonicApiClientProvider);
     if (peerId == null) return null;
     _markUserCommand();
+    final timeout = budget ?? const Duration(seconds: 8);
     try {
       return await client
           .postRaw(
             '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/$action',
             data: data,
+            receiveTimeout: budget,
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(timeout);
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', '_post($action) failed: $e');
       return null;

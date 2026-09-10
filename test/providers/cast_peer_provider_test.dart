@@ -657,13 +657,15 @@ void main() {
       await setupCasting();
       when(
         () => client.postRaw('/rest/api/v1/peers/dlna-1/queue/enqueue',
-            data: any(named: 'data')),
+            data: any(named: 'data'),
+            receiveTimeout: any(named: 'receiveTimeout')),
       ).thenAnswer((_) async => <String, dynamic>{});
 
       await controller.enqueueSongs(<Song>[song]);
       verify(
         () => client.postRaw('/rest/api/v1/peers/dlna-1/queue/enqueue',
-            data: any(named: 'data')),
+            data: any(named: 'data'),
+            receiveTimeout: any(named: 'receiveTimeout')),
       ).called(1);
     });
 
@@ -779,6 +781,68 @@ void main() {
       await controller.pollOnce();
       expect(controller.state.status.state, 'STOPPED');
       expect(controller.state.status.playing, isFalse);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 大队列传输超时守卫（回归防护）
+  // 安卓弱网下 800+ 首必然推流失败的根因是固定 8s 超时 + Dio 全局 30s 硬顶。
+  // 这里锁死「超时随规模缩放」且「预算必须同时下发给 Dio」两条约束。
+  // -------------------------------------------------------------------------
+
+  group('cast queue transfer timeout budget', () {
+    test('budget scales with item count and is capped', () {
+      expect(
+        queueTransferBudget(0),
+        const Duration(seconds: 10),
+      );
+      // 800 首:10s + 24s = 34s(过去固定 8s/30s 必挂)。
+      expect(
+        queueTransferBudget(800),
+        const Duration(milliseconds: 34000),
+      );
+      // 5000 首:10s + 150s = 160s,未触顶。
+      expect(
+        queueTransferBudget(5000),
+        const Duration(milliseconds: 160000),
+      );
+      // 触顶 180s,避免无限等待。
+      expect(
+        queueTransferBudget(20000),
+        const Duration(milliseconds: 180000),
+      );
+      // 单调不减。
+      expect(
+        queueTransferBudget(5000).inMilliseconds,
+        greaterThan(queueTransferBudget(800).inMilliseconds),
+      );
+    });
+
+    test('queue/play passes the scaled budget down to dio', () async {
+      await setupCasting();
+      Duration? seen;
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((invocation) {
+        seen = invocation.namedArguments[#receiveTimeout] as Duration?;
+        return Future<dynamic>.value(<String, dynamic>{'success': true});
+      });
+
+      final songs = List<Song>.generate(
+        5000,
+        (i) => Song(id: 's$i', title: 't$i', duration: 100),
+      );
+      final ok = await controller.playQueueOnPeer(songs, startIndex: 0);
+
+      expect(ok, isTrue);
+      // 关键:预算必须落到 dio,否则全局 receiveTimeout 30s 会先砍断,
+      // 外层 Future.timeout 再大也是摆设。
+      expect(seen, queueTransferBudget(5000));
+      expect(seen!.inSeconds, greaterThan(30));
     });
   });
 }
