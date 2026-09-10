@@ -4,12 +4,29 @@
 //
 //   1) `pushLocalToPeer` 必须**先**尝试主通道 `playContentOnPeer`，仅在
 //      内容不可解析（discover/search/other）或主通道失败时才回落整队推送。
-//      —— 历史上它只做整队推送，数千首歌单把 MB 级 body 推上公网，
-//      实测耗时 3.4~8.4s 且随规模/网络抖动劣化，是「推大歌单失败」的根因。
+//      —— 历史上它只做整队推送，数千首歌单把 MB 级 body 推上公网。
 //   2) 起点必须用 `songId`（身份）而非 `startIndex`（本地行号）——
 //      两侧排序不同源，用行号会静默播错歌。
 //   3) 队列来源必须落盘（会话持久化 `queueOrigin`）并在恢复时回填——
 //      否则重启 App 后来源丢失，搬移退化为整队推送，大歌单回归失败。
+//   4) 主通道优先的**理由必须留在源码里**（WAF 闸门）——理由被删掉后，
+//      后来者很容易把它当成「性能优化」而回退掉，见契约 4。
+//
+// ============================================================================
+// 契约 4 特别说明：为什么这是**可用性**要求而不是性能优化
+// ============================================================================
+// 公网入口（反代 Lucky WAF）对 `POST /peers/:id/queue/play` + 大批量 JSON
+// 数组有**体积闸门**：约 90KB（≈300 首）起即被以 403 拒绝，响应体是
+// `<title>403 - Lucky WAF</title>` —— 反代层拒绝，不是 MusicFlow 服务端。
+// 即整队推送在公网**不是慢，而是根本发不出去**；主通道 body 恒为几百字节，
+// 与队列规模无关，天然不过闸门。
+//
+// ⚠️ 2026-09-10 真实误判：复测时该闸门**正好被运维临时关闭**，看到
+// 541KB/642KB/868KB 均返回 200，于是错误地把上述结论标成「已作废」并改掉了
+// 注释，方向完全反了。教训：判定闸门/限流类现象要看**响应体特征**
+// （是否含 `Lucky WAF` / 状态码 403），**不能只看体积是否通过**；闸门是可被
+// 临时开关的，一次负面复测不足以推翻结论。
+// 契约 4 因此额外要求：源码里必须保留闸门说明，防止理由被静默删除。
 //
 // 为什么用「结构扫描」而不是只靠单测：单测覆盖的是当前实现的行为，
 // 而这组契约跨越「播放发起 → 会话落盘 → 重启恢复 → 搬移」四个环节，
@@ -28,6 +45,10 @@ const String fallbackCall = '_pushQueueAndPlay';
 /// 契约 3：会话 payload 必须携带 / 读取队列来源。
 const String sessionOriginKey = 'kSessionQueueOriginKey';
 const String sessionOriginReader = 'readSessionQueueOrigin';
+
+/// 契约 4：主通道优先的**理由**（WAF 体积闸门）必须留在源码注释里。
+/// 去掉理由后，后人极易把「主通道优先」当成可回退的性能优化。
+const String gateRationaleMarker = 'Lucky WAF';
 
 final List<String> failures = <String>[];
 
@@ -132,6 +153,25 @@ void checkOriginPersisted(File payload, File session) {
   }
 }
 
+/// 契约 4：主通道优先的**理由**必须留在 cast_peer_provider 的注释里。
+///
+/// 只钉行为不钉理由的后果：后人读到「主通道优先」会当成可选优化，
+/// 顺手回退成整队推送（尤其在他复测时恰好闸门关闭、看到 200 的情况下）。
+/// 把理由留在源码里，是防止这种回退的第一道防线。
+void checkGateRationale(File cast) {
+  final src = cast.readAsStringSync();
+  if (!src.contains(gateRationaleMarker)) {
+    fail(
+      '契约 4 回归：cast_peer_provider 缺少主通道优先的**理由**说明'
+      '（关键字 `$gateRationaleMarker`）。\n'
+      '    主通道优先是**可用性要求**，不是性能优化：公网反代对本仓的\n'
+      '    POST /queue/play + 大批量 JSON 有 ~90KB 体积闸门，超过即 403，\n'
+      '    整队推送在公网根本发不出去。理由被删掉后极易被误判为可回退的优化，\n'
+      '    请保留说明（含「闸门可被临时关闭、复测看响应体而非体积」的注意事项）。',
+    );
+  }
+}
+
 void main(List<String> args) {
   final root = args.isNotEmpty ? args.first : 'lib';
 
@@ -148,9 +188,12 @@ void main(List<String> args) {
 
   checkHandoffMainChannel(cast);
   checkOriginPersisted(payload, session);
+  checkGateRationale(cast);
 
   if (failures.isEmpty) {
-    stdout.writeln('OK: 接续搬移契约完整（主通道优先 + songId 身份 + 来源持久化）');
+    stdout.writeln(
+      'OK: 接续搬移契约完整（主通道优先 + songId 身份 + 来源持久化 + 闸门理由在案）',
+    );
     exit(0);
   }
   stderr.writeln('接续搬移契约检查失败（${failures.length} 项）:');

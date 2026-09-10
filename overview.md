@@ -1,657 +1,186 @@
-# 投屏链路双通道重构：服务端内容点播优先 + 整队推送兜底（**已收尾，待发版**）
+# 接续搬移主通道优先 + 4 链路坏源守卫固化
 
-> **状态**：三项任务全部完成 —— ① 主仓库 `resolveContentSongs` 补 ORDER BY（**已发 v2.3.21**）；
-> ② 客户端轻量轮询（§12.1）；③ **Windows 真机联调通过**。单测 43/43、全量 586/586、
-> 主仓库 795/795 全绿。客户端**待提交发版**。交接细节见 `SPEC.md` §十三。
-
-## 本轮收口结论（2026-09-10）
-
-| 任务 | 结果 |
-| --- | --- |
-| ① 主仓库顺序根治 | ✅ **v2.3.21 已发布**（Release uploader = `github-actions[bot]`）。playlist 分支补 `.orderBy(playlistSongs.position, playlistSongs.id)`，附 6 例顺序契约守卫，经**变异验证**（去掉 ORDER BY → 守卫立刻红）。CI 全绿。 |
-| ② 轻量轮询（§12.1） | ✅ 常规 tick `?offset=<len>&size=1`（只取一条 + 外层 `total`/`currentIndex`/`playMode`）；`total` 变化或本地改结构时才拉全量。**3251 首：863 935 B → 338 B（2 556×）**。守卫 4 例。 |
-| ③ 真机联调（Windows） | ✅ 三条路径跑通。端到端探针 `tool/cast_play_chain_probe.py` **68 次探测 → 67 一致、0 顺序错位**。安卓链路逻辑与 Windows 同源（同一 provider + 同一 HTTP 客户端），无需单独实测。 |
-
-## 顺序修复的实证（最关键）
-
-原先 24 个真实歌单抽样有 **6 个「同集异序」**（服务端 rowid 序 ≠ 客户端 `position` 序，约 25% 会静默播错歌，且长度校验完全抓不到）。修复后：
-
-| 歌单 | 客户端 | 服务端 | 顺序 |
-| --- | --- | --- | --- |
-| 0.8x哭完了吗+哭完了挂了 | 19 | 19 | ✅ 19/19 全同序 |
-| 一周欧美上新+|+Miley+Cyr… | 19 | 19 | ✅ 19/19 |
-| 温柔英文歌-睡觉专用 | 265 | 265 | ✅ 265/265 |
-| 低沉鼓点，极致低音享受+「车载」 | 140 | 140 | ✅ 140/140 |
-| 粤语传世经典，怀旧是人的本能 | 81 | 81 | ✅ 81/81 |
-
-## 新发现：悬空 songId 会让服务端少推 1 首（已兜底，不阻塞）
-
-歌单条目在 `playlistSongs` 里 `playable/isMatched=true`，但对应 `songs` 行已被删 → 服务端
-`rows = entries.map(...).filter(Boolean)` **静默丢掉这一首** → 该位置之后全部错位。实测在
-「华语经典」「欧美万评优质女声」上偶发，两次运行丢的是**不同的歌**（说明是扫描/删除过程中的
-**瞬时脏数据**，非固定记录）。**客户端槽位身份校验已兜住**（不一致即回落整队推送）。
-可选加固：服务端日志告警 / 清理悬空条目（属数据卫生，不阻塞发版）。详见 SPEC §13.4 风险 9。
-
-## 当前进度
-
-| 项 | 状态 |
-| --- | --- |
-| `queue_origin_provider.dart` | ✅ `serverContentType` 映射（playlist/album/artist → 服务端 type；discover/search/other → null 走兜底） |
-| `cast_peer_provider.dart` | ✅ `playContentOnPeer()`：POST `/v1/play` + **槽位身份校验**；`_tick` 改轻量轮询 |
-| `effective_playback_provider.dart` | ✅ `playEffectiveQueue` / `playEffectiveSong` 主通道优先 + 兜底回落 |
-| 测试 | ✅ `cast_peer_provider_test.dart` **43/43**；全量 **586/586** |
-| 服务端 | ✅ **v2.3.21**（唯一改动：ORDER BY 根治） |
-| 取证工具（可复跑） | `tool/cast_play_chain_probe.py`（真实 /v1/play 端到端）、`tool/cast_index_alignment.py`、`tool/cast_set_diff.py` |
-| 客户端提交 / 发版 | ⏳ 待办 |
-
-## 已结项的两条（勿再当遗留问题）
-
-1. ~~`startIndex` 对齐未验证~~ → **已实测并双保险根治**（服务端 ORDER BY + 客户端槽位校验）。
-   **长度校验（`queued != length`）实测无效，已弃用**，别再提这个方案。
-2. ~~投屏轮询拉全量快照需跨仓改后端~~ → **不需要**。`GET /peers/:id/queue` 本来就支持
-   `offset`/`size`，且 `total`/`currentIndex`/`playMode` 都在外层不随分页丢失。纯客户端即可。
-
-## 仍需单独排期（非本轮）
-
-- **`playlist_detail_page._playAt(index)`** 用**渲染序** index 去索引**默认序**列表，
-  选「非默认排序」后点第 N 行会播错歌。与本次重构无关。
-- **DLNA 链路 B**（`playQueueOnDevice`）是客户端直连设备、服务端不参与，结构上无法用
-  `/v1/play`。队列规模通常可控，接受现状。
-
-## 发版记录（已发布版本）
-
-| 仓库 | 版本 | 内容 | 状态 |
-| --- | --- | --- | --- |
-| MusicFlow（主仓库） | **v2.3.21** | `resolveContentSongs` playlist 分支补 `ORDER BY position,id` 根治 `/v1/play` 静默播错歌（附 6 例顺序契约守卫 `contentOrder.test.ts`） | ✅ CI 全绿（ci / playback-chain-guard / security / pentest / frontend-responsive / build-and-push），Release uploader = `github-actions[bot]` |
-| MusicFlow-client | **v4.3.34** | 大队列推流超时「真缩放」：`postRaw/getRaw` 支持逐请求 `receiveTimeout`（同时设 `sendTimeout`）解开 Dio 30s 硬顶；`queueTransferBudget` = 10s + 30ms/首，封顶 180s（5000 首 = 160s）；GET 队列快照 12s→60s、轮询 12s→25s；新增预算守卫 2 例 | ✅ analyze 0 error、交互守卫 PASS、`flutter test` **574/574** |
-| MusicFlow-client | v4.3.33 | 选择播放器弹窗 DLNA 行改造：徽章同行、第二行设备正在播歌名、↓↑双接续按钮（只搬队列+当前曲自动起播，不搬进度） | ✅ Release 三产物齐全（apk 46.2MB / setup 31.8MB / zip 38.6MB），五个 workflow 全 success，uploader 均为 `github-actions[bot]` |
-| MusicFlow-client | v4.3.32 | DLNA 投前预探测 + 移除死歌机制 | ✅ 三产物齐全 |
-| MusicFlow（主仓库） | v2.3.20 | 播放链路四端兜底统一（409 预检 / evict / 去阈值） | ✅ 已发布 |
-
-## 大队列推流修复要点（v4.3.34）
-
-**症状**：安卓推队列 >~800 首必然「推流失败」（500 首可过），Windows 正常。
-
-**根因两层**（第二层是上一轮漏掉的关键）：
-
-| 层 | 内容 |
-| --- | --- |
-| 表层 | `_pushQueueAndPlay` 对 `POST /v1/peers/:id/queue/play` 写死 8s `Future.timeout`。该端点是**同步语义**（落库整队 + 等设备 Stop→SetAVTransportURI→Play，含 ~5s GENA 乐观窗口），800 首 payload ~300KB，手机 WiFi 上传叠加 cast 耗时破 8s；Windows 有线低延迟不越线 |
-| **致命层** | 只放大 `Future.timeout()` **是无效的**——Dio 全局 `receiveTimeout`/`sendTimeout` 均为 30s（`ApiConstants`），会**先于**外层 Future 抛 `DioException`。所以「封顶 30s」= 5000 首必挂，缩放形同虚设 |
-
-**服务端侧核实**（读 MusicFlow 后端源码，结论：后端不是瓶颈）：
-`playFrom` → `setQueue`（内存赋值 + `JSON.stringify` + **单条 `deviceQueues` upsert**）→ `playCurrent`（DLNA ≤5s）。**耗时不随规模线性劣化**，5000 首只多 ~1-2s。Hono 无 `bodyLimit` 中间件、无全局请求超时。**服务端零改动**。
-
-**修复**：
-
-| 项 | 说明 |
-| --- | --- |
-| 解开硬顶 | `SubsonicApiClient.getRaw/postRaw` 新增可选 `receiveTimeout`，内部 `_rawOptions()` **同时设 `sendTimeout`**（大 body 上传也要放行） |
-| 真缩放 | 顶层 `queueTransferBudget(n) = (10s + 30ms×n).clamp(10s, 180s)`。500 首=25s / 800 首=34s / 2000 首=70s / 5000 首=160s / ≥5600 首触顶 180s |
-| 下发 dio | `queue/play` 与 `queue/enqueue` 都把预算**同时**传给 `postRaw`，不再是摆设 |
-| 放宽拉取 | GET 队列快照（`fetchPeerNowPlaying` / `pullPeerToLocal`）12s→60s；轮询快照 12s→25s（25s < dio 30s 无需 override，避免 2MB 快照拉不完被误判离线） |
-| 余量 | 单条 queue item ≈400B，5000 首 ≈2MB；160s 预算等效传输门槛仅 **~12KB/s**，正常局域网不可能触顶 |
-
-**守卫**：`cast_peer_provider_test.dart` 新增 `cast queue transfer timeout budget` group（2 例），锁死「随规模缩放」+「预算必须下发 dio」两条约束——以后只改 `Future.timeout()` 会直接红。
-
-**文档沉淀**：SPEC §12.2（已固化约束 + 勿回退）、负面清单第 16 条、自检清单第 15/16 条。
-
-## ~~已知隐患（本轮新发现，已写入 SPEC §12.1，未修）~~ → **v4.3.35 已修**
-
-~~投屏轮询每 2s 拉取全量队列快照~~ —— **已解决，无需跨仓**。原判断「需要后端新增轻量
-snapshot 端点」是错的：`GET /peers/:id/queue` 本来就支持 `offset`/`size`。
-现常规 tick 只取当前槽位一条 + 外层 `total`/`currentIndex`/`playMode`，
-`total` 变化或本地改结构时才补拉全量。**3251 首实测 863 935 B → 338 B（2 556×）**。
-详见 SPEC §12.1。
+**日期**：2026-09-10
+**版本**：客户端 v4.3.39
+**commit**：fcc412d
 
 ---
 
-## 弹窗改造要点（v4.3.33）
+## 用户需求
 
-| 项 | 说明 |
-| --- | --- |
-| 用户需求 | 「主卧 DLNA」徽章跟设备名同行；第二行显示该设备正在播的「歌曲-歌手」；右侧两个等大按钮做**接续搬移**（搬完原边停止） |
-| 按钮 | 单箭头自绘（CustomPainter）：↓=接回本机，↑=推到音箱；hover 高亮 + Tooltip；按方向置灰 |
-| 接续语义 | **不搬进度**（ray 二轮反馈砍掉）：只搬队列 + 当前曲，从曲首自动播放；push=switchTo+queue/play(startIndex)，pull=queue→stop→本机 playSong |
-| 关键架构 | 「选择播放器」的 DLNA 设备来自**后端 /v1/peers**（非客户端 SSDP）；服务端端点已齐备，**零服务端改动** |
-| 底色修复（二轮反馈） | 自绘行误用 `contentTint` 实色深绿 → 对齐 `MusicFlowActionRow` 选中态：`accent.withValues(alpha:0.1)` 薄染 + `selected:true` + `typography.title` |
-| 图标迭代 | 手机+音箱写实版 → 竖排上下箭头 → 手机内嵌箭头（精修2）→ **终稿：只留单箭头**（ray 三轮反馈） |
-| 验证 | analyze 0 error、交互守卫 PASS、`flutter test` **572/572**；真机 debug 联调三轮反馈全部闭环 |
+> 把 4 条链路（服务端前端 / Win+安卓本机播放 / 本机直投 DLNA / 服务端推 DLNA）
+> 在本地拿服务端数据跑模拟，确认**本机源无效、WebDAV 源无效、未命中歌曲、换源、
+> 全部源失效切歌**下播放链路都不会卡住；确认既有专门逻辑是否还有效；用 CI 固定住。
 
----
+## 一、搬移主通道优先（大歌单不再传 MB 级整队）
 
-# 播放链路兜底改造：投前预探测 + 失效源缓存逐出
-| MusicFlow（主仓库） | **v2.3.20** | `/api/v1/dlna/stream-url` 投前预检 409、`evictStreamFallbackCache`、QueueController 去停播阈值、前端去 deadSongs（commit `a1913f3` + `e6149dc`） | ✅ 已发布：CI 全绿（ci / build-and-push / security / pentest / frontend-responsive / sync-to-gitee），Release author `github-actions[bot]`（0 assets 正常，仅指向镜像 tag），已补用户升级步骤 |
-| MusicFlow-client | v4.3.31 | 首页分区自治 + 推荐模块重定位；修复 CI 交互反馈守卫拦截 | Release 三产物齐全，uploader 均为 `github-actions[bot]` |
+`pushLocalToPeer`（「本机→音箱」接续搬移）此前只做整队推送，payload 随队列规模膨胀。
+改为**主通道优先**：队列源自歌单/专辑/艺术家时，只发
+`POST /rest/api/v1/play {peerId,type,id,songId}`，服务端自行查库解析队列。
 
-## 本次改造要点
+真机实测（`tool/verify_handoff_main_channel.py`，公网 :35378，3251 首）：
 
-| 项 | 说明 |
-| --- | --- |
-| 问题（P1-2） | 客户端直投 DLNA **无投前预探测**：死源要等设备播不出 + stall×2 才跳，每首浪费 10-30s，还消耗 failStreak 上限 |
-| 修法·服务端 | 签发 cast token 前预检全类型音源，验不过返回 **409 `errors.song.noPlayableSource`**（一处改动，四端受益） |
-| 修法·客户端 | `probeSong` 钩子（`/stream/probe`）+ 捕获 `DlnaSongUnplayableException`，命中即按播放模式推进下一曲 |
-| 关键坑 | 最初用 `_playSwitch` 递归跳曲，**整队全死源 + all 模式会让 startCast 无限 await 挂死 UI**；改为 while 循环 +「单次激活内绕圈上限 = 队列长度」，圈满停下交看门狗 |
-| 问题（P1-1） | 换源/可播缓存命中即返回不重探，网易等 ~20 分钟过期直链被锁死到 FIFO 淘汰或服务重启 |
-| 修法 | 拉流实测失败且结果来自缓存命中时 `evictStreamFallbackCache` 逐出双缓存 → 真实重搜一次 |
-| 连带清理 | 客户端/前端「死歌机制」（`_deadSongs`/`deadSongs`/`localFailStreak`）与服务端 `skipCounters` 停播阈值全部移除——预探测标记的是歌曲不是源，坏源被换源救回后仍永久跳过 = 误杀 |
-| 守卫 | 客户端 `dlna_chain_guard_test.dart`（12 条，内置迷你模拟设备）+ 后端 `dlnaStreamUrlGuard.test.ts`（5 条）+ 两仓 `playback-chain-guard.yml`（阻塞型 CI） |
-| 验证 | 客户端 analyze 0 error / `flutter test` **568/568**；主仓库 tsc 无错 / vitest **783/783** |
-
-完整审计与逐链路矩阵见 `docs/playback_chain_audit.md`。
-
-## 守卫补齐（v4.3.32 / v2.3.20 之后，仅测试与 CI，不改功能）
-
-首轮守卫只钉住了两条主链路，另有 3 个缺口「改坏不会红」，已全部补齐，且每条都做了**变异验证**
-（故意破坏实现 → 确认测试转红，证明不是摆设）：
-
-| 缺口 | 补法 | 变异验证 |
+| 指标 | 主通道 `/play` | 整队 `/queue/play` |
 | --- | --- | --- |
-| `evictStreamFallbackCache`（P1-1）无测试 | 主仓库 `streamFallbackEvict.test.ts` 3 条：缓存命中不重搜 → evict 后必须重新真实搜索、playableCache 同规则、只逐出指定 songId | evict 改成空实现 → 3 条全红 |
-| 客户端本机失败跳曲无行为测试 | `playback_error_guard_test.dart` 4 条（源码契约）：`_handlePlaybackError` 必须调 `next()`、不得置停止态、不得回归黑名单/阈值、调用点不得被删 | 删掉 `next()` → 失败即红 |
-| Web 前端跳下一曲无测试（前端无单测框架） | 主仓库 `tests/frontend/playerContract.test.ts` 3 条（源码契约）：`onloaderror`/`onplayerror` → `localHandlePlaybackError` → `localNext()` | 删掉 `localNext()` → 失败即红 |
-| 跨仓 409 契约：两边各测各的，服务端改状态码两边都绿 | 两仓 workflow 各加一条对称静态断言（服务端：409 + i18n key；客户端：409 → `DlnaSongUnplayableException`） | 本地 grep 已复现 PASS |
+| body | **115B** | 642.3KB |
+| 耗时 | **296ms** | 7986ms |
+| 随队列规模 | 无关 | 线性劣化 |
 
-验证：主仓库 vitest **789/789**（+3 +3）、客户端 `flutter test` **572/572**（+4）。
-CI：两仓 `Playback Chain Guard` 均 **success**（新静态断言一起过）；主仓库 pentest 首跑挂在
-「安装后端依赖」（环境类偶发），用 `rerun-failed-jobs` 重跑即 success。
-本次只改测试与 CI，**未发新版本**（v2.3.20 / v4.3.32 产物不变）。
+→ **缩 5720×、快 27×**。来源不可解析（discover/search/other/本地队列）仍回落整队推送。
 
-### 踩坑：新建 workflow 的 YAML 语法错误会「静默失效」
+## 二、队列来源持久化（关闭重启后的静默退化）
 
-两仓的 `playback-chain-guard.yml` 首跑都是 `failure`，但**没有 job、没有可读报错**。根因是 step 的
-`name` 里写了两个冒号：`- name: Guard: no stop threshold in QueueController` → YAML 解析
-「mapping values are not allowed here」→ GitHub 把整个 workflow 当无效文件（API 里 `name` 退化成
-文件路径、`workflow_dispatch` 也识别不到、run 直接 failure）。加引号即修复。**排查手法**：
-`GET /repos/{o}/{r}/actions/workflows/{file}` 若 `name` 等于 `path` 就说明没解析成功；
-`commits/{sha}/check-runs` 里没有该 workflow 也能佐证（真正的失败会生成 check run）。
-已固化守卫：`dart run tool/check_workflow_yaml.dart`（扫全部 workflow，拦 BOM / TAB / 值内第二个冒号 / 顶层重复键）。
+会话恢复路径直接调 `playSong` 而不经过 `playEffectiveQueue`，重启后 `queueOrigin`
+丢失 → 搬移退化回整队推送。现将会话 payload 增加 `queueOrigin` 字段并成对恢复；
+写入/读取共用 `kSessionQueueOriginKey` + `readSessionQueueOrigin`，两侧不会各写各的键名。
 
----
+## 三、🔴 挖出并修复一个严重漏洞（变异验证的产物）
 
-# 历史：首页分区客户端自治：手动排序 + 显隐 + 隐藏即不拉取（含推荐模块重定位）总览
-| MusicFlow（主仓库） | **v2.3.15** | 首页分区清单推荐模块重定位（后端） | 已发布 |
-| MusicFlow（主仓库） | **v2.3.16** | 前端播放队列「打开即定位 + 封面延载」，对齐客户端 | 已发布 |
-| MusicFlow（主仓库） | **v2.3.17** | 修复插件歌单选择器只能看到前 100 个歌单 | 已发布（修复不完整，见下） |
-| MusicFlow（主仓库） | **v2.3.18** | 修正 v2.3.17 的分页终止条件，歌单选择器真正拉到全库 761 个 | 已发布 |
+**变异实验**：在 `_handlePlaybackError` 方法体插入 `if (true) return;`
+（原 `next()` 仍在，只是变成死代码）→ 既有守卫 **4/4 全绿**！
 
-- **v4.3.30 失败原因**：Build Client 的 `Check interaction feedback compliance` 守卫拦截——编辑页 AppBar 裸用 `TextButton`。改 `MusicFlowButton.ghost` 后重发 v4.3.31（v4.3.30 空 tag 保留，无产物）。
-- **v4.3.31 安卓首次失败**：阿里云 Maven 镜像 502 导致 Gradle 依赖解析失败，**与代码无关**，重跑即过。
-- **歌单选择器根因**（线上实测 total 761）：前端只拉一页、后端单页上限 100 → 661 个歌单选不到。
-- **v2.3.17 没修干净**：循环分页用 `items.length < pageSize` 判定最后一页，但后端会**静默 clamp** pageSize（请求 200 实际返回 100）→ `100 < 200` 在第一页就 break，线上仍只有 100 个。**v2.3.18 改为以服务端 `total` 为准翻页 + id 去重**，实测翻 8 页拿到 761/761。命中数：「周杰伦」0→1、「精选」8→40、「华语」1→47。
-- **通用教训**：分页拉全量时终止条件必须用返回体的 `total`，不能用「本页条数 < 请求 pageSize」——后端普遍会静默截断 pageSize。
+根因：所有断言都是 `contains('next()')` 这类**字面包含**检查 —— 文本里 `next()` 还在，
+但永远执行不到。用户表现为**永远卡在坏源上**，正是「播放链路卡住」的典型形态。
 
-> 目标（用户原话）：**「客户端的首页可以随意手动在自身修改需要显示的顺序和内容，不显示的内容模块就不拉服务器的信息」**，并要求安卓 + Windows 两端一致、入口放在首页最底部。
+**修法**：断言改为**可达性**检查 —— 方法体内不得出现恒真短路；`next()` 之前的
+提前 `return` 只允许含 `mounted` 守卫。两个文件双双加固并变异复验（改回即转红）。
 
-## 一、推荐模块重命名与定位对调
+## 四、4 条链路职责分工（不越界）
 
-| 分区 key | 新名称 | 说明 |
+| 链路 | 「不卡死」责任方 | 本仓覆盖 |
 | --- | --- | --- |
-| `local-recommend` | **平台推荐** | 本地库随机歌单（原「本地随机」），排在前面 |
-| `platform-recommend` | **插件推荐** | 插件提供方推荐（原「平台推荐」），排在平台推荐下面 |
+| ① 服务端 Web 前端 | 服务端仓 `playback-chain-guard.yml` | 不可见 |
+| ② 本机播放 | `_handlePlaybackError → next()` | ✅ |
+| ③ 本机直投 DLNA | `DlnaManager._playCurrentTrack` 预检 + 409 跳曲 | ✅ |
+| ④ 服务端推 DLNA | **裁决权在服务端**，客户端只镜像 | ✅（反向钉死） |
 
-- 客户端 arb 改 7 个 key 的 value（key 不动）+ gen-l10n 重生成，中英文同步（Platform / Plugin recommendations）。
-- 订单由**客户端归一**（`normalizeRecommendSectionOrder`），无论服务端下发顺序如何，平台推荐恒在插件推荐之前。
+## 五、新增测试（+13）
 
-## 二、客户端自治架构（核心）
+- `test/core/playback/source_failure_chain_test.dart`（11 项，新）
+  含圈数守卫 `probeSkips >= _queue.length`（防整队全坏源无限绕圈挂死 `startCast`）、
+  单曲无源短路 `_queue.length > 1 &&`、预检网络抖不误杀、链路 A 客户端禁持 `_deadSongs`。
+- `test/providers/handoff_e2e_test.dart`（5 项）：真 HTTP 假服务端 + 真 ProviderContainer。
+- `playback_error_guard_test.dart` +1（reachability）。
+- `tool/handoff_e2e_scan.dart`（新）：钉死 E2E 脚手架契约。
 
-服务端 `/rest/api/v1/home/sections` 清单仍是基准（key / sortOrder / visible），客户端用**本地用户布局覆盖**它：
+## 六、CI 固化
 
-1. **顺序**：用户排过序的分区按用户顺序在前；**服务端新增分区按 sortOrder 自动追加尾部**（新分区不丢）。
-2. **可见性**：最终显示 = 服务端 `visible` **且** 用户未隐藏。
-3. **隐藏 = 不拉取**：隐藏分区不渲染 → 分区 widget 不构建 → 该分区数据 provider（autoDispose / 从未被 watch 的 keepAlive）不初始化 → **零服务端请求**。这是既有架构天然满足的，无需额外开关。
+`playback-chain-guard.yml`（阻塞型）新增两步：
+- `Run source-failure chain simulation tests`
+- `Guard - handoff end-to-end (real HTTP, large playlist)`
 
-### 新增 / 改动文件
+## 七、闸门确认（曾误判，已纠正）
 
-| 文件 | 作用 |
+公网入口（反代 Lucky WAF）对 `POST /queue/play` + 大批量 JSON 数组有**体积闸门**：
+约 90KB（≈300 首）起即 `403 Lucky WAF` —— **反代层拒绝，不是服务端**。
+→ **主通道优先是可用性要求，不是性能优化**：整队推送在公网不是慢，是**发不出去**。
+
+> ⚠️ 中途误判记录：复测时闸门**正好被运维关闭**，见 541KB/642KB/868KB 均 200，
+> 一度错误地把本结论标为「已推翻」并改了注释。经 ray 澄清后已全部恢复，
+> 并在脚本/注释中加注**复测注意事项**：判定闸门看响应体是否含 `Lucky WAF`/403，
+> **不能只看体积是否通过**；闸门可被临时开关。
+
+## 八、验证基线
+
+| 项目 | 结果 |
 | --- | --- |
-| `lib/features/discover/home_section_registry.dart` | 纯函数层（首页与编辑页共用，避免循环 import）：默认清单、定序归一、合并规则、分区显示名、编辑顺序 |
-| `lib/data/models/home_section_layout.dart` | `HomeSectionLayout{order, hidden}` 模型 + JSON |
-| `lib/providers/ui/home_section_layout_provider.dart` | AsyncNotifier（keepAlive，`save()` 先更内存再落盘） |
-| `lib/data/sources/local_storage.dart` | prefs key `home_section_layout_v1` 读/存/清（经 `getPrefs()` 门，小 JSON 符合 prefs 约束） |
-| `lib/features/discover/pages/home_section_edit_page.dart` | **新增编辑页**：拖拽把手排序 + 每行显隐 Switch + 右上角「完成」保存 |
-| `lib/features/discover/pages/discover_page.dart` | 接入布局合并 + 列表最末「编辑首页模块」入口 |
-| `lib/core/theme/app_icons.dart` | 新增 `AppIcons.drag`（Remix `drag_move_2_line`） |
+| 全量 `flutter test` | **622/622**（+13） |
+| 守卫测试集 | 112/112 |
+| `check_interaction_feedback` / `check_workflow_yaml`(9) / `gpu_guard_scan` | OK |
+| `handoff_chain_scan` / `handoff_e2e_scan` | OK |
+| `dart analyze lib/` | 0 error（133 条既有 info） |
 
-编辑页交互（两端一致）：列表最末点击「编辑首页模块」→ 全屏编辑页 → 拖动行尾把手调整顺序 / 每行开关控制显隐 →「完成」保存并即时生效（首页无需重启）。
+---
 
-## 三、服务端配合（MusicFlow 主仓库 backend）
+# 安卓投大歌单失败 —— 根因修复与跨仓发版
 
-- `backend/src/routes/rest/index.ts` `/api/v1/home/sections`：`local-recommend` → title「平台推荐」/ sortOrder 4；`platform-recommend` → title「插件推荐」/ sortOrder 5（对调），注释同步客户端自治说明。
-- `backend/tests/rest/opensubsonic.test.ts`：清单顺序与两个 title 断言同步 → **32/32 通过**。
+**日期**：2026-09-10
+**版本**：客户端 v4.3.37 / 主仓库后端 v2.3.22（同批发版）
 
-## 四、验证
+---
 
-- 客户端 `flutter analyze`：本次新增/改动文件 **0 error**。
-- 客户端测试：**全量 563/563 全绿**（基线 548 + 新增 15）。
+## 一、问题
 
-| 新增测试 | 数量 | 覆盖 |
+安卓客户端投「今日漫游」（数千首）失败；**Windows 同网段可以**，**小歌单也可以**。
+
+## 二、根因：起点定位用了行号，不是身份
+
+不在传输规模，而在 `/v1/play` 的**起点定位方式**：
+
+| | 旧实现 | 问题 |
 | --- | --- | --- |
-| `home_section_registry_test.dart` | 10 | 定序归一、用户排序覆盖、隐藏过滤、追加尾部、淘汰已下线 key、编辑顺序构建 |
-| `home_section_edit_page_test.dart` | 3 | 5 行全量展示、Switch 隐藏后保存落库、真实拖拽把手重排后保存 |
-| `discover_page_test.dart`（新增用例） | 2 | 用户布局隐藏分区不渲染 + 顺序覆盖服务端、底部入口打开编辑页 |
+| 参数 | `startIndex` | 客户端列表的**行号** |
+| 服务端行为 | 按自己的解析顺序取第 N 首 | 两侧顺序不同源时**必然漂移** |
+| 越界处理 | **静默归 0**（从头播） | 不报错 → 用户观感「点了没反应」 |
 
-- Windows debug 已重建并启动（PID 20288），可直接验证。
+顺序为什么会不同源：
+- `resolveContentSongs('playlist')` 曾缺 `ORDER BY`（rowid 序 vs 客户端 `position` 序）
+- 悬空 `playlistSongs`（`songs` 行已删）被 `.filter(Boolean)` **静默丢弃** → 少一首 → 其后全部错位
+- 实测：24 个真实歌单抽样，**6 个「同集异序」≈25%**；长度校验**一个都抓不到**（长度全相同）
 
-## 五、待办
+> 「Windows 能投、安卓不能」的差异来自超时而非逻辑：主通道曾硬编码 15s，
+> 大歌单服务端解析+落库+等设备（含 ~5s GENA 窗口）顶穿后误判失败 →
+> 触发回落重推 2MB 整队 —— **同一件事做了两遍**。
 
-- 代码尚未提交/发版：**待你验证后再发 v4.3.30**。
-- 后续可选：编辑页支持「恢复默认」（`clearHomeSectionLayout` 已备好，尚未接 UI）。
+## 三、修复：songId 身份定位（跨两仓）
 
----
+```
+客户端 ──POST /rest/api/v1/play {peerId, type, id, songId}──▶ 服务端
+                                        │ resolveContentSongs 查库
+                                        │ findIndex(it => it.songId === songId)
+                                        └─▶ playFrom(设备) 投屏   ← 与排序无关
+```
 
-# v3.4.67 GPU 门控修复：watch 不触发 didChangeDependencies + 大屏开关参数化 总览
+**主仓库 v2.3.22**
+- `/v1/play` 新增 `songId`：`items.findIndex(...)` 按身份定位
+- 未命中 → **404 `errors.renderer.songNotInContent`**（不再静默归 0）
+- 未传 `songId` → 保留 `startIndex` 兼容路径（Web 前端 / HA 集成存量调用方）
+- 回执带 `songId: items[start]?.songId`
+- i18n 中英各补一条
 
-## v3.4.67（本轮）
+**客户端 v4.3.37**
+- `playContentOnPeer` 传 `songId`；请求体**二选一**（有 songId 就不发 startIndex，混传会让服务端误按行号取）
+- **整个投后槽位校验块删除**（详见下节）
+- 本地乐观镜像改 `indexWhere(e['songId'] == songId)` **按身份对齐游标**
+- 新增 `contentPlayBudget(n) = queueTransferBudget(n)`：两条通道对同一规模耐心一致
 
-修复 v3.4.66 发布后暴露的两条 CI 红线（GPU Render Guard gpu-gating-tests 7 passed 3 failed；Build Client DLNA Feature Tests 87 passed 1 failed）。本机装好 Flutter SDK（国内镜像）后全量复现定位，三层根因：
+## 四、拆除的补丁（重要）
 
-### 根因与修复
-1. **实现 bug（真实）**：Riverpod 2.6 `ref.watch` 变化回调 = `markNeedsBuild()`——只触发 rebuild，**不触发 didChangeDependencies**。跳动竖条 / 黑胶 / 骨架屏 shimmer 三处门控此前放在 `didChangeDependencies`，暂停/失焦/退出大屏的停转分支从未真正生效（7 个测试碰巧靠 TickerMode 兜底误通过）。→ 门控统一移入 `build` 开头。
-2. **架构死结**：`fullPlayerActiveProvider`（StateProvider）由 FullPlayerPage 在 initState/dispose 写入——Riverpod 禁止构建期/unmount 期改 provider（`_debugCanModifyProviders` 断言），dispose 后 `ref` 失效，post-frame/microtask 延迟又在测试 FakeAsync 撞「container already disposed」。→ **参数化**：VinylRecordCover / SyncedLyricsView 均只被 FullPlayerPage 各用一次，改构造参数 `fullPlayerActive`（默认 false，页面传 true），删除 provider 文件（`lib/providers/full_player_active_provider.dart`）与全部生命周期写入。
-3. **测试写法**：裸变量 + `container.invalidate` 走 ProviderScheduler 的 `Future(task)` 异步调度，`tester.pump()` 不等事件队列。→ 改 `StateProvider` 中转 + `container.read(p.notifier).state = x`（setState 同步通知）。
+此前为绕开行号漂移加了两层补丁：①投后拉 `queue?offset=start&size=1` 比对 `songId`，不一致就②回落推 2MB 整队。
 
-### 验证与发版
-- 本地：gpu_gating_test + full_player_page_test 22/22；全量 `flutter test` **+485 -0**；`gpu_guard_scan` 结构扫描通过（3 个 `.repeat()` 文件全部门控 + RepaintBoundary）。
-- commit `9cecc80`（+191/-103，10 文件）→ push main → **GPU Render Guard / Test Suite / UI Guard / Transcode Chain Guard 四条 workflow 全 success** → tag `v3.4.67` → **Build Client 全 job success（含 DLNA Feature Tests 转绿）** → Release 三产物（android.apk + windows-setup.exe + windows.zip）uploader 均 `github-actions[bot]`。
+**判定：补丁比问题本身更糟** —— 它把「服务端明确拒绝」退化成「整队重推」，用户观感是音箱先响一下又重来；且把几百字节的请求变成 MB 级上行。**已全部删除。**
 
----
+正确姿势是**用身份从根上消除歧义**，而不是事后校验行号猜得对不对。
 
-# v3.4.66 GPU 智能按需渲染：大屏门控 / 窗口不可见停帧 / 暂停停跳 / RepaintBoundary 隔离 总览
+## 五、另一处逻辑修正
 
-## v3.4.66（本轮）
+`playEffectiveSong` 的单曲判据 `queue.length <= 1` **是错的**。
 
-独立任务：消除 Windows/Android 全部可显示区域的无效 GPU 调度。用户确认的四项需求 + 迷你条歌词/进度环方案（保持样式不变，只做性能隔离）+ 双平台 CI 防线。
+**「单曲路径」≠「歌单里只有一首」**，而是**手上没有服务端能自行解析的队列上下文**。
+→ 改为 `hasQueueContext = queue != null && queue.length > 1`。
+歌单页只播一首时走的是 `playEffectiveQueue(type=playlist)`，与本函数无关。
 
-### 一、用户确认的需求（v3.4.66 落地方案）
-1. **黑胶只在「大屏播放页前台」旋转**（迷你条/封面卡黑胶静止，样式不变）；
-2. **「关闭主窗口」= 最小化/失焦/切走等窗口不可见场景** → 全局停帧：不可见期间所有动画不再产生帧、数据驱动 UI（进度环/歌词行/进度条）冻结在最后可见值，恢复可见立即跳回真实进度；
-3. **播放状态门控**：暂停不跳——跳动竖条冻结当前高度、黑胶停转、恢复播放从当前值续跳；
-4. **RepaintBoundary 隔离**：3 根小白条（多处复用）、黑胶、骨架屏 shimmer、迷你条进度环/歌词行各自隔离重绘，绝不连带父级/整行列表；
-5. **CI 防线**：新增 `gpu-render-guard.yml`（两道阻塞性检查，Android/Windows 共享同一套 Dart 逻辑，用 AppLifecycleState 模拟双平台生命周期）。
+## 六、守卫
 
-### 二、实现
-| 文件 | 改动 |
-|------|------|
-| `lib/providers/app_visibility_provider.dart`（新增） | `appVisibilityProvider`（StateProvider<bool>，默认可见）+ `AppVisibilityScope`（挂在 `App` 外层：`WidgetsBindingObserver` 监听生命周期，非 `resumed` 一律不可见；`TickerMode(enabled:)` 全局静音/恢复所有子级动画） |
-| `lib/providers/frozen_playback_provider.dart`（新增） | `frozenPositionProvider` / `frozenLyricLineProvider`（`NotifierProvider`）：不可见时返回缓存最后可见值（Riverpod `==` 去重 → UI 零重建），恢复可见立即对齐真实进度/歌词行 |
-| `lib/main.dart` | `runApp(ProviderScope(child: AppVisibilityScope(child: App())))` |
-| `lib/widgets/now_playing_bars.dart` | `_JumpingBars` 改 Consumer：`effectiveIsPlayingProvider` 播放状态门控（暂停 stop/恢复续跳）；竖条组外层 RepaintBoundary |
-| `lib/features/player/widgets/vinyl_record_cover.dart` | 旋转门控：播放中 且 大屏前台 且 窗口可见 + 系统减少动效；旋转动画包 RepaintBoundary。**大屏前台用构造参数 `fullPlayerActive`（默认 false，由 FullPlayerPage 传 true）而非全局 provider**——本组件仅被 FullPlayerPage 使用一次，参数化消除 widget 生命周期写 provider 的 Riverpod 断言死结，且默认 false 让任何未来复用点不显式开启就不会转 |
-| `lib/features/player/pages/full_player_page.dart` | 不再接线任何「大屏前台开关」（删 `fullPlayerActiveProvider` 全部 initState/dispose 写入）；`_CurrentLyricLine`/`_ProgressBar` 改用冻结进度；向 VinylRecordCover / SyncedLyricsView 传 `fullPlayerActive: true` |
-| `lib/features/player/widgets/synced_lyrics_view.dart` | 非大屏前台（`fullPlayerActive` 参数默认 false）直接 `SizedBox.shrink()`（自动关闭渲染）；position 用冻结进度 |
-| `lib/features/player/widgets/mini_player.dart` | 进度环/歌词行各自 RepaintBoundary；position/歌词改用冻结 provider（数据源下沉到独立 Consumer 层） |
-| `lib/core/design/components/music_flow_skeleton.dart` | shimmer 改 Consumer：窗口不可见或系统减少动效 → stop + 静态块；RepaintBoundary |
-| `lib/providers/full_player_active_provider.dart`（已删除） | 大屏前台开关改由组件参数承载（见 vinyl_record_cover / synced_lyrics_view 行） |
-| `tool/gpu_guard_scan.dart`（新增） | 结构扫描：`lib/` 下任何 `.repeat()` 连续动画必须引用门控标记（播放状态/窗口可见/冻结进度/TickerMode）且用 RepaintBoundary，否则 CI 拦截 |
-| `.github/workflows/gpu-render-guard.yml`（新增） | 两道阻塞 job：`gpu-gating-tests`（新门控测试 + 本次波及的现有组件测试）、`animation-gating-scan`（结构扫描） |
+| 仓库 | 文件 | 内容 |
+| --- | --- | --- |
+| 后端 | `tests/routes/playStartLocator.test.ts` | 4 例：命中定位 / 未命中 404 / startIndex 兼容 / 同时传以身份优先 |
+| 客户端 | `test/providers/cast_peer_provider_test.dart` | 44 例：新增 songId 定位、无槽位往返、按身份对齐镜像 |
 
-### 三、验证
-- 新增 `test/rendering/gpu_gating_test.dart`（10 个测试）：TickerMode 全局静音（`_InfiniteSpinner` 哨兵）、`appVisibilityProvider` 生命周期翻转（inactive/paused/resumed）、冻结进度/歌词 provider 冻结与恢复、跳动竖条播放状态门控、黑胶门控（暂停停转/非大屏不转）、大屏歌词非大屏不渲染、骨架屏窗口不可见停帧。
-- **实现 bug 修复（门控从 didChangeDependencies 移到 build）**：Riverpod 的 `ref.watch` 变化只触发 rebuild（`ConsumerStatefulElement.watch → markNeedsBuild`），**不会触发 didChangeDependencies**——暂停/失焦/退出大屏的停转分支此前从未真正生效（只有依赖 TickerMode 兜底的场景碰巧工作）。跳动竖条/黑胶/骨架屏 shimmer 三处门控统一移入 `build` 开头。
-- **生命周期写 provider 死结消除（参数化）**：`fullPlayerActiveProvider` 原是 StateProvider，由 FullPlayerPage 在 initState/dispose 写入；Riverpod 禁止 widget 构建期/unmount 期改 provider（`_debugCanModifyProviders` 断言），dispose 后 `ref` 失效，post-frame/microtask 延迟写入又在测试的 FakeAsync 里撞「container already disposed」——改由组件构造参数承载后彻底消除。
-- 组件改造波及现有测试修复（2 个）：`music_flow_skeleton_test.dart` 包 ProviderScope（组件改 Consumer）；`discover_playlist_card_test.dart` 包 ProviderScope + override `effectiveIsPlayingProvider`（绕开真实 dlna 链条）。
-- 审查确认不受影响：`mini_player_test`（测纯组件 `MiniPlayerView`）、`full_player_page_test`（已 override `playerProvider`，冻结链条安全）、`synced_lyrics_view_test`（测未门控的内部 `SyncedLyricsSurface`）。
-- 全量测试标准：0 失败（本地全量 `flutter test` **+485 -0**）。
+**变异验证**：把后端 songId 分支改成 `if (false)` → 守卫立即变红（已实测）。
 
-### 发版
-- commit `ca29967` + tag `v3.4.66`：Build Client / Test Suite / UI Guard / GPU Render Guard 四条 workflow 中，**GPU Render Guard 的 gpu-gating-tests（7 passed 3 failed）与 Build Client 的 DLNA Feature Tests（87 passed 1 failed）实为红**（上表「全 success」为发布时误记）。
-  - DLNA 1 failed = `local_dlna_cast_sheet_test.dart` 全屏用例：FullPlayerPage 生命周期写 provider 撞 Riverpod 断言 → 参数化后修复；
-  - GPU 3 failed = 冻结/跳动竖条/黑胶三个门控测试 → 测试写法（invalidate 异步）与实现 bug（门控在 didChangeDependencies）双重根因，修复后 10/10。
-- 修复提交：`ddc9e02`（防线自身编译错误）+ 本轮参数化/门控修复 → 本地全量 485 全绿，push main 后 CI 复验全绿即收尾。
+## 七、验证基线
 
----
+| 项 | 结果 |
+| --- | --- |
+| 客户端 `flutter analyze` | **0 error**（154 条存量 info） |
+| 客户端全量 `flutter test` | **587/587 通过** |
+| 客户端发版守卫 | interaction_feedback ✅ / gpu_guard_scan ✅ / check_workflow_yaml ✅ / check-l10n --gate-cjk ✅ |
+| 后端 `tsc --noEmit` | **0 error** |
+| 后端 `vitest run` | **799/799 通过**（新增 4 例） |
+| CI | v4.3.37 五条 workflow / v2.3.22 build-and-push（构建中） |
 
-# v3.4.63 清除全部 6 个历史测试失败：全量测试首次零失败 总览
+## 八、遗留（不阻塞）
 
-## v3.4.63（本轮）
-
-独立任务：把长期挂账的 6 个历史失败测试逐个排查修复（不涉及新功能，只清技术债）。**修复后全量 +475 -0，本项目第一次全量测试 0 失败。**
-
-### 一、player_backdrop ×2（`test/features/player/player_backdrop_test.dart` + `lib/features/player/widgets/player_backdrop.dart`）
-- **根因 1（断言过期）**：`c961f1f`（对齐箭头音乐 MINI 悬浮胶囊）把 mini 圆角 16→24 且新增胶囊阴影（`0x14000000` blur 12 offset(0,4)），测试仍断言 16 与 `boxShadow isEmpty`。
-- **根因 2（实现 bug）**：`_PlayerBackdropSpec.lerp` 在 progress=1.0 时 `BoxShadow.lerpList` 返回 `scale(0)` 的残影阴影（blur 0 但 alpha 仍在），落点 stage 语义应为无阴影 → 修复 lerp 边界（progress>=1 返回空列表）。
-- **修复**：测试 4 处圆角断言 16→24、4 处阴影断言对齐新语义；实现 lerp 边界修正。
-
-### 二、music_flow_app_shell ×2（`test/widgets/music_flow_app_shell/music_flow_app_shell_test.dart`）
-- **根因 1（断言过期）**：`c961f1f` 把 compact 分支（`includeBottomSafeArea=false`）MiniPlayer slot 底部 padding 从 `xxs(4)` 改为 `sm(12)`，测试仍断言间距 4 → 2 处改 12。
-- **根因 2（过期 key）**：`mini-player-progress` key 已随设计变更移除（底部进度条改为封面外圈进度环 + `mini-player-scrubber` 手势层），320dp 缩放测试引用过期 key → 改用 `mini-player-scrubber`（几何断言语义不变：左缘/底缘贴齐）。
-
-### 三、music_flow_network_status_bar ×1（`music_flow_network_status_bar.dart` + 测试）
-- **根因**：`1a5dce9`（DLNA 投屏方案）引入「启动后 30 秒静默恢复窗口」，用 `DateTime.now()`（真实时钟）判断；测试用 fake clock 推进时间、真实时钟才过几毫秒 → 永远处于静默窗口 → 网络恢复 toast 永不出现。
-- **修复**：静默窗口改为**可注入参数** `startupSilentRecoveryWindow`（生产默认 30s，测试传 `Duration.zero`），不改变生产行为。
-
-### 四、ssdp_discovery ×1（`test/core/dlna/ssdp_discovery_test.dart`，用户指示「用本地环境重做」）
-- **根因**：本机双网卡——以太网（Intel I219-V）= 192.168.10.188 + `et_6_55tp`（**EasyTier VPN 隧道**）= 192.168.100.188。隧道接管系统默认路由/默认多播出接口，测试发送端用 `anyIPv4` 发多播时从隧道出去，而生产监听端（`_skipInterface` 按 `et_` 前缀过滤后）只 join 物理以太网组 → 跨网段收不到 NOTIFY（历史 flaky 根因）。
-- **修复（测试侧，生产零改动）**：测试新增与生产 `_skipInterface` **完全一致**的过滤辅助函数（关键字表 + `et_`/`et-` 前缀 + 保留网段 IP），统一应用到 responder join / 显式注入地址 / NOTIFY 发送端三处；发送端显式绑定物理接口 IPv4 锁定出接口 + 4 轮重发容忍时序。**本机连跑 8/8 稳定通过**；CI（Linux 单网卡）链路本就固定，改动只是让测试模拟行为与生产规则对齐，无 CI 行为差异。
-
-### 验证
-- analyze 零 error；ssdp 本机连跑 8/8；**全量 +475 -0（首次全绿，6 个历史失败全部清零）**。
-- 发版：commit 2965153 + tag v3.4.63 → CI 三流水线（Build Client / Test Suite / UI Guard）→ Release 三产物 uploader 均 `github-actions[bot]`，合规闭环。
-
----
-
-# v3.4.62 Windows 右键菜单修复 + 搜索入口移入「库」导航 总览
-
-## v3.4.62（本轮）
-
-### 一、Windows 右键不弹菜单（用户反馈「安卓可长按,Windows 右键没弹窗」）
-- **根因**：`MusicFlowPressable.onLongPress` 由 `InkWell.onLongPress` 消费，而 InkWell 的长按手势（`LongPressGestureRecognizer`）**只跟踪主按钮**（触摸/鼠标左键按住），鼠标右键按下根本不进入该手势 → 安卓长按弹菜单正常、Windows 右键完全无反应。
-- **修复**（`lib/core/design/components/music_flow_pressable.dart`）：复用现有 raw `Listener.onPointerDown`，当 `event.buttons == kSecondaryButton` 时**按下立即触发 `onLongPress`**（桌面端「右键 = 长按菜单」语义），且不参与按压缩放反馈（与触屏长按视觉区分）。
-- **回归测试**（`music_flow_pressable_test.dart` +2 例）：①鼠标右键（`startGesture` + `kSecondaryButton`）触发 `onLongPress` 且不触发 `onPressed`；②无 `onLongPress` 时右键无副作用。
-
-### 二、搜索入口从首页右上角移入「库」分类导航第一位（用户要求）
-- 需求：右上角搜索按钮移到分类导航首位，样式/颜色与库按钮一致，标注「探索」；最终顺序 **探索 喜欢 歌单 歌曲 艺术家 专辑**。
-- **改动**（`lib/features/discover/pages/discover_page.dart`）：
-  1. `CategoryNavBar._items` 首位插入 `('探索', AppIcons.search, const SearchPage())`——复用 `_CategoryNavItem`（accent 图标 26px + 下方 metadata 文字标注），样式颜色与其余库按钮完全一致，点击打开与搜索条同一个全屏 `SearchPage`。
-  2. compact 标题行右侧 `home-header-search` 按钮与 `Spacer` 移除（搜索入口唯一化，避免重复）。
-- **回归测试**（`discover_page_test.dart` 更新+新增）：分类入口断言 5→6 项含「探索」；「探索」点击打开全屏搜索页；「探索」位于「喜欢」左侧（第一位）。
-
-### 验证
-- analyze 零 error；全量 +469 -6 = 5 历史基线 + ssdp flaky x1，零新回归（新增 2 例右键测试全过）。
-- 发版：commit 2ae4da7 + tag v3.4.62 → CI 三流水线全 success → Release 三产物（android.apk 46.6MB / windows-setup.exe 32.9MB / windows.zip 39.8MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
-
----
-
-# v3.4.61 播放卡片：竖条压缩到 2/3 + 播放时自动隐藏按钮 总览
-
-## v3.4.61（本轮）
-
-### 一、首页歌单封面「播放时竖条与播放按钮重叠 + 竖条过高」（用户截图反馈）
-- **根因**：v3.4.58 引入 `_PlaylistCoverPlayButton` 与 v3.4.58 的 `NowPlayingCoverOverlay`（3 根跳动竖条）**都锚定封面右下角**：按钮用 `Positioned(right, bottom)`，竖条用 `Align(alignment: bottomRight)`，Android compact 屏按钮常驻 → 两控件完全重叠。同时竖条在 v3.4.58 改动后占封面高 20%~34%，比例仍偏厚。
-- **修复**：
-  1. `DiscoverPlaylistCard` 渲染逻辑加条件 `if (onPlay != null && !isNowPlaying)`：正在播放（`isNowPlaying=true`）时自动隐藏播放按钮 —— 已有竖条作为「正在播放」视觉指示，不需要叠按钮。
-  2. `NowPlayingCoverOverlay` 竖条高度：20%~34% → **13%~23%**（整体压缩到现在的 2/3）；顶 doc comment 同步更新，避免视觉过厚与下方按钮争抢空间。
-- **回归测试**（新文件 `test/features/discover/discover_playlist_card_test.dart`，3 例）：
-  1. 非播放态：`_PlaylistCoverPlayButton` 渲染、`NowPlayingCoverOverlay` 不渲染；
-  2. 播放态（核心修复）：`_PlaylistCoverPlayButton` **不渲染**、`NowPlayingCoverOverlay` 渲染；
-  3. `onPlay=null` 不论 `isNowPlaying` 都不渲染按钮。
-
-### 验证
-- analyze 零 error；新回归测试 3/3 通过；discover/widgets/library/player 相关测试 +136 -5 = 5 历史基线，零新回归；全量 +467 -6 = 5 历史基线 + ssdp flaky x1，零新回归。
-- 发版：commit eecfb6e + tag v3.4.61 → CI 三流水线全 success → Release 三产物（android.apk 44.4MB / windows-setup.exe 31.3MB / windows.zip 37.9MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
-
----
-
-# v3.4.60 平台推荐播放按钮 + 搜索按钮贴右缘 + Windows 任务栏图标排查 总览
-
-## v3.4.60（本轮）
-
-### 一、平台推荐歌单封面播放按钮补齐（用户反馈）
-- **根因**：`PlatformRecommendSection`（平台推荐）的 `DiscoverPlaylistCard` 此前只有 `onPressed`（打开详情/导入），没传 `onPlay` → 封面右下角半透明播放按钮不渲染；`LocalPlatformRecommendSection`（本地随机）v3.4.58 已接，两区块不一致。
-- **修复**：新增 `_playRecommendPlaylist`（已入库直接反查本地 id 播放；未入库先经 `/v1/online/:providerId/recommend/import` 幂等导入再 `playLocalPlaylistById` 整单播放），卡片接 `onPlay`（loading 时不显示）。
-
-### 二、安卓首页搜索按钮位置（用户反馈「从源头查,一直没做好」）
-- **根因链**：v3.4.50 用户反馈「搜索按钮贴最右边」→ 用 `Expanded` 把标题按钮撑满实现贴右；v3.4.51 用户反馈「标题按钮区域太长（绿色高亮区占满）」→ 改 `Flexible(loose)` 修区域，**代价是搜索按钮回到紧跟标题文字、不再贴右缘** → 位置问题复发。
-- **修复**：标题按钮 `Flexible(loose)`（区域只包文字）+ **中间 `Spacer`** + 搜索按钮，两个诉求同时成立。
-- **回归测试**：断言搜索按钮右缘距窗口右缘 == 标题按钮左缘距窗口左缘（对称页边距），未贴右则失败。
-
-### 三、Windows 任务栏图标「还是旧图标」（排查结论：非代码问题）
-- 代码链路全查：`Runner.rc` → `resources/app_icon.ico`（HEAD 与工作区 sha1 一致，红圆白音符 7 尺寸）→ `win32_window.cpp` `LoadIcon(IDI_APP_ICON)` → CMake 编译进 exe，无 CI 图标覆盖步骤。
-- **产物级验证**：下载 v3.4.59 windows.zip，解析 exe PE 资源——内嵌 7 张 PNG 与仓库 `app_icon.ico` **sha1 全匹配**（MATCH: True）。产物图标是正确的。
-- **结论**：用户侧任务栏旧图标 = Windows 图标缓存/旧进程残留。处理：完全退出应用（托盘退出）→ 重启资源管理器或注销/重启；任务栏固定图标取消固定再重新固定。
-
-### 验证
-- analyze 零 error；discover 相关测试全过（新增 2 例回归：搜索按钮贴右缘 / 平台推荐播放按钮）；全量 +465 -5 = 5 历史基线，零新回归。
-- 发版：commit 64720fb + tag v3.4.60 → CI 三流水线全 success → Release 三产物（android.apk 44.4MB / windows-setup.exe 31.3MB / windows.zip 37.9MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
-
----
-
-# v3.4.59 随机模式队列居中修复 + 艺术家长按菜单 / v3.4.58 长按菜单+封面播放按钮 总览
-
-## v3.4.59：随机模式长队列当前播放自动居中 + 艺术家长按菜单补齐（本轮）
-
-### 一、队列居中 bug 修复（用户真实环境反馈）
-- **现象**：Windows 桌面版随机模式（队列 100+ 首）下，当前播放的歌曲不在队列视口中间（永久停在顶部）。
-- **根因**：`_AutoCenterQueueList`/`_AutoCenterCastList` 原用固定行高 56 粗估 offset（`index*56`），随机模式长队列实际行高 ~64，误差随 index 线性累积 → 粗估位置偏出可视区+cacheExtent → 目标行（GlobalKey）永不实例化 → `currentContext` 恒 null → 居中彻底失效。
-- **修复**（`lib/features/player/widgets/play_queue_sheet.dart`）：比例法粗估 `maxScrollExtent * (index/last)`（误差仅来自行高不均、不随 index 累积）+ 多轮逼近（最多 4 轮，每轮 `ratio += 0.15` 向队尾推进），实例化后 `Scrollable.ensureVisible(alignment: 0.5)` 精确居中。普通队列与投屏队列（`_AutoCenterCastList`）同策略同步修。
-- **回归测试**：120 首队列 + currentIndex=100，断言当前行实例化且位于视口中部 20%~80%；注意无限跳动竖条动画使 pumpAndSettle 永不稳定，用 5 次固定时长 pump。
-
-### 二、艺术家长按菜单补齐（长按/右键菜单全类型覆盖）
-- 新建 `lib/features/library/widgets/artist_options_sheet.dart`：`showArtistOptionsSheet` 三操作——「播放歌手热门歌曲」（getTopSongs + playEffectiveQueue origin=artist）、「收藏/取消收藏歌手」（setArtistStarred + invalidate starredProvider）、「添加到播放列表」。
-- `MusicFlowArtistRow` 新增 `onLongPress`（透传 `MusicFlowPressable`）。
-- 接线：收藏页艺术家 tab、艺术家库 `artist_list_page`、搜索页（专辑/艺术家/歌单三处）、歌单库 `playlist_search_page`。
-- 至此**歌单/专辑/歌曲/艺术家四类列表项全类型支持长按菜单**。
-
-### 验证
-- analyze 零 error；相关测试 +21 全过；全量 +461 -7 = 5 历史基线 + ssdp flaky ×2，零新回归。
-- 发版：tag v3.4.59 → CI 三流水线验证。
-
----
-
-## v3.4.58：列表项长按/右键菜单 + 首页歌单封面半透明播放按钮 + 竖条底部平整化（72daf13）
-
-### 一、列表项长按/右键菜单（喜欢/取消喜欢、播放等）
-- 歌曲行：专辑详情页、歌曲列表、收藏页、播放队列、remote 三页面（专辑/艺术家/歌单）、搜索页均接入 `showSongOptionsSheet`（播放/收藏/加入队列等）。
-- 歌单：首页 3 处本地歌单卡 + 搜索页 + 歌单库 + 收藏页接入 `showPlaylistOptionsSheet`。
-- 专辑：搜索页 + 收藏页 + 专辑库接入 `showAlbumOptionsSheet`。
-- 播放/收藏类数据操作在 sheet 内直接执行（关 sheet 后 Toast 反馈）；「添加到歌单」等返回 action 由调用方处理。
-
-### 二、首页歌单封面半透明播放按钮
-- `discover_media_widgets.dart` 新增 `_PlaylistCoverPlayButton`：Android（compact）常驻半透明显示，桌面（wide）平时隐藏、鼠标 hover 封面时才显示。
-
-### 三、当前播放封面跳动竖条底部平整化（截图反馈）
-- `now_playing_bars.dart`：竖条高度比例 `size*0.38~0.62` → `size*0.20~0.34`（只占封面底部一小块）；`Row(crossAxisAlignment: end)` + `SizedBox(height: maxBarHeight)` 实现底部贴齐、跳动从底部往上（网易云音柱条观感）。
-
-### 验证与状态
-- 全量 +461 -7（5 历史基线 + ssdp flaky），零新回归；CI Build Client / Test Suite / UI Guard 三流水线全 success。
-- Release 三产物（android.apk 44.4MB / windows-setup.exe 31.3MB / windows.zip 37.9MB）uploader 均 `github-actions[bot]`，draft=false，合规闭环。
-
----
-
-# v3.4.57 当前播放封面跳动竖条指示器（网易云风格）/ v3.4.56/55/54/53 总览
-
-## v3.4.57：当前播放封面跳动竖条指示器
-
-### 用户需求
-> 当前播放的无论是歌单、音乐、专辑等等，在封面（包括首页、队列等等）加上半透明阴影遮罩，遮罩上 3 根白色随机跳动的竖直长方形（类似网易云「每日推荐」播放效果）；播放队列中封面较小则竖条放正中间。**竖条大小和位置要自适应封面大小。**
-
-### 实现
-- **`lib/widgets/now_playing_bars.dart`（新建）**：`NowPlayingCoverOverlay` 组件。所有尺寸按封面边长等比缩放 `k = (size/160).clamp(0.55, 3.0)`（竖条宽 6k / 间距 4.5k / 圆角 2k / 遮罩内边距 7k，竖条高度在封面 0.38~0.62 倍间跳动）；`_JumpingBars` 用 AnimationController(900ms repeat) + 3 根竖条独立相位 [0,1.7,3.6] / 速度 [1,1.35,0.82] / 幅度 [1,0.72,0.88]，双正弦叠加形成「不规则跳动」。大封面 `Alignment.bottomRight`，小封面（队列 48~56px）`Alignment.center`。
-- **`lib/providers/queue_origin_provider.dart`（新建）**：`QueueOrigin`（kind + id）记录当前播放队列来源，`playEffectiveQueue` 统一写入，使歌单卡/专辑卡能识别「正在播放的是哪个」。
-- **接入点**：歌曲行封面居中（`isCurrent`，替换旧 equalizer 角标）；首页歌单卡/专辑卡、收藏页、专辑列表、详情页大封面右下角（`isNowPlaying`）；remote 页面歌曲行 `isCurrent`。
-
-### 测试
-- 更新断言：`music_flow_song_row_test` / `play_queue_sheet_test` 从 `AppIcons.equalizer` → `find.byType(NowPlayingCoverOverlay)`。
-- **无限动画 × pumpAndSettle 冲突**：repeat 动画使 `pumpAndSettle` 永久超时，`play_queue_sheet_test`（drag 后）与 `player_navigation_flow_test`（3 处页面切换）改用固定时长 pump。
-- analyze 零 error；全量 +461 -6 = 5 个历史基线 + ssdp flaky，零新回归。
-
-### 状态
-- commit e030245 + tag v3.4.57 已推送，CI Build Client 后台跟踪中。
-
----
-
-# v3.4.56/55/54/53 品牌图标统一替换（已发版）
-
-## v3.4.53：用新红圆白音符 logo 替换主项目 + 客户端全平台 + HA 集成的全部品牌图标
-
-### 用户原始需求
-> "用这个 icon 替换所有原有的 logo.png / favicon.png / apple-touch-icon.png 等等的主项目和三端图标（包括主项目、客户端前后端、HA 卡片所有的包括 readme 等文档）"
-
-提供的新图标：1920×1920 jpg，黑底 + 红色实心圆 + 白色音符，Apple-Music 风格纯红。
-
-### 范围（4 个仓库，最终涉及 3 个）
-| 仓库 | 是否涉及 | 实际改动 |
-|---|---|---|
-| MusicFlow-client（Flutter 客户端） | ✅ | 38 个文件：web 5 + Android 13（含 2 XML 背景白→黑） + iOS 22 AppIcon + iOS 3 LaunchImage + Windows ico + 新增 assets/icon/ 母版 + tools/generate_icons.py |
-| MusicFlow 主项目（Hono + Vue3） | ✅ | `frontend/public/favicon.png`(96) + `apple-touch-icon.png`(180) + `logo.png`(2048) 共 3 个 |
-| hass-musicflow（HA Python 集成） | ✅ | `logo.png`(512) + `brand/icon.png`(512) + `brand/logo.png`(512) + `custom_components/musicflow/brand/icon.png`(256) + `brand/logo.png`(512) 共 5 个 |
-| hass-musicflow-card（HA 卡片 TS） | ❌ | 无品牌图标资产，README 无图引用 → 无需改 |
-| hassio-addons | ❌ | 无图标资产 → 无需改 |
-
-### 处理策略
-- **透明底母版**（红圆+白音符自包含）：作为通用版——任何背景都清晰（白底 README、HA 浅色界面、Web favicon、HA brand 图标、客户端 Android legacy/foreground）。
-- **黑底母版**：仅用于 iOS AppIcon（系统要求不透明 + 圆角裁切）+ iOS LaunchImage 启动图 + PWA maskable（必须不透明满幅）。
-- 母版生成：源图红圆 bbox 动态定位 → 10% padding 方形裁切 → 双版（黑/透明）各 1024×1024 母版 → 平台尺寸由脚本缩放。
-- 脚本：`tools/generate_icons.py`（PIL 单依赖，幂等可重跑，源图替换即可重生所有平台图标）。
-- Android adaptive icon 背景：`@android:color/white` → `@android:color/black`（红圆配黑底，避免白底突兀）。
-- `drawable/ic_notification.xml` 通知栏白色音符 vector **保留**（通知栏单色规范）。
-- README 无图片引用（grep 全部命中零 logo 引用），文档无遗漏。
-
-### 文件总数
-- MusicFlow-client：38 改动 + 2 XML + `assets/icon/`(5 文件) + `tools/generate_icons.py` 1 个
-- MusicFlow 主项目：3 改动
-- hass-musicflow：5 改动
-
-### 状态
-- 待发版客户端 v3.4.53。
-- 主项目与 hass-musicflow：本地 commit 完成（无功能变更、不 bump 版本号），tag 由用户决定（lockstep 惯例 vs 仅资产更新）。
-
----
-
-# v3.4.52 加入库按钮溢出 + 入库成功自动刷新最近更新歌单（已发版）/ v3.4.51/50/49/48/47 总览
-
-## v3.4.52：安卓加入库按钮窄屏溢出 + 客户端入库成功自动刷新最近更新
-
-### 反馈/需求（用户两条）
-1. **截图反馈**（320dp 安卓）：`RemotePlaylistPage` 的"播放全部"+"加入库"两个按钮 Row 直排，右侧"加入库"按钮文字被裁。同步要求：查看其他搜索/相关页面是否有同类问题；**做好后本地提交，不直接发版**。
-2. **功能需求**：客户端接收到服务端歌单入库成功的信号时，应该自动刷新最近更新的歌单（入库完成的歌单在本地音乐库可用了，应立即出现在首页最近更新列表）。
-
-### 一、加入库按钮窄屏溢出修复
-
-#### 同类问题审计
-- `MusicFlowMediaActions`（本地歌单/专辑/艺术家详情页在用）已经规范实现：窄屏（`constraints.maxWidth < 340` 或字号 ≥20）双按钮**垂直堆叠**，否则水平 `Row + Expanded`。
-- `RemotePlaylistPage._Header` / `RemoteAlbumPage` 是同款"播放全部 + 加入库"双按钮模式但**没用**该组件，自行裸 Row 直排→窄屏溢出。已修复。
-- `RemoteArtistPage` 只有单个"播放全部"按钮，单按钮不会被裁，不需改。
-- `search_result_card.dart`（搜索结果列表行）的"播放 + 加入库"是 `MusicFlowIconButton`（固定尺寸），不是 `MusicFlowButton`（文字按钮），不受同类问题影响。
-
-#### 根因
-`MusicFlowButton` 内部已有 `LayoutBuilder + Flexible` 文字收缩支持（`music_flow_button.dart` 143-169 行），但**只在 outer 给 `boundedWidth` 时才生效**。当前两个按钮直接 Row 排，外层 `Expanded` 给的是 `unboundedWidth`，按钮文字不会收缩，最小宽度 `48 + icon(20) + xs(8) + 文字(40) + padding(40) ≈ 150+`，窄屏 192px 容不下 → 右侧按钮溢出。
-
-#### 修复
-复用 `MusicFlowMediaActions` 同源模式（不强行套用它，因为它绑定「播放+随机+secondaryActions」三段，硬塞"加入库"破坏语义）——两个 remote page 的 `_Header` 同套 LayoutBuilder 模式：窄屏 → Column 垂直堆叠；否则 → Row 各 Expanded 一半。视觉/行为完全对齐规范，但保留「播放全部+加入库」文字双主按钮形态（与截图视觉一致）。
-
-### 二、入库成功自动刷新最近更新歌单
-
-#### 实现
-- `search_actions.dart` 的 `_watchImportTask` 新增 `onSuccess` 回调参数（仅在 `waitTask` 成功路径触发）。
-- `importSearchPlaylist` 在提交成功后传入 `onSuccess: (_) { ref.invalidate(recentPlaylistsProvider); }`——吞掉 ref 失效异常以保护后台 Toast 流程不被破坏。
-- 入库完成的歌单回到首页时已可见，无需手动刷新或等待下次轮询。
-
-### 改动文件
-- `lib/features/library/pages/remote_playlist_page.dart`（加入库按钮布局）
-- `lib/features/library/pages/remote_album_page.dart`（加入库按钮布局）
-- `lib/features/search/search_actions.dart`（`onSuccess` 回调 + `recentPlaylistsProvider` invalidate）
-- `test/features/library/remote_pages_actions_layout_test.dart`（新增 3 例布局回归）
-- `test/features/search/import_task_flow_test.dart`（新增 1 例 invalidate 回归，5 例合计）
-
-### 验证
-- library+search+discover 相关 **50 例全过**；analyze 本次改动文件无新告警。
-- 测试 mock 教训：测试 `RemotePlaylistPage` / `RemoteAlbumPage` 时 stub `SubsonicApiClient` 必须连 `getRemoteStreamUrl` 一起 stub，否则 `buildRemoteSong` 抛 `MissingStubError` 让 FutureBuilder 走 error 分支显示"加载失败"，根本看不到 `_Header`——首次调试靠 DIAG dump widget tree 才暴露。
-
-### 状态
-- **已发版 v3.4.52（2026-09-01）**：push main(`1e53a89`) + tag `v3.4.52` → Build Client run `33464740371` **success**（Test Suite / UI Guard 观察型流水线同步跑）。
-- Release 三产物全部合规：`MusicFlow-v3452-android.apk`(46.8MB) / `MusicFlow-v3452-windows-setup.exe`(33.0MB) / `MusicFlow-v3452-windows.zip`(39.8MB)，**uploader 均为 `github-actions[bot]`**，draft=false / prerelease=false，签名链合规。
-- 待用户真实环境验证：320dp 窄屏「加入库」按钮完整显示、入库完成后首页最近更新自动出现。
-
-## v3.4.51：MusicFlow 标题字号缩小 + 按钮区域收窄（截图反馈驱动）
-
-### 三处反馈修复
-1. **MusicFlow 标题字号太大**（用户圈起来的是目标大小）：Typography 从 `display`(26) → `headline`(19)，标题视觉更轻盈（不改全局 token，仅本调用点）。
-2. **按钮区域太长**（绿色高亮区 = MusicFlowPressable Expanded 占满剩余宽度）：`Expanded` → `Flexible(fit: FlexFit.loose)`，按钮宽度按文字自然宽度收住，只包裹文字本身；文字过长仍单行省略。
-3. **搜索图标偏下**：保留 `MusicFlowPressable` 默认 `minimumSize: Size.square(48)`（与搜索 IconButton 同高），Row `crossAxisAlignment.center` → 两者中心均 = 24px，视觉完美对齐——字号缩到 19 后错觉消失。
-
-### 关键约束
-- Typography token **不动**（display/headline/title 是全局规格），仅本调用点改用 `headline`。
-- 触控目标不缩水：标题按钮 48×48、搜索按钮 48×48，无障碍标准保持。
-- 文本过长仍单行省略（Flexible loose 给子级 `maxWidth` 上限，超出 ellipsis）。
-
-### 验证
-- discover_page_test 8 例 + discover/search/library 47 例全过；analyze 无新告警。
-- 发版：tag v3.4.51 → CI 构建后台跟踪。
-
-### Backlog（用户截图反馈 2）
-- 高亮提示（点击行的绿色背景）改为带轻微阴影、不要颜色——本轮未重复提及，保留。
-
-## v3.4.50：搜索按钮位置修正 + 入库结果反馈链路打通（截图反馈驱动）
-
-### UI 修正（用户截图三处反馈）
-1. **搜索按钮贴最右边**：标题行按钮此前 `Flexible`(loose) 导致紧跟 MusicFlow 文字而非贴右缘 → 改 `Expanded`，按钮贴行右边缘并与标题文字垂直居中。
-2. **移除安卓首页整条搜索框**：compact+有标题时不再渲染 `_HomeSearchEntry`，移动端搜索入口收敛为标题行右侧按钮（与下方搜索条共用 `_openSearchPage` 同一入口）。
-
-### 真正链路断点（查服务端源码发现，用户要求确保入库反馈链路打通）
-- 后端 `GET /v1/tasks/:id` 返回 `{ success: true, task: { status, result, error, ... } }`——任务状态**嵌套在 `task` 字段下**。
-- 客户端 `waitTask` 读的是**顶层** `state['status']` → 恒为 null，永远等不到 ok/error → 每次后台干等 5 分钟超时、误报「入库失败: 任务超时」。后端实际入库成功且带回 playlistId，只是客户端收不到。
-- v3.4.48 只修了 UI 不卡死，完成通知链路是断的（当时测试 mock 用了错误的顶层结构，没暴露字段嵌套）。
-- 修复：`waitTask` 读 `task` 嵌套（兼容顶层直出）；`startPlaylistImport` 处理 `alreadyRunning`（同歌单任务在跑时复用 taskId 继续监听，不再误报失败）。
-
-### 验证与发版
-- import_task_flow 3 例改真实嵌套结构 + 新增 alreadyRunning 复用用例；discover 断言 compact 无搜索框、点按钮开全屏 SearchPage；search/discover/library 47 例全过，analyze 无新告警。
-- SPEC §5.3 补 task 嵌套契约 + alreadyRunning 复用（c1c0f86，docs-only 不打 tag）。
-- 发版：tag v3.4.50 → CI 三流水线全 success，三产物（android.apk 44.6MB / windows-setup.exe 31.4MB / windows.zip 38.0MB）uploader 均为 `github-actions[bot]`，签名合规。
-- 全量回归：见文末「v3.4.50 全量回归」段落。
-
-## v3.4.49：安卓首页标题行右侧搜索按钮（aab7654）
-
-- 需求：安卓首页 MusicFlow 标题栏同一行右侧加搜索按钮，点击打开全屏搜索页，功能/逻辑与 Windows 搜索一致。
-- 实现：`_buildHomeHeader` compact 分支 Row 右侧加搜索 `MusicFlowIconButton`；抽 `_openSearchPage` 供标题按钮与下方搜索条共用入口（同一 `SearchPage` 全屏路由）。仅移动端 compact 生效，Windows 宽屏不受影响。
-- 测试：新增 widget 测试（点按钮 → SearchPage 全屏压住首页）；discover+search 相关 22 例全过，analyze 无新告警。
-- 发版：tag v3.4.49 → CI 三流水线全 success，三产物（android.apk 44.6MB / windows-setup.exe 31.4MB / windows.zip 38.0MB）uploader 均为 `github-actions[bot]`。
-- 全量回归：+456 例，失败仅 5 个历史基线 + ssdp_discovery 偶发 flaky，零新回归；SPEC §5.4 补充多端搜索入口契约（fdf6fca）。
-
-## v3.4.48：入库阻塞遮罩严重 bug 修复（d0b3a77）
-
-### 根因
-`importSearchPlaylist` 弹 `barrierDismissible: false` 全屏 loading 遮罩（截图中的灰阴影），且 `importPlaylist` 内部同步轮询任务（40×800ms）等待后端入库完成——大歌单（100 首）子进程入库耗时超过轮询窗口或请求挂住，UI 就永远卡在遮罩下。后端任务状态机（running/ok/error）本身正常，问题纯在前端同步等待设计。
-
-### 新交互（触发即返回 + 后台 Toast）
-- 入库 = 一次 POST 提交（秒回）→ 立即 Toast「《歌单名》入库任务已提交，完成后会通知你」→ **无任何阻塞遮罩**，用户可继续任何操作。
-- 后台轮询任务（预算 5 分钟），完成 → 全局 Toast「入库完成，可在音乐库查看」；失败 → 错误 Toast。
-- 完成/失败通知走 `ToastNotifier`（根导航器 Overlay），页面关闭后仍能收到。
-- 歌曲/专辑入库同步补上完成后 Toast。
-
-### 改动文件
-- `lib/features/search/search_actions.dart`：重写三个入库函数，删阻塞 dialog 与页面跳转。
-- `lib/data/repositories/search_repository.dart`：新增 `startPlaylistImport`（纯提交）；`waitTask` 公开化（默认预算 5 分钟）。
-- `test/features/search/import_task_flow_test.dart`（新增 3 例）：提交即返回无遮罩 / 后台失败通知 / 提交被拒。
-- SPEC §5.3 修订：入库交互契约（触发即返回、禁止阻塞遮罩、全局 Toast）。
-- 全量回归：+455 例，失败仅 5 个历史基线（player_backdrop ×2 / app_shell ×2 / network_status_bar ×1）+ ssdp_discovery 偶发 flaky（单独重跑即过），零新回归。
-- 发版：tag v3.4.48 → CI 三流水线全 success，三产物 uploader 均为 `github-actions[bot]`。
-
-## 同类反模式全应用审计（v3.4.48 后）
-- `barrierDismissible: false`：全库 0 处残留（唯一一处即本次修复的歌单入库遮罩）。
-- 任务轮询 `/v1/tasks/:id`：仅 `SearchRepository.waitTask` 一处，已收敛为后台 fire-and-forget + 全局 Toast。
-- 推荐歌单导入（discover 页）：单次同步幂等 POST（后端直接返回 playlistId），无轮询、无遮罩，仅卡片级 importing 标记——非卡死点。
-- URL 歌单导入 / playlist-sync：客户端无入口。
-- 结论：入库类操作已全部符合「触发即返回 + 后台 Toast」契约，无第二个卡死点。
-
-## v3.4.47：搜索改版（方案 A，2a618da）
-
-## 关键发现
-拉取的最新源码里，搜索功能的主体代码（范围枚举、历史清理、浮层组件、首页搜索入口、对齐常量）**已存在于工作区但从未提交**（untracked/modified 状态）。本次把这些散落文件与新增修复一并整理提交。
-
-## 落地内容（对照确认的 5 点）
-| 确认点 | 实现 |
-|---|---|
-| 1. 方案A 浮层可打字 | 搜索页进入即浮出无遮罩下拉浮层，输入框保持可输入，点面板外收起 |
-| 2. 范围不记忆 | 每次进入默认「所有」，页面级状态 |
-| 3. 热门搜索本地兜底 | 收藏的艺术家 > 专辑 > 歌曲歌手，最多 10 个 chip，无收藏整块隐藏 |
-| 4. 历史保存+自动清理 | 持久化；90 天过期、忽略大小写去重、上限 30 条；单删+清空 |
-| 5. 「所有」分组堆叠 | 歌单 → 歌曲 → 专辑 → 艺术家；全网结果沿用聚合区块 |
-
-## 实质修复（2 个真 bug）
-1. **骨架屏无界高度崩溃**：`MusicFlowMediaListSkeleton` 内部是 ListView，被嵌进搜索结果外层列表时报 "Vertical viewport was given unbounded height"。改为 LayoutBuilder 自适应（有界沿用 ListView、无界用 Column），所有使用处行为不变。
-2. **范围浮层全屏遮罩**：原实现 `Positioned.fill` + scrim 把热门/历史挡住且拦截点击，与确认示意图不符。改为无遮罩下拉 + TapRegion 收起。
-
-## 测试
-- 旧搜索页测试是改版前写的（断言已不存在的 UI），8 连挂 → 重写 6 例（默认态/方案A防抖/范围选择/热门历史/分组堆叠/点击行为）。
-- 新增历史清理纯函数测试 4 例。
-- 本地 analyze 0 问题，相关测试 17 例全过（含首页回归）。
-- **全量套件回归**：+452 例，唯一失败 5 个与历史基线完全一致（player_backdrop ×2、music_flow_app_shell ×2、music_flow_network_status_bar ×1），零新回归。
-
-## 产物
-- MusicFlow-v3447-android.apk (44.6 MB)
-- MusicFlow-v3447-windows-setup.exe (31.4 MB)
-- MusicFlow-v3447-windows.zip (38.0 MB)
-
-## SPEC 沉淀（e99133c）
-- §4.3 修订：互斥展示废弃 → 同页分块（本地结果在前 + 分隔线 + 全网聚合）。
-- 新增 §5.4 搜索交互契约：范围五档来源唯一（search_scope.dart）、方案A无遮罩下拉（**禁止改回全屏 scrim**）、范围不跨启动记忆、「所有」档 4 请求 + kSearchScopeStackOrder 堆叠、历史清理规则（90 天严格 isBefore / 去重 / 上限 30）、热门收藏兜底、10 例回归测试防线。
-- docs-only 提交，未打新 tag（v3.4.47 代码已发版，纯文档无产物变化）。
-
-## 后续
-真实环境验证点：首页搜索框 → 浮层选范围/直接打字；搜索历史跨启动保留与自动清理；「所有」档分组顺序；侧栏「主页」与「随机歌曲」标题水平对齐。
-
-## v3.4.50 全量回归（收口）
-- `flutter test` 全量 **+458 例**：失败仅 5 个历史基线（player_backdrop ×2 / music_flow_app_shell ×2 / music_flow_network_status_bar ×1），与 v3.4.47/48/49 基线完全一致，**零新回归**（本轮新增的 alreadyRunning 复用用例、compact 无搜索框断言均在通过之列）。
-- v3.4.50 闭环完成：UI 修正（搜索按钮贴右 + 去搜索框）→ 入库反馈链路修复（task 嵌套）→ 47 例相关回归 + 全量零新回归 → CI 三流水线 success → 产物签名合规 → SPEC §5.3 契约沉淀。
+- **悬空 `playlistSongs`**：`songs` 行已删但歌单条目还在 → 服务端队列少 1 首。songId 定位下**不再影响起点正确性**（找的是「这首歌」而非「第 N 位」）。属数据卫生，可选加固。
+- **`GET /v1/peers/:id/queue` 轻量轮询**：接口本就支持 `offset`/`size`（实测 100 首：26KB → 546B ≈48×），纯客户端可改，但需同步更新既有 `queuePath()` 测试桩 —— 已报备，待拍板。
