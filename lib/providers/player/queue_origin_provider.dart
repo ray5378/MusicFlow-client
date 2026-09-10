@@ -10,6 +10,21 @@ enum QueueOriginKind {
   other,
 }
 
+/// 来源类型 → 服务端 `POST /v1/play` 的 content type。
+///
+/// 服务端 `resolveContentSongs(type, id)` 能自行从库里解析出队列的只有
+/// playlist / album / artist（外加 song / genre）；discover 是首页随机拼装、
+/// search 是搜索结果快照、other 是本地任意队列，**服务端无从解析**，
+/// 这些返回 null → 只能走整队推送兜底通道。
+extension QueueOriginKindServerType on QueueOriginKind {
+  String? get serverContentType => switch (this) {
+        QueueOriginKind.playlist => 'playlist',
+        QueueOriginKind.album => 'album',
+        QueueOriginKind.artist => 'artist',
+        _ => null,
+      };
+}
+
 /// 当前播放队列的来源（用于封面"正在播放"指示）。
 class QueueOrigin {
   const QueueOrigin(this.kind, [this.id]);
@@ -19,6 +34,12 @@ class QueueOrigin {
 
   bool get isPlaylist => kind == QueueOriginKind.playlist;
   bool get isAlbum => kind == QueueOriginKind.album;
+
+  /// 服务端 `POST /v1/play` 可直接解析的 content type。
+  /// id 缺失或来源类型服务端无从解析（首页随机/搜索/其它）时为 null，
+  /// 调用方据此回落到「整队推送」兜底通道。
+  String? get serverContentType =>
+      (id == null || id!.isEmpty) ? null : kind.serverContentType;
 
   bool matchesPlaylist(String playlistId) =>
       isPlaylist && id == playlistId;

@@ -8,10 +8,27 @@ import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 
 import '../features/player/test_player_notifier.dart';
 import '../helpers/mocks.dart';
+
+/// 把 ProviderContainer 适配成 WidgetRef，供 `playEffectiveQueue` 这类以
+/// WidgetRef 为入口的转发函数在纯容器测试里调用（不必 pump 整棵 widget 树）。
+class _ContainerRef implements WidgetRef {
+  _ContainerRef(this.container);
+
+  final ProviderContainer container;
+
+  @override
+  T read<T>(ProviderListenable<T> provider) => container.read(provider);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('_ContainerRef.${invocation.memberName}');
+}
 
 /// 投屏(切换播放器)控制器单元测试 —— 对齐 SPEC §3.5。
 /// 用 MockSubsonicApiClient 桩掉 /rest/api/v1/peers* 网络调用,
@@ -62,6 +79,45 @@ void main() {
   String statusPath(String peerId) => '/rest/api/v1/peers/$peerId/status';
   String queuePath(String peerId) => '/rest/api/v1/peers/$peerId/queue';
 
+  /// 后端队列快照响应体（与真实服务端同形）。
+  /// `items` 传 1 条时可同时服务「轻量轮询（size=1 只回当前槽位）」与「全量拉取」。
+  Map<String, dynamic> queueSnapshot({
+    String playMode = 'all',
+    int currentIndex = 0,
+    List<Map<String, dynamic>>? items,
+  }) =>
+      <String, dynamic>{
+        'currentIndex': currentIndex,
+        'total': items?.length ?? 1,
+        'playMode': playMode,
+        'items': items ??
+            <Map<String, dynamic>>[
+              <String, dynamic>{
+                'songId': 's1',
+                'title': '测试曲',
+                'artist': '歌手',
+                'albumId': 'al1',
+                'duration': 200,
+              },
+            ],
+      };
+
+  /// 同时桩住两种队列轮询形态（SPEC §12.1 轻量轮询改造后，常规 tick 走
+  /// `?offset=N&size=1`，仅重建/结构变更时才拉全量）。mocktail 的 `any(named:)`
+  /// 无法匹配「传了 queryParameters」与「没传」两种调用，必须分别登记。
+  void stubQueuePoll(
+    Map<String, dynamic> snapshot, {
+    String peerId = 'dlna-1',
+  }) {
+    when(() => client.getRaw(queuePath(peerId))).thenAnswer((_) async => snapshot);
+    when(
+      () => client.getRaw(
+        queuePath(peerId),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((_) async => snapshot);
+  }
+
   /// 建立投屏态:本机有一首歌,后端 queue/play 成功,轮询返回稳定状态。
   Future<void> setupCasting({
     String playMode = 'all',
@@ -99,24 +155,7 @@ void main() {
         'muted': false,
       },
     );
-    when(
-      () => client.getRaw(queuePath('dlna-1')),
-    ).thenAnswer(
-      (_) async => <String, dynamic>{
-        'currentIndex': 0,
-        'total': 1,
-        'playMode': playMode,
-        'items': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'songId': 's1',
-            'title': '测试曲',
-            'artist': '歌手',
-            'albumId': 'al1',
-            'duration': 200,
-          },
-        ],
-      },
-    );
+    stubQueuePoll(queueSnapshot(playMode: playMode));
     final ok = await controller.switchTo(dlnaPeer);
     expect(ok, isTrue);
     // 等待首轮轮询 tick 回写完成。
@@ -305,14 +344,11 @@ void main() {
           'muted': false,
         },
       );
-      when(() => client.getRaw(queuePath('dlna-1'))).thenAnswer(
-        (_) async => <String, dynamic>{
-          'currentIndex': -1,
-          'total': 0,
-          'playMode': 'order',
-          'items': <Map<String, dynamic>>[],
-        },
-      );
+      stubQueuePoll(queueSnapshot(
+        playMode: 'order',
+        currentIndex: -1,
+        items: <Map<String, dynamic>>[],
+      ));
 
       final ok = await controller.switchTo(dlnaPeer);
       expect(ok, isTrue);
@@ -329,7 +365,9 @@ void main() {
       // 切换即开始轮询,拉取后端状态/队列镜像。
       await Future<void>.delayed(const Duration(milliseconds: 20));
       verify(() => client.getRaw(statusPath('dlna-1'))).called(1);
-      verify(() => client.getRaw(queuePath('dlna-1'))).called(1);
+      // 后端队列为空 → 镜像为空即拉全量重建(轻量轮询无从取「当前槽位」)，
+      // 二次补拉与首轮共用同一个 mock 形态，故此处只断言「至少发起了队列轮询」。
+      verify(() => client.getRaw(queuePath('dlna-1'))).called(greaterThan(0));
       expect(controller.state.offline, isFalse);
     });
 
@@ -375,22 +413,7 @@ void main() {
           'muted': false,
         },
       );
-      when(() => client.getRaw(queuePath('dlna-1'))).thenAnswer(
-        (_) async => <String, dynamic>{
-          'currentIndex': 0,
-          'total': 1,
-          'playMode': 'all',
-          'items': <Map<String, dynamic>>[
-            <String, dynamic>{
-              'songId': 's1',
-              'title': '测试曲',
-              'artist': '歌手',
-              'albumId': 'al1',
-              'duration': 200,
-            },
-          ],
-        },
-      );
+      stubQueuePoll(queueSnapshot());
 
       // 离开本机:先保存本地状态快照,再暂停本机(与远端播放互斥)。
       final ok = await controller.switchTo(dlnaPeer);
@@ -443,9 +466,12 @@ void main() {
         },
       );
       final queueCompleter = Completer<dynamic>();
-      when(() => client.getRaw(queuePath('dlna-1'))).thenAnswer(
-        (_) => queueCompleter.future,
-      );
+      when(() => client.getRaw(queuePath('dlna-1')))
+          .thenAnswer((_) => queueCompleter.future);
+      when(() => client.getRaw(
+            queuePath('dlna-1'),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) => queueCompleter.future);
 
       // 切到 DLNA:保存本地快照并暂停本机,首轮轮询发出(status 已回,queue 仍在途)。
       final ok = await controller.switchTo(dlnaPeer);
@@ -632,6 +658,10 @@ void main() {
           .thenThrow(Exception('ignore tick'));
       when(() => client.getRaw(queuePath('dlna-1')))
           .thenThrow(Exception('ignore tick'));
+      when(() => client.getRaw(
+            queuePath('dlna-1'),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenThrow(Exception('ignore tick'));
 
       await controller.cyclePlayMode(); // order → one
       expect(controller.state.playMode, 'one');
@@ -727,6 +757,10 @@ void main() {
           .thenThrow(Exception('device offline'));
       when(() => client.getRaw(queuePath('dlna-1')))
           .thenThrow(Exception('device offline'));
+      when(() => client.getRaw(
+            queuePath('dlna-1'),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenThrow(Exception('device offline'));
 
       await controller.pollOnce();
       await controller.pollOnce();
@@ -781,6 +815,96 @@ void main() {
       await controller.pollOnce();
       expect(controller.state.status.state, 'STOPPED');
       expect(controller.state.status.playing, isFalse);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 轻量轮询守卫（SPEC §12.1 根治，勿回退）
+  // 队列权威在后端，但**不必每 2s 拉整队**：`GET /peers/:id/queue` 支持
+  // `offset`/`size`，且 total/currentIndex/playMode/currentMedia 全在外层。
+  // 实测 100 首：全量 26 061B → `size=1` 546B（≈48×）；5000 首量级 2MB → <1KB。
+  // 回退成「每次拉全量」会让手机在投屏且大队列时持续烧流量/CPU。
+  // -------------------------------------------------------------------------
+
+  group('轻量队列轮询（SPEC §12.1）', () {
+    test('常规 tick 只取当前槽位一条，不拉整队', () async {
+      await setupCasting();
+      // setupCasting 内的 switchTo 首轮镜像为空 → 必然全量拉一次(合理)。
+      // 断言只覆盖 pollOnce() 之后的调用，故清掉此前交互。
+      clearInteractions(client);
+
+      await controller.pollOnce();
+
+      // 必须按「本地镜像长度」定位当前槽位并只要 1 条 —— 绝不整队拉取。
+      verify(
+        () => client.getRaw(
+          queuePath('dlna-1'),
+          queryParameters: <String, String>{'offset': '1', 'size': '1'},
+        ),
+      ).called(greaterThan(0));
+      verifyNever(() => client.getRaw(queuePath('dlna-1')));
+    });
+
+    test('服务端 total 变化时补拉全量重建镜像', () async {
+      await setupCasting();
+      // 服务端队列变成 3 首（本地镜像仍 1 首）→ 轻量路径抓不到，必须补拉全量。
+      stubQueuePoll(<String, dynamic>{
+        'currentIndex': 1,
+        'total': 3,
+        'playMode': 'all',
+        'items': <Map<String, dynamic>>[
+          <String, dynamic>{'songId': 's1', 'title': '一', 'duration': 200},
+          <String, dynamic>{'songId': 's2', 'title': '二', 'duration': 200},
+          <String, dynamic>{'songId': 's3', 'title': '三', 'duration': 200},
+        ],
+      });
+
+      await controller.pollOnce();
+
+      expect(controller.state.castQueue.length, 3);
+      expect(controller.state.castIndex, 1);
+    });
+
+    test('本地改队列结构后强制全量（pollOnce(fullQueue: true)）', () async {
+      await setupCasting();
+
+      await controller.pollOnce(fullQueue: true);
+
+      // 强制全量走「不带 queryParameters」的形态。
+      verify(() => client.getRaw(queuePath('dlna-1'))).called(greaterThan(0));
+    });
+
+    test('轻量路径用服务端权威 currentIndex 定位，不按旧扇区覆盖', () async {
+      await setupCasting();
+      // 本地镜像 1 首（s1）；服务端游标跳到 1，槽位取回 s2。
+      stubQueuePoll(<String, dynamic>{
+        'currentIndex': 1,
+        'total': 2,
+        'playMode': 'all',
+        'items': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'songId': 's2',
+            'title': '第二首',
+            'artist': '歌手',
+            'duration': 200,
+          },
+        ],
+      });
+      // total 2 ≠ 镜像 1 → 会补拉全量，这里让全量也回 2 首，验证游标正确。
+      stubQueuePoll(<String, dynamic>{
+        'currentIndex': 1,
+        'total': 2,
+        'playMode': 'all',
+        'items': <Map<String, dynamic>>[
+          <String, dynamic>{'songId': 's1', 'title': '一', 'duration': 200},
+          <String, dynamic>{'songId': 's2', 'title': '二', 'duration': 200},
+        ],
+      });
+
+      await controller.pollOnce();
+
+      expect(controller.state.castIndex, 1);
+      expect(controller.state.castQueue.length, 2);
     });
   });
 
@@ -843,6 +967,266 @@ void main() {
       // 外层 Future.timeout 再大也是摆设。
       expect(seen, queueTransferBudget(5000));
       expect(seen!.inSeconds, greaterThan(30));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 服务端内容点播（投屏主通道）
+  // 根因回顾：投屏态下客户端是遥控器，点歌单却把「本地拉来的整队」原样推回
+  // 服务端(queue/play)，5000 首歌单 = 拉 25 页 + 推 2MB。正确链路是只传
+  // 「内容类型 + ID + 起始索引」，由服务端 resolveContentSongs 自行查库解析。
+  // 这里锁死「内容点播通道绝不携带歌曲列表」这一核心契约。
+  // -------------------------------------------------------------------------
+
+  group('cast content play (服务端内容点播主通道)', () {
+    test('posts /v1/play with content id only, never the song list', () async {
+      await setupCasting();
+      Map<String, dynamic>? body;
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((inv) async {
+        body = inv.namedArguments[#data] as Map<String, dynamic>;
+        return <String, dynamic>{'success': true};
+      });
+
+      final ok = await controller.playContentOnPeer(
+        type: 'playlist',
+        id: 'pl-1',
+        startIndex: 42,
+      );
+
+      expect(ok, isTrue);
+      expect(body, isNotNull);
+      expect(body!['peerId'], 'dlna-1');
+      expect(body!['type'], 'playlist');
+      expect(body!['id'], 'pl-1');
+      expect(body!['startIndex'], 42);
+      // 核心契约：内容点播通道绝不携带歌曲列表（大队列推流失败的根因）。
+      expect(body!.containsKey('items'), isFalse);
+    });
+
+    test('rejects when server refuses so caller can fall back', () async {
+      await setupCasting();
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': false});
+
+      expect(
+        await controller.playContentOnPeer(type: 'playlist', id: 'pl-1'),
+        isFalse,
+      );
+    });
+
+    test('no active peer means no request at all', () async {
+      expect(
+        await controller.playContentOnPeer(type: 'playlist', id: 'pl-1'),
+        isFalse,
+      );
+      verifyNever(
+        () => client.postRaw('/rest/api/v1/play', data: any(named: 'data')),
+      );
+    });
+
+    // 槽位身份校验：startIndex 是**本地列表的行号**，服务端按自己的解析顺序取第 N 首。
+    // 2026-09-10 实测 24 个歌单里 6 个「同集异序」（集合相同、顺序不同，长度校验
+    // 一个都抓不到）→ 不校验就是静默播错歌。这里锁死「槽位 songId 不一致必须返回
+    // false」，让调用方回落整队推送（以客户端列表为权威）。
+    test('slot mismatch means wrong song → returns false for fallback', () async {
+      await setupCasting();
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+      when(
+        () => client.getRaw(
+          queuePath('dlna-1'),
+          queryParameters: <String, String>{'offset': '1', 'size': '1'},
+        ),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'currentIndex': 1,
+          'total': 2,
+          // 服务端第 1 槽位是**别的歌** → 两侧顺序不同源。
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{'songId': 'server-other'},
+          ],
+        },
+      );
+
+      final ok = await controller.playContentOnPeer(
+        type: 'playlist',
+        id: 'pl-1',
+        startIndex: 1,
+        localItems: <Map<String, dynamic>>[
+          songToQueueItem(song),
+          songToQueueItem(Song(id: 's2', title: '第二首', duration: 200)),
+        ],
+        localStartIndex: 1,
+      );
+
+      expect(ok, isFalse);
+    });
+
+    test('slot match keeps the main channel (no queue upload)', () async {
+      await setupCasting();
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+      when(
+        () => client.getRaw(
+          queuePath('dlna-1'),
+          queryParameters: <String, String>{'offset': '1', 'size': '1'},
+        ),
+      ).thenAnswer(
+        (_) async => <String, dynamic>{
+          'currentIndex': 1,
+          'total': 2,
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{'songId': 's2'},
+          ],
+        },
+      );
+
+      final ok = await controller.playContentOnPeer(
+        type: 'playlist',
+        id: 'pl-1',
+        startIndex: 1,
+        localItems: <Map<String, dynamic>>[
+          songToQueueItem(song),
+          songToQueueItem(Song(id: 's2', title: '第二首', duration: 200)),
+        ],
+        localStartIndex: 1,
+      );
+
+      expect(ok, isTrue);
+      // 主通道命中时绝不回落整队推送（那是 2MB 上传的错链路）。
+      verifyNever(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+        ),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 主通道 → 兜底通道 回落
+  // 主通道只是「快路径」，任何不可用（服务端拒绝/内容已删/旧版 404/槽位错位）
+  // 都必须落到整队推送，否则用户点了歌什么都没发生。
+  // -------------------------------------------------------------------------
+  group('主通道 → 兜底通道 回落', () {
+    test('主通道返回 false 时必须调用 queue/play', () async {
+      await setupCasting();
+      // 兜底通道的超时预算随队列规模下发（§12.2），桩必须放行 receiveTimeout。
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': false});
+
+      final ok = await playEffectiveQueue(
+        _ContainerRef(container),
+        <Song>[song],
+        origin: const QueueOrigin(QueueOriginKind.playlist, 'pl-1'),
+      );
+
+      expect(ok, isTrue, reason: '兜底通道成功即视为播放成功');
+      verify(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).called(1);
+    });
+
+    test('服务端无从解析的来源（discover）直接走整队推送', () async {
+      await setupCasting();
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+
+      final ok = await playEffectiveQueue(
+        _ContainerRef(container),
+        <Song>[song],
+        origin: const QueueOrigin(QueueOriginKind.discover),
+      );
+
+      expect(ok, isTrue);
+      verifyNever(
+        () => client.postRaw('/rest/api/v1/play', data: any(named: 'data')),
+      );
+      verify(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).called(1);
+    });
+  });
+
+  group('QueueOrigin server content type', () {
+    test('maps server-resolvable kinds, rejects local-only ones', () {
+      expect(
+        const QueueOrigin(QueueOriginKind.playlist, 'p1').serverContentType,
+        'playlist',
+      );
+      expect(
+        const QueueOrigin(QueueOriginKind.album, 'a1').serverContentType,
+        'album',
+      );
+      expect(
+        const QueueOrigin(QueueOriginKind.artist, 'ar1').serverContentType,
+        'artist',
+      );
+      // 首页随机/搜索/其它是客户端本地拼装队列，服务端无从解析 → 必须兜底。
+      expect(
+        const QueueOrigin(QueueOriginKind.discover).serverContentType,
+        isNull,
+      );
+      expect(
+        const QueueOrigin(QueueOriginKind.search, 'q').serverContentType,
+        isNull,
+      );
+      expect(
+        const QueueOrigin(QueueOriginKind.other, 'x').serverContentType,
+        isNull,
+      );
+      // 有 kind 但缺 id 同样不可解析。
+      expect(
+        const QueueOrigin(QueueOriginKind.playlist).serverContentType,
+        isNull,
+      );
+      expect(
+        const QueueOrigin(QueueOriginKind.playlist, '').serverContentType,
+        isNull,
+      );
     });
   });
 }

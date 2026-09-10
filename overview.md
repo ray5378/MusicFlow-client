@@ -1,11 +1,68 @@
-# 大队列推流超时修复：Dio 硬顶解锁 + 预算随规模缩放（最新）
+# 投屏链路双通道重构：服务端内容点播优先 + 整队推送兜底（**已收尾，待发版**）
 
-> 上一轮主题（选择播放器弹窗改造）见下方历史章节。
+> **状态**：三项任务全部完成 —— ① 主仓库 `resolveContentSongs` 补 ORDER BY（**已发 v2.3.21**）；
+> ② 客户端轻量轮询（§12.1）；③ **Windows 真机联调通过**。单测 43/43、全量 586/586、
+> 主仓库 795/795 全绿。客户端**待提交发版**。交接细节见 `SPEC.md` §十三。
 
-## 发版与收尾（最新）
+## 本轮收口结论（2026-09-10）
+
+| 任务 | 结果 |
+| --- | --- |
+| ① 主仓库顺序根治 | ✅ **v2.3.21 已发布**（Release uploader = `github-actions[bot]`）。playlist 分支补 `.orderBy(playlistSongs.position, playlistSongs.id)`，附 6 例顺序契约守卫，经**变异验证**（去掉 ORDER BY → 守卫立刻红）。CI 全绿。 |
+| ② 轻量轮询（§12.1） | ✅ 常规 tick `?offset=<len>&size=1`（只取一条 + 外层 `total`/`currentIndex`/`playMode`）；`total` 变化或本地改结构时才拉全量。**3251 首：863 935 B → 338 B（2 556×）**。守卫 4 例。 |
+| ③ 真机联调（Windows） | ✅ 三条路径跑通。端到端探针 `tool/cast_play_chain_probe.py` **68 次探测 → 67 一致、0 顺序错位**。安卓链路逻辑与 Windows 同源（同一 provider + 同一 HTTP 客户端），无需单独实测。 |
+
+## 顺序修复的实证（最关键）
+
+原先 24 个真实歌单抽样有 **6 个「同集异序」**（服务端 rowid 序 ≠ 客户端 `position` 序，约 25% 会静默播错歌，且长度校验完全抓不到）。修复后：
+
+| 歌单 | 客户端 | 服务端 | 顺序 |
+| --- | --- | --- | --- |
+| 0.8x哭完了吗+哭完了挂了 | 19 | 19 | ✅ 19/19 全同序 |
+| 一周欧美上新+|+Miley+Cyr… | 19 | 19 | ✅ 19/19 |
+| 温柔英文歌-睡觉专用 | 265 | 265 | ✅ 265/265 |
+| 低沉鼓点，极致低音享受+「车载」 | 140 | 140 | ✅ 140/140 |
+| 粤语传世经典，怀旧是人的本能 | 81 | 81 | ✅ 81/81 |
+
+## 新发现：悬空 songId 会让服务端少推 1 首（已兜底，不阻塞）
+
+歌单条目在 `playlistSongs` 里 `playable/isMatched=true`，但对应 `songs` 行已被删 → 服务端
+`rows = entries.map(...).filter(Boolean)` **静默丢掉这一首** → 该位置之后全部错位。实测在
+「华语经典」「欧美万评优质女声」上偶发，两次运行丢的是**不同的歌**（说明是扫描/删除过程中的
+**瞬时脏数据**，非固定记录）。**客户端槽位身份校验已兜住**（不一致即回落整队推送）。
+可选加固：服务端日志告警 / 清理悬空条目（属数据卫生，不阻塞发版）。详见 SPEC §13.4 风险 9。
+
+## 当前进度
+
+| 项 | 状态 |
+| --- | --- |
+| `queue_origin_provider.dart` | ✅ `serverContentType` 映射（playlist/album/artist → 服务端 type；discover/search/other → null 走兜底） |
+| `cast_peer_provider.dart` | ✅ `playContentOnPeer()`：POST `/v1/play` + **槽位身份校验**；`_tick` 改轻量轮询 |
+| `effective_playback_provider.dart` | ✅ `playEffectiveQueue` / `playEffectiveSong` 主通道优先 + 兜底回落 |
+| 测试 | ✅ `cast_peer_provider_test.dart` **43/43**；全量 **586/586** |
+| 服务端 | ✅ **v2.3.21**（唯一改动：ORDER BY 根治） |
+| 取证工具（可复跑） | `tool/cast_play_chain_probe.py`（真实 /v1/play 端到端）、`tool/cast_index_alignment.py`、`tool/cast_set_diff.py` |
+| 客户端提交 / 发版 | ⏳ 待办 |
+
+## 已结项的两条（勿再当遗留问题）
+
+1. ~~`startIndex` 对齐未验证~~ → **已实测并双保险根治**（服务端 ORDER BY + 客户端槽位校验）。
+   **长度校验（`queued != length`）实测无效，已弃用**，别再提这个方案。
+2. ~~投屏轮询拉全量快照需跨仓改后端~~ → **不需要**。`GET /peers/:id/queue` 本来就支持
+   `offset`/`size`，且 `total`/`currentIndex`/`playMode` 都在外层不随分页丢失。纯客户端即可。
+
+## 仍需单独排期（非本轮）
+
+- **`playlist_detail_page._playAt(index)`** 用**渲染序** index 去索引**默认序**列表，
+  选「非默认排序」后点第 N 行会播错歌。与本次重构无关。
+- **DLNA 链路 B**（`playQueueOnDevice`）是客户端直连设备、服务端不参与，结构上无法用
+  `/v1/play`。队列规模通常可控，接受现状。
+
+## 发版记录（已发布版本）
 
 | 仓库 | 版本 | 内容 | 状态 |
 | --- | --- | --- | --- |
+| MusicFlow（主仓库） | **v2.3.21** | `resolveContentSongs` playlist 分支补 `ORDER BY position,id` 根治 `/v1/play` 静默播错歌（附 6 例顺序契约守卫 `contentOrder.test.ts`） | ✅ CI 全绿（ci / playback-chain-guard / security / pentest / frontend-responsive / build-and-push），Release uploader = `github-actions[bot]` |
 | MusicFlow-client | **v4.3.34** | 大队列推流超时「真缩放」：`postRaw/getRaw` 支持逐请求 `receiveTimeout`（同时设 `sendTimeout`）解开 Dio 30s 硬顶；`queueTransferBudget` = 10s + 30ms/首，封顶 180s（5000 首 = 160s）；GET 队列快照 12s→60s、轮询 12s→25s；新增预算守卫 2 例 | ✅ analyze 0 error、交互守卫 PASS、`flutter test` **574/574** |
 | MusicFlow-client | v4.3.33 | 选择播放器弹窗 DLNA 行改造：徽章同行、第二行设备正在播歌名、↓↑双接续按钮（只搬队列+当前曲自动起播，不搬进度） | ✅ Release 三产物齐全（apk 46.2MB / setup 31.8MB / zip 38.6MB），五个 workflow 全 success，uploader 均为 `github-actions[bot]` |
 | MusicFlow-client | v4.3.32 | DLNA 投前预探测 + 移除死歌机制 | ✅ 三产物齐全 |
@@ -39,14 +96,13 @@
 
 **文档沉淀**：SPEC §12.2（已固化约束 + 勿回退）、负面清单第 16 条、自检清单第 15/16 条。
 
-## 已知隐患（本轮新发现，已写入 SPEC §12.1，**未修**）
+## ~~已知隐患（本轮新发现，已写入 SPEC §12.1，未修）~~ → **v4.3.35 已修**
 
-**投屏轮询每 2s 拉取全量队列快照** —— 5000 首 ≈ **2MB JSON/次**，且 `syncQueueForCast`
-每次重建 5000 个 `Song` 对象并触发 Riverpod 通知。手机上表现为持续流量 + CPU 开销，
-弱网时还可能拉不完被判离线（本轮已把超时放宽到 25s 兜底，但没减量）。
-
-根治需要**跨仓改后端**：新增轻量 snapshot 端点（只回 `currentIndex`/`total`/`playMode`/当前曲，
-不回 `items`），客户端队列面板改为窗口懒加载（对齐 SPEC §4.2）。**待 ray 排期**。
+~~投屏轮询每 2s 拉取全量队列快照~~ —— **已解决，无需跨仓**。原判断「需要后端新增轻量
+snapshot 端点」是错的：`GET /peers/:id/queue` 本来就支持 `offset`/`size`。
+现常规 tick 只取当前槽位一条 + 外层 `total`/`currentIndex`/`playMode`，
+`total` 变化或本地改结构时才补拉全量。**3251 首实测 863 935 B → 338 B（2 556×）**。
+详见 SPEC §12.1。
 
 ---
 

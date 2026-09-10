@@ -392,7 +392,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         active: true,
       ),
     );
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   /// 暂停（定时停止等场景显式暂停；投屏时下发远端 pause，本机走本地暂停）。
@@ -458,7 +458,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       return;
     }
     await _post('next');
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   Future<void> previous() async {
@@ -467,7 +467,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       return;
     }
     await _post('prev');
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   Future<void> seek(Duration position) async {
@@ -516,8 +516,128 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   // ==================== 投屏队列操作 ====================
 
+  /// **服务端内容点播**（投屏主通道，零传输）：
+  /// 只把「内容类型 + 内容 ID + 起始索引」交给后端，由后端自行
+  /// `resolveContentSongs(type, id)` 查库 → `songsToQueueItems` → `playFrom`
+  /// 落库并投屏。客户端**一个字节的歌曲数据都不上传**。
+  ///
+  /// 适用：`type` ∈ {playlist, album, artist, song, genre} 且内容在服务端库里。
+  /// 相比 [playQueueOnPeer]（整队推送）的优势：
+  /// - 5000 首歌单的起播从「拉 25 页 + 推 2MB」压缩成**一个几百字节的请求**，
+  ///   彻底没有大 body 超时问题（安卓弱网推流失败的真正根因）；
+  /// - 服务端解析出的队列带完整元数据（track/discNumber/albumArtist/year/genre），
+  ///   且享有服务端的多源优选与本地源失效回退（客户端推的是本地快照，没有这些）。
+  ///
+  /// [localItems]/[localStartIndex] 仅用于成功后的**乐观镜像**（调用方手上已有
+  /// 列表时直接跟随，省一次轮询）；没有则只置起播态，队列由轮询回写后端权威。
+  /// 失败返回 false，调用方应回落到 [playQueueOnPeer]。
+  Future<bool> playContentOnPeer({
+    required String type,
+    required String id,
+    int startIndex = 0,
+    List<Map<String, dynamic>>? localItems,
+    int? localStartIndex,
+  }) async {
+    final peerId = state.activePeer?.peerId;
+    if (peerId == null || type.isEmpty || id.isEmpty) return false;
+    final client = _ref.read(subsonicApiClientProvider);
+    _markUserCommand();
+    final sw = Stopwatch()..start();
+    try {
+      final resp = await client
+          .postRaw(
+            '/rest/api/v1/play',
+            data: <String, dynamic>{
+              'peerId': peerId,
+              'type': type,
+              'id': id,
+              'startIndex': startIndex,
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+      if (resp is! Map || resp['success'] != true) return false;
+
+      final items = localItems;
+      final start = localStartIndex ?? startIndex;
+
+      // ==================== 槽位身份校验（必备，非防御性冗余） ====================
+      // `startIndex` 是**本地列表的行号**，服务端按自己的解析顺序取第 N 首。
+      // 两侧顺序实测并不同源：服务端 `resolveContentSongs('playlist')` 走
+      // `where(playlistId).all().filter(playable)`（**无 ORDER BY**，SQLite 返回
+      // rowid 序），而客户端走 `/v1/playlists/:id/tracks` 的 `orderBy(position, id)`。
+      // 2026-09-10 对真实服务端抽 24 个歌单实测：**6 个「同集异序」**（集合相同、
+      // 顺序不同，如 175/175、19/19），长度校验**一个都抓不到** —— 若不校验就是
+      // 静默播错歌（服务端 startIndex 越界还会静默归 0，更隐蔽）。
+      // 故取服务端该槽位的一条（`?offset=start&size=1`，~0.6KB）核对 songId：
+      // 不一致 → 返回 false，调用方回落 [playQueueOnPeer]（以客户端列表为权威）。
+      // 校验请求本身失败不阻断（网络抖动不该退化成推 2MB），仅记日志放行。
+      final expected = (items != null && start >= 0 && start < items.length)
+          ? items[start]['songId'] as String?
+          : null;
+      if (expected != null && expected.isNotEmpty) {
+        try {
+          final slot = await client
+              .getRaw(
+                '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue',
+                queryParameters: <String, String>{
+                  'offset': '$start',
+                  'size': '1',
+                },
+              )
+              .timeout(const Duration(seconds: 6));
+          final rawItems = (slot is Map ? slot['items'] : null);
+          if (rawItems is List && rawItems.isNotEmpty) {
+            final got = (rawItems.first as Map?)?['songId'];
+            if (got != expected) {
+              Logger.warnWithTag(
+                'CAST-PEER',
+                'playContentOnPeer($type:$id) 槽位错位: 本地#$start=$expected '
+                '服务端#$start=$got → 回落整队推送',
+              );
+              return false;
+            }
+          }
+        } catch (e) {
+          Logger.debugWithTag(
+            'CAST-PEER',
+            'playContentOnPeer slot verify skipped: $e',
+          );
+        }
+      }
+
+      if (items != null && items.isNotEmpty) {
+        _ref.read(playerProvider.notifier).syncQueueForCast(items, start);
+      }
+      _lastPollPosition = -1;
+      state = state.copyWith(
+        castQueue: items ?? state.castQueue,
+        castIndex: items == null ? state.castIndex : start,
+        smoothPositionSeconds: 0,
+        offline: false,
+        status: state.status.copyWith(
+          state: 'PLAYING',
+          active: true,
+          positionSeconds: 0,
+        ),
+      );
+      unawaited(pollOnce());
+      return true;
+    } catch (e) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        'playContentOnPeer($type:$id) failed after '
+        '${sw.elapsedMilliseconds}ms: $e',
+      );
+      return false;
+    }
+  }
+
   /// 投屏中播放专辑/歌单/列表:命令**后端**以该队列在设备上播放(对齐前端 castPlayQueue)。
   /// 客户端此时是后端的远程遥控器,不在本机播放。
+  ///
+  /// 这是**兜底通道**：把客户端手上的整队推给服务端。仅有主通道
+  /// [playContentOnPeer] 不可用时才走（服务端无从解析的来源 discover/search/other、
+  /// 内容已删、旧版服务端 404、以及主通道回落的场景）。
   Future<bool> playQueueOnPeer(
     List<Song> songs, {
     int startIndex = 0,
@@ -631,7 +751,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       data: <String, dynamic>{'items': items},
       budget: queueTransferBudget(items.length),
     );
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   /// 点歌:跳播到指定索引(即使随机模式也尊重 index,对齐后端 queue/jump)。
@@ -639,7 +759,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final peerId = state.activePeer?.peerId;
     if (peerId == null) return;
     await _post('queue/jump', data: <String, dynamic>{'index': index});
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   /// 从投屏队列移除指定索引(播放保持连贯,对齐前端 castRemoveFromQueue)。
@@ -656,7 +776,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'removeQueueItem failed: $e');
     }
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   /// 队列拖拽排序(from → to,对齐前端 castReorderQueue)。
@@ -664,7 +784,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final peerId = state.activePeer?.peerId;
     if (peerId == null) return;
     await _post('queue/reorder', data: <String, dynamic>{'from': from, 'to': to});
-    unawaited(pollOnce());
+    unawaited(pollOnce(fullQueue: true));
   }
 
   /// 清空投屏队列并停止轮询、切回本机(对齐前端 castClearQueue)。
@@ -721,9 +841,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _lastPollPosition = -1;
   }
 
-  Future<void> pollOnce() async {
+  /// 立即刷新一次。
+  ///
+  /// [fullQueue] = true 时强制拉**全量**队列快照；默认走轻量轮询
+  /// （`?offset=start&size=1`，~0.6KB，详见 `_tick` 注释）。
+  /// 本地命令改了队列结构（整队替换 / 增删 / 重排 / 跳播）后必须传 true，
+  /// 否则镜像只认「服务端 total」——外部改队列且 total 不变时轻量路径抓不到。
+  Future<void> pollOnce({bool fullQueue = false}) async {
     final peerId = state.activePeer?.peerId;
-    if (peerId != null) await _tick(peerId);
+    if (peerId != null) await _tick(peerId, fullQueue: fullQueue);
   }
 
   /// 平滑进度插值:播放中按 tick 递增,轮询结果回写修正。
@@ -737,7 +863,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     state = st.copyWith(smoothPositionSeconds: next);
   }
 
-  Future<void> _tick(String peerId) async {
+  Future<void> _tick(String peerId, {bool fullQueue = false}) async {
     final client = _ref.read(subsonicApiClientProvider);
     if (!mounted) return;
     // 轮询期间用户可能已切换/回本机:控制目标不再是该 peer 时,本次结果作废。
@@ -777,30 +903,84 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         _wasActivePlaying = false;
       }
 
-      // 队列权威在后端:同步 currentIndex/playMode/队列快照(UI 曲目/歌词/队列跟随设备)。
-      // 5000 首量级快照 ~2MB，12s 会误判离线；放宽到 25s（仍远低于传输预算，
-      // 避免轮询堆积）。25s < dio 全局 30s，无需 override。
-      final snap = await client
-          .getRaw('$base/queue')
-          .timeout(const Duration(seconds: 25));
+      // ==================== 轻量轮询（SPEC §12.1 根治） ====================
+      // 队列权威在后端，但**不必每 2s 拉整队**：`GET /peers/:id/queue` 本来就支持
+      // `offset`/`size`，且 `total`/`currentIndex`/`playMode`/`ended`/`isActive`/
+      // `currentMedia` 全在响应外层（不随分页丢失）。
+      // 实测 100 首队列：全量 26 061B → `?offset=start&size=1` **546B（≈48×）**；
+      // 5000 首量级由 ~2MB/次 降到 **<1KB/次**（此前 25s 超时就是在给 2MB 快照兜底）。
+      // 拉取策略：
+      //   - 常规 tick：`size=1` 只取**当前槽位那一首**（UI 的曲目/歌词/相邻关系用它）；
+      //   - 补拉全量：镜像为空、或服务端 `total` ≠ 本地长度（队列被增删）、
+      //     或调用方显式要求（本地刚改过队列结构 → `pollOnce(fullQueue: true)`）。
+      // 残留：外部改队列且 total 不变时轻量路径抓不到（对齐前端 startCastPoll 的
+      // 数据形状，需真机实测"远端设备上一曲/下一曲"后再定轮次兜底）。
+      var idx = state.castIndex;
+      var mode = state.playMode;
+      var items = state.castQueue;
+      var needFull = fullQueue || items.isEmpty;
+      var knownTotal = items.length;
+
+      Future<Map<String, dynamic>?> fetchQueue({required bool full}) async {
+        final res = await client
+            .getRaw(
+              '$base/queue',
+              queryParameters: full
+                  ? null
+                  : <String, String>{'offset': '$knownTotal', 'size': '1'},
+            )
+            .timeout(const Duration(seconds: 25));
+        return res is Map ? res.cast<String, dynamic>() : null;
+      }
+
+      var snap = await fetchQueue(full: needFull);
       // 二次校验:两次 HTTP 请求期间控制目标可能已切换/回本机,再确认一次,
       // 防止把旧 peer 的队列镜像到刚恢复的本地播放状态上。
       if (state.activePeer?.peerId != peerId) return;
-      var idx = state.castIndex;
-      var mode = state.playMode;
-      List<Map<String, dynamic>> items = state.castQueue;
-      if (snap is Map) {
+
+      if (snap != null) {
         final si = (snap['currentIndex'] as num?)?.toInt() ?? -1;
         final total = (snap['total'] as num?)?.toInt() ?? 0;
         final sm = snap['playMode'];
         if (sm is String && sm.isNotEmpty) mode = sm;
         final raw = snap['items'];
-        if (raw is List) {
-          items = raw.whereType<Map<String, dynamic>>().toList();
+        final edge = raw is List
+            ? raw.whereType<Map<String, dynamic>>().toList()
+            : const <Map<String, dynamic>>[];
+
+        if (!needFull && total != items.length) {
+          // 服务端队列长度变了（外部增删）→ 补拉全量重建镜像。
+          needFull = true;
+        } else if (!needFull &&
+            edge.length == 1 &&
+            si >= 0 &&
+            si < items.length) {
+          // 轻量路径：把**当前槽位那一首**换成服务端权威版本。
+          // 注意顺序 —— si 是服务端权威游标，必须先从快照读出，再覆盖槽位值；
+          // 反过来会把刚写入的权威曲目又按旧扇区取出来。
+          final updated = List<Map<String, dynamic>>.of(items);
+          updated[si] = edge.first;
+          items = updated;
         }
+
+        if (needFull) {
+          snap = await fetchQueue(full: true);
+          if (state.activePeer?.peerId != peerId) return;
+          if (snap != null) {
+            final rawFull = snap['items'];
+            if (rawFull is List) {
+              items = rawFull.whereType<Map<String, dynamic>>().toList();
+            }
+            final siFull = (snap['currentIndex'] as num?)?.toInt() ?? si;
+            final smFull = snap['playMode'];
+            if (smFull is String && smFull.isNotEmpty) mode = smFull;
+            if (siFull >= 0 && siFull < total && items.isNotEmpty) idx = siFull;
+          }
+        }
+
         if (si >= 0 && si < total && items.isNotEmpty) {
           idx = si;
-          // 后端权威:镜像整队 + 游标到本地,迷你条/歌词/相邻关系跟随设备。
+          // 后端权威:镜像队列 + 游标到本地,迷你条/歌词/相邻关系跟随设备。
           // 投屏期间本地保持暂停,不触发本地播放。
           _ref.read(playerProvider.notifier).syncQueueForCast(items, si);
         }

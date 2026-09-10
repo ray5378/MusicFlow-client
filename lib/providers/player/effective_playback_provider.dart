@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:musicflow_client/data/models/peer.dart' show songToQueueItem;
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
@@ -171,6 +172,25 @@ Future<bool> playEffectiveQueue(
   }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
+    // 主通道:服务端内容点播——只传「内容类型 + ID + 起始索引」,由后端自行
+    // 查库解析队列并投屏,客户端零上传。5000 首歌单的起播从「拉全量 + 推 2MB」
+    // 压成一个几百字节的请求(安卓大队列推流失败的真正根因在这条链路上)。
+    final contentType = origin?.serverContentType;
+    final contentId = origin?.id;
+    if (contentType != null && contentId != null && contentId.isNotEmpty) {
+      final ok = await ref
+          .read(castPeerControllerProvider.notifier)
+          .playContentOnPeer(
+            type: contentType,
+            id: contentId,
+            startIndex: startIndex,
+            localItems:
+                songs.map(songToQueueItem).toList(growable: false),
+            localStartIndex: startIndex,
+          );
+      if (ok) return true;
+      // 失败(内容已被删/服务端旧版无此端点)→ 回落整队推送。
+    }
     return ref
         .read(castPeerControllerProvider.notifier)
         .playQueueOnPeer(songs, startIndex: startIndex);
@@ -202,6 +222,15 @@ Future<bool> playEffectiveSong(
   }
   final cast = ref.read(castPeerControllerProvider);
   if (cast.activePeer != null) {
+    // 单曲点播(无队列上下文,如搜索结果里的一首):服务端按 songId 解析,
+    // 零上传且享有服务端多源优选;失败再回落整队推送。
+    final single = queue == null || queue.length <= 1;
+    if (single && song.id.isNotEmpty) {
+      final ok = await ref
+          .read(castPeerControllerProvider.notifier)
+          .playContentOnPeer(type: 'song', id: song.id);
+      if (ok) return true;
+    }
     return ref
         .read(castPeerControllerProvider.notifier)
         .playSongOnPeer(song, queue: queue, index: index);
