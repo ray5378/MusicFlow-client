@@ -26,7 +26,9 @@ constexpr wchar_t kRegPosX[] = L"LyricX";
 constexpr wchar_t kRegPosY[] = L"LyricY";
 
 // ---- 布局常量(逻辑像素,实际使用时按 DPI 缩放 S()) ----
-constexpr int kWindowWidth = 520;     // 窗口固定宽度
+constexpr int kWindowWidth = 572;     // 窗口固定宽度
+// 宽度 520 -> 572(2026-09-10):悬停按钮栏新增「切换播放器」后共 8 个按钮,
+// 最左的 kOffPrev 从 351 推到 403, 窗口同步加宽保证文字区不被挤占。
 constexpr int kWindowHeight = 84;     // 歌词区固定高度
 constexpr int kPaddingX = 26;         // 文字左边距
 constexpr int kCornerRadius = 12;     // 圆角半径
@@ -59,18 +61,31 @@ constexpr COLORREF kTrackFill = RGB(55, 138, 221);    // 滑条已填充(蓝)
 constexpr COLORREF kThumbColor = RGB(255, 255, 255);  // 滑块
 
 // 按钮(圆心,逻辑坐标,自右缘向左排;窗口宽 W,歌词区高 84,中线 y=弹窗高+42):
-// 上一首 / 播放暂停(大) / 下一首 / 播放模式 / 喜欢 / 播放队列 / 音量(最贴边)
+// 上一首 / 播放暂停(大) / 下一首 / 播放模式 / 喜欢 / 播放队列 / 切换播放器 /
+// 音量(最贴边)
 constexpr int kBtnR = 17;             // 普通按钮半径
 constexpr int kPlayR = 22;            // 播放按钮半径
-// 圆心相对右缘的偏移(逻辑 px): volume=35(最右), queue=87, like=139,
-// mode=191, next=243, play=297, prev=351
+// 圆心相对右缘的偏移(逻辑 px): volume=35(最右), switch=87, queue=139,
+// like=191, mode=243, next=295, play=349, prev=403
 constexpr int kOffVolume = 35;
-constexpr int kOffQueue = 87;
-constexpr int kOffLike = 139;
-constexpr int kOffMode = 191;
-constexpr int kOffNext = 243;
-constexpr int kOffPlay = 297;
-constexpr int kOffPrev = 351;
+constexpr int kOffSwitch = 87;
+constexpr int kOffQueue = 139;
+constexpr int kOffLike = 191;
+constexpr int kOffMode = 243;
+constexpr int kOffNext = 295;
+constexpr int kOffPlay = 349;
+constexpr int kOffPrev = 403;
+
+// 按钮索引(与 ButtonGeom / 命中测试 / 点击派发共用,避免魔法数字错位)。
+constexpr int kBtnIdxPrev = 0;
+constexpr int kBtnIdxPlay = 1;
+constexpr int kBtnIdxNext = 2;
+constexpr int kBtnIdxMode = 3;
+constexpr int kBtnIdxVolume = 4;
+constexpr int kBtnIdxLike = 5;
+constexpr int kBtnIdxQueue = 6;
+constexpr int kBtnIdxSwitch = 7;
+constexpr int kBtnCount = 8;
 
 // 队列弹窗(逻辑 px):行高、最大可见行数与内边距。
 constexpr int kQueueRowH = 32;
@@ -194,7 +209,7 @@ gd::Color Gd(COLORREF c, int alpha = 255) {
 }
 
 // 按钮几何:圆心(物理 px)与半径。
-// idx: 0=prev 1=play 2=next 3=mode 4=volume 5=like 6=queue
+// idx: 0=prev 1=play 2=next 3=mode 4=volume 5=like 6=queue 7=switch_player
 struct BtnGeom {
   int cx, cy, r;
 };
@@ -203,12 +218,13 @@ BtnGeom ButtonGeom(int idx) {
   const int w = g_curWidth;
   const int cy = g_popupH + g_curHeight / 2;
   switch (idx) {
-    case 0: return {w - S(kOffPrev), cy, S(kBtnR)};
-    case 1: return {w - S(kOffPlay), cy, S(kPlayR)};
-    case 2: return {w - S(kOffNext), cy, S(kBtnR)};
-    case 3: return {w - S(kOffMode), cy, S(kBtnR)};
-    case 4: return {w - S(kOffVolume), cy, S(kBtnR)};
-    case 5: return {w - S(kOffLike), cy, S(kBtnR)};
+    case kBtnIdxPrev: return {w - S(kOffPrev), cy, S(kBtnR)};
+    case kBtnIdxPlay: return {w - S(kOffPlay), cy, S(kPlayR)};
+    case kBtnIdxNext: return {w - S(kOffNext), cy, S(kBtnR)};
+    case kBtnIdxMode: return {w - S(kOffMode), cy, S(kBtnR)};
+    case kBtnIdxVolume: return {w - S(kOffVolume), cy, S(kBtnR)};
+    case kBtnIdxLike: return {w - S(kOffLike), cy, S(kBtnR)};
+    case kBtnIdxSwitch: return {w - S(kOffSwitch), cy, S(kBtnR)};
     default: return {w - S(kOffQueue), cy, S(kBtnR)};
   }
 }
@@ -274,7 +290,7 @@ bool PtInCircle(const POINT& pt, const BtnGeom& b) {
 // 命中测试(窗口客户区物理坐标)。返回 -1 表示不在任何按钮上。
 int HitTestButton(const POINT& pt) {
   if (!g_hovering) return -1;
-  for (int i = 6; i >= 0; --i) {
+  for (int i = kBtnCount - 1; i >= 0; --i) {
     if (PtInCircle(pt, ButtonGeom(i))) return i;
   }
   return -1;
@@ -520,6 +536,48 @@ static const BYTE kRemixOrderTypes[] = {
 static const RemixGlyphDef kRemixOrder{
     kRemixOrderPts, kRemixOrderTypes, 68};
 // ops: {'moveTo': 5, 'lineTo': 27, 'closePath': 5, 'qCurveTo': 3}
+// U+EAA6 base_station_line (base-station-line): 7 contours, 113 points, ink bbox x[119..1080] y[-900..60]
+static const GlyphPt kRemixSwitchPlayerPts[] = {
+    {600.0f,-390.0f}, {900.0f,60.0f}, {300.0f,60.0f}, {600.0f,-210.0f}, {487.0f,-40.0f},
+    {713.0f,-40.0f}, {547.0f,-512.0f}, {532.33f,-526.0f}, {525.0f,-543.5f}, {525.0f,-564.5f},
+    {525.0f,-585.5f}, {532.33f,-603.33f}, {547.0f,-618.0f}, {561.67f,-632.67f},
+    {579.33f,-640.0f}, {600.0f,-640.0f}, {620.67f,-640.0f}, {638.33f,-632.67f},
+    {653.0f,-618.0f}, {667.67f,-603.33f}, {675.0f,-585.5f}, {675.0f,-564.5f}, {675.0f,-543.5f},
+    {667.67f,-525.83f}, {653.0f,-511.5f}, {638.33f,-497.17f}, {620.67f,-490.0f},
+    {600.0f,-490.0f}, {579.33f,-490.0f}, {561.67f,-497.33f}, {547.0f,-512.0f}, {264.0f,-900.0f},
+    {335.0f,-830.0f}, {287.0f,-782.0f}, {254.33f,-725.33f}, {237.0f,-660.0f},
+    {220.33f,-596.67f}, {220.33f,-533.0f}, {237.0f,-469.0f}, {254.33f,-403.67f},
+    {287.0f,-347.0f}, {335.0f,-299.0f}, {264.0f,-229.0f}, {203.33f,-289.67f}, {162.0f,-361.33f},
+    {140.0f,-444.0f}, {119.33f,-524.67f}, {119.33f,-605.0f}, {140.0f,-685.0f},
+    {162.0f,-767.67f}, {203.33f,-839.33f}, {264.0f,-900.0f}, {936.0f,-900.0f},
+    {996.67f,-839.33f}, {1038.0f,-767.67f}, {1060.0f,-685.0f}, {1080.67f,-605.0f},
+    {1080.67f,-524.67f}, {1060.0f,-444.0f}, {1038.0f,-361.33f}, {996.67f,-289.67f},
+    {936.0f,-229.0f}, {865.0f,-299.0f}, {913.0f,-347.0f}, {945.67f,-403.67f}, {963.0f,-469.0f},
+    {979.67f,-533.0f}, {979.67f,-596.67f}, {963.0f,-660.0f}, {945.67f,-725.33f},
+    {913.0f,-782.0f}, {865.0f,-830.0f}, {406.0f,-759.0f}, {476.0f,-688.0f}, {454.0f,-666.0f},
+    {439.0f,-640.0f}, {431.0f,-610.0f}, {423.0f,-580.0f}, {423.0f,-549.83f}, {431.0f,-519.5f},
+    {439.0f,-489.17f}, {454.0f,-463.0f}, {476.0f,-441.0f}, {406.0f,-370.0f}, {370.67f,-405.33f},
+    {346.83f,-446.67f}, {334.5f,-494.0f}, {322.17f,-541.33f}, {322.17f,-588.5f},
+    {334.5f,-635.5f}, {346.83f,-682.5f}, {370.67f,-723.67f}, {406.0f,-759.0f}, {794.0f,-759.0f},
+    {829.33f,-723.67f}, {853.17f,-682.5f}, {865.5f,-635.5f}, {877.83f,-588.5f},
+    {877.83f,-541.33f}, {865.5f,-494.0f}, {853.17f,-446.67f}, {829.33f,-405.33f},
+    {794.0f,-370.0f}, {724.0f,-441.0f}, {746.0f,-463.0f}, {761.0f,-489.17f}, {769.0f,-519.5f},
+    {777.0f,-549.83f}, {777.0f,-580.0f}, {769.0f,-610.0f}, {761.0f,-640.0f}, {746.0f,-666.0f},
+    {724.0f,-688.0f},
+};
+static const BYTE kRemixSwitchPlayerTypes[] = {
+    0x00, 0x01, 0x81, 0x00, 0x01, 0x81, 0x00, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x83, 0x00, 0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x03, 0x03,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x83, 0x00, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x03, 0x03, 0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x83, 0x00, 0x01, 0x03,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+    0x03, 0x03, 0x83, 0x00, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x03,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x83,
+};
+static const RemixGlyphDef kRemixSwitchPlayer{
+    kRemixSwitchPlayerPts, kRemixSwitchPlayerTypes, 113};
+// ops: {'moveTo': 7, 'lineTo': 10, 'closePath': 7, 'qCurveTo': 17}
 // ---- end glyph data ----
 
 // 按 remix 字号 Sf(19)(ink 尺寸与相邻 Segoe em20 字形相近)等比缩放,
@@ -552,31 +610,31 @@ void DrawButton(gd::Graphics& g, int idx) {
   // 悬停高亮圆形底。
   if (hot) {
     const int pad = S(4);
-    gd::SolidBrush br(Gd(idx == 5 ? kLikeHoverBg : kHoverBg));
+    gd::SolidBrush br(Gd(idx == kBtnIdxLike ? kLikeHoverBg : kHoverBg));
     g.FillEllipse(&br, static_cast<REAL>(b.cx - b.r - pad),
                   static_cast<REAL>(b.cy - b.r - pad),
                   static_cast<REAL>((b.r + pad) * 2),
                   static_cast<REAL>((b.r + pad) * 2));
   }
   // 按钮圆底。
-  gd::SolidBrush br(Gd(idx == 1 ? kPlayBtnBg : kBtnBg));
+  gd::SolidBrush br(Gd(idx == kBtnIdxPlay ? kPlayBtnBg : kBtnBg));
   g.FillEllipse(&br, static_cast<REAL>(b.cx - b.r),
                 static_cast<REAL>(b.cy - b.r), static_cast<REAL>(b.r * 2),
                 static_cast<REAL>(b.r * 2));
   // 图标(Segoe MDL2 Assets 字形;队列/顺序播放为硬编码 remix 轮廓)。
   const gd::Color iconColor =
       Gd(hot ? RGB(255, 255, 255)
-             : (idx == 5 && g_liked ? kLikeColor : kIconColor));
+             : (idx == kBtnIdxLike && g_liked ? kLikeColor : kIconColor));
   wchar_t glyph = 0;
   const gd::Font* font = g_fontIcon;
   switch (idx) {
-    case 0: glyph = kGlyphPrev; break;
-    case 1:
+    case kBtnIdxPrev: glyph = kGlyphPrev; break;
+    case kBtnIdxPlay:
       glyph = g_playing ? kGlyphPause : kGlyphPlay;
       font = g_fontIconPlay;
       break;
-    case 2: glyph = kGlyphNext; break;
-    case 3:
+    case kBtnIdxNext: glyph = kGlyphNext; break;
+    case kBtnIdxMode:
       // 顺序播放(order):与 MINI 播放器同款 remix 有序列表图形
       // (硬编码轮廓);其余模式用 Segoe 字形。
       if (g_mode == kModeOrder) {
@@ -588,11 +646,18 @@ void DrawButton(gd::Graphics& g, int idx) {
                   : (g_mode == kModeRepeatOne ? kGlyphRepeatOne
                                               : kGlyphRepeatAll);
       break;
-    case 4: glyph = kGlyphVolume; break;
-    case 5: glyph = g_liked ? kGlyphHeartFill : kGlyphHeart; break;
-    case 6:
+    case kBtnIdxVolume: glyph = kGlyphVolume; break;
+    case kBtnIdxLike:
+      glyph = g_liked ? kGlyphHeartFill : kGlyphHeart;
+      break;
+    case kBtnIdxQueue:
       // 播放队列:MINI 播放器同款 remix 图标(硬编码轮廓)。
       DrawRemixGlyph(g, kRemixQueue, b, iconColor);
+      return;
+    case kBtnIdxSwitch:
+      // 切换播放器:与主界面同款 remix「设备切换」图形(硬编码轮廓),
+      // 点击后通知 Flutter 打开「选择播放器」弹窗。
+      DrawRemixGlyph(g, kRemixSwitchPlayer, b, iconColor);
       return;
   }
   DrawGlyphGd(g, b, glyph, font, iconColor);
@@ -874,7 +939,12 @@ void RenderLayered() {
                    Gd(kHeaderStrokeColor), Sf(kHeaderStrokeW) * 0.5f);
   // 歌词行:超宽时跑马灯左滚,水平裁剪在可用宽度内(左右各留 padX)。
   const REAL lyricSize = Sf(kLyricFontSize);
-  const REAL availW = w - 2 * static_cast<REAL>(g_padX);
+  // 右侧为悬停按钮栏预留空间(按钮自右缘向左排到 kOffPrev),
+  // 否则超长歌词跑马灯会从按钮底下穿过。
+  const REAL btnZoneW = static_cast<REAL>(
+      S(kOffPrev) + (g_hovering ? S(kBtnR) + S(6) : 0));
+  const REAL availW =
+      w - 2 * static_cast<REAL>(g_padX) - (g_hovering ? btnZoneW : 0.0f);
   const double textW =
       MeasureTextWidth(lyric, g_famUI, gd::FontStyleBold, lyricSize);
   g_lyricOverflow = textW > 0 ? (textW - availW) : 0.0;
@@ -892,7 +962,7 @@ void RenderLayered() {
 
   // 悬停时:按钮;弹窗展开时:对应面板。
   if (g_hovering) {
-    for (int i = 0; i < 7; ++i) DrawButton(g, i);
+    for (int i = 0; i < kBtnCount; ++i) DrawButton(g, i);
   }
   DrawVolumePopup(g);
   DrawQueuePopup(g);
@@ -1106,25 +1176,31 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
         if (HitTestButton(pt) == btn) {
           switch (btn) {
-            case 0: FireEvent("previous"); break;
-            case 1: FireEvent("toggle_play_pause"); break;
-            case 2: FireEvent("next"); break;
-            case 3: FireEvent("cycle_playback_mode"); break;
-            case 4:
+            case kBtnIdxPrev: FireEvent("previous"); break;
+            case kBtnIdxPlay: FireEvent("toggle_play_pause"); break;
+            case kBtnIdxNext: FireEvent("next"); break;
+            case kBtnIdxMode: FireEvent("cycle_playback_mode"); break;
+            case kBtnIdxVolume:
               SetPopup(g_popup == PopupKind::Volume ? PopupKind::None
                                                     : PopupKind::Volume);
               break;
-            case 5:
+            case kBtnIdxLike:
               // 乐观翻转:star/unstar 有网络往返,先立即变红/取消,
               // Dart 稍后推送真实状态,DesktopLyricUpdateState 会校正。
               g_liked = !g_liked;
               RepaintLyric();
               FireEvent("toggle_like");
               break;
-            case 6:
+            case kBtnIdxQueue:
               // 播放队列:toggle 展开/收起;数据由 Flutter 持续推送。
               SetPopup(g_popup == PopupKind::Queue ? PopupKind::None
                                                    : PopupKind::Queue);
+              break;
+            case kBtnIdxSwitch:
+              // 切换播放器:先收起本窗自己的弹窗,再请求 Flutter 打开主窗口的
+              // 「选择播放器」弹窗(设备列表、接续按钮都在那边)。
+              SetPopup(PopupKind::None);
+              FireEvent("switch_player");
               break;
           }
         }

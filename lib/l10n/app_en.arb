@@ -156,7 +156,7 @@
   "settings_diagnostics_section_desc": "View on-device diagnostic logs or check GitHub Releases.",
   "settings_disable": "Disable",
   "settings_download": "Go to download",
-  "settings_download_confirm_body": "You'll be taken to the browser to start the download. After it finishes, complete the update yourself: on Windows unzip and overwrite your install directory; on Android install the downloaded apk.",
+  "settings_download_confirm_body": "You'll be taken to the browser to start the download. After it finishes, complete the update yourself: on Windows run the downloaded installer; on Android install the downloaded apk.",
   "settings_dwell_seconds": "{seconds}s",
   "@settings_dwell_seconds": {
     "description": "Lyrics follow dwell value label (seconds)",

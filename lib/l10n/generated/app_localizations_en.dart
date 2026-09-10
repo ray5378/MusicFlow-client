@@ -373,7 +373,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settings_download_confirm_body =>
-      'You\'ll be taken to the browser to start the download. After it finishes, complete the update yourself: on Windows unzip and overwrite your install directory; on Android install the downloaded apk.';
+      'You\'ll be taken to the browser to start the download. After it finishes, complete the update yourself: on Windows run the downloaded installer; on Android install the downloaded apk.';
 
   @override
   String settings_dwell_seconds(String seconds) {

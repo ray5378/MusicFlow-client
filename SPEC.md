@@ -524,7 +524,32 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - runner 目标开 `/WX`：数据字面量**必须带 `f` 后缀**（double→float 截断 C4305 被当 error；且整数不能拼 `1100f`——非法，要 `1100.0f`）。
 - patch 标记必须用**完整唯一行**：数据区起始标记 `// ---- 硬编码 remixicon 字形轮廓(由 tool/gen_lyric_glyphs.py 生成` 与函数说明注释 `// ---- 硬编码 remixicon 字形 ----` 前 20 字符相同，截短匹配会吞掉 struct 定义区。
 - `windows/flutter/ephemeral/cpp_client_wrapper/*.cc` 残缺报 C1083：从 SDK 缓存 `bin/cache/artifacts/engine/windows-x64/cpp_client_wrapper/` cp 补齐即可，无需 clean。
-- 桌面歌词按钮图标的语义对齐：与迷你条共用语义（队列=播放三角列表 `play_list_2_line`，顺序播放=数字有序列表 `list_ordered_2`，经 `AppIcons.queue`/`AppIcons.orderPlayback`），原生侧硬编码轮廓必须与 pub 包 remixicon 同码点同字体文件。
+- 桌面歌词按钮图标的语义对齐：与迷你条共用语义（队列=播放三角列表 `play_list_2_line`，顺序播放=数字有序列表 `list_ordered_2`，切换播放器=基站 `base_station_line` 0xEAA6，经 `AppIcons.queue`/`AppIcons.orderPlayback`/`AppIcons.signalTower`），原生侧硬编码轮廓必须与 pub 包 remixicon 同码点同字体文件。
+
+### 8.7 桌面歌词悬停按钮栏布局（v4.3.42 起 8 按钮）
+
+按钮自右缘向左排，索引与偏移必须用 `desktop_lyric.cpp` 顶部的
+`kBtnIdx*` / `kOff*` 常量，**禁止写裸数字**：
+
+| idx | 常量 | 偏移 | 图标 | 事件 |
+|-----|------|------|------|------|
+| 0 | `kBtnIdxPrev` | 403 | prev | `previous` |
+| 1 | `kBtnIdxPlay` | 349 | play/pause | `toggle_play_pause` |
+| 2 | `kBtnIdxNext` | 295 | next | `next` |
+| 3 | `kBtnIdxMode` | 243 | shuffle/repeat | `cycle_playback_mode` |
+| 4 | `kBtnIdxVolume` | 35 | volume | 内部弹窗 |
+| 5 | `kBtnIdxLike` | 191 | heart | `toggle_like` |
+| 6 | `kBtnIdxQueue` | 139 | 队列 | 内部弹窗 |
+| 7 | `kBtnIdxSwitch` | 87 | 基站 | `switch_player` |
+
+约束：新增按钮必须同步四处——`kBtnCount`、
+`ButtonGeom`、`HitTestButton` 循环上界、点击派发 `switch`。
+窗口宽度 `kWindowWidth` 保持 572（第 8 个按钮加宽后的值）；
+悬停时歌词跑马灯裁剪区会右让 `kOffPrev + kBtnR + 6`，避免文字钻到按钮底下。
+
+本地复跑原生编译：`bash tool/check_native_syntax.sh`
+（等效于 CI 的 `cl /Zs` job；Git Bash 下 `cmd //c` 会被路径转换搅乱，
+直接调 `cl.exe` + `/I` 显式传头文件路径）。
 
 ---
 

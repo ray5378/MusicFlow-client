@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -163,8 +161,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     size: 20,
                     color: ctx.musicFlowColors.muted,
                   ),
-                  onPressed: () =>
-                      _confirmOpenDownload(asset.name, asset.downloadUrl),
+                  // 直接跳转下载，不再二次确认:用户在上一步已明确点选文件，
+                  // 再弹一层「确定要下载吗」只增加一次无意义的点击。
+                  onPressed: () => _openDownload(asset.name, asset.downloadUrl),
                 ),
               ),
           ],
@@ -187,9 +186,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     final asset = _pickPlatformAsset(result);
                     Navigator.of(ctx).pop();
                     if (asset != null) {
-                      _confirmOpenDownload(asset.name, asset.downloadUrl);
+                      _openDownload(asset.name, asset.downloadUrl);
                     } else if (result.releaseUrl != null) {
-                      _confirmOpenDownload(
+                      _openDownload(
                         loc.settings_update_package(result.latestVersion),
                         result.releaseUrl!,
                       );
@@ -202,84 +201,24 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     );
   }
 
-  /// 挑选适合当前平台的下载文件：Android 优先 apk，其余平台优先 zip（windows）。
-  ReleaseAsset? _pickPlatformAsset(UpdateCheckResult result) {
-    if (result.assets.isEmpty) return null;
-    final isAndroid =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-    final preferred = isAndroid ? '.apk' : '.zip';
-    for (final asset in result.assets) {
-      if (asset.name.toLowerCase().contains(preferred)) return asset;
-    }
-    return result.assets.first;
-  }
+  /// 挑选适合当前平台的下载文件。
+  ///
+  /// 交付物自 v4.3.41 起只有两个：`-android.apk` 与 `-windows-setup.exe`
+  /// （绿色版 portable zip 已停止产出）。因此这里统一委托
+  /// [pickPlatformUpdateAsset]，避免两处挑选逻辑漂移——本页此前硬编码
+  /// 「非 Android 优先 .zip」，在 zip 下线后会挑不中首选而落到
+  /// `assets.first`（列表首个恰为 apk），表现为 Windows 上给用户推 apk。
+  ReleaseAsset? _pickPlatformAsset(UpdateCheckResult result) =>
+      pickPlatformUpdateAsset(result);
 
-  /// 弹出确认后跳转浏览器下载，由用户自行解压/安装完成更新。
-  /// Windows 用「窗户」样式对话框,安卓保持底部抽屉。
-  Future<void> _confirmOpenDownload(String label, String url) async {
-    final ctx = context;
-    final loc = AppLocalizations.of(ctx);
-    final bool confirmed;
-    if (isWindowsDesktop) {
-      confirmed = (await showMusicFlowDesktopDialog<bool>(
-        context: ctx,
-        useRootNavigator: true,
-        builder: (dialogContext) => MusicFlowDesktopDialog(
-          icon: AppIcons.download,
-          title: loc.settings_download,
-          subtitle: label,
-          child: _buildConfirmContent(dialogContext),
-        ),
-      )) ??
-          false;
-    } else {
-      confirmed = (await showMusicFlowBottomSheet<bool>(
-        context: ctx,
-        useRootNavigator: true,
-        builder: (sheetContext) => MusicFlowBottomSheet(
-          title: loc.settings_download,
-          subtitle: label,
-          child: _buildConfirmContent(sheetContext),
-        ),
-      )) ??
-          false;
-    }
-    if (confirmed) {
-      await _openUrl(url);
-    }
-  }
-
-  Widget _buildConfirmContent(BuildContext ctx) {
-    final loc = AppLocalizations.of(ctx);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          loc.settings_download_confirm_body,
-          style: ctx.musicFlowTypography.body.copyWith(
-            color: ctx.musicFlowColors.muted,
-          ),
-        ),
-        SizedBox(height: ctx.musicFlowSpacing.lg),
-        Wrap(
-          alignment: WrapAlignment.end,
-          spacing: ctx.musicFlowSpacing.xs,
-          runSpacing: ctx.musicFlowSpacing.xs,
-          children: <Widget>[
-            MusicFlowButton.ghost(
-              label: loc.settings_cancel,
-              onPressed: () => Navigator.of(ctx).pop(false),
-            ),
-            MusicFlowButton.primary(
-              label: loc.settings_download,
-              leadingIcon: AppIcons.download,
-              onPressed: () => Navigator.of(ctx).pop(true),
-            ),
-          ],
-        ),
-      ],
-    );
+  /// 直接跳转浏览器下载，由用户自行完成安装。
+  ///
+  /// 不再弹二次确认框（2026-09-10 起）：用户在「发现新版本」框里点
+  /// 「前往下载」或点选某个下载文件时，意图已经明确，多一层确认只会
+  /// 打断流程、制造一次无谓点击。关闭更新框与打开链接由调用方顺序完成。
+  Future<void> _openDownload(String label, String url) async {
+    Logger.infoWithTag('UPDATE', 'open download url: $label → $url');
+    await _openUrl(url);
   }
 
   Future<void> _openUrl(String url) async {

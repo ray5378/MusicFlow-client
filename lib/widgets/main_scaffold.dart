@@ -222,6 +222,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           // 桌面歌词浮窗「喜欢」按钮:与主窗口喜欢按钮同一条链路。
           await ref.read(playerProvider.notifier).toggleFavorite();
           break;
+        case 'switch_player':
+          // 桌面歌词浮窗「切换播放器」按钮:打开与迷你播放条同一个
+          // 「选择播放器」弹窗(桌面端为播放控件上方小弹窗)。
+          if (mounted) {
+            showPlayerSwitcher(context: context, ref: ref);
+          }
+          break;
         case 'quit':
           // 托盘「退出」:先立即落盘播放状态(进度/音量,不等防抖 Timer),
           // 完成后再调 native quit 真正结束进程 —— 直接退出时 Dart 的
@@ -417,45 +424,35 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       },
       // 根级指针位置捕获:桌面端锚点弹窗据此定位到触发按钮附近。
       child: MusicFlowTapAnchorScope(
-        // Windows 去掉自绘标题栏:侧边栏与内容区均从顶到底铺满。
-        // 窗口控制按钮由 WindowsWindowChrome 覆盖在内容区右上角,
-        // 其透明拖拽区保留了大屏下顶部长按拖动/双击最大化。
-        child: Stack(
-          key: const ValueKey<String>('main-scaffold-stack'),
-          children: <Widget>[
-            SizedBox.expand(
-              child: MusicFlowAppShell(
-                scaffoldKey: scaffoldKey,
-                drawer:
-                    widget.drawerOverride ??
-                    AppDrawer(
-                      onReturnFocus: _restoreMusicFlowAppDrawerFocus,
-                      onOpenPage: _openPageInContentArea,
-                    ),
-                body: widget.navigationShell,
-                destinations: destinations,
-                selectedBranchIndex: currentBranchIsVisible
-                    ? currentBranchIndex
-                    : discoverBranchIndex,
-                onDestinationSelected: (branchIndex) {
-                  _goToBranch(
-                    branchIndex,
-                    initialLocation: branchIndex == currentBranchIndex,
-                  );
-                },
-                miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
-                showMiniPlayer: hasMiniPlayer,
-                networkStatus: networkStatus,
-                showNavigationBar: false,
-                onOpenDrawer: openMusicFlowAppDrawer,
-                // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-                libraryEntries: _libraryEntries(loc),
-                onOpenPage: _openPageInContentArea,
-              ),
-            ),
-            // Windows 无标题栏:顶部透明拖拽区 + 右上角窗口控制按钮。
-            const WindowsWindowChrome(),
-          ],
+        child: SizedBox.expand(
+          child: MusicFlowAppShell(
+            scaffoldKey: scaffoldKey,
+            drawer:
+                widget.drawerOverride ??
+                AppDrawer(
+                  onReturnFocus: _restoreMusicFlowAppDrawerFocus,
+                  onOpenPage: _openPageInContentArea,
+                ),
+            body: widget.navigationShell,
+            destinations: destinations,
+            selectedBranchIndex: currentBranchIsVisible
+                ? currentBranchIndex
+                : discoverBranchIndex,
+            onDestinationSelected: (branchIndex) {
+              _goToBranch(
+                branchIndex,
+                initialLocation: branchIndex == currentBranchIndex,
+              );
+            },
+            miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
+            showMiniPlayer: hasMiniPlayer,
+            networkStatus: networkStatus,
+            showNavigationBar: false,
+            onOpenDrawer: openMusicFlowAppDrawer,
+            // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
+            libraryEntries: _libraryEntries(loc),
+            onOpenPage: _openPageInContentArea,
+          ),
         ),
       ),
     );

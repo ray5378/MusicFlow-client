@@ -731,7 +731,7 @@ abstract class AppLocalizations {
   /// No description provided for @settings_download_confirm_body.
   ///
   /// In zh, this message translates to:
-  /// **'将跳转到浏览器开始下载。下载完成后请自行完成更新安装：Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。'**
+  /// **'将跳转到浏览器开始下载。下载完成后请自行完成更新安装：Windows 请运行下载的安装包，Android 请安装下载的 apk。'**
   String get settings_download_confirm_body;
 
   /// 歌词跟随停靠时长数值标签（秒）

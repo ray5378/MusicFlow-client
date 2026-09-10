@@ -156,7 +156,7 @@
   "settings_diagnostics_section_desc": "查看本机诊断日志，或检查 GitHub Releases。",
   "settings_disable": "停用",
   "settings_download": "前往下载",
-  "settings_download_confirm_body": "将跳转到浏览器开始下载。下载完成后请自行完成更新安装：Windows 请解压 zip 覆盖到安装目录，Android 请安装下载的 apk。",
+  "settings_download_confirm_body": "将跳转到浏览器开始下载。下载完成后请自行完成更新安装：Windows 请运行下载的安装包，Android 请安装下载的 apk。",
   "settings_dwell_seconds": "{seconds} 秒",
   "@settings_dwell_seconds": {
     "description": "歌词跟随停靠时长数值标签（秒）",

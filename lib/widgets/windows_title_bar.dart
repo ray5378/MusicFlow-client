@@ -124,9 +124,15 @@ Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop
 
 /// Windows 客户端无标题栏的顶部窗口控制覆盖层。
 ///
-/// 去掉系统/自绘标题栏后,由本组件在窗口最顶上提供一个透明的拖拽区
-/// (拖动移动窗口、双击最大化),并在右上角无缝嵌入最小化/最大化/关闭
-/// 按钮。仅 Windows 桌面端生效;安卓/Web 走系统窗口装饰。
+/// 去掉系统/自绘标题栏后，由本组件在窗口最顶上提供一个透明的拖拽区
+/// (拖动移动窗口、双击最大化)，并在右上角无缝嵌入最小化/最大化/关闭
+/// 按钮。仅 Windows 桌面端生效；安卓/Web 走系统窗口装饰。
+///
+/// **挂载位置是 MaterialApp.builder 层**（见 app.dart），即位于
+/// Navigator / Overlay **之上**：任何页面、任何弹窗（切换播放器、
+/// 发现新版本、锚点菜单……）打开时，顶部依旧可以拖动窗口。
+/// 此前挂在 MainScaffold 内部，被模态路由整个盖住，
+/// 表现为「打开弹窗后顶部无法拖动窗口」。
 class WindowsWindowChrome extends StatelessWidget {
   const WindowsWindowChrome({super.key});
 
@@ -154,17 +160,24 @@ class WindowsWindowChrome extends StatelessWidget {
       left: 0,
       right: 0,
       height: _height,
-      // 透明覆盖层不拦截非本层的普通点击:仅精确命中水平/当右部按钮可点。
       child: Stack(
         children: <Widget>[
           // 整条透明拖拽区:拖动移动窗口、双击最大化。
-          // translucent 命中让顶部页面头部按钮仍可正常点击,只有平移/双击在此消费。
+          //
+          // 用 opaque 而非 translucent：本层已在所有弹窗之上，只有明确
+          // 消费掉按下事件，才能保证「弹窗开着时顶部也能拖动窗口」。
+          // 覆盖区仅 40px 高，且不遮挡任何弹窗的正文与按钮——
+          // 弹窗顶部若正好有可点区域，其命中会先被本层吃掉，
+          // 因此这里只保留拖拽/双击，不额外处理点击。
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onPanStart: (_) => _invoke('start_move'),
-              onDoubleTap: () => _invoke('maximize_toggle'),
-              child: const SizedBox.expand(),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.move,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (_) => _invoke('start_move'),
+                onDoubleTap: () => _invoke('maximize_toggle'),
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
           // 右上角窗口控制按钮,盖在拖拽区之上,始终可点。

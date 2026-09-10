@@ -20,6 +20,8 @@ import 'package:musicflow_client/providers/ui/theme_provider.dart';
 import 'package:musicflow_client/providers/ui/locale_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/widgets/main_scaffold.dart';
+import 'package:musicflow_client/widgets/windows_title_bar.dart'
+    show WindowsWindowChrome, isWindowsDesktop;
 import 'package:musicflow_client/features/discover/pages/discover_page.dart';
 import 'package:musicflow_client/features/library/pages/edit_library_page.dart';
 
@@ -138,7 +140,19 @@ class App extends ConsumerWidget {
           // 有新版本时弹出可关闭的提示框。
           child: StartupUpdateCheckScope(
             navigatorKey: rootNavigatorKey,
-            child: content,
+            // Windows 无系统标题栏：窗口控制按钮 + 顶部拖拽条挂在
+            // MaterialApp.builder 层（Navigator/Overlay 之外），
+            // 保证任何页面、任何弹窗（切换播放器、发现新版本……）打开时，
+            // 顶部依旧可以拖动窗口、双击最大化。此前它挂在 MainScaffold
+            // 内部，被模态路由盖住 → 「弹窗顶部无法拖动」。
+            child: isWindowsDesktop
+                ? Stack(
+                    children: <Widget>[
+                      content,
+                      const WindowsWindowChrome(),
+                    ],
+                  )
+                : content,
           ),
         );
       },

@@ -15,7 +15,7 @@ import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/ui/palette_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/player/sleep_timer_provider.dart';
-import 'package:musicflow_client/features/player/widgets/player_switcher.dart' show PlayerSwitcherSheet, PlayerSwitcherPopover;
+import 'package:musicflow_client/features/player/widgets/player_switcher.dart' show PlayerSwitcherSheet;
 import 'package:musicflow_client/features/player/widgets/sleep_timer_sheet.dart' show SleepTimerSheet, SleepTimerOffSentinel, SleepTimerStartChoice;
 import 'package:musicflow_client/features/player/widgets/volume_button.dart' show VolumeButton;
 import 'package:musicflow_client/features/player/widgets/local_dlna_cast_sheet.dart';

@@ -3,17 +3,18 @@ import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:musicflow_client/core/utils/logger.dart';
-import 'package:musicflow_client/core/services/windows_installer_detector.dart';
 
 /// 挑选适合当前平台的更新包:
 /// - Android → `.apk`;
-/// - Windows → **安装版**选 `windows-setup.exe`(单文件安装包),
-///   **绿色版**选 `windows.zip`(解压即用);
+/// - Windows → `windows-setup.exe`(单文件安装包);
 /// - 其它平台 → `.zip`。
 ///
-/// 没有匹配到首选后缀时回退第一个资源,没有资源则返回 null(调用方应改用
-/// 发布页 URL)。[isInstallerBuild] 仅测试注入用,默认自动检测
-/// (见 [isWindowsInstallerBuild])。
+/// 交付物自 v4.3.41 起只有 `-android.apk` 与 `-windows-setup.exe`
+/// （绿色版 portable zip 已停止产出），因此 Windows 分支不再有
+/// 「安装版/绿色版」二选一，统一取安装包。
+///
+/// 没有匹配到首选后缀时回退第一个资源，没有资源则返回 null(调用方应改用
+/// 发布页 URL)。[isInstallerBuild] 为兼容旧调用保留，现已不参与决策。
 ReleaseAsset? pickPlatformUpdateAsset(
   UpdateCheckResult result, {
   TargetPlatform? platform,
@@ -30,11 +31,12 @@ ReleaseAsset? pickPlatformUpdateAsset(
   }
   final isWindows = !kIsWeb && target == TargetPlatform.windows;
   if (isWindows) {
-    // 安装版 → 单文件安装包;绿色版 → zip 绿色版。
-    final wantsInstaller = isInstallerBuild ?? isWindowsInstallerBuild();
-    final preferred = wantsInstaller ? 'windows-setup.exe' : 'windows.zip';
+    // 只认单文件安装包；旧版本 zip 已不再发布，仅作历史兼容兜底。
     for (final asset in result.assets) {
-      if (asset.name.toLowerCase().contains(preferred)) return asset;
+      if (asset.name.toLowerCase().contains('windows-setup.exe')) return asset;
+    }
+    for (final asset in result.assets) {
+      if (asset.name.toLowerCase().contains('windows.zip')) return asset;
     }
   } else {
     for (final asset in result.assets) {

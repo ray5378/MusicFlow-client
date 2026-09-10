@@ -134,25 +134,39 @@ class MiniPlayer extends ConsumerWidget {
   static Future<void> _showPlayerSwitcher({
     required BuildContext context,
     required WidgetRef ref,
-  }) async {
-    final loc = AppLocalizations.of(context);
-    // 电脑端：播放控件上方的小弹窗（对齐主项目前端），手机端保留底部弹层。
-    final isDesktop = switch (Theme.of(context).platform) {
-      TargetPlatform.windows ||
-      TargetPlatform.macOS ||
-      TargetPlatform.linux => true,
-      _ => false,
-    };
-    if (isDesktop) {
-      _showDesktopPlayerSwitcherPopover(context: context);
-      return;
-    }
-    await showMusicFlowBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => const PlayerSwitcherSheet(),
-    );
+  }) {
+    // 统一走顶层 showPlayerSwitcher，避免两份平台分支逻辑漂移。
+    return showPlayerSwitcher(context: context, ref: ref);
+  }
+}
+
+/// 桌面端（Windows/macOS/Linux）：用播放控件上方的小弹窗代替安卓底部弹层。
+bool _isDesktopShell(BuildContext context) => switch (Theme.of(context).platform) {
+  TargetPlatform.windows ||
+  TargetPlatform.macOS ||
+  TargetPlatform.linux => true,
+  _ => false,
+};
+
+/// 打开「切换播放器」弹窗（平台自适应：桌面小弹窗 / 移动端底部弹层）。
+///
+/// 供迷你播放条按钮与 Windows 桌面歌词浮窗的「切换播放器」按钮共用——
+/// 后者经 tray 字符串通道回传 `switch_player`，由 MainScaffold 调用本函数。
+Future<void> showPlayerSwitcher({
+  required BuildContext context,
+  required WidgetRef ref,
+}) {
+  final loc = AppLocalizations.of(context);
+  if (_isDesktopShell(context)) {
+    showPlayerSwitcherPopover(context: context);
+    return Future<void>.value();
+  }
+  return showMusicFlowBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    builder: (sheetContext) => const PlayerSwitcherSheet(),
+  ).then((_) {
     if (context.mounted) {
       final cast = ref.read(castPeerControllerProvider);
       showMusicFlowToast(
@@ -163,28 +177,26 @@ class MiniPlayer extends ConsumerWidget {
         kind: MusicFlowMessageKind.success,
       );
     }
-  }
+  });
+}
 
-  /// 电脑端「切换播放器」小弹窗：以 Overlay 呈现，播放控件上方小窗，
-  /// 点击弹窗外任意位置关闭；切换完成后弹出右上角 Toast 反馈。
-  static void _showDesktopPlayerSwitcherPopover({
-    required BuildContext context,
-  }) {
-    final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) return;
-    late final OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (entryContext) => PlayerSwitcherPopover(
-        onSwitched: (message) {
-          if (entry.mounted) entry.remove();
-          if (message != null && context.mounted) {
-            showMusicFlowToast(context, message, kind: MusicFlowMessageKind.success);
-          }
-        },
-      ),
-    );
-    overlay.insert(entry);
-  }
+/// 桌面端「切换播放器」小弹窗：以 Overlay 呈现，播放控件上方小窗，
+/// 点击弹窗外任意位置关闭；切换完成后弹出右上角 Toast 反馈。
+void showPlayerSwitcherPopover({required BuildContext context}) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (entryContext) => PlayerSwitcherPopover(
+      onSwitched: (message) {
+        if (entry.mounted) entry.remove();
+        if (message != null && context.mounted) {
+          showMusicFlowToast(context, message, kind: MusicFlowMessageKind.success);
+        }
+      },
+    ),
+  );
+  overlay.insert(entry);
 }
 
 /// Pure player surface kept public so gesture, semantics and large-text

@@ -80,7 +80,8 @@ void main() {
   });
 
   group('pickPlatformUpdateAsset', () {
-    test('Android prefers apk, others prefer zip', () {
+    // v4.3.41 起交付物只有 apk + windows-setup.exe，绿色版 zip 已停止产出。
+    test('Android prefers apk', () {
       expect(
         pickPlatformUpdateAsset(
           updateResult(),
@@ -88,30 +89,46 @@ void main() {
         )!.downloadUrl,
         'https://example.test/android.apk',
       );
-      // 默认自动检测:测试环境非安装版(无 Program Files / unins000.exe)→ zip。
-      expect(
-        pickPlatformUpdateAsset(
-          updateResult(),
-          platform: TargetPlatform.windows,
-        )!.downloadUrl,
-        'https://example.test/windows.zip',
-      );
     });
 
-    test('Windows installer build prefers windows-setup.exe', () {
-      expect(
-        pickPlatformUpdateAsset(
-          updateResult(),
-          platform: TargetPlatform.windows,
-          isInstallerBuild: true,
-        )!.downloadUrl,
-        'https://example.test/windows-setup.exe',
+    test('Windows always prefers windows-setup.exe (no green build)', () {
+      // 无论是否安装版，Windows 都选单文件安装包。
+      for (final installed in <bool?>[true, false, null]) {
+        expect(
+          pickPlatformUpdateAsset(
+            updateResult(),
+            platform: TargetPlatform.windows,
+            isInstallerBuild: installed,
+          )!.downloadUrl,
+          'https://example.test/windows-setup.exe',
+          reason: 'isInstallerBuild=$installed',
+        );
+      }
+    });
+
+    test('Windows falls back to legacy zip when setup.exe absent', () {
+      // 历史发布（尚未下线 zip 的旧版）仍能兼容拉到 zip。
+      final legacy = UpdateCheckResult(
+        hasUpdate: true,
+        currentVersion: '3.4.0',
+        latestVersion: '3.5.0',
+        assets: const <ReleaseAsset>[
+          ReleaseAsset(
+            name: 'MusicFlow-v350-windows.zip',
+            downloadUrl: 'https://example.test/windows.zip',
+            size: 1024,
+          ),
+          ReleaseAsset(
+            name: 'MusicFlow-v350-android.apk',
+            downloadUrl: 'https://example.test/android.apk',
+            size: 2048,
+          ),
+        ],
       );
       expect(
         pickPlatformUpdateAsset(
-          updateResult(),
+          legacy,
           platform: TargetPlatform.windows,
-          isInstallerBuild: false,
         )!.downloadUrl,
         'https://example.test/windows.zip',
       );
@@ -180,10 +197,10 @@ void main() {
 
       expect(shown, isTrue);
       expect(find.text('发现新版本 3.5.0'), findsOneWidget);
-      // Windows 平台挑 zip 资源。
+      // Windows 平台挑单文件安装包（绿色版 zip 已下线）。
       await tester.tap(find.text('前往下载'));
       await tester.pumpAndSettle();
-      expect(launched, <String>['https://example.test/windows.zip']);
+      expect(launched, <String>['https://example.test/windows-setup.exe']);
       debugDefaultTargetPlatformOverride = null;
     });
 

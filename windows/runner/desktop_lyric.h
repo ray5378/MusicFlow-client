@@ -14,13 +14,14 @@
 // Always-on-top, borderless, translucent, draggable with the mouse,
 // right-click menu to hide.
 // 两行显示(歌名-歌手 / 当前行歌词);鼠标悬停右缘浮出控制按钮:
-// 上一首/播放暂停/下一首/播放模式/音量(滑条弹窗)/喜欢/播放队列(列表弹窗)。
+// 上一首/播放暂停/下一首/播放模式/音量(滑条弹窗)/喜欢/播放队列(列表弹窗)/
+// 切换播放器(打开主窗口的「选择播放器」弹窗)。
 // 状态由 Flutter 推送(DesktopLyricUpdateState 等),按钮事件经
 // DesktopLyricEventCallback 回传 Flutter(与托盘共用 tray 字符串通道)。
 
 // 按钮事件回调:msg 为字符串协议消息
 // ("previous"/"next"/"toggle_play_pause"/"cycle_playback_mode"/
-//  "toggle_like"/"volume:0.68"/"queue_jump:3")。
+//  "toggle_like"/"volume:0.68"/"queue_jump:3"/"switch_player")。
 typedef void (*DesktopLyricEventCallback)(const char* msg);
 
 // 桌面歌词浮窗完整显示状态(Flutter → Native)。
