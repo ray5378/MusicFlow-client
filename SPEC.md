@@ -804,14 +804,19 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 | `flutter analyze` | **0 error**（154 条存量 info，与本轮无关） |
 | `flutter test test/providers/cast_peer_provider_test.dart` | **43/43 通过**（首轮 35 + 槽位校验 2 + 回落 2 + 轻量轮询 4） |
 | 全量 `flutter test` | **586/586 通过，0 失败** |
-| 发版前置守卫 | `check_interaction_feedback` ✅ / `gpu_guard_scan` ✅ / `check_workflow_yaml` ✅ |
+| 发版前置守卫 | `check_interaction_feedback` ✅ / `gpu_guard_scan` ✅ / `check_workflow_yaml` ✅ / `check-l10n --gate-cjk` ✅ |
 | 主仓库 `tsc` | 0 error |
 | 主仓库后端全量测试 | **795/795 通过**（含新增顺序契约 6 例，无回归） |
-| 主仓库发版 | **v2.3.21**，CI 全绿（ci / playback-chain-guard / security / pentest / frontend-responsive / build-and-push），Release uploader = `github-actions[bot]` |
+| 主仓库发版 | **v2.3.21**，CI 全绿，Release uploader = `github-actions[bot]` |
+| 客户端发版 | **v4.3.36**，五条 workflow 全 success（GPU Render Guard / UI Guard / Test Suite / Desktop Lyric Guard / Build Client），三产物齐全，uploader = `github-actions[bot]` |
 | 真机联调（Windows） | 三条路径跑通；端到端 `tool/cast_play_chain_probe.py` **68 次探测 → 67 一致、0 顺序错位、2 跳过**（跳过来自网络抖动，非逻辑问题） |
 | 顺序修复对照 | 原先 5 个「同集异序」歌单修复后**全部完全同序**（19/19、265/265、140/140、81/81） |
 | queue 体积实测 | 3251 首：**863 935 B → 338 B（2 556×）** |
 | 取证工具（可复跑） | `tool/cast_index_alignment.py`（legacy 端点序对比）、`tool/cast_play_chain_probe.py`（**真实 /v1/play 端到端**）、`tool/cast_set_diff.py`（集合差异定位） |
+
+> **发版踩坑（已沉淀进 MEMORY.md）**：v4.3.35 的 `l10n guard (blocking)` 因新增日志
+> 用了中文而红（该守卫在 **Test Suite** 独立 job，不在 Build Client）→ 重发 v4.3.36。
+> **`lib/providers/` 下新增日志一律英文**；发版后**必须同时看 Test Suite**。
 
 ### 13.7 收尾时的检查清单
 
@@ -822,9 +827,9 @@ Stop→SetAVTransportURI→Play 完成才返回（含最长 ~5s 的 GENA 乐观�
 - [x] 主仓库 ORDER BY 根治（v2.3.21，6 例顺序契约守卫，变异验证通过）
 - [x] 全量 `flutter test` 重跑至 0 失败（586/586）
 - [x] SPEC 更新 + 清理已结项条目
-- [ ] 客户端 commit + push + tag 发版（§1.6 纯 tag 体系），Release 产物 uploader
-      必须是 `github-actions[bot]`
-- [ ] 结项后把本节结论沉淀进正式章节并删除 §十三
+- [x] 客户端 commit + tag 发版：**v4.3.36** 五条 workflow 全 success，
+      Release uploader = `github-actions[bot]`
+- [x] 结项完成——§13.1–§13.4 可整体存档；**下次开工前先看 §13.4 风险 4/9 与 §13.5**
 
 ---
 
