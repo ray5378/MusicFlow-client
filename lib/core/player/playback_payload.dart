@@ -30,6 +30,11 @@ class PlaybackPayloadEncoder {
 
   /// 组装播放会话 payload（含队列序列化、当前曲定位与位置归一化）。
   /// 队列为空或当前曲无法定位时返回 null。nowMs 用于写入 updatedAt。
+  ///
+  /// [queueOrigin] 是当前队列的来源（歌单/专辑/艺术家…）。必须落盘：重启后
+  /// 队列由此会话恢复，若来源丢失，「本机→设备」接续搬移将拿不到
+  /// `serverContentType`，只能整队推送（数千首 ≈ MB 级）。实测（3251 首，
+  /// 公网）：主通道 115B/296ms vs 整队 642KB/7986ms，缩约 5720×。
   Map<String, dynamic>? buildSession({
     required List<Song> queue,
     required int currentIndex,
@@ -38,6 +43,7 @@ class PlaybackPayloadEncoder {
     required Duration duration,
     required bool isPlaying,
     required int nowMs,
+    Map<String, dynamic>? queueOrigin,
   }) {
     if (queue.isEmpty) return null;
 
@@ -59,6 +65,7 @@ class PlaybackPayloadEncoder {
       'positionMs': normalized.inMilliseconds,
       'isPlaying': isPlaying,
       'updatedAt': nowMs,
+      if (queueOrigin != null) kSessionQueueOriginKey: queueOrigin,
     };
   }
 }
@@ -69,3 +76,18 @@ Duration normalizeSeekPosition(Duration position, Duration duration) {
   if (duration > Duration.zero && position > duration) return duration;
   return position;
 }
+
+/// 播放会话 payload 中「队列来源」的键名。
+///
+/// 写入与读取共用同一常量：两侧任何一边拼错都会被守卫测试立刻抓住，
+/// 避免出现「写进去了但读的时候键名不一致」这种静默失效。
+const String kSessionQueueOriginKey = 'queueOrigin';
+
+/// 从播放会话 payload 中取出队列来源的原始 JSON 片段。
+///
+/// 单独抽成函数的原因：会话恢复发生在 `_init()` 内（需要真实 AudioService），
+/// 在纯测试里驱动成本极高、极易漏测。做成纯函数后，「恢复时必须回填来源」
+/// 这条契约才能被单测直接锁死——历史上它正是因为没有任何测试覆盖，
+/// 才让「重启后大歌单搬移撞 403」静默存活。
+Object? readSessionQueueOrigin(Map<String, dynamic> session) =>
+    session[kSessionQueueOriginKey];

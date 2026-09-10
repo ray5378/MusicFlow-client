@@ -39,6 +39,31 @@ void main() {
         reason: '无停播阈值：失败不得把播放器置为停止态');
   });
 
+  test('next() 必须可达：不得被恒真短路变成死代码', () {
+    // 2026-09-10 变异实测发现：把方法体改成 `if (true) return;` 后，
+    // 上面「包含 next()」的字面断言**全部照过**，但播放器实际永远卡在坏源上。
+    // 这正是「播放链路卡住」的典型形态，必须在结构上钉死。
+    final body = _methodBody(src, 'void _handlePlaybackError(String? songId) {');
+    for (final pattern in <RegExp>[
+      RegExp(r'if\s*\(\s*true\s*\)'),
+      RegExp(r'if\s*\(\s*1\s*==\s*1\s*\)'),
+    ]) {
+      expect(pattern.hasMatch(body), isFalse,
+          reason: '方法体出现恒真短路（${pattern.pattern}）：next() 成为死代码，'
+              '失败后不会跳曲，用户卡在坏源上');
+    }
+    // next() 之前的提前 return 只允许 mounted 守卫。
+    final beforeNext = body.substring(0, body.indexOf('next()'));
+    final guardReturns =
+        RegExp(r'^\s*if\s*\([^)]*\)\s*\{?\s*return;', multiLine: true)
+            .allMatches(beforeNext)
+            .map((m) => m.group(0)!.trim());
+    for (final g in guardReturns) {
+      expect(g.contains('mounted'), isTrue,
+          reason: 'next() 前出现非 mounted 的提前 return（$g）：跳曲被短路');
+    }
+  });
+
   test('失败处理里不得重新引入停播阈值或死歌黑名单', () {
     final body = _methodBody(src, 'void _handlePlaybackError(String? songId) {');
     for (final banned in <String>[

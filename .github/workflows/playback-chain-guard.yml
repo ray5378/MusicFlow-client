@@ -48,6 +48,38 @@ jobs:
       - name: Run local playback chain guard tests
         run: flutter test test/core/player/playback_error_guard_test.dart
 
+      # 接续搬移链路守卫（2026-09-10 拍板）：搬移必须主通道优先 + songId 身份
+      # 定位 + 队列来源随会话持久化。这三条跨越「发起→落盘→重启恢复→搬移」
+      # 四个环节，任何一环被绕开都不会让既有单测变红（已用变异验证确认：
+      # 删掉恢复侧回填，全量测试仍全绿），所以必须用结构扫描兜住。
+      - name: Run handoff chain guard tests
+        run: |
+          flutter test test/providers/cast_peer_provider_test.dart
+          flutter test test/core/player/playback_payload_test.dart
+
+      - name: "Guard - handoff main-channel-first + origin persistence"
+        run: dart run tool/handoff_chain_scan.dart
+
+      # 4 条链路「坏源 / 换源 / 全源失效」模拟（2026-09-10 用户要求）：
+      # 本机源无效、WebDAV 源无效、未命中歌曲、换源、全部源失效切歌 —— 任一场景
+      # 都不得让播放链路卡住。这里既跑真行为模拟（handoff_e2e_test 起本地 HTTP
+      # 服务端跑完整 pushLocalToPeer），也跑结构契约扫描（source_failure_chain_test）。
+      #
+      # 注意：source_failure_chain_test 的「next() 必须可达」断言是变异验证逼出来的
+      # —— 曾出现「方法体里 next() 仍在，但前面被 if (true) return; 短路」，字面
+      # 断言全绿而用户永远卡在坏源上。
+      - name: Run source-failure chain simulation tests
+        run: |
+          flutter test test/core/playback/source_failure_chain_test.dart
+          flutter test test/providers/handoff_e2e_test.dart
+
+      # 接续搬移**端到端**模拟：起真 HTTP 假服务端 + 真 ProviderContainer，
+      # 验证主通道在真实 HTTP 语义下（含 content-type/JSON 形状）确实跑通、
+      # 3251 首大歌单 body 仍只有几百字节、服务端按 songId 身份定位起点、
+      # 404 时自动回落整队且用户无感。
+      - name: "Guard - handoff end-to-end (real HTTP, large playlist)"
+        run: dart run tool/handoff_e2e_scan.dart
+
       # 跨仓契约(客户端侧):客户端靠服务端 409 判定「无可用音源」,服务端哪天把
       # 409 改成 404/400,两仓测试各自仍绿、线上直接失效。这里钉死客户端的
       # 409 → DlnaSongUnplayableException 映射;服务端对称断言见 MusicFlow 仓库

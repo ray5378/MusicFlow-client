@@ -11,6 +11,7 @@ import 'package:musicflow_client/providers/cast/cast_peer_state.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 
 /// 「切换播放器」控制器 —— 对齐主项目前端 stores/player.ts 的 peer 机制:
 /// - 面板列出 `GET /rest/api/v1/peers`(本机 + DLNA/AirPlay/群组);
@@ -323,19 +324,62 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 本机暂停（接续搬移语义：搬完原边停止）。
   ///
   /// 仅在本机真正在放（无 activePeer）时可用——投屏态下本机队列只是远端镜像，
-  /// 没有「本机播放现场」可搬。链路：switchTo(快照+暂停本机) → queue/play
-  /// (startIndex=当前曲) → seek(当前秒)。
+  /// 没有「本机播放现场」可搬。链路：switchTo(快照+暂停本机) → **主通道优先**。
+  ///
+  /// **主通道优先（2026-09-10 修复）**：本机队列若源自服务端可解析的内容
+  /// （歌单/专辑/艺术家，见 [queueOriginProvider]），则只传
+  /// `{type, id, songId=当前曲}` 让服务端自行查库解析队列 —— 几百字节，
+  /// 且享有服务端多源优选与换源回退。
+  ///
+  /// 为什么搬移路径也必须走主通道（历史缺口，实测数据）：
+  /// 搬移此前**只**做整队推送，payload 随队列规模线性膨胀——3251 首实测
+  /// **642.3KB / 8411ms**（公网），而主通道仅 **115B / 205ms**，即缩约
+  /// **5720×**、快约 **27×**。大队列整队推送的真实代价是**客户端上行带宽与
+  /// 超时**（`queueTransferBudget(n)` 已按规模放大），起播成功率会变成上行
+  /// 带宽的函数；主通道把「推队列」换成「让服务端自己查库」，与规模无关。
+  ///
+  /// 注：曾有「公网 WAF 有 ~90KB 体积闸门、超限 403」的猜测，2026-09-10 用
+  /// `tool/verify_handoff_main_channel.py` 实测**已推翻**（541KB/642KB/868KB
+  /// 均 HTTP 200，连续 6 次 541KB 全通过）。主通道的价值是体积/耗时与规模解耦，
+  /// 不是绕闸门。
+  ///
+  /// 来源不可解析时（首页随机 discover / 搜索结果 search / 本地任意队列 other、
+  /// 或来源 id 缺失）仍回落整队推送 —— 服务端无从重建这些队列，只能原样搬运。
   Future<bool> pushLocalToPeer(PeerInfo peer) async {
     if (peer.isLocal) return false;
     final ps = _ref.read(playerProvider);
     if (ps.queue.isEmpty) return false;
     final items = ps.queue.map(songToQueueItem).toList(growable: false);
     final start = ps.currentIndex.clamp(0, items.length - 1);
+    // 本机队列的来源（播放该队列时写入；discover/search/other 的
+    // serverContentType 为 null）。必须在 switchTo 之前读——切换只动控制目标，
+    // 但提前取值语义更清晰，也不受后续状态变化影响。
+    final origin = _ref.read(queueOriginProvider);
+    final contentType = origin?.serverContentType;
+    final contentId = origin?.id;
+    final startSongId = start < items.length ? items[start]['songId'] as String? : null;
     if (state.activePeer?.peerId != peer.peerId) {
       final switched = await switchTo(peer);
       if (!switched) return false;
     }
-    // 只搬队列 + 当前曲自动起播(不搬进度):从当前曲开头继续,队列顺延。
+    // 主通道：服务端按 {type,id} 自行解析队列，按 songId 身份定位起点（与排序无关）。
+    // 失败（内容已删 / 服务端旧版无该端点 / 来源与库内不一致）→ 回落整队推送。
+    if (contentType != null && contentId != null && contentId.isNotEmpty) {
+      final ok = await playContentOnPeer(
+        type: contentType,
+        id: contentId,
+        songId: startSongId,
+        localItems: items,
+        localStartIndex: start,
+      );
+      if (ok) return true;
+      Logger.debugWithTag(
+        'CAST-PEER',
+        'pushLocalToPeer: main channel failed for '
+        '${origin?.kind.name}:$contentId, fallback to full-queue push',
+      );
+    }
+    // 兜底：整队推送（来源服务端无从解析时必须走这条）。
     return _pushQueueAndPlay(peer.peerId, items, start);
   }
 

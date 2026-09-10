@@ -46,6 +46,32 @@ class QueueOrigin {
 
   bool matchesAlbum(String albumId) => isAlbum && id == albumId;
 
+  /// 序列化为可落盘的 Map（播放会话持久化用；见 player_playback_session）。
+  ///
+  /// 为什么必须持久化来源：重启 App 后队列由 `playback_session_v1` 恢复，
+  /// 但恢复路径直接调 `playSong` 而非 [QueueOriginScope]，若不落盘则来源丢失
+  /// → `pushLocalToPeer` 拿不到 serverContentType，大歌单被迫整队推送
+  /// （MB 级上行，耗时随规模线性劣化）。
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'kind': kind.name,
+        if (id != null && id!.isNotEmpty) 'id': id,
+      };
+
+  /// 从会话 payload 反序列化；字段缺失/类型不符/枚举名未知一律返回 null，
+  /// 调用方按「其它来源」处理（安全降级为整队推送，不会误走主通道）。
+  static QueueOrigin? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final kindName = raw['kind'];
+    if (kindName is! String) return null;
+    for (final kind in QueueOriginKind.values) {
+      if (kind.name == kindName) {
+        final id = raw['id'];
+        return QueueOrigin(kind, id is String ? id : null);
+      }
+    }
+    return null;
+  }
+
   @override
   String toString() => 'QueueOrigin(${kind.name}${id == null ? '' : ':$id'})';
 }

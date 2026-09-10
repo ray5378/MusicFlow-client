@@ -37,6 +37,7 @@ import 'package:musicflow_client/providers/player/player_state.dart';
 import 'package:musicflow_client/providers/player/shuffle_history.dart';
 import 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
 import 'package:musicflow_client/providers/player/player_seek_policy.dart';
+import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 import 'package:musicflow_client/providers/player/transcoded_stream_seek.dart';
 part 'player_platform_helpers.dart';
 part 'player_stream_source.dart';

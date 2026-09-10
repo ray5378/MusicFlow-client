@@ -23,6 +23,10 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
   /// 序列化队列，队列未变化时复用上次结果（避免每次落盘都全量 toJson 整队，
   /// 那是大屏旋转封面"定时卡顿"的周期性主线程分配源）。
   Map<String, dynamic>? _buildPlaybackSessionPayload() {
+    // 来源一并落盘：重启后队列由此会话恢复，若来源丢失则「本机→设备」接续
+    // 搬移拿不到 serverContentType，只能整队推送（大歌单上行 MB 级、耗时
+    // 随规模线性劣化）。
+    final origin = _ref.read(queueOriginProvider);
     return _payloadEncoder.buildSession(
       queue: state.queue,
       currentIndex: state.currentIndex,
@@ -31,6 +35,7 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
       duration: state.duration,
       isPlaying: state.isPlaying,
       nowMs: DateTime.now().millisecondsSinceEpoch,
+      queueOrigin: origin?.toJson(),
     );
   }
 
@@ -131,6 +136,14 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
       } else {
         await pause();
       }
+
+      // 恢复队列来源（与队列同一份会话，必须成对恢复）。
+      // 本方法直接调 playSong 而非 playEffectiveQueue，不经过来源写入点，
+      // 所以必须在这里显式回填；否则「本机→设备」接续搬移会误判来源不可解析。
+      // 字段缺失（旧版会话）→ null，按「其它来源」降级为整队推送，不误走主通道。
+      // 键名与读取走 playback_payload 的共享常量/函数，两侧不会各写各的。
+      _ref.read(queueOriginProvider.notifier).state =
+          QueueOrigin.fromJson(readSessionQueueOrigin(session));
 
       Logger.infoWithTag(_playerLogTag, 'playback session restored');
       restored = true;

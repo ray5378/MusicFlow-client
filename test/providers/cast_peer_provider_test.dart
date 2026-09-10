@@ -1314,6 +1314,203 @@ void main() {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // 接续搬移（本机 → 设备）也必须主通道优先
+  //
+  // 根因回顾（2026-09-10 真机复现）：搬移此前**只**做整队推送。公网遥控入口
+  // 被迫整队推送，payload 随规模线性膨胀（3251 首实测 642KB/8.4s 公网），
+  // 起播成功率变成客户端上行带宽的函数。
+  // 局域网 :46400 同一请求仅 199ms 成功，证明问题在公网入口而非后端。
+  // 主通道载荷几百字节，天然不受该闸门限制 → 搬移必须先试主通道。
+  // -------------------------------------------------------------------------
+  group('接续搬移主通道优先', () {
+    /// 本机放着一个「源自歌单」的多曲队列，并登记来源。
+    void setupLocalPlaylistQueue(String playlistId, List<Song> queue, int index) {
+      playerNotifier.emit(
+        PlayerState(
+          currentSong: queue[index],
+          queue: queue,
+          currentIndex: index,
+          loopMode: LoopMode.all,
+        ),
+      );
+      container.read(queueOriginProvider.notifier).state =
+          QueueOrigin(QueueOriginKind.playlist, playlistId);
+    }
+
+    List<Song> bigQueue(int n) => <Song>[
+          for (var i = 0; i < n; i++)
+            Song(id: 's$i', title: '曲目 $i', duration: 200),
+        ];
+
+    test('源自歌单的本机队列：只传 contentId + songId，不推整队', () async {
+      await setupCasting();
+      final queue = bigQueue(300);
+      setupLocalPlaylistQueue('pl-big', queue, 7);
+
+      Map<String, dynamic>? contentBody;
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((inv) async {
+        contentBody = inv.namedArguments[#data] as Map<String, dynamic>;
+        return <String, dynamic>{'success': true};
+      });
+
+      final ok = await controller.pushLocalToPeer(dlnaPeer);
+
+      expect(ok, isTrue);
+      expect(contentBody, isNotNull, reason: '搬移必须走主通道');
+      expect(contentBody!['type'], 'playlist');
+      expect(contentBody!['id'], 'pl-big');
+      // 起点是**身份**：本机第 7 首 → songId=s7（与两侧排序无关）。
+      expect(contentBody!['songId'], 's7');
+      // 核心契约：整队**绝不能**进请求体（否则 payload 随规模膨胀到 MB 级）。
+      expect(contentBody!.containsKey('items'), isFalse);
+      // 主通道成功即不该再走整队推送。
+      verifyNever(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      );
+    });
+
+    test('来源服务端无从解析（discover）时回落整队推送', () async {
+      await setupCasting();
+      final queue = bigQueue(3);
+      playerNotifier.emit(
+        PlayerState(
+          currentSong: queue[0],
+          queue: queue,
+          currentIndex: 0,
+          loopMode: LoopMode.all,
+        ),
+      );
+      container.read(queueOriginProvider.notifier).state =
+          const QueueOrigin(QueueOriginKind.discover);
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+
+      final ok = await controller.pushLocalToPeer(dlnaPeer);
+
+      expect(ok, isTrue);
+      // discover 是首页随机拼装，服务端 resolveContentSongs 无从重建 → 不能走主通道。
+      verifyNever(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      );
+      verify(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).called(1);
+    });
+
+    test('主通道失败（内容已删/旧版服务端）时回落整队推送', () async {
+      await setupCasting();
+      final queue = bigQueue(3);
+      setupLocalPlaylistQueue('pl-gone', queue, 0);
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': false});
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+
+      final ok = await controller.pushLocalToPeer(dlnaPeer);
+
+      expect(ok, isTrue, reason: '兜底通道成功即视为搬移成功');
+      verify(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).called(1);
+    });
+
+    // -----------------------------------------------------------------------
+    // 重启 App 后的搬移（会话恢复路径）
+    //
+    // 这是 ray 真机 16:03/16:06 两份失败日志的实际场景：App 重启后队列由
+    // playback_session_v1 恢复，若来源没跟着落盘，pushLocalToPeer 就会误判
+    // 「来源不可解析」而整队推送 → 大歌单照撞 403。
+    // 本测试模拟「恢复出来的 PlayerState + 恢复出来的 QueueOrigin」这一现场，
+    // 锁死它必须走主通道。
+    // -----------------------------------------------------------------------
+    test('重启 App 后（会话恢复现场）的大歌单搬移仍走主通道', () async {
+      await setupCasting();
+      // 模拟 _restorePlaybackSession 的产物：队列来自会话、来源来自同一会话。
+      final queue = bigQueue(842);
+      playerNotifier.emit(
+        PlayerState(
+          currentSong: queue[0],
+          queue: queue,
+          currentIndex: 0,
+          loopMode: LoopMode.all,
+        ),
+      );
+      // 恢复路径回填的来源（等价于 QueueOrigin.fromJson(session['queueOrigin'])）。
+      container.read(queueOriginProvider.notifier).state =
+          QueueOrigin.fromJson(<String, dynamic>{
+        'kind': 'playlist',
+        'id': 'pl-restored',
+      });
+
+      Map<String, dynamic>? contentBody;
+      when(
+        () => client.postRaw(
+          '/rest/api/v1/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((inv) async {
+        contentBody = inv.namedArguments[#data] as Map<String, dynamic>;
+        return <String, dynamic>{'success': true};
+      });
+
+      final ok = await controller.pushLocalToPeer(dlnaPeer);
+
+      expect(ok, isTrue);
+      expect(contentBody, isNotNull, reason: '恢复现场也必须走主通道');
+      expect(contentBody!['type'], 'playlist');
+      expect(contentBody!['id'], 'pl-restored');
+      expect(contentBody!['songId'], 's0');
+      // 842 首 ≈ 248KB，绝不能进请求体。
+      expect(contentBody!.containsKey('items'), isFalse);
+      verifyNever(
+        () => client.postRaw(
+          '/rest/api/v1/peers/dlna-1/queue/play',
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      );
+    });
+  });
+
   group('QueueOrigin server content type', () {
     test('maps server-resolvable kinds, rejects local-only ones', () {
       expect(
