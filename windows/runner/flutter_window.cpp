@@ -280,6 +280,100 @@ void FlutterWindow::HandleWindowMethod(
     result->Success();
     return;
   }
+  if (method == "update_desktop_lyric_switch_list") {
+    // 桌面歌词「切换播放器」弹窗数据:设备行(名称/状态副标题/是否当前目标)。
+    // 原生层只画两行文字并回传行号,切换动作由 Flutter 执行。
+    DesktopLyricSwitchList list;
+    if (const flutter::EncodableValue* arguments = call.arguments()) {
+      if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
+        const auto& m = std::get<flutter::EncodableMap>(*arguments);
+        const auto loadingIt = m.find(flutter::EncodableValue("loading"));
+        if (loadingIt != m.end()) {
+          if (const auto* b = std::get_if<bool>(&loadingIt->second)) {
+            list.loading = *b;
+          }
+        }
+        const auto itemsIt = m.find(flutter::EncodableValue("items"));
+        if (itemsIt != m.end()) {
+          if (const auto* items =
+                  std::get_if<flutter::EncodableList>(&itemsIt->second)) {
+            for (const auto& item : *items) {
+              const auto* row = std::get_if<flutter::EncodableMap>(&item);
+              if (row == nullptr) continue;
+              DesktopLyricSwitchItem it;
+              const auto titleIt = row->find(flutter::EncodableValue("title"));
+              if (titleIt != row->end()) {
+                if (const auto* s = std::get_if<std::string>(&titleIt->second)) {
+                  it.title = Utf8ToUtf16(*s);
+                }
+              }
+              const auto subIt = row->find(flutter::EncodableValue("subtitle"));
+              if (subIt != row->end()) {
+                if (const auto* s = std::get_if<std::string>(&subIt->second)) {
+                  it.subtitle = Utf8ToUtf16(*s);
+                }
+              }
+              const auto curIt = row->find(flutter::EncodableValue("current"));
+              if (curIt != row->end()) {
+                if (const auto* b = std::get_if<bool>(&curIt->second)) {
+                  it.current = *b;
+                }
+              }
+              // 设备类型小徽章(DLNA/群组…):空则原生不画。
+              const auto badgeIt = row->find(flutter::EncodableValue("badge"));
+              if (badgeIt != row->end()) {
+                if (const auto* s = std::get_if<std::string>(&badgeIt->second)) {
+                  it.badge = Utf8ToUtf16(*s);
+                }
+              }
+              // 接续箭头可用性:↓ 有现场可接回本机 / ↑ 有现场可推过去。
+              const auto pullIt = row->find(flutter::EncodableValue("canPull"));
+              if (pullIt != row->end()) {
+                if (const auto* b = std::get_if<bool>(&pullIt->second)) {
+                  it.canPull = *b;
+                }
+              }
+              const auto pushIt = row->find(flutter::EncodableValue("canPush"));
+              if (pushIt != row->end()) {
+                if (const auto* b = std::get_if<bool>(&pushIt->second)) {
+                  it.canPush = *b;
+                }
+              }
+              // handoff:这一行**画不画**两支接续箭头(只有远端设备行为 true)。
+              // 与 canPull/canPush 分开:后者只决定亮不亮,两支都不可用时也要
+              // 画出来(置灰),否则用户会以为歌词窗少了功能(2026-09-10)。
+              const auto hIt = row->find(flutter::EncodableValue("handoff"));
+              if (hIt != row->end()) {
+                if (const auto* b = std::get_if<bool>(&hIt->second)) {
+                  it.handoff = *b;
+                }
+              }
+              // isRefresh:「刷新设备列表」行(对齐 MINI 弹窗底部 refresh
+              // 按钮)。点击只回传 switch_pick:N,由 Dart 重拉列表。
+              const auto refreshIt =
+                  row->find(flutter::EncodableValue("isRefresh"));
+              if (refreshIt != row->end()) {
+                if (const auto* b = std::get_if<bool>(&refreshIt->second)) {
+                  it.isRefresh = *b;
+                }
+              }
+              // icon:行首图标(1=耳机 2=基站 3=人群 4=刷新;0=小圆点兜底)。
+              const auto iconIt = row->find(flutter::EncodableValue("icon"));
+              if (iconIt != row->end()) {
+                if (const auto* n = std::get_if<int32_t>(&iconIt->second)) {
+                  it.icon = *n;
+                }
+              }
+              list.items.push_back(std::move(it));
+            }
+          }
+        }
+      }
+    }
+    DesktopLyricUpdateSwitchList(list);
+    result->Success();
+    return;
+  }
   if (method == "set_desktop_lyric_visible") {
     // 桌面歌词浮窗:显示/隐藏(不抢焦点)。
     bool visible = false;

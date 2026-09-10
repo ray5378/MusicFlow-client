@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
@@ -42,9 +41,7 @@ class PeerCastRow extends ConsumerWidget {
     final localQueue = ref.watch(
       castPeerControllerProvider.select((s) => s.activePeer == null),
     );
-    final playerQueue = ref.watch(
-      playerProvider.select((ps) => ps.queue),
-    );
+    final playerQueue = ref.watch(playerProvider.select((ps) => ps.queue));
     final nowAsync = ref.watch(peerNowPlayingProvider(peer.peerId));
     final now = nowAsync.valueOrNull;
     final canPull = (now?.isActive ?? false) && (now?.total ?? 0) > 0;
@@ -102,13 +99,11 @@ class PeerCastRow extends ConsumerWidget {
                     now == null
                         ? loc.player_peer_state_unknown
                         : (now.trackLabel.isEmpty
-                            ? loc.player_peer_not_playing
-                            : now.trackLabel),
+                              ? loc.player_peer_not_playing
+                              : now.trackLabel),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: typography.body.copyWith(
-                      color: colors.muted,
-                    ),
+                    style: typography.body.copyWith(color: colors.muted),
                   ),
                 ],
               ),
@@ -286,7 +281,9 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     if (ok) {
       showMusicFlowMessage(
         context,
-        push ? loc.player_handoff_push_success(peer.name) : loc.player_handoff_pull_success,
+        push
+            ? loc.player_handoff_push_success(peer.name)
+            : loc.player_handoff_pull_success,
         kind: MusicFlowMessageKind.success,
       );
       if (context.mounted) Navigator.of(context).pop();
@@ -326,7 +323,9 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                 icon: AppIcons.headphones,
                 title: loc.player_source_local_title,
                 subtitle: cast.activePeer != null
-                    ? (cast.offline ? loc.player_source_offline : loc.player_source_casting)
+                    ? (cast.offline
+                          ? loc.player_source_offline
+                          : loc.player_source_casting)
                     : loc.player_source_local_desc,
                 selected: cast.activePeer == null,
                 onPressed: () async {
@@ -340,7 +339,9 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                 MusicFlowActionRow(
                   icon: AppIcons.close,
                   title: loc.player_stop_cast,
-                  subtitle: loc.player_stop_cast_subtitle(cast.activePeer!.name),
+                  subtitle: loc.player_stop_cast_subtitle(
+                    cast.activePeer!.name,
+                  ),
                   onPressed: () async {
                     await controller.stopCasting();
                     if (context.mounted) Navigator.of(context).pop();
@@ -373,7 +374,9 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
                     vertical: context.musicFlowSpacing.sm,
                   ),
                   child: Text(
-                    _peers == null ? loc.player_loading_peers : loc.player_no_other_players,
+                    _peers == null
+                        ? loc.player_loading_peers
+                        : loc.player_no_other_players,
                     style: context.musicFlowTypography.body.copyWith(
                       color: context.musicFlowColors.muted,
                     ),
@@ -477,160 +480,190 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
       _ => false,
     };
 
-    return Stack(
-      children: <Widget>[
-        // 点击弹窗外任意位置自动关闭。
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _close(),
-          ),
-        ),
-        Positioned(
-          // 播放控件(MiniPlayer)上方的小弹窗。
-          bottom: isDesktop ? MiniPlayer.height + 24 : 80,
-          right: 16,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: 320,
-              constraints: const BoxConstraints(maxHeight: 380),
-              child: MusicFlowSurface(
-                level: MusicFlowSurfaceLevel.floating,
-                borderRadius: context.musicFlowRadii.scene,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        context.musicFlowSpacing.sm,
-                        context.musicFlowSpacing.xs,
-                        context.musicFlowSpacing.xs,
-                        context.musicFlowSpacing.xxs,
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              loc.player_select_source_title,
-                              style: context.musicFlowTypography.headline,
-                            ),
+    // 注意:这里**不能**用「Stack + Positioned.fill 遮罩」来实现点击外部关闭。
+    // 本组件是经 OverlayEntry 插进根 Overlay 的,而根 Overlay(_Theater)只给
+    // 子级【无界(loose)约束】——Stack 收到无界约束时,内含 Expanded/Spacer 的
+    // 子树会抛 "RenderFlex ... unbounded" 之类的布局异常;更致命的是任何
+    // 依赖【紧约束】的渲染路径都会在 debug 下画出 ErrorWidget(红屏/黄字),
+    // 表现为主窗口右侧出现一列黄底英文告警(2026-09-10 用户反馈)。
+    //
+    // 改为「用 Positioned 自定尺寸」的等价实现:整个 OverlayEntry 只铺一块
+    // 透明层(无 Stack),点击任意位置即关闭;弹窗本体用 LayoutBuilder 获取
+    // 真实可用尺寸后再定位,尺寸由自身内容决定,不依赖无界约束传递。
+    final media = MediaQuery.sizeOf(context);
+    final anchorBottom = isDesktop ? MiniPlayer.height + 24 : 80;
+    return SizedBox(
+      width: media.width,
+      height: media.height,
+      child: Material(
+        color: Colors.transparent,
+        child: GestureDetector(
+          // 点击弹窗外任意位置自动关闭。
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _close(),
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: anchorBottom.toDouble(),
+                right: 16,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: 320,
+                  constraints: const BoxConstraints(maxHeight: 380),
+                  child: MusicFlowSurface(
+                    level: MusicFlowSurfaceLevel.floating,
+                    borderRadius: context.musicFlowRadii.scene,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            context.musicFlowSpacing.sm,
+                            context.musicFlowSpacing.xs,
+                            context.musicFlowSpacing.xs,
+                            context.musicFlowSpacing.xxs,
                           ),
-                          MusicFlowIconButton(
-                            icon: AppIcons.close,
-                            label: loc.widgets_window_close,
-                            onPressed: () => _close(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.fromLTRB(
-                          context.musicFlowSpacing.xs,
-                          0,
-                          context.musicFlowSpacing.xs,
-                          context.musicFlowSpacing.xs,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            MusicFlowActionRow(
-                              icon: AppIcons.headphones,
-                              title: loc.player_source_local_title,
-                              subtitle: cast.activePeer != null
-                                  ? (cast.offline ? loc.player_source_offline : loc.player_source_casting)
-                                  : loc.player_source_local_desc,
-                              selected: cast.activePeer == null,
-                              onPressed: () async {
-                                await controller.backToLocal(resumeLocal: true);
-                                _close(toast: loc.player_switched_local);
-                              },
-                            ),
-                            if (cast.activePeer != null)
-                              MusicFlowActionRow(
-                                icon: AppIcons.close,
-                                title: loc.player_stop_cast,
-                                subtitle: loc.player_stop_cast_subtitle(cast.activePeer!.name),
-                                onPressed: () async {
-                                  await controller.stopCasting();
-                                  _close(toast: loc.player_stopped_cast);
-                                },
-                              ),
-                            if (remotePeers.isNotEmpty)
-                              for (final peer in remotePeers)
-                                PeerCastRow(
-                                  key: ValueKey(
-                                    'popover-peer-${peer.peerId}',
-                                  ),
-                                  peer: peer,
-                                  selected:
-                                      cast.activePeer?.peerId == peer.peerId,
-                                  onSwitch: () async {
-                                    final ok = await controller.switchTo(peer);
-                                    if (!ok) {
-                                      if (context.mounted) {
-                                        showMusicFlowMessage(
-                                          context,
-                                          loc.player_cast_failed(peer.name),
-                                          kind: MusicFlowMessageKind.error,
-                                        );
-                                      }
-                                      return;
-                                    }
-                                    _close(
-                                      toast: loc.player_remote_control(
-                                        peer.name,
-                                      ),
-                                    );
-                                  },
-                                  onHandoff: (push) => _doHandoffPopover(
-                                    context,
-                                    controller,
-                                    peer,
-                                    push,
-                                  ),
-                                )
-                            else
-                              Padding(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: context.musicFlowSpacing.sm,
-                                ),
+                          child: Row(
+                            children: <Widget>[
+                              Expanded(
                                 child: Text(
-                                  _peers == null ? loc.player_loading_peers : loc.player_no_other_players,
-                                  style: context.musicFlowTypography.body.copyWith(
-                                    color: context.musicFlowColors.muted,
-                                  ),
+                                  loc.player_select_source_title,
+                                  style: context.musicFlowTypography.headline,
                                 ),
                               ),
-                            MusicFlowActionRow(
-                              icon: AppIcons.refresh,
-                              title: loc.player_refresh_players,
-                              trailing: cast.loadingPeers
-                                  ? const SizedBox.square(
-                                      dimension: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                              MusicFlowIconButton(
+                                icon: AppIcons.close,
+                                label: loc.widgets_window_close,
+                                onPressed: () => _close(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.fromLTRB(
+                              context.musicFlowSpacing.xs,
+                              0,
+                              context.musicFlowSpacing.xs,
+                              context.musicFlowSpacing.xs,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                MusicFlowActionRow(
+                                  icon: AppIcons.headphones,
+                                  title: loc.player_source_local_title,
+                                  subtitle: cast.activePeer != null
+                                      ? (cast.offline
+                                            ? loc.player_source_offline
+                                            : loc.player_source_casting)
+                                      : loc.player_source_local_desc,
+                                  selected: cast.activePeer == null,
+                                  onPressed: () async {
+                                    await controller.backToLocal(
+                                      resumeLocal: true,
+                                    );
+                                    _close(toast: loc.player_switched_local);
+                                  },
+                                ),
+                                if (cast.activePeer != null)
+                                  MusicFlowActionRow(
+                                    icon: AppIcons.close,
+                                    title: loc.player_stop_cast,
+                                    subtitle: loc.player_stop_cast_subtitle(
+                                      cast.activePeer!.name,
+                                    ),
+                                    onPressed: () async {
+                                      await controller.stopCasting();
+                                      _close(toast: loc.player_stopped_cast);
+                                    },
+                                  ),
+                                if (remotePeers.isNotEmpty)
+                                  for (final peer in remotePeers)
+                                    PeerCastRow(
+                                      key: ValueKey(
+                                        'popover-peer-${peer.peerId}',
+                                      ),
+                                      peer: peer,
+                                      selected:
+                                          cast.activePeer?.peerId ==
+                                          peer.peerId,
+                                      onSwitch: () async {
+                                        final ok = await controller.switchTo(
+                                          peer,
+                                        );
+                                        if (!ok) {
+                                          if (context.mounted) {
+                                            showMusicFlowMessage(
+                                              context,
+                                              loc.player_cast_failed(peer.name),
+                                              kind: MusicFlowMessageKind.error,
+                                            );
+                                          }
+                                          return;
+                                        }
+                                        _close(
+                                          toast: loc.player_remote_control(
+                                            peer.name,
+                                          ),
+                                        );
+                                      },
+                                      onHandoff: (push) => _doHandoffPopover(
+                                        context,
+                                        controller,
+                                        peer,
+                                        push,
                                       ),
                                     )
-                                  : null,
-                              onPressed: cast.loadingPeers
-                                  ? null
-                                  : () => _reload(),
+                                else
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      vertical: context.musicFlowSpacing.sm,
+                                    ),
+                                    child: Text(
+                                      _peers == null
+                                          ? loc.player_loading_peers
+                                          : loc.player_no_other_players,
+                                      style: context.musicFlowTypography.body
+                                          .copyWith(
+                                            color:
+                                                context.musicFlowColors.muted,
+                                          ),
+                                    ),
+                                  ),
+                                MusicFlowActionRow(
+                                  icon: AppIcons.refresh,
+                                  title: loc.player_refresh_players,
+                                  trailing: cast.loadingPeers
+                                      ? const SizedBox.square(
+                                          dimension: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : null,
+                                  onPressed: cast.loadingPeers
+                                      ? null
+                                      : () => _reload(),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

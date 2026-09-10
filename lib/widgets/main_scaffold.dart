@@ -197,6 +197,31 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         }
         return '';
       }
+      // 桌面歌词「切换播放器」弹窗:原生层展开时来要设备列表(自己拉并推回),
+      // 点某一行时把行号回传,由控制器按行号执行切换。
+      // switch_pull:N / switch_push:N = 该行设备的接续箭头(↓ 接回本机 /
+      // ↑ 推到该设备),与 MINI 弹窗的接续按钮同一套语义。
+      if (message.startsWith('switch_pull:') ||
+          message.startsWith('switch_push:')) {
+        final push = message.startsWith('switch_push:');
+        // 两个前缀长度相同('switch_pull:'/'switch_push:' 均为 12)。
+        final index = int.tryParse(message.substring(12));
+        if (index != null) {
+          await ref
+              .read(statusLyricsControllerProvider)
+              .handoffSwitchRow(index, push: push);
+        }
+        return '';
+      }
+      if (message.startsWith('switch_pick:')) {
+        final index = int.tryParse(message.substring(12));
+        if (index != null) {
+          await ref
+              .read(statusLyricsControllerProvider)
+              .pickSwitchRow(index);
+        }
+        return '';
+      }
       switch (message) {
         case 'toggle_play_pause':
           await toggleEffectivePlayback(ref);
@@ -222,12 +247,19 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           // 桌面歌词浮窗「喜欢」按钮:与主窗口喜欢按钮同一条链路。
           await ref.read(playerProvider.notifier).toggleFavorite();
           break;
-        case 'switch_player':
-          // 桌面歌词浮窗「切换播放器」按钮:打开与迷你播放条同一个
-          // 「选择播放器」弹窗(桌面端为播放控件上方小弹窗)。
-          if (mounted) {
-            showPlayerSwitcher(context: context, ref: ref);
-          }
+        case 'switch_player_open':
+          // 桌面歌词浮窗「切换播放器」按钮:不回到主窗口弹窗,而是让原生层在
+          // 歌词窗上方展开设备列表弹窗(内容与 MINI 播放条小弹窗一致)。
+          // 这里只负责把最新设备列表拉好推过去。
+          await ref
+              .read(statusLyricsControllerProvider)
+              .requestSwitchList();
+          break;
+        case 'switch_close':
+          // 桌面歌词设备弹窗收起(点按钮 toggle/选行/搬移/移出悬停区):
+          // 停掉设备行「正在播放」的实时刷新循环(弹窗不在了,继续重拉
+          // 就是每 5s 无谓的跨端调用 + 每设备一次 HTTP)。
+          ref.read(statusLyricsControllerProvider).stopSwitchAutoRefresh();
           break;
         case 'quit':
           // 托盘「退出」:先立即落盘播放状态(进度/音量,不等防抖 Timer),

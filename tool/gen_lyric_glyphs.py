@@ -38,10 +38,19 @@ GLYPHS = [
     # 切换播放器:与 Flutter 侧 AppIcons.signalTower 同款字形
     # (Remix.base_station_line = 0xEAA6)。
     (0xEAA6, "SwitchPlayer", "base_station_line"),
+    # 设备行图标(2026-09-10 对标 MINI 弹窗 PeerCastRow):
+    # 本机=headphone_fill;DLNA 设备复用上面的 SwitchPlayer(同一字形);
+    # 群组=group_3_line;刷新行=restart_line。
+    (0xEE04, "Headphone", "headphone_fill"),
+    (0xF4E4, "Group", "group_3_line"),
+    (0xF080, "Refresh", "restart_line"),
 ]
 
 START_MARK = "// ---- 硬编码 remixicon 字形轮廓(由 tool/gen_lyric_glyphs.py 生成"
 END_MARK = "// ---- end glyph data ----"
+# 警告:--patch 会把 START_MARK..END_MARK 之间的内容**整体重写**。
+# 手写字形(如 kArrowDown/kArrowUp 接续箭头轮廓)必须放在 END_MARK 之后,
+# 否则下次提取时会被静默清掉(2026-09-10 实际发生过)。
 
 
 def ops_to_subpaths(ops):

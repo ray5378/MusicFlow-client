@@ -109,6 +109,30 @@ Future<void> setDesktopLyricQueue({
   }
 }
 
+/// 推送桌面歌词「切换播放器」弹窗数据。
+///
+/// 桌面歌词浮窗的切换播放器按钮不再回到主窗口弹窗,而是在歌词窗**上方**
+/// 展开自己的设备列表弹窗(内容与 MINI 播放条的小弹窗一致,2026-09-10 起)。
+/// [items] 的元素形如
+/// `{'title': 设备名, 'subtitle': 状态文案, 'current': bool}`;
+/// [loading] 为 true 且列表为空时原生层显示「正在加载播放器…」。
+Future<void> setDesktopLyricSwitchList({
+  required List<Map<String, Object>> items,
+  bool loading = false,
+}) async {
+  if (!isWindowsDesktop) return;
+  try {
+    await kWindowsWindowChannel.invokeMethod<void>(
+      'update_desktop_lyric_switch_list',
+      <String, Object>{'items': items, 'loading': loading},
+    );
+  } on MissingPluginException {
+    // 非 Windows 平台没有对应原生实现,静默忽略。
+  } on PlatformException {
+    // 设备列表推送失败不影响主流程。
+  }
+}
+
 /// 显示/隐藏桌面歌词浮窗(原生层置顶、不抢焦点)。
 Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop) return;  try {
     await kWindowsWindowChannel.invokeMethod<void>(
@@ -133,6 +157,15 @@ Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop
 /// 发现新版本、锚点菜单……）打开时，顶部依旧可以拖动窗口。
 /// 此前挂在 MainScaffold 内部，被模态路由整个盖住，
 /// 表现为「打开弹窗后顶部无法拖动窗口」。
+///
+/// ⚠️ 正因为挂在这里，本组件**底下没有 Overlay 祖先**。而窗口控制按钮用了
+/// `Tooltip`，`Tooltip` 显示时要 `Overlay.of(context)` —— 找不到就抛
+/// **"No Overlay widget found."**，被 `ErrorWidget` 顶替后画成红框黄字
+/// （2026-09-10 用户反馈「客户端右边一列奇怪英文」即此，实测已复现）。
+///
+/// 因此本组件**自带一个 `Overlay`**（见 build），把三个按钮放进自己的
+/// Overlay 里：既保住「在最上层、弹窗盖不住」的既有行为，又让 Tooltip
+/// 有 Overlay 可用。**不要为了省事把 Tooltip 去掉**——那是用户可见功能。
 class WindowsWindowChrome extends StatelessWidget {
   const WindowsWindowChrome({super.key});
 
@@ -153,8 +186,25 @@ class WindowsWindowChrome extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isWindowsDesktop) return const SizedBox.shrink();
 
+    // 自带 Overlay:本组件位于 MaterialApp.builder 的 Stack 里、
+    // Navigator/Overlay 之外,内部的 Tooltip 需要自己这层的 Overlay。
+    // 直接挂 Overlay(而不是 SizedBox)即可——chrome 自身就用 Positioned
+    // 定尺寸,Overlay 会把它当作整屏填充的子级正常布局。
+    return Overlay(
+      initialEntries: <OverlayEntry>[
+        OverlayEntry(builder: _buildChrome),
+      ],
+    );
+  }
+
+  Widget _buildChrome(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
+    // 注意:这里返回的 `Positioned` 是 **OverlayEntry 的根** ——
+    // Overlay(_Theater) 对根级 Positioned 有专门支持,会按 top/left/right
+    // /height 精确定位这 40px 拖拽条;其余区域不占位、不拦事件。
+    // 不要改成 Padding/Align —— 会失去「只覆盖顶部 40px」的命中语义,
+    // 把整窗点击都吃掉。
     return Positioned(
       top: 0,
       left: 0,

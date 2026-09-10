@@ -528,8 +528,8 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 ### 8.7 桌面歌词悬停按钮栏布局（v4.3.42 起 8 按钮）
 
-按钮自右缘向左排，索引与偏移必须用 `desktop_lyric.cpp` 顶部的
-`kBtnIdx*` / `kOff*` 常量，**禁止写裸数字**：
+按钮自右缘向左排（**偏移越小越靠右**），索引与偏移必须用 `desktop_lyric.cpp`
+顶部的 `kBtnIdx*` / `kOff*` 常量，**禁止写裸数字**：
 
 | idx | 常量 | 偏移 | 图标 | 事件 |
 |-----|------|------|------|------|
@@ -537,19 +537,115 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 1 | `kBtnIdxPlay` | 349 | play/pause | `toggle_play_pause` |
 | 2 | `kBtnIdxNext` | 295 | next | `next` |
 | 3 | `kBtnIdxMode` | 243 | shuffle/repeat | `cycle_playback_mode` |
-| 4 | `kBtnIdxVolume` | 35 | volume | 内部弹窗 |
-| 5 | `kBtnIdxLike` | 191 | heart | `toggle_like` |
-| 6 | `kBtnIdxQueue` | 139 | 队列 | 内部弹窗 |
-| 7 | `kBtnIdxSwitch` | 87 | 基站 | `switch_player` |
+| 4 | `kBtnIdxLike` | 191 | heart | `toggle_like` |
+| 5 | `kBtnIdxQueue` | 139 | 队列 | 内部弹窗（队列） |
+| 6 | `kBtnIdxVolume` | 87 | volume | 内部弹窗（音量滑条） |
+| 7 | `kBtnIdxSwitch` | 35 | 基站 | 内部弹窗（切换播放器） |
+
+**切换播放器(基站)必须是最靠右的那个按钮，且紧挨音量右侧**
+（`kOffSwitch < kOffVolume`）——GUI 上「音量 → 切换播放器」的相邻关系是
+用户明确要求的排布（2026-09-10 反馈），`tool/desktop_lyric_guard.dart` 规则 6a
+已把这条写死为阻断项。
 
 约束：新增按钮必须同步四处——`kBtnCount`、
 `ButtonGeom`、`HitTestButton` 循环上界、点击派发 `switch`。
 窗口宽度 `kWindowWidth` 保持 572（第 8 个按钮加宽后的值）；
 悬停时歌词跑马灯裁剪区会右让 `kOffPrev + kBtnR + 6`，避免文字钻到按钮底下。
 
+### 8.8 桌面歌词的弹窗必须长在歌词窗自己身上，不得回到主窗口
+
+`PopupKind` 现有三档，一律画在歌词窗**上方**（`SetPopup` 时窗口向上增高
+`g_popupH`，`SyncWindowHeight` 落高度）：
+
+| PopupKind | 面板 | 内容来源 |
+|-----------|------|----------|
+| `Volume` | 竖向滑条 | 本地音量状态，直接改 |
+| `Queue` | 播放队列列表 | Flutter 推来的队列快照 |
+| `Switch` | 设备列表（与 MINI 播放条小弹窗同款） | Flutter 推来的设备列表 |
+
+`Switch` 面板的协议（v4.3.42 起）：
+
+- 点击基站按钮：`SetPopup` 在 `Switch` / `None` 之间 **toggle**——
+  **再次点击同一按钮 = 收起**（用户明确要求，与 Volume/Queue 的语义一致）。
+- 首次展开时向 Dart 发 `switch_player_open`，Dart 侧
+  `StatusLyricsController.requestSwitchList()` 拉一次最新设备列表，
+  再经 `update_desktop_lyric_switch_list`（`WindowsTitleBar` → C++）推回原生。
+- 行内容由纯函数 `composeDesktopLyricSwitchList()` 组装（**有单测**）：
+  `0=本机` 恒在首行；本机非当前控制目标时插入 `1=停止投屏`；其后为可用远端设备。
+  行点击发 `switch_pick:<idx>`，Dart 侧 `pickSwitchRow(index)` 执行切换。
+- 鼠标移出窗口 → 既有 `UpdateHoverState` 路径自动 `SetPopup(None)`，弹窗收回。
+
+**禁止**把设备的切换弹窗再弹回主窗口（旧 `switch_player` 事件已删除）。
+`desktop_lyric_guard.dart` 规则 6b/6c 会拦截「点击分支里又出现 `switch_player`」
+以及「Dart 侧缺失 `requestSwitchList` / `switch_player_open` / `switch_pick:`」。
+
+### 8.9 设备行必须与 MINI 播放条小弹窗同款：徽章 + ↓/↑ 接续箭头
+
+v4.3.42 用户反馈「桌面歌词少了 DLNA 设备里面的部分功能」——歌词窗设备行
+当时只有设备名，缺了 MINI 弹窗 `PeerCastRow` 的两样东西。补齐后：
+
+| 元素 | 位置 | 数据字段 | 语义 |
+|------|------|----------|------|
+| 设备类型徽章 | 紧跟设备名（`MeasureString` 量宽后就地画） | `badge` | `PeerInfo.kindLabel`（DLNA / 群…），本机行留空 |
+| ↓ 接回本机 | 行右端（靠左那支） | `canPull` | 该设备队列非空且正在播放 → `pullPeerToLocal` |
+| ↑ 推到该设备 | 行右端（靠右那支） | `canPush` | 本机非投屏态 + 本机队列非空 → `pushLocalToPeer` |
+
+- 判据与 `PeerCastRow` **逐字一致**（`canPull = now.isActive && total > 0`、
+  `canPush = activePeer == null && localQueue.isNotEmpty`），不许歌词窗自己另立一套。
+- 箭头**始终画出来**，只是无「现场」可搬时置灰（`kOffColor`）——
+  让用户知道这里本来有两支，而不是以为功能没了。
+- 箭头字形是**手写轮廓**（`kArrowDownPts` / `kArrowUpPts`，粗竖杆 + 三角头），
+  不从字体抠：运行时加载字体在本机走不通（§8.6），手写两笔更可控。
+- 行号 → 设备下标必须走纯函数 `desktopLyricPeerIndexFromRow()`（**有单测**）：
+  之前「切控制目标」与「搬现场」两处各写一遍 `- (hasStopRow ? 2 : 1)`，
+  迟早写歪成点 ↓ 搬到隔壁设备。
+- 协议：`switch_pull:N`（↓）/ `switch_push:N`（↑）/ `switch_pick:N`（整行切换）。
+  原生层接续箭头**优先于整行点击**（命中箭头就不再切换控制目标），
+  与 MINI 弹窗的 `_HandoffButton` 行为一致。
+- `desktop_lyric_guard.dart` 规则 8 锁死整条链路（Dart 字段 → 通道 → 原生
+  绘制/命中 → 主壳分发）；注意该规则只认**代码里的字符串字面量**
+  （`"switch_pull:%d"` / `startsWith('switch_pull:')`），
+  注释里的文字提及不算——规则 7 曾因此被注释骗过（`Overlay(`）。
+
 本地复跑原生编译：`bash tool/check_native_syntax.sh`
 （等效于 CI 的 `cl /Zs` job；Git Bash 下 `cmd //c` 会被路径转换搅乱，
 直接调 `cl.exe` + `/I` 显式传头文件路径）。
+
+### 8.10 列表弹窗几何不变量 + 设备行「正在播放」实时化（v4.3.42）
+
+**几何不变量（「设备列表只显示本机」的真实根因）**：`PopupLogicalHeight` 的
+Queue/Switch 高度公式 = `rows*rowH + (rows-1)*gap + kListPopupPadV*2 +
+kListPopupMarginV*2`，其中 `kListPopupMarginV`(6) 是面板矩形自身的上下外边距
+（`ListPanelRect` / `SwitchPanelRect` 的 `rc.top/bottom`）。**公式与矩形必须
+共用同一常量**：公式漏掉 margin 会让行区比可用高度多出 2*S(6)≈18px，
+`rowTop + rowH > rows.bottom` 恒真 → **最后一行永远被 break 裁掉**
+（主卧恒为最后一行 → 永远不显示；队列弹窗同样中招）。
+`desktop_lyric_guard.dart` 规则 9 锁死：公式两处必须都带 margin、
+矩形不得改回 `S(6)` 硬编码。
+
+**接续箭头顺序**：与 MINI `PeerCastRow` 的 Row 顺序一致——**↓(接回本机)在左、
+↑(推到该设备)在右**，`HandoffCx` 用 `(1 - which)` 位移（规则 9 锁死）。
+
+**设备行「正在播放」实时化（原实现是打开瞬间的快照）**：
+- `peerNowPlayingProvider` 是 **StreamProvider.autoDispose.family**：有监听者
+  期间每 5s 重拉，失败保留上次结果；MINI 弹窗行 watch 即实时，关弹窗自动停。
+  ⚠️ Riverpod 2.6.1 普通 `Ref` **没有 listenManual**（只有 WidgetRef 有），
+  控制器内不要试图保活订阅。
+- 桌面歌词侧：控制器 `_fetchSwitchNowPlaying` 并行拉全部可用设备存
+  `_switchNow`，`Timer.periodic(5s)` 重拉+重推（去重 key 拦无变化），
+  首屏在 `requestSwitchList` 末尾立即拉一轮。
+- **协议新增 `switch_close`**：原生 `SetPopup` 从 Switch→None 时（toggle 收起/
+  选行/搬移/移出悬停区）回传，Dart 据此 `stopSwitchAutoRefresh()`——
+  不然弹窗关了还在每 5s 每设备一次 HTTP。规则 8 锁死两端。
+- 轮询生命周期：任一弹窗开→对应设备流启动；同设备两弹窗同开共享一条流
+  （family 单例）；全关→全停。
+
+**行首图标**：`icon` 字段(1=耳机本机 2=基站 DLNA 3=人群群组 4=刷新行)走通道，
+原生用离线字形画（`headphone_fill`/`group_3_line`/`restart_line` 经
+`tool/gen_lyric_glyphs.py --patch` 注入；DLNA 复用切换按钮的 base_station）。
+**手写字形（接续箭头轮廓）必须放在生成区 `END_MARK` 之后**——`--patch` 会把
+生成区整体重写，混进去的手写数据会被静默清掉（v4.3.42 实际发生过，
+规则 9 锁死）。
 
 ---
 

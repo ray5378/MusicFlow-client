@@ -19,8 +19,16 @@ class PeerInfo {
         name: (j['name'] ?? '').toString(),
         kind: (j['kind'] ?? '').toString(),
         available: j['available'] == true,
+        // 注意:`GET /rest/api/v1/peers`(列表)返回的 queue **没有 total 字段**,
+        // 只有 items 数组(实测 2026-09-10:主卧 3246 首,queue.total 为 undefined);
+        // 而 `GET /rest/api/v1/peers/:id/queue`(单设备)**有 total**。
+        // 所以必须 fallback 到 items.length —— 只认 total 会让列表来源的
+        // queueTotal 恒为 0,连带 canPull/queueLabel 全部失效
+        // (桌面歌词设备行的 ↓ 箭头因此永远不亮)。
         queueTotal: (j['queue'] is Map<String, dynamic>)
-            ? ((j['queue']['total'] as num?)?.toInt() ?? 0)
+            ? ((j['queue']['total'] as num?)?.toInt() ??
+                (j['queue']['items'] as List<dynamic>?)?.length ??
+                0)
             : 0,
         queueActive: (j['queue'] is Map<String, dynamic>)
             ? (j['queue']['isActive'] == true)

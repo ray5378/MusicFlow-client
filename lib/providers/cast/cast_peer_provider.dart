@@ -1142,9 +1142,22 @@ final isCastingProvider = Provider<bool>((ref) {
 
 /// 单个 peer 的实时队列摘要(FutureProvider.family):「选择播放器」弹窗
 /// 每个设备行 watch 自己的 peerId,打开弹窗即拉、autoDispose 自动回收。
-/// 刷新时 invalidate 全部条目;失败返回 null(按「未知/未在播放」展示)。
-final peerNowPlayingProvider = FutureProvider.autoDispose
-    .family<PeerNowPlaying?, String>((ref, peerId) async {
+/// 刷新时 invalidate 全部条目;失败保留上一次结果(按「未知/未在播放」展示)。
+///
+/// **流式轮询(2026-09-10)**:原先是一次性 FutureProvider,拉一次缓存到死,
+/// MINI 弹窗与桌面歌词设备行显示的都是「打开瞬间的快照」——歌曲切了界面
+/// 不跟着变(用户实测反馈)。改为 StreamProvider:**有监听者期间每 5s 重拉**,
+/// 弹窗关闭(autoDispose 无人监听)轮询自动停止;MINI 弹窗的 PeerCastRow
+/// 直接 watch 即得实时数据,无需各处另起定时器。
+final peerNowPlayingProvider = StreamProvider.autoDispose
+    .family<PeerNowPlaying?, String>((ref, peerId) async* {
   final controller = ref.read(castPeerControllerProvider.notifier);
-  return controller.fetchPeerNowPlaying(peerId);
+  PeerNowPlaying? last;
+  while (true) {
+    final now = await controller.fetchPeerNowPlaying(peerId);
+    // 拉取失败(设备离线/网络抖动)保留上一次结果,不让界面闪「状态未知」。
+    if (now != null) last = now;
+    yield now ?? last;
+    await Future<void>.delayed(const Duration(seconds: 5));
+  }
 });

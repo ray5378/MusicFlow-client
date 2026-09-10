@@ -203,6 +203,30 @@ void main() {
       expect(p.queueLabel, '3 首 · 播放中');
     });
 
+    test('列表接口没有 total 时回落到 items.length(否则 queueTotal 恒为 0)', () {
+      // 实测(2026-09-10):GET /rest/api/v1/peers 的 queue 只有 items 数组,
+      // 没有 total;而单设备接口 GET /peers/:id/queue 才有 total。
+      // 只认 total 会让「设备列表」来源的 queueTotal 恒为 0,
+      // 连带桌面歌词设备行的 ↓ 箭头永远不亮。
+      final p = PeerInfo.fromJson(<String, dynamic>{
+        'peerId': 'dlna-9',
+        'name': '主卧',
+        'kind': 'dlna',
+        'available': true,
+        'queue': <String, dynamic>{
+          'isActive': true,
+          'items': <dynamic>[
+            <String, dynamic>{'songId': 'a'},
+            <String, dynamic>{'songId': 'b'},
+            <String, dynamic>{'songId': 'c'},
+          ],
+        },
+      });
+      expect(p.queueTotal, 3);
+      expect(p.queueActive, isTrue);
+      expect(p.queueLabel, '3 首 · 播放中');
+    });
+
     test('local and group kinds map to correct labels', () {
       expect(
         PeerInfo.fromJson(<String, dynamic>{'peerId': 'l', 'kind': 'local'})
