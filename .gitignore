@@ -55,3 +55,13 @@ unlinked_spec.ds
 
 # gen-l10n 产物(由 CI 的 flutter pub get / gen-l10n 生成)
 /lib/l10n/generated/
+
+# tool/ 下 C++ 排查钩子的编译中间产物(源码 msg_hook.cpp 入库，产物不入库)
+# 由 cl.exe /link /DLL 生成，随工具链与架构而变，无版本管理价值
+/tool/*.dll
+/tool/*.exp
+/tool/*.lib
+/tool/*.obj
+# 上述工具运行时吐出的采样结果快照(临时数据，非源文件)
+/tool/msg_hist_result.txt
+/tool/msg_hist_storm.txt
