@@ -7,6 +7,7 @@ import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/utils/subsonic_auth.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
+import 'package:musicflow_client/data/sources/local_storage.dart';
 
 /// Subsonic API Client
 /// Updated to support MusicLibrary model and injected Dio.
@@ -37,6 +38,22 @@ class SubsonicApiClient {
   }
 
   MusicLibrary? get library => _library;
+
+  /// 本安装的临时端 ID(懒加载一次后缓存,供每个请求带上 `x-mf-client-id`)。
+  /// 服务端用它区分同一账号下的多个播放端;客户端本身不需要、也看不到它。
+  ///
+  /// **best-effort**:取不到(平台存储不可用,如纯单测环境)返回 null —— 调用方
+  /// 就不带这个头,服务端自然退回单端旧格式,绝不能因此让请求失败。
+  String? _clientIdCache;
+  Future<String?> clientId() async {
+    if (_clientIdCache != null) return _clientIdCache;
+    try {
+      return _clientIdCache = await LocalStorage.getClientId();
+    } catch (e) {
+      Logger.debugWithTag('SUBSONIC', 'clientId unavailable: $e');
+      return null;
+    }
+  }
 
   /// Check response status (Subsonic specific)
   void _checkResponse(Map<String, dynamic> data) {
@@ -448,10 +465,16 @@ class _SubsonicAuthInterceptor extends Interceptor {
   _SubsonicAuthInterceptor(this._client);
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final params = <String, String>{};
     _client._addAuthParamsMap(params);
     options.queryParameters.addAll(params);
+    // 临时端 ID(本安装唯一,持久化):服务端据此把同账号多个播放端(网页标签页 /
+    // 多个客户端)的播放队列隔离开。它只在服务端内部使用,响应里不会回显。
+    final clientId = await _client.clientId();
+    if (clientId != null && clientId.isNotEmpty) {
+      options.headers['x-mf-client-id'] = clientId;
+    }
     handler.next(options);
   }
 }

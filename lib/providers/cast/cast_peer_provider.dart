@@ -19,8 +19,9 @@ import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 ///   不推本地队列、不自动投屏;此后客户端是后端的**远程遥控器** —— 点歌/专辑/歌单
 ///   走 [playQueueOnPeer]/[playSongOnPeer] 命令**后端**在所选设备播放,播放控件
 ///   直接作用于该设备;
-/// - 本机模式 = 现有 just_audio 播放,不经过后端;离开本机时保存本地状态快照,
-///   回本机时恢复,保证「切换前的设备」逻辑不被破坏。
+/// - 本机模式 = 现有 just_audio 播放(播放本身不经过后端);但**队列会镜像到服务端**
+///   本端那一行(见「本机队列上报」),服务端预探测因此也能替本机链路预扫坏源,
+///   且同账号多个播放端互不覆盖。离开本机时保存本地状态快照,回本机时恢复。
 ///
 /// 注意:后端权限为「非 admin 仅能控制自己的 `local:<uid>`」;普通账号面板只会
 /// 出现本机条目,属预期表现。
@@ -36,6 +37,9 @@ import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 /// 8. 静音:setMuted 下发 /mute。
 /// 9. 群组/AirPlay 差异化:switcher 按 kind 区分图标/标签(群组/离线)。
 /// 10. 投屏失败:queue/play 失败返回 false,保持本机,不产生脏状态。
+/// 11. 本机队列上报 + 自动注册:队列/游标/模式变化防抖镜像到服务端本端那一行
+///     (每端一个临时端 ID,服务端隔离;投屏中不上报);未注册成功时心跳周期内
+///     自动补注册(服务端重启/断线重连后无需用户操作)。
 
 /// 队列传输超时预算（**随队列规模缩放**）。
 ///
@@ -116,9 +120,20 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   // ==================== 注册与保活 ====================
 
-  /// 登录后注册本机 peer(名称留给后端默认 username)并启动 30s 心跳。
-  /// 对齐前端 registerLocalPeer + startHeartbeat;best-effort,失败不抛。
+  /// 登录后注册本机 peer(名称留给后端默认 username)并启动 30s 心跳,
+  /// 同时开始把本机队列镜像到服务端。对齐前端 registerLocalPeer;best-effort。
+  ///
+  /// 服务端按请求头 `x-mf-client-id`(本安装的临时端 ID,见 LocalStorage.getClientId)
+  /// 把本端与同账号的其它播放端(网页标签页 / 其它客户端)分开记账,对外返回的
+  /// peerId 恒为 `local:<userId>`。
   Future<void> registerAndHeartbeat() async {
+    await _registerSelf();
+    startHeartbeat();
+    _watchLocalQueue();
+  }
+
+  /// 注册本端(不碰心跳/监听),供 registerAndHeartbeat 与心跳补注册复用。
+  Future<void> _registerSelf() async {
     final client = _ref.read(subsonicApiClientProvider);
     try {
       final resp = await client.postRaw(
@@ -131,16 +146,21 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         if (pid is String && pid.isNotEmpty) _localPeerId = pid;
       }
     } catch (e) {
-      // 注册失败不阻塞登录;后续心跳按 local:<uid> 兜底再试。
+      // 注册失败不阻塞登录;下个心跳周期自动补注册(见 startHeartbeat)。
       Logger.debugWithTag('CAST-PEER', 'register self peer failed: $e');
     }
-    startHeartbeat();
   }
 
   /// 开始心跳保活(对齐前端 30s 间隔)。
+  /// 心跳同时承担**自动注册**:服务端重启 / 网络恢复 / 首轮注册失败后,
+  /// 只要还没拿到本端 peerId,就在心跳周期内补注册一次,直到成功。
   void startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_localPeerId == null || _localPeerId!.isEmpty) {
+        unawaited(_registerSelf());
+        return;
+      }
       unawaited(_sendHeartbeat());
     });
     unawaited(_sendHeartbeat());
@@ -163,6 +183,101 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   void stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+  }
+
+  // ==================== 本机队列上报(服务端隔离账本) ====================
+  //
+  // 本机播放(just_audio)的队列权威在客户端;这里把它镜像到服务端账号名下
+  // **本播放端**那一行(对外 peerId 恒为 local:<userId>,服务端按请求头里的临时端
+  // ID 落到本安装)。三个收益:
+  //   1. 服务端预探测能替本机链路向前扫描坏源(与投屏链路共用同一颗大脑);
+  //   2. 同账号多个播放端(多个标签页 / 网页 + 桌面客户端)互不覆盖 —— 历史实现
+  //      里它们共用 local:<userId> 一个坑位,谁后连谁把队列顶掉;
+  //   3. 队列不会被误清:服务端改成「6 小时未变动 且 该端离线 6 小时」才回收。
+  //
+  // 投屏中不上报 —— 此时本机只是遥控器,界面镜像的队列归设备,写成本机队列是错的。
+  Timer? _localQueueTimer;
+  bool _localQueueWatcherOn = false;
+
+  /// 最近一次已上报的队列长度:用于「空队列不主动擦掉服务端」的判定
+  /// (App 启动/切歌空窗期本机队列可能瞬时为空,不应把服务端队列清掉)。
+  int _lastPushedLocalCount = 0;
+  String? _lastPushedLocalMode;
+
+  /// 订阅本机播放状态:队列 / 游标 / 播放模式变化 → 防抖上报。
+  void _watchLocalQueue() {
+    if (_localQueueWatcherOn) return;
+    _localQueueWatcherOn = true;
+    _ref.listen<PlayerState>(playerProvider, (prev, next) {
+      if (state.activePeer != null) return; // 投屏中:队列归设备,不写本机
+      final queue = next.queue;
+      final index = next.currentIndex;
+      final mode = mapLocalPlayMode(next.playbackMode);
+      final queueChanged = !identical(prev?.queue, queue);
+      final indexChanged = prev?.currentIndex != index;
+      final modeChanged = prev == null || mapLocalPlayMode(prev.playbackMode) != mode;
+      if (!queueChanged && !indexChanged && !modeChanged) return;
+      // 空队列且此前从未上报过内容 → 跳过(避免启动空窗擦队列)。
+      if (queue.isEmpty && _lastPushedLocalCount == 0) return;
+      _localQueueTimer?.cancel();
+      _localQueueTimer = Timer(const Duration(milliseconds: 600), () {
+        unawaited(_syncLocalQueue(queue, index, mode, full: queueChanged));
+      });
+    });
+  }
+
+  /// 把本机队列/游标/模式镜像到服务端。失败静默(下个变化点再试)。
+  Future<void> _syncLocalQueue(
+    List<Song> queue,
+    int index,
+    String mode, {
+    required bool full,
+  }) async {
+    // 还没注册成功(服务端重启 / 断线) → 先补注册拿到本端 peerId。
+    if (_localPeerId == null || _localPeerId!.isEmpty) {
+      await _registerSelf();
+    }
+    final pid = _localPeerId;
+    if (pid == null || pid.isEmpty) return;
+    final client = _ref.read(subsonicApiClientProvider);
+    final items = queue.map(songToQueueItem).toList();
+    try {
+      if (full) {
+        // 整队替换:超时预算随队列规模缩放(与投屏同一公式)。
+        final budget = queueTransferBudget(items.length);
+        await client
+            .postRaw(
+              '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/queue/play',
+              data: <String, dynamic>{
+                'items': items,
+                'startIndex': index < 0 ? 0 : index,
+              },
+              receiveTimeout: budget,
+            )
+            .timeout(budget);
+        // queue/play 会把服务端模式重置为 order,必须随后补发当前模式
+        // (与投屏 _pushQueueAndPlay 同款收尾)。
+        await client.postRaw(
+          '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/play-mode',
+          data: <String, dynamic>{'mode': mode},
+        );
+      } else {
+        if (_lastPushedLocalMode != mode) {
+          await client.postRaw(
+            '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/play-mode',
+            data: <String, dynamic>{'mode': mode},
+          );
+        }
+        await client.postRaw(
+          '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/queue/index',
+          data: <String, dynamic>{'index': index},
+        );
+      }
+      _lastPushedLocalCount = items.length;
+      _lastPushedLocalMode = mode;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'local queue sync failed: $e');
+    }
   }
 
   // ==================== 播放器列表 ====================

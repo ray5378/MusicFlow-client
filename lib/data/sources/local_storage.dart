@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -37,6 +38,42 @@ class LocalStorage {
   static const String _keyLoggingEnabled = 'logging_enabled';
   static const String _keySearchHistory = 'search_history_v1';
   static const String _keyHomeSectionLayout = 'home_section_layout_v1';
+  static const String _keyClientId = 'mf_client_id';
+
+  /// 本安装的「临时端 ID」——服务端用它把同一账号下多个播放端(网页标签页 /
+  /// 多个客户端)的播放队列隔离开，谁也不会覆盖谁。
+  ///
+  /// 它**只是服务端内部用来区分实体的值**：不出现在任何界面上，服务端返回的
+  /// peerId 也一直是 `local:<userId>`（不变量见 backend utils/peerId.ts）。
+  /// 生成一次后持久化，App 重启复用同一个端（队列因此能续上）；换设备/清数据
+  /// 才会得到新端，旧端队列由服务端的 6 小时静默回收清掉。
+  static final RegExp _clientIdRe = RegExp(r'^[A-Za-z0-9_-]{1,32}$');
+  static String? _cachedClientId;
+
+  /// 取本安装的临时端 ID（首次调用时生成并落盘）。
+  static Future<String> getClientId() async {
+    final cached = _cachedClientId;
+    if (cached != null) return cached;
+    final prefs = await getPrefs();
+    final saved = prefs.getString(_keyClientId);
+    if (saved != null && _clientIdRe.hasMatch(saved)) {
+      _cachedClientId = saved;
+      return saved;
+    }
+    final id = 'app-${_randomClientIdHex()}';
+    _cachedClientId = id;
+    await prefs.setString(_keyClientId, id);
+    Logger.infoWithTag(_logTag, 'clientId generated: $id');
+    return id;
+  }
+
+  static String _randomClientIdHex() {
+    final rnd = Random.secure();
+    return List<String>.generate(
+      6,
+      (_) => rnd.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
 
   /// 是否开启日志抓取（默认关闭，需用户手动开启）。
   static Future<bool> getLoggingEnabled() async {
