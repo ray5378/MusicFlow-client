@@ -135,6 +135,39 @@ class PeerNowPlaying {
   }
 }
 
+/// mime → suffix:queueItemToSong 的反向映射,两处必须成对维护。
+/// 服务端队列项只存 mime 不存 suffix;反向恢复时必须还原 suffix,否则
+/// 播放器无法从链接推断格式(历史教训:Web 端 Howler
+/// "No file extension was found" 导致整条恢复队列全灭)。
+String mimeToSuffix(String mime) => switch (mime.toLowerCase()) {
+      'audio/flac' => 'flac',
+      'audio/wav' => 'wav',
+      'audio/aac' => 'aac',
+      'audio/ogg' => 'ogg',
+      'audio/mp4' => 'm4a',
+      'audio/opus' => 'opus',
+      'audio/ape' => 'ape',
+      'audio/x-ms-wma' => 'wma',
+      _ => 'mp3',
+    };
+
+/// 后端本机队列快照条目 → 可本机播放的 Song(对齐 Web 前端 queueItemToSong)。
+/// 与 castQueueItemToSong 的区别:这里要真的播放,必须还原 suffix。
+Song queueItemToSong(Map<String, dynamic> it) {
+  final albumId = it['albumId'] as String?;
+  return Song(
+    id: '${it['songId'] ?? ''}',
+    title: (it['title'] as String?) ?? l10nNowCurrent().peer_unknown,
+    artist: it['artist'] as String?,
+    album: it['album'] as String?,
+    albumId: albumId,
+    duration: (it['duration'] as num?)?.toInt(),
+    coverArt: (it['coverArt'] as String?) ??
+        (albumId != null ? 'al-$albumId' : null),
+    suffix: mimeToSuffix((it['mime'] as String?) ?? ''),
+  );
+}
+
 /// 队列条目：投递给后端 queue/play 的形状（对齐前端 songToQueueItem）。
 Map<String, dynamic> songToQueueItem(dynamic song) => <String, dynamic>{
       'songId': song.id as String?,

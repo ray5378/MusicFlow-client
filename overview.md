@@ -1,3 +1,54 @@
+# 本轮改动总览（2026-09-12 · 恢复卡死根修 + 启动新鲜度竞速：v4.3.49 之后依旧恢复旧队列）
+
+> v4.3.50（tag `v4.3.50`，与主仓 v2.3.34 lockstep）
+
+## 一句话
+
+v4.3.49 真机复测仍恢复「我的好兄弟 (Live)」：真正根因不是写卡死，而是**恢复流程卡死** ——
+`_restorePlaybackSession` 里 `await playSong(autoPlay:false)` 仍会对当前曲 setUrl 加载，
+死链下该 await 永久不返回 → `_isRestoringPlaybackSession` 长期为 true → **之后所有会话落盘
+在入口被跳过** → 本地文件整体陈旧 → 每次重启都恢复同一首旧歌。本轮：恢复不再等加载（fire-and-forget）+
+恢复标志改 20s 租约 + 启动时与服务端队列做**新鲜度竞速**（新者胜，败方回填）。
+
+## 根因（v4.3.49 修复为何无效）
+
+- 证据：v4.3.49 在跑（exe 4.3.49.508），会话文件 mtime 仍停在 9-11 16:42；02:20 重启恢复旧文件并
+  经 _watchLocalQueue 把 412 首旧队列传给服务端；02:35 用户重播歌单，服务端行已更新为 3215 首，
+  **本地文件依旧一动不动** → 落盘被「恢复卡死」压制，与写路径无关。
+- `playSong(autoPlay:false)` 不是「只设状态」：它会走完整加载链（setUrl）。恢复出的那首是死链 →
+  just_audio 对打不开的流无限缓冲 → await 不返回 → 恢复流程挂在 `await playSong(...)`。
+- v4.3.49 的落盘租约只防「写入卡死」，防不了「恢复卡死」。
+
+## 实现（三件套）
+
+1. **恢复不等加载**：`playSong` 增加 `initialPosition` 参数（state.position 直显 + 挂 pendingSeek，
+   源就绪后由既有管线 seek）；恢复路径 `unawaited(playSong(...))`，加载/重试交给播放器看门狗。
+2. **恢复租约**：`bool _isRestoringPlaybackSession` → `int? _restoreStartedAtMs`（20s 上限），
+   超时强制放行落盘（纯时间戳，无 Timer，不碰 fakeAsync 不变量）。
+3. **启动新鲜度竞速（需主仓 v2.3.34）**：启动恢复前拉 `GET /rest/api/v1/peers/:id/queue`（5s 预算），
+   服务端快照新增 `updatedAt` 字段；服务端比本地会话文件新 → 用服务端队列恢复（queueItemToSong
+   做 mime→suffix 还原）+ 本地文件回填；本地新/快照不可用 → 原行为（恢复本地 + 推服务端）。
+   测试环境（FLUTTER_TEST）短路快照拉取，避免 Timer 撞 flutter_test 不变量。
+
+## 效果
+
+- 死链恢复不再卡死启动，落盘恢复流动，本地会话文件持续保鲜。
+- 本地旧文件不再反杀服务端新队列（真机场景：本地 412 首旧会话 vs 服务端 3215 首歌单队列 →
+  恢复歌单队列并把本地回填成同一份）。
+- 跨端场景顺带覆盖：手机播完、电脑再开，电脑启动时自动采用服务端较新队列。
+
+## 验证
+
+| 项 | 结果 |
+|---|---|
+| `dart analyze`（改动文件） | 0 error（仅历史 info） |
+| `flutter test`（全量） | 663 / 663 通过 + 新增 5 用例 |
+| `peer_queue_item_test.dart`（新增） | 5 / 5（mime↔suffix 往返、兜底） |
+| 主仓 `tsc --noEmit` | 0 error |
+| 主仓 `vitest localPreProbe` | 6 / 6（含新增 updatedAt 断言） |
+
+---
+
 # 本轮改动总览（2026-09-12 凌晨 · 播放会话落盘停摆修复：不再每次都恢复成同一首旧歌）
 
 > v4.3.49（tag `v4.3.49`）

@@ -177,7 +177,36 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 改用时间戳租约后，即使超时兜底也失效，过期即强制放行：宁可并发写一次，
   /// 也不能再也不写。
   int? _persistingSinceMs;
-  bool _isRestoringPlaybackSession = false;
+
+  /// 会话恢复租约起点（替代布尔量 `_isRestoringPlaybackSession`）。
+  ///
+  /// 与落盘租约同理:恢复流程里有 `await playSong(...)`,而 playSong 会对
+  /// 当前曲做 setUrl 加载 —— 死链/慢源下该 await 可能**永久不返回**,恢复
+  /// 标志就永远为 true,此后所有播放会话落盘在入口被静默跳过,本地会话
+  /// 文件整体陈旧,每次重启都恢复同一首旧歌(v4.3.49 实测症状)。改成时间
+  /// 戳租约:超时即视为恢复已结束,强制放行落盘 —— 宁可恢复窗口被提前
+  /// 关闭,也不能让本地留存再也不写。
+  int? _restoreStartedAtMs;
+
+  /// 恢复租约时长:正常恢复(含一次源加载尝试)远小于此值;超时只可能是
+  /// 某个 await 挂死了。
+  static const int _restoreLeaseMs = 20000;
+
+  /// 恢复是否进行中。带租约上限:超时强制视为已结束。
+  bool get _isRestoringPlaybackSession {
+    final since = _restoreStartedAtMs;
+    if (since == null) return false;
+    final heldMs = DateTime.now().millisecondsSinceEpoch - since;
+    if (heldMs <= _restoreLeaseMs) return true;
+    Logger.warnWithTag(
+      _playerLogTag,
+      'playback session restore lease expired, forcing persist path open '
+      '(heldMs=$heldMs)',
+    );
+    _restoreStartedAtMs = null;
+    return false;
+  }
+
   // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
   // 队列序列化缓存移入 _payloadEncoder(PlaybackPayloadEncoder)。
   NetworkType _lastObservedNetworkType = NetworkType.none;
@@ -684,6 +713,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     bool recordShuffleHistory = false,
     bool clearShuffleForwardHistory = false,
     bool autoPlay = true,
+    /// 会话恢复用:起播前应处于的进度。非空时写入 state.position(界面立即
+    /// 显示恢复进度)并挂 pendingSeek,音源就绪后由既有 pendingSeek 管线
+    /// 自动 seek 到位 —— 恢复路径不再 await 加载,见
+    /// _restorePlaybackSession。
+    Duration? initialPosition,
   }) async {
     final playQueue = queue ?? [song];
     final playIndex = index ?? 0;
@@ -739,15 +773,22 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         if (_playDebugSession != debugSession) return;
       }
 
-      _clearPendingSeek();
+      _clearForcedNext();
+      _isHandlingCompletion = false;
+      _completionHandlingSongId = null;
+      if (initialPosition != null && initialPosition > Duration.zero) {
+        // 恢复路径:不清 pendingSeek,而是挂上恢复进度,等源就绪后由
+        // _applyPendingSeekIfNeeded(playSong 源就绪分支已 await 它)落位。
+        _pendingSeekPosition = initialPosition;
+        _pendingSeekSongId = song.id;
+      } else {
+        _clearPendingSeek();
+      }
       _currentStreamUrl = null;
       _invalidateLoadedSource(reason: 'play_song_started');
       _invalidateSeekRequests();
       _clearStreamContext();
-      _clearForcedNext();
-      _isHandlingCompletion = false;
-      _completionHandlingSongId = null;
-      _lastPolledPlayerPosition = Duration.zero;
+      _lastPolledPlayerPosition = initialPosition ?? Duration.zero;
       _stagnantPositionTicks = 0;
       _lastStagnantLogTick = -1;
       _lastIgnoredSyntheticPositionLogTick = -1;
@@ -763,7 +804,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         currentSong: song,
         queue: playQueue,
         currentIndex: playIndex,
-        position: Duration.zero,
+        position: initialPosition ?? Duration.zero,
         duration: initialDuration, // 使用歌曲元数据的时长
         currentBitRateKbps: 0,
       );

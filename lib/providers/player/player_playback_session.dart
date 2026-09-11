@@ -124,85 +124,137 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
   Future<void> _restorePlaybackSession() async {
     if (!mounted) return;
     var restored = false;
-    _isRestoringPlaybackSession = true;
+    var fromServer = false;
+    _restoreStartedAtMs = DateTime.now().millisecondsSinceEpoch;
 
     try {
       final session = await LocalStorage.getPlaybackSession();
-      if (session == null) return;
-
-      final queue = _parsePlaybackSessionQueue(session['queue']);
-      if (queue.isEmpty) {
+      final localQueue = session == null
+          ? const <Song>[]
+          : _parsePlaybackSessionQueue(session['queue']);
+      if (session != null && localQueue.isEmpty) {
         await LocalStorage.clearPlaybackSession();
-        return;
       }
+      final localUpdatedAt =
+          session == null ? 0 : (_parseStoredInt(session['updatedAt']) ?? 0);
 
-      final preferredIndex = _parseStoredInt(session['currentIndex']) ?? 0;
-      final currentSongId = session['currentSongId']?.toString();
-      final restoredIndex = _resolveRestoredQueueIndex(
-        queue: queue,
-        preferredIndex: preferredIndex,
-        currentSongId: currentSongId,
-      );
-      final storedPositionMs = _parseStoredInt(session['positionMs']) ?? 0;
-      final restoredPosition = Duration(milliseconds: max(0, storedPositionMs));
-      final wasPlaying = session['isPlaying'] == true;
-      Logger.infoWithTag(
-        _playerLogTag,
-        'restoring playback session queue=${queue.length} '
-        'index=$restoredIndex posMs=${restoredPosition.inMilliseconds} '
-        'wasPlaying=$wasPlaying',
-      );
-      // 诊断：打印恢复队列的实际歌曲(用于定位"每次都恢复成固定试听歌")。
-      Logger.infoWithTag(
-        _playerLogTag,
-        'session queue ids=${queue.map((s) => s.id).toList()} '
-        'titles=${queue.map((s) => s.title).toList()} '
-        'previewFlags=${queue.map((s) => s.isPreview).toList()} '
-        'storedCurrentSongId=$currentSongId storedIndex=$preferredIndex '
-        'sessionUpdatedAt=${session['updatedAt']}',
-      );
-      await playSong(
-        queue[restoredIndex],
-        queue: queue,
-        index: restoredIndex,
-        autoPlay: false,
-      );
-      if (restoredPosition > Duration.zero) {
-        await seek(restoredPosition);
-      }
-      // 恢复即续播:是否自动播放**只由设置「打开时自动播放」决定**(默认关闭)。
-      // 关闭时只恢复队列与进度、停在暂停态,不因关闭前在播就擅自起播;
-      // 开启时才在恢复后自动续播。旧逻辑 `wasPlaying || autoPlayOnLaunch`
-      // 会让关闭前在播的应用无论如何都自动续播,违背用户设置意图。
-      final autoResume = await LocalStorage.getAutoPlayOnLaunch();
-      if (autoResume) {
-        await play();
-      } else {
-        await pause();
-      }
-
-      // 恢复队列来源（与队列同一份会话，必须成对恢复）。
-      // 本方法直接调 playSong 而非 playEffectiveQueue，不经过来源写入点，
-      // 所以必须在这里显式回填；否则「本机→设备」接续搬移会误判来源不可解析。
-      // 字段缺失（旧版会话）→ null，按「其它来源」降级为整队推送，不误走主通道。
-      // 键名与读取走 playback_payload 的共享常量/函数，两侧不会各写各的。
-      _ref.read(queueOriginProvider.notifier).state =
-          QueueOrigin.fromJson(readSessionQueueOrigin(session));
-
-      Logger.infoWithTag(_playerLogTag, 'playback session restored');
-      restored = true;
-
-      // 恢复后立即把队列镜像给服务端:恢复路径不走常规播放入口,服务端可能
-      // 还留着上次进程的旧队列。失败不影响本地续播(下个变化点会再试)。
+      // ── 新鲜度竞速:服务端快照比本地文件新则采用服务端队列 ──
+      // 本地文件可能因历史 bug(恢复卡死压制落盘 / 写卡死)整体陈旧;若
+      // 无条件信任本地,会把旧队列恢复上屏,还会经 syncLocalQueueNow 把
+      // 服务端较新的队列覆盖掉(实测:本地 412 首旧会话反杀服务端 3215
+      // 首歌单队列)。比较基准是 updatedAt:后端未带该字段(旧版本)按 0
+      // 处理 → 本地优先,行为与旧版一致。拉取失败/测试环境返回 null。
+      Map<String, dynamic>? snap;
       try {
-        await _ref
+        snap = await _ref
             .read(castPeerControllerProvider.notifier)
-            .syncLocalQueueNow();
+            .fetchLocalQueueForRestore();
       } catch (e) {
         Logger.debugWithTag(
           _playerLogTag,
-          'post-restore queue mirror skipped: $e',
+          'restore: server queue snapshot unavailable: $e',
         );
+      }
+      final serverQueue = snap == null
+          ? const <Song>[]
+          : [
+              for (final it in (snap['items'] as List))
+                if (it is Map) queueItemToSong(it.map((k, v) => MapEntry(k.toString(), v))),
+            ];
+      final serverUpdatedAt =
+          snap == null ? 0 : ((snap['updatedAt'] as num?)?.toInt() ?? 0);
+      final useServer = serverQueue.isNotEmpty && serverUpdatedAt > localUpdatedAt;
+
+      if (session == null && !useServer) return;
+
+      List<Song> queue;
+      int restoredIndex;
+      var restoredPosition = Duration.zero;
+      if (useServer) {
+        fromServer = true;
+        queue = serverQueue;
+        final idx = (snap!['currentIndex'] as num?)?.toInt() ?? 0;
+        restoredIndex = (idx < 0 || idx >= queue.length) ? 0 : idx;
+        // 恢复服务端播放模式(客户端本地洗牌序自建,服务端序列只喂预探测)。
+        final modeStr = snap['playMode'] as String?;
+        final mode = switch (modeStr) {
+          'shuffle' => PlaybackMode.shuffle,
+          'one' => PlaybackMode.one,
+          'all' => PlaybackMode.all,
+          _ => PlaybackMode.order,
+        };
+        unawaited(setPlaybackMode(mode, persist: false));
+        Logger.infoWithTag(
+          _playerLogTag,
+          'restoring FROM SERVER queue=${queue.length} '
+          'index=$restoredIndex serverUpdatedAt=$serverUpdatedAt '
+          'localUpdatedAt=$localUpdatedAt mode=$modeStr',
+        );
+      } else {
+        queue = localQueue;
+        final preferredIndex = _parseStoredInt(session!['currentIndex']) ?? 0;
+        final currentSongId = session['currentSongId']?.toString();
+        restoredIndex = _resolveRestoredQueueIndex(
+          queue: queue,
+          preferredIndex: preferredIndex,
+          currentSongId: currentSongId,
+        );
+        final storedPositionMs = _parseStoredInt(session['positionMs']) ?? 0;
+        restoredPosition = Duration(milliseconds: max(0, storedPositionMs));
+        Logger.infoWithTag(
+          _playerLogTag,
+          'restoring playback session queue=${queue.length} '
+          'index=$restoredIndex posMs=${restoredPosition.inMilliseconds} '
+          'wasPlaying=${session['isPlaying'] == true}',
+        );
+      }
+      final song = queue[restoredIndex];
+
+      // ── 恢复不再 await 音源加载 ──
+      // playSong 会对当前曲 setUrl;死链/慢源下该 await 可能永久不返回,
+      // 把整个恢复流程卡死 → 恢复标志(旧布尔量/现租约)长期为 true →
+      // 之后所有会话落盘被跳过 → 本地文件整体陈旧 → 每次重启都恢复成
+      // 同一首旧歌(v4.3.49 真机实测)。这里 fire-and-forget:恢复只负责
+      // 恢复状态,加载与重试交给播放器既有看门狗;进度经 initialPosition
+      // 走 pendingSeek 管线,源就绪后自动 seek 落位。
+      final autoResume = await LocalStorage.getAutoPlayOnLaunch();
+      unawaited(
+        playSong(
+          song,
+          queue: queue,
+          index: restoredIndex,
+          autoPlay: autoResume,
+          initialPosition: fromServer ? null : restoredPosition,
+        ).catchError((Object e) {
+          Logger.warnWithTag(_playerLogTag, 'post-restore load failed', e);
+        }),
+      );
+
+      // 恢复队列来源(与队列同源,必须成对):服务端快照无来源 → null,
+      // 按「其它来源」降级为整队推送,不误走主通道。
+      _ref.read(queueOriginProvider.notifier).state = fromServer
+          ? null
+          : QueueOrigin.fromJson(readSessionQueueOrigin(session!));
+
+      Logger.infoWithTag(
+        _playerLogTag,
+        'playback session restored (fromServer=$fromServer)',
+      );
+      restored = true;
+
+      // 本地为准:把队列镜像给服务端(告诉服务端这是本次要恢复的队列)。
+      // 服务端为准:内容一致,无需回推,避免 MB 级冗余上行。
+      if (!fromServer) {
+        try {
+          await _ref
+              .read(castPeerControllerProvider.notifier)
+              .syncLocalQueueNow();
+        } catch (e) {
+          Logger.debugWithTag(
+            _playerLogTag,
+            'post-restore queue mirror skipped: $e',
+          );
+        }
       }
     } catch (e) {
       Logger.warnWithTag(
@@ -211,10 +263,12 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
         e,
       );
     } finally {
-      _isRestoringPlaybackSession = false;
+      _restoreStartedAtMs = null;
     }
 
     if (restored) {
+      // 两种来源都立即回写本地文件:服务端胜出时,这次回写把服务端内容
+      // 落成新的本地会话,下次启动两侧一致。
       _schedulePersistPlaybackSession(immediate: true);
     }
   }

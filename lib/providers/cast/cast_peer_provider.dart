@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -254,6 +255,42 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       mapLocalPlayMode(s.playbackMode),
       full: true,
     );
+  }
+
+  /// 拉取服务端的本机队列快照(启动恢复「新鲜度竞速」用,见
+  /// _restorePlaybackSession)。
+  ///
+  /// 返回原始快照(items/currentIndex/playMode/updatedAt),失败或空队列
+  /// 返回 null,绝不抛出 —— 恢复流程不能被它卡死。未注册时短暂等待注册
+  /// 完成(本方法跑在启动恢复路径上,注册通常同时在跑);测试环境直接
+  /// 短路(避免 delay/timeout 的 Timer 撞 flutter_test 不变量)。
+  Future<Map<String, dynamic>?> fetchLocalQueueForRestore() async {
+    if (state.activePeer != null) return null; // 投屏中:队列归设备
+    if (Platform.environment['FLUTTER_TEST'] != null) return null;
+    final deadline = DateTime.now().add(const Duration(seconds: 4));
+    var pid = _localPeerId;
+    while ((pid == null || pid.isEmpty) && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      pid = _localPeerId;
+    }
+    if (pid == null || pid.isEmpty) return null;
+    // 恢复窗口预算必须短:快照拉不到就回退本地会话,不能拖住启动。
+    const budget = Duration(seconds: 5);
+    try {
+      final client = _ref.read(subsonicApiClientProvider);
+      final data = await client
+          .getRaw(
+            '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/queue',
+            receiveTimeout: budget,
+          )
+          .timeout(budget) as Map<String, dynamic>;
+      final items = data['items'];
+      if (items is! List || items.isEmpty) return null;
+      return data;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'restore snapshot fetch failed: $e');
+      return null;
+    }
   }
 
   /// 把本机队列/游标/模式镜像到服务端。失败静默(下个变化点再试)。
