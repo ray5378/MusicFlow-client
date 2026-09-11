@@ -183,8 +183,8 @@ void main() {
   group('mapLocalPlayMode', () {
     test('maps local three-state modes to backend playMode', () {
       expect(mapLocalPlayMode(PlaybackMode.shuffle), 'shuffle');
-      expect(mapLocalPlayMode(PlaybackMode.repeatOne), 'one');
-      expect(mapLocalPlayMode(PlaybackMode.repeatAll), 'all');
+      expect(mapLocalPlayMode(PlaybackMode.one), 'one');
+      expect(mapLocalPlayMode(PlaybackMode.all), 'all');
     });
   });
 

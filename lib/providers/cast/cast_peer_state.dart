@@ -112,6 +112,7 @@ class CastPeerState {
 /// 本地播放模式 → 后端 PlayMode(order|one|all|shuffle)。
 String mapLocalPlayMode(PlaybackMode mode) => switch (mode) {
       PlaybackMode.shuffle => 'shuffle',
-      PlaybackMode.repeatOne => 'one',
-      PlaybackMode.repeatAll => 'all',
+      PlaybackMode.one => 'one',
+      PlaybackMode.all => 'all',
+      PlaybackMode.order => 'order',
     };

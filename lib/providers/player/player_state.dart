@@ -7,10 +7,64 @@ enum PlaybackSource {
   stream, // 在线流式播放
 }
 
-/// 播放模式（用于播放器控制区三态切换）
-enum PlaybackMode { shuffle, repeatAll, repeatOne }
+/// 播放模式(四态,与服务端 PlayMode / 投屏链路对齐,2026-09-11 补齐 order)。
+///
+/// 命名与服务端线上值同名(order/all/one/shuffle),消除一层映射胶水。
+/// 旧值映射(历史版本持久化的是 repeatAll/repeatOne):
+///   repeatAll → all / repeatOne → one(读侧 LocalStorage.getPlaybackMode 处理)。
+///
+/// ⚠️ **order(顺序播放,播完即停)与 all(列表循环)在底层 just_audio 同为
+/// LoopMode.off** —— 两者的行为差异由外层队列推进逻辑(next/_onSongCompleted)
+/// 按 playbackMode 分支实现,不在这层。
+///
+/// 这是**权威状态**:不能从 (loopMode, shuffleEnabled) 派生 ——
+/// order 与 all 的底层组合完全相同,派生必然丢失该维度。
+enum PlaybackMode { order, all, one, shuffle }
 
 const maxShuffleHistoryEntries = 200;
+
+/// 预探测结论的客户端 TTL(毫秒)。必须 ≤ 服务端 negativeTtlSeconds 默认值(45s)
+/// —— 服务端是判定权威,客户端缓存只允许更短(过期即回退到「未知 → 照常播放」)。
+const probeCacheTtlMs = 45 * 1000;
+
+/// 预探测结论条目(带时间戳,TTL 判定用)。
+class ProbeCacheEntry {
+  const ProbeCacheEntry({required this.ok, required this.at});
+  final bool ok;
+  final int at; // ms epoch
+}
+
+/// 某条预探测结论当前是否构成「明确的、未过期的不可播」。
+///
+/// §8.3 护栏 3:**无记录 / 已过期 → false(未知 → 照常播放)**。
+/// 绝不把「不知道」当成「死的」—— 这是拆除永久拉黑时定下的边界。
+/// 纯函数(守卫测试直接锁定四向)。
+bool isProbeEntryUnplayable(ProbeCacheEntry? entry, int nowMs) {
+  if (entry == null) return false;
+  if (nowMs - entry.at >= probeCacheTtlMs) return false;
+  return !entry.ok;
+}
+
+/// 预跳过的纯函数核心(§8.3):从 [startIndex] 起连续越过「明确的、未过期的
+/// 不可播」的歌,返回实际应播放的 index。
+///
+/// - 不越过队列末尾(all 模式回绕后的死源由下一轮接力,order 模式到末尾即停);
+/// - 步数上限 = [queueLength](与投屏链路的绕圈上限 = 队列长度同源);
+/// - 调用方负责不改队列 —— 本函数只算 index。
+/// 纯函数(守卫测试直接锁定)。
+int resolvePreProbeSkipIndex({
+  required int startIndex,
+  required int queueLength,
+  required bool Function(int index) isKnownUnplayable,
+}) {
+  var idx = startIndex;
+  var steps = 0;
+  while (idx < queueLength && steps < queueLength && isKnownUnplayable(idx)) {
+    idx++;
+    steps++;
+  }
+  return idx;
+}
 
 class ShuffleHistoryEntry {
   const ShuffleHistoryEntry({
@@ -33,6 +87,10 @@ class PlayerState {
   final Duration duration;
   final LoopMode loopMode;
   final bool shuffleEnabled;
+
+  /// 四态播放模式(权威)。order/all 的底层组合相同,差异只体现在外层推进,
+  /// 因此必须独立存储而不能从 loopMode/shuffleEnabled 派生。
+  final PlaybackMode playbackMode;
   final int shuffleHistoryCount;
   final AudioQualityLevel? currentQuality;
   final PlaybackSource? playbackSource;
@@ -52,6 +110,7 @@ class PlayerState {
     this.duration = Duration.zero,
     this.loopMode = LoopMode.off,
     this.shuffleEnabled = false,
+    this.playbackMode = PlaybackMode.all,
     this.shuffleHistoryCount = 0,
     this.currentQuality,
     this.playbackSource,
@@ -70,6 +129,7 @@ class PlayerState {
     Duration? duration,
     LoopMode? loopMode,
     bool? shuffleEnabled,
+    PlaybackMode? playbackMode,
     int? shuffleHistoryCount,
     AudioQualityLevel? currentQuality,
     PlaybackSource? playbackSource,
@@ -87,6 +147,7 @@ class PlayerState {
       duration: duration ?? this.duration,
       loopMode: loopMode ?? this.loopMode,
       shuffleEnabled: shuffleEnabled ?? this.shuffleEnabled,
+      playbackMode: playbackMode ?? this.playbackMode,
       shuffleHistoryCount: shuffleHistoryCount ?? this.shuffleHistoryCount,
       currentQuality: currentQuality ?? this.currentQuality,
       playbackSource: playbackSource ?? this.playbackSource,

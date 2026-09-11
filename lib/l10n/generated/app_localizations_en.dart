@@ -3131,4 +3131,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get provider_playback_all_unavailable =>
       'All songs in the current playlist are unplayable, please check the server connection and audio sources';
+
+  @override
+  String provider_preprobe_skipped_one(String title) {
+    return 'No playable source for \"$title\", skipped to the next track';
+  }
+
+  @override
+  String provider_preprobe_skipped_many(int count) {
+    return 'Skipped $count tracks with no playable source';
+  }
 }

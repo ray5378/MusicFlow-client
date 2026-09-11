@@ -63,6 +63,56 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
     }
   }
 
+  /// 该歌是否有「明确的、未过期的不可播」判定。
+  ///
+  /// §8.3 护栏 3:**无记录 / 已过期 → false(未知 → 照常播放)**。
+  /// 绝不把「不知道」当成「死的」—— 这是拆除永久拉黑时定下的边界。
+  bool _isKnownUnplayable(String songId) {
+    final e = _probeCache[songId];
+    final unplayable = isProbeEntryUnplayable(e, DateTime.now().millisecondsSinceEpoch);
+    if (e != null && !unplayable && !e.ok) {
+      // 已过期:清掉,后续重探。
+      _probeCache.remove(songId);
+    }
+    return unplayable;
+  }
+
+  /// 本机播放预跳过(§8.3):顺序推进时越过「明确的、未过期的不可播」的歌。
+  ///
+  /// 边界(全部有意为之):
+  ///   - 只做顺序推进(order/all);**shuffle 模式不预跳** —— 随机序列由
+  ///     shuffle history 权威管理,预跳会破坏序列语义,交给播放失败兜底
+  ///     (失败后随机重抽,语义等价「跳过」);
+  ///   - 只在队列范围内跳,**不回绕** —— all 模式回绕后的死源由下一轮
+  ///     next 的预跳过/播放失败兜底接力;
+  ///   - **不改队列**(护栏 4):只推进游标,items 原样;
+  ///   - 连跳合并成一条提示(护栏 5):静默连跳 10 首会让用户以为点错了。
+  ///
+  /// 返回实际应播放的 index(可能与入参相同)。
+  int _skipKnownUnplayable(int startIndex) {
+    final idx = resolvePreProbeSkipIndex(
+      startIndex: startIndex,
+      queueLength: state.queue.length,
+      isKnownUnplayable: (i) => _isKnownUnplayable(state.queue[i].id),
+    );
+    final skippedTitles = <String>[];
+    for (var i = startIndex; i < idx && i < state.queue.length; i++) {
+      skippedTitles.add(state.queue[i].title);
+    }
+    if (skippedTitles.isNotEmpty) {
+      final l10n = l10nNowCurrent();
+      final message = skippedTitles.length == 1
+          ? l10n.provider_preprobe_skipped_one(skippedTitles.first)
+          : l10n.provider_preprobe_skipped_many(skippedTitles.length);
+      ToastNotifier.show(message, kind: MusicFlowMessageKind.warning);
+      Logger.infoWithTag(
+        _playerLogTag,
+        'pre-probe skip ahead: skipped ' + skippedTitles.length.toString() + ' unplayable song(s)',
+      );
+    }
+    return idx;
+  }
+
   /// 预探测接下来可能播放的歌曲是否可用（与主项目前端 probeUpcoming 一致）。
   /// 后端 POST /rest/api/v1/stream/probe 对本地歌曲零开销,
   /// 对 web 歌曲做 Range 探测并自动换源写回 DB —— 价值在「提前治愈」源
@@ -89,8 +139,8 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
             !_probeCache.containsKey(s.id)) {
           cands.add(s.id);
         }
-      } else if (idx >= queue.length && state.loopMode != LoopMode.off) {
-        // 循环模式下回绕
+      } else if (idx >= queue.length && state.playbackMode == PlaybackMode.all) {
+        // 列表循环(all)回绕;order 到末尾不回绕(未来没有歌,窗口自然缩短)
         final wrap = idx % queue.length;
         if (wrap != currentIndex) {
           final s = queue[wrap];
@@ -123,7 +173,7 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
         if (_probeCache.length >= _probeCacheMaxEntries) {
           _probeCache.clear();
         }
-        _probeCache[songId] = ok;
+        _probeCache[songId] = ProbeCacheEntry(ok: ok, at: DateTime.now().millisecondsSinceEpoch);
         if (!ok) {
           Logger.warnWithTag(
             _playerLogTag,

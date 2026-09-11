@@ -16,7 +16,9 @@ import 'package:musicflow_client/data/repositories/music_repository.dart';
 
 import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
+import 'package:musicflow_client/core/design/components/music_flow_message.dart';
 import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/core/utils/toast_notifier.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/player/shuffle_queue_indexer.dart';
 import 'package:musicflow_client/core/player/playback_payload.dart';
@@ -181,7 +183,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 预探测缓存：songId -> 是否可用（session 级别，重启失效）。
   /// 带上限（FIFO 逐出），防止常驻无界增长（SPEC §1.5 内存红线）。
   /// 仅用于探测去重；不再据此跳歌（旧的永久拉黑机制已删）。
-  final Map<String, bool> _probeCache = <String, bool>{};
+  /// 预探测结论缓存(songId → 结论)。**带时间戳 + TTL**(2026-09-11):
+  /// 旧实现是无时间戳的裸 bool —— 服务端判定一旦写入就永不失效,
+  /// 等于把「已删除的永久拉黑」以新面目装回客户端。TTL 取 45s,
+  /// 与服务端 negativeTtlSeconds 默认值一致(客户端 TTL 必须 ≤ 服务端)。
+  final Map<String, ProbeCacheEntry> _probeCache = <String, ProbeCacheEntry>{};
 
   /// 防止并发预探测。
   bool _probing = false;
@@ -227,6 +233,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   int? _parseStoredInt(Object? value); // ignore: unused_element, unused_element_parameter
   Future<void> _persistPlaybackSession(); // ignore: unused_element, unused_element_parameter
   Future<void> _probeUpcoming(); // ignore: unused_element, unused_element_parameter
+  int _skipKnownUnplayable(int startIndex); // ignore: unused_element, unused_element_parameter
   void _releaseSeekAnchor(int seekGeneration); // ignore: unused_element, unused_element_parameter
   Future<bool> _replaceLoadedSource({ required String songId, required String label, required bool Function() ownsSource, required Future<void> Function(AudioPlayer player) setSource, }); // ignore: unused_element, unused_element_parameter
   void _resetShuffleHistory({bool updateState = true}); // ignore: unused_element, unused_element_parameter
@@ -1758,12 +1765,17 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       return;
     }
 
-    final nextIndex = state.currentIndex + 1;
+    // 顺序推进接入预跳过(§8.3):越过「明确的、未过期的不可播」的歌。
+    // shuffle 模式不走这里(shuffle 分支在上方已 return)。
+    final nextIndex = _skipKnownUnplayable(state.currentIndex + 1);
     if (nextIndex < state.queue.length) {
       final nextSong = state.queue[nextIndex];
       await playSong(nextSong, queue: state.queue, index: nextIndex);
       return;
     }
+
+    // order(顺序播放):到末尾即停,不回绕 —— order 与 all 的唯一行为差异。
+    if (state.playbackMode == PlaybackMode.order) return;
 
     // 回绕到首曲（单曲队列时等同于重播当前曲目）。
     if (state.queue.isNotEmpty) {
@@ -1925,50 +1937,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     await playSong(song, queue: state.queue, index: index);
   }
 
-  /// 设置循环模式
-  Future<void> setLoopMode(LoopMode mode) async {
-    await _audioPlayer?.setLoopMode(mode);
-    if (mounted) {
-      state = state.copyWith(loopMode: mode);
-    }
-    final modeToPersist = state.shuffleEnabled
-        ? PlaybackMode.shuffle
-        : (mode == LoopMode.one
-              ? PlaybackMode.repeatOne
-              : PlaybackMode.repeatAll);
-    await _persistPlaybackMode(modeToPersist);
-  }
-
-  /// 切换循环模式
-  Future<void> toggleLoopMode() async {
-    final nextMode = switch (state.loopMode) {
-      LoopMode.off => LoopMode.all,
-      LoopMode.all => LoopMode.one,
-      LoopMode.one => LoopMode.off,
-    };
-    await setLoopMode(nextMode);
-  }
-
-  /// 设置随机播放
-  Future<void> setShuffleEnabled(bool enabled) async {
-    await _audioPlayer?.setShuffleModeEnabled(enabled);
-    _resetShuffleHistory(updateState: false);
-    if (mounted) {
-      state = state.copyWith(shuffleEnabled: enabled, shuffleHistoryCount: 0);
-    }
-    final modeToPersist = enabled
-        ? PlaybackMode.shuffle
-        : (state.loopMode == LoopMode.one
-              ? PlaybackMode.repeatOne
-              : PlaybackMode.repeatAll);
-    await _persistPlaybackMode(modeToPersist);
-  }
-
-  /// 切换随机播放
-  Future<void> toggleShuffle() async {
-    await setShuffleEnabled(!state.shuffleEnabled);
-  }
-
   /// 播放失败后刷新全部线路，确认是否存在可用线路
   Future<bool> _refreshRoutesAndCheckAvailability() async {
     try {
@@ -1982,16 +1950,47 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  /// 当前播放模式（三态）
-  PlaybackMode get playbackMode {
-    if (state.shuffleEnabled) return PlaybackMode.shuffle;
-    if (state.loopMode == LoopMode.one) return PlaybackMode.repeatOne;
-    return PlaybackMode.repeatAll;
-  }
+  /// 当前播放模式(四态**权威值**)。
+  ///
+  /// ⚠️ 不能从 (loopMode, shuffleEnabled) 派生 —— order 与 all 的底层组合
+  /// 完全相同(LoopMode.off + shuffle off),派生必然丢失「播完即停 vs 回绕」
+  /// 这个维度。权威值随 setPlaybackMode 写入 state.playbackMode。
+  PlaybackMode get playbackMode => state.playbackMode;
 
-  /// 设置三态播放模式
+  /// 设置四态播放模式(order/all/one/shuffle)。
   Future<void> setPlaybackMode(PlaybackMode mode, {bool persist = true}) async {
     switch (mode) {
+      case PlaybackMode.order:
+      case PlaybackMode.all:
+        // 队列切歌由外层状态机驱动,order 与 all 底层同为 LoopMode.off
+        // (避免底层播放器在单音源下自动回放当前曲目)。两者的行为差异
+        // —— order 到末尾停止、all 回绕 —— 由外层 next/_onSongCompleted
+        // 按 playbackMode 分支实现,底层无法表达。
+        await _audioPlayer?.setShuffleModeEnabled(false);
+        await _audioPlayer?.setLoopMode(LoopMode.off);
+        _resetShuffleHistory(updateState: false);
+        if (mounted) {
+          state = state.copyWith(
+            loopMode: LoopMode.off,
+            shuffleEnabled: false,
+            playbackMode: mode,
+            shuffleHistoryCount: 0,
+          );
+        }
+        break;
+      case PlaybackMode.one:
+        await _audioPlayer?.setShuffleModeEnabled(false);
+        await _audioPlayer?.setLoopMode(LoopMode.one);
+        _resetShuffleHistory(updateState: false);
+        if (mounted) {
+          state = state.copyWith(
+            loopMode: LoopMode.one,
+            shuffleEnabled: false,
+            playbackMode: mode,
+            shuffleHistoryCount: 0,
+          );
+        }
+        break;
       case PlaybackMode.shuffle:
         // 队列是手动切歌而非播放器内建列表。
         // 在随机模式使用 LoopMode.off，避免底层播放器自动重放当前单曲。
@@ -2002,32 +2001,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
           state = state.copyWith(
             loopMode: LoopMode.off,
             shuffleEnabled: true,
-            shuffleHistoryCount: 0,
-          );
-        }
-        break;
-      case PlaybackMode.repeatAll:
-        // 队列切歌由外层状态机驱动，Repeat All 用 LoopMode.off
-        // 避免底层播放器在单音源下自动回放当前曲目。
-        await _audioPlayer?.setShuffleModeEnabled(false);
-        await _audioPlayer?.setLoopMode(LoopMode.off);
-        _resetShuffleHistory(updateState: false);
-        if (mounted) {
-          state = state.copyWith(
-            loopMode: LoopMode.off,
-            shuffleEnabled: false,
-            shuffleHistoryCount: 0,
-          );
-        }
-        break;
-      case PlaybackMode.repeatOne:
-        await _audioPlayer?.setShuffleModeEnabled(false);
-        await _audioPlayer?.setLoopMode(LoopMode.one);
-        _resetShuffleHistory(updateState: false);
-        if (mounted) {
-          state = state.copyWith(
-            loopMode: LoopMode.one,
-            shuffleEnabled: false,
+            playbackMode: mode,
             shuffleHistoryCount: 0,
           );
         }
@@ -2039,13 +2013,14 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  /// 循环切换三态播放模式：
-  /// 随机 -> 列表循环 -> 单曲循环 -> 随机
+  /// 循环切换四态播放模式(shuffle 折进循环,与服务端播放模式模型一致):
+  /// 顺序 -> 列表循环 -> 单曲循环 -> 随机 -> 顺序
   Future<void> cyclePlaybackMode() async {
     final nextMode = switch (playbackMode) {
-      PlaybackMode.shuffle => PlaybackMode.repeatAll,
-      PlaybackMode.repeatAll => PlaybackMode.repeatOne,
-      PlaybackMode.repeatOne => PlaybackMode.shuffle,
+      PlaybackMode.order => PlaybackMode.all,
+      PlaybackMode.all => PlaybackMode.one,
+      PlaybackMode.one => PlaybackMode.shuffle,
+      PlaybackMode.shuffle => PlaybackMode.order,
     };
     await setPlaybackMode(nextMode);
   }
@@ -2055,10 +2030,10 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       final storedMode = await LocalStorage.getPlaybackMode();
       final mode = PlaybackMode.values.firstWhere(
         (item) => item.name == storedMode,
-        orElse: () => PlaybackMode.repeatAll,
+        orElse: () => PlaybackMode.all,
       );
       await setPlaybackMode(mode, persist: false);
-      Logger.infoWithTag(_playerLogTag, 'playback mode restored: ${mode.name}');
+      Logger.infoWithTag(_playerLogTag, 'playback mode restored: ' + mode.name);
     } catch (e) {
       Logger.warnWithTag(_playerLogTag, 'failed to restore playback mode', e);
     }
@@ -2203,6 +2178,13 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       if (state.currentSong?.id == completedSongId) {
         _startPlayback(fadeIn: false);
       }
+    } else if (state.playbackMode == PlaybackMode.order) {
+      // 顺序播放(order):队列播完即停,不回绕 —— 这是 order 与 all 的
+      // 唯一行为差异,守卫测试锁定。
+      final atEnd = state.currentIndex >= state.queue.length - 1;
+      _seekDbg('completed -> order ' + (atEnd ? 'stop(playlist end)' : 'next') + ' song=' + completedSongId);
+      if (atEnd) return;
+      await next();
     } else if (state.hasNext) {
       // 播放下一首
       _seekDbg('completed -> sequential next song=$completedSongId');

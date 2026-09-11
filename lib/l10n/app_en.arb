@@ -56,7 +56,9 @@
   "offline_cache_disable_confirm": "Turning this off deletes {size} of cached content and stops caching songs, covers, and lyrics.",
   "@offline_cache_disable_confirm": {
     "placeholders": {
-      "size": {"type": "String"}
+      "size": {
+        "type": "String"
+      }
     }
   },
   "offline_cache_disable_action": "Turn off & clear",
@@ -68,14 +70,20 @@
   "offline_cache_song_subtitle": "{count} songs · {size}",
   "@offline_cache_song_subtitle": {
     "placeholders": {
-      "count": {"type": "int"},
-      "size": {"type": "String"}
+      "count": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
     }
   },
   "offline_cache_song_count": "{count} songs",
   "@offline_cache_song_count": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "settings_audio_status_line": "{label}: {value}",
@@ -2110,11 +2118,19 @@
   "player_sleep_timer_hours": "{count} hr",
   "@player_sleep_timer_minutes": {
     "description": "player_sleep_timer_minutes",
-    "placeholders": {"count": {"type": "int"}}
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "@player_sleep_timer_hours": {
     "description": "player_sleep_timer_hours",
-    "placeholders": {"count": {"type": "int"}}
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "player_sleep_timer_custom": "Custom",
   "player_sleep_timer_minutes_unit": "min",
@@ -3188,5 +3204,23 @@
   "provider_playback_all_unavailable": "All songs in the current playlist are unplayable, please check the server connection and audio sources",
   "@provider_playback_all_unavailable": {
     "description": "provider_playback_all_unavailable"
+  },
+  "provider_preprobe_skipped_one": "No playable source for \"{title}\", skipped to the next track",
+  "@provider_preprobe_skipped_one": {
+    "description": "provider_preprobe_skipped_one",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "provider_preprobe_skipped_many": "Skipped {count} tracks with no playable source",
+  "@provider_preprobe_skipped_many": {
+    "description": "provider_preprobe_skipped_many",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

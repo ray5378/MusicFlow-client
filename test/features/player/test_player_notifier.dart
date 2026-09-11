@@ -21,11 +21,15 @@ class TestPlayerNotifier extends StateNotifier<PlayerState>
   void emit(PlayerState value) => state = value;
 
   @override
-  PlaybackMode get playbackMode {
-    if (state.shuffleEnabled) return PlaybackMode.shuffle;
-    if (state.loopMode == LoopMode.one) return PlaybackMode.repeatOne;
-    return PlaybackMode.repeatAll;
+  PlaybackMode get playbackMode => state.playbackMode;
+
+  @override
+  Future<void> setPlaybackMode(PlaybackMode mode, {bool persist = true}) async {
+    state = state.copyWith(playbackMode: mode);
   }
+
+  @override
+  int _skipKnownUnplayable(int startIndex) => startIndex;
 
   @override
   Future<void> pause() async {
@@ -56,13 +60,13 @@ class TestPlayerNotifier extends StateNotifier<PlayerState>
 
   @override
   Future<void> cyclePlaybackMode() async {
-    if (state.shuffleEnabled) {
-      state = state.copyWith(shuffleEnabled: false, loopMode: LoopMode.all);
-    } else if (state.loopMode == LoopMode.one) {
-      state = state.copyWith(shuffleEnabled: true, loopMode: LoopMode.off);
-    } else {
-      state = state.copyWith(shuffleEnabled: false, loopMode: LoopMode.one);
-    }
+    final nextMode = switch (state.playbackMode) {
+      PlaybackMode.order => PlaybackMode.all,
+      PlaybackMode.all => PlaybackMode.one,
+      PlaybackMode.one => PlaybackMode.shuffle,
+      PlaybackMode.shuffle => PlaybackMode.order,
+    };
+    state = state.copyWith(playbackMode: nextMode);
   }
 
   @override

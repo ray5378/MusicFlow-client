@@ -564,7 +564,7 @@ void main() {
     },
   );
 
-  testWidgets('playback mode cycles in the established three-state order', (
+  testWidgets('playback mode cycles in the four-state order (order/all/one/shuffle)', (
     tester,
   ) async {
     final notifier = TestPlayerNotifier(initialState());
@@ -573,6 +573,7 @@ void main() {
     );
     await tester.pump();
 
+    // 默认 all(repeat 图标) → 单曲 → 随机 → 顺序(新增) → 列表循环,走遍四态。
     await tester.tap(find.byIcon(AppIcons.repeat));
     await tester.pump();
     expect(find.byIcon(AppIcons.repeatOne), findsOneWidget);
@@ -582,6 +583,11 @@ void main() {
     expect(find.byIcon(AppIcons.shuffle), findsOneWidget);
 
     await tester.tap(find.byIcon(AppIcons.shuffle));
+    await tester.pump();
+    // shuffle → order(orderPlayback 图标):order 补齐后成为正式可选态。
+    expect(find.byIcon(AppIcons.orderPlayback), findsOneWidget);
+
+    await tester.tap(find.byIcon(AppIcons.orderPlayback));
     await tester.pump();
     expect(find.byIcon(AppIcons.repeat), findsOneWidget);
 

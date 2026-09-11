@@ -56,7 +56,9 @@
   "offline_cache_disable_confirm": "关闭后将删除 {size} 已缓存内容，且不再自动缓存任何歌曲、封面与歌词。",
   "@offline_cache_disable_confirm": {
     "placeholders": {
-      "size": {"type": "String"}
+      "size": {
+        "type": "String"
+      }
     }
   },
   "offline_cache_disable_action": "关闭并清除",
@@ -68,14 +70,20 @@
   "offline_cache_song_subtitle": "{count} 首 · {size}",
   "@offline_cache_song_subtitle": {
     "placeholders": {
-      "count": {"type": "int"},
-      "size": {"type": "String"}
+      "count": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
     }
   },
   "offline_cache_song_count": "共 {count} 首",
   "@offline_cache_song_count": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "settings_audio_status_line": "{label}，{value}",
@@ -2110,11 +2118,19 @@
   "player_sleep_timer_hours": "{count} 小时",
   "@player_sleep_timer_minutes": {
     "description": "player_sleep_timer_minutes",
-    "placeholders": {"count": {"type": "int"}}
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "@player_sleep_timer_hours": {
     "description": "player_sleep_timer_hours",
-    "placeholders": {"count": {"type": "int"}}
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "player_sleep_timer_custom": "自定义",
   "player_sleep_timer_minutes_unit": "分钟",
@@ -3188,5 +3204,23 @@
   "provider_playback_all_unavailable": "当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用",
   "@provider_playback_all_unavailable": {
     "description": "provider_playback_all_unavailable"
+  },
+  "provider_preprobe_skipped_one": "《{title}》当前无可用音源，已跳到下一首",
+  "@provider_preprobe_skipped_one": {
+    "description": "provider_preprobe_skipped_one",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "provider_preprobe_skipped_many": "已跳过 {count} 首无可用音源的歌曲",
+  "@provider_preprobe_skipped_many": {
+    "description": "provider_preprobe_skipped_many",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

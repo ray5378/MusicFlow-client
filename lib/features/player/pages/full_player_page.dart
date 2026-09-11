@@ -1247,11 +1247,8 @@ class PlaybackControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context);
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
-    final modeState = ref.watch(
-      playerProvider.select(
-        (state) =>
-            (shuffleEnabled: state.shuffleEnabled, loopMode: state.loopMode),
-      ),
+    final playbackMode = ref.watch(
+      playerProvider.select((state) => state.playbackMode),
     );
     final cast = ref.watch(castPeerControllerProvider);
     final isCastMode = cast.activePeer != null;
@@ -1264,9 +1261,7 @@ class PlaybackControls extends ConsumerWidget {
         ? cast.playMode
         : (dlnaCast.isCasting
               ? dlnaCast.playMode
-              : (modeState.shuffleEnabled
-                    ? 'shuffle'
-                    : (modeState.loopMode == LoopMode.one ? 'one' : 'all')));
+              : playbackMode.name); // 本机:四态权威值(order/all/one/shuffle)
     final modeIcon = switch (mode) {
       'shuffle' => AppIcons.shuffle,
       'one' => AppIcons.repeatOne,

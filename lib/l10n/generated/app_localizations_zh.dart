@@ -2972,4 +2972,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get provider_playback_all_unavailable => '当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用';
+
+  @override
+  String provider_preprobe_skipped_one(String title) {
+    return '《$title》当前无可用音源，已跳到下一首';
+  }
+
+  @override
+  String provider_preprobe_skipped_many(int count) {
+    return '已跳过 $count 首无可用音源的歌曲';
+  }
 }

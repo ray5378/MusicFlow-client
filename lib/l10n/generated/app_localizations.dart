@@ -5391,6 +5391,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'当前歌单歌曲均不可播，请检查服务器连接与音频源是否可用'**
   String get provider_playback_all_unavailable;
+
+  /// provider_preprobe_skipped_one
+  ///
+  /// In zh, this message translates to:
+  /// **'《{title}》当前无可用音源，已跳到下一首'**
+  String provider_preprobe_skipped_one(String title);
+
+  /// provider_preprobe_skipped_many
+  ///
+  /// In zh, this message translates to:
+  /// **'已跳过 {count} 首无可用音源的歌曲'**
+  String provider_preprobe_skipped_many(int count);
 }
 
 class _AppLocalizationsDelegate

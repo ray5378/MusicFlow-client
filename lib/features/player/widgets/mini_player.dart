@@ -35,10 +35,9 @@ class MiniPlayer extends ConsumerWidget {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final queue = ref.watch(playerProvider.select((s) => s.queue));
     final currentIndex = ref.watch(playerProvider.select((s) => s.currentIndex));
-    final shuffleEnabled = ref.watch(
-      playerProvider.select((s) => s.shuffleEnabled),
+    final playbackMode = ref.watch(
+      playerProvider.select((s) => s.playbackMode),
     );
-    final loopMode = ref.watch(playerProvider.select((s) => s.loopMode));
     final cast = ref.watch(castPeerControllerProvider);
     final isCasting = cast.activePeer != null;
     final dlnaCast = ref.watch(dlnaCastProvider);
@@ -51,8 +50,8 @@ class MiniPlayer extends ConsumerWidget {
       queue: queue,
       currentIndex: currentIndex,
       isPlaying: ref.watch(effectiveIsPlayingProvider),
-      shuffleEnabled: shuffleEnabled,
-      loopMode: loopMode,
+      shuffleEnabled: playbackMode == PlaybackMode.shuffle,
+      loopMode: playbackMode == PlaybackMode.one ? LoopMode.one : LoopMode.off,
       position: ref.watch(frozenPositionProvider),
       duration: ref.watch(effectiveDurationProvider),
     );
@@ -65,9 +64,7 @@ class MiniPlayer extends ConsumerWidget {
         ? dlnaCast.playMode
         : (isCasting
               ? cast.playMode
-              : (shuffleEnabled
-                    ? 'shuffle'
-                    : (loopMode == LoopMode.one ? 'one' : 'all')));
+              : playbackMode.name); // 本机:四态权威值(order/all/one/shuffle)
 
     return MiniPlayerView(
       playerState: playerState,

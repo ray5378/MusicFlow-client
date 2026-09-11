@@ -315,18 +315,26 @@ class LocalStorage {
     final mode = prefs.getString(_keyPlaybackMode);
     if (mode == null) {
       Logger.debugWithTag(_logTag, 'playback mode not found, use default');
-      return 'repeatAll';
+      return 'all';
     }
 
     switch (mode) {
       case 'shuffle':
-      case 'repeatAll':
-      case 'repeatOne':
+      case 'all':
+      case 'one':
+      case 'order':
         Logger.debugWithTag(_logTag, 'playback mode loaded: $mode');
         return mode;
+      case 'repeatAll':
+      case 'repeatOne':
+        // 旧版持久化枚举名(repeatAll/repeatOne)→ 线上值(all/one)。
+        // 缺了这步映射,老用户升级后播放模式会被重置成默认值。
+        final mapped = mode == 'repeatAll' ? 'all' : 'one';
+        Logger.debugWithTag(_logTag, 'playback mode migrated: $mode -> $mapped');
+        return mapped;
       default:
         Logger.warnWithTag(_logTag, 'invalid playback mode in storage: $mode');
-        return 'repeatAll';
+        return 'all';
     }
   }
 
