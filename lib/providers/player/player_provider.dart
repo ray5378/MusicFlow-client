@@ -234,6 +234,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   int? _parseStoredInt(Object? value); // ignore: unused_element, unused_element_parameter
   Future<void> _persistPlaybackSession(); // ignore: unused_element, unused_element_parameter
   Future<void> _probeUpcoming(); // ignore: unused_element, unused_element_parameter
+  void _maybeProbeNearEnd(); // ignore: unused_element
+  bool _probeFresh(String songId); // ignore: unused_element, unused_element_parameter
+  bool _probeNeedsRefresh(String songId); // ignore: unused_element, unused_element_parameter
   int _skipKnownUnplayable(int startIndex); // ignore: unused_element, unused_element_parameter
   bool _isKnownUnplayable(String songId); // ignore: unused_element, unused_element_parameter
   Future<bool> _refreshServerShuffleSeq({bool reshuffle = false}); // ignore: unused_element, unused_element_parameter
@@ -400,6 +403,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
           logicalPosition < lastWrittenPosition) {
         state = state.copyWith(position: logicalPosition);
       }
+      // 临近结束补探一次:探测结论 TTL 只有 45s,只在切歌瞬间探一次的话,
+      // 正常听完一首(3~5min)判定早已过期 → 死链预跳失效。见 §8.3 时效修复。
+      _maybeProbeNearEnd();
     });
     _startPositionPolling(player);
 

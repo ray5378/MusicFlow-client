@@ -3,6 +3,11 @@ part of 'player_provider.dart';
 const int _probeCacheMaxEntries = 500;
 const int _probeWindow = 3;
 
+/// 单曲临近结束的提前量:剩余时长 ≤ 此时长时再探一次窗口(见 [_maybeProbeNearEnd])。
+const Duration _nearEndProbeLead = Duration(seconds: 60);
+/// 临近结束补探的最小间隔(同一首单曲循环时不至于每帧重探)。
+const Duration _nearEndProbeMinGap = Duration(seconds: 60);
+
 mixin PlayerPlaybackInternals on PlayerNotifier {
   /// 异步补充歌曲元数据（格式/码率/位深/采样率/声道数），不阻塞播放流程。
   Future<void> _enrichSongMetadata(String songId, int session) async {
@@ -67,6 +72,55 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
   ///
   /// §8.3 护栏 3:**无记录 / 已过期 → false(未知 → 照常播放)**。
   /// 绝不把「不知道」当成「死的」—— 这是拆除永久拉黑时定下的边界。
+  // ==================== 预探测时效(2026-09-12 修复) ====================
+  //
+  // 探测结论 TTL 只有 45s,而单曲通常播 3~5 分钟。原先只在切歌瞬间探一次,
+  // 等真正要切歌时判定早已过期 → `_isKnownUnplayable` 恒 false → 沿服务端
+  // 洗牌序列的死链跳过全部失效(落地报错后才由兜底跳)。两处配套修:
+  //   ① [_maybeProbeNearEnd]:单曲临近结束时再探一次,保证切歌时判定新鲜;
+  //   ② [_probeNeedsRefresh]:过期条目视为未探,允许重探(原先 containsKey
+  //      会把过期判定挡住,形成「永远不重探」的死循环)。
+
+  /// 上一次临近结束补探的(歌曲, 时刻),用于去重/节流。
+  String? _nearEndProbeSongId;
+  int _nearEndProbeAtMs = 0;
+
+  /// 该歌曲的探测结论是否「新鲜」(存在且未过期)。
+  bool _probeFresh(String songId) {
+    final e = _probeCache[songId];
+    if (e == null) return false;
+    return DateTime.now().millisecondsSinceEpoch - e.at < probeCacheTtlMs;
+  }
+
+  /// 是否需要(重新)探测:未缓存 **或已过期** 都要探。
+  bool _probeNeedsRefresh(String songId) => !_probeFresh(songId);
+
+  /// 单曲临近结束(剩余 ≤ [_nearEndProbeLead])时补探一次预探测窗口。
+  /// 由进度回调驱动,同一首按 [_nearEndProbeMinGap] 节流。
+  void _maybeProbeNearEnd() {
+    final songId = state.currentSong?.id;
+    if (songId == null || songId.isEmpty) return;
+    final duration = state.duration;
+    if (duration <= Duration.zero) return;
+    final remaining = duration - state.position;
+    if (remaining > _nearEndProbeLead) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_nearEndProbeSongId == songId &&
+        now - _nearEndProbeAtMs < _nearEndProbeMinGap.inMilliseconds) {
+      return;
+    }
+    _nearEndProbeSongId = songId;
+    _nearEndProbeAtMs = now;
+    Logger.debugWithTag(
+      _playerLogTag,
+      'pre-probe near-end refresh: remaining=' +
+          remaining.inSeconds.toString() +
+          's song=$songId',
+    );
+    // ignore: discarded_futures
+    _probeUpcoming();
+  }
+
   bool _isKnownUnplayable(String songId) {
     final e = _probeCache[songId];
     final unplayable = isProbeEntryUnplayable(e, DateTime.now().millisecondsSinceEpoch);
@@ -152,7 +206,7 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
             final s = queue[order[pos + k]];
             if (s.id.isNotEmpty &&
                 !isRemoteSong(s) &&
-                !_probeCache.containsKey(s.id)) {
+                _probeNeedsRefresh(s.id)) {
               cands.add(s.id);
             }
           }
@@ -176,7 +230,7 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
             final s = queue[wrap];
             if (s.id.isNotEmpty &&
                 !isRemoteSong(s) &&
-                !_probeCache.containsKey(s.id)) {
+                _probeNeedsRefresh(s.id)) {
               cands.add(s.id);
             }
           }
