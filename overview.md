@@ -1,4 +1,62 @@
-# 本轮改动总览（2026-09-12 凌晨 · 预探测时效性修复：随机模式死链不再落地）
+# 本轮改动总览（2026-09-12 凌晨 · 播放会话落盘停摆修复：不再每次都恢复成同一首旧歌）
+
+> v4.3.49（tag `v4.3.49`）
+
+## 一句话
+
+Windows 客户端「每次打开都是旧的播放队列（我的好兄弟）」：会话文件
+`playback_session_v1.json` 停在 9-11 16:42 再没更新过 —— 落盘被一个**永久卡死的布尔标志位**
+静默跳过。现在改成时间戳租约，卡死 15s 后自动放行；恢复后立即把队列镜像给服务端。
+
+## 用户需求
+
+1. 本机播放队列要能留存，关闭再打开还在。
+2. 启动后回传服务端，告诉服务端「这是本次需要恢复的播放队列」。
+3. 恢复时**以歌单为主**（保留歌单上下文）。
+
+## 根因（改动前）
+
+证据：`%APPDATA%\MusicFlow\MusicFlow\storage_v2\` 下 `playback_session_v1.json` mtime 停在
+9-11 16:42，而同目录 `playlists.json`（01:28）、`player_volume.json`（01:36）都正常 →
+不是磁盘/权限问题，是这个 key 的写入**根本没被触发**。会话内容 `queueLen=412 currentIndex=336`
+正是「我的好兄弟 (Live) / 高进、小沈阳」。
+
+`_persistPlaybackSession()` 靠 `finally` 复位 `bool _isPersistingPlaybackSession`。Windows 上
+`tmp.rename()` 覆盖已存在文件时若被杀软/索引服务占用会**阻塞等待而非抛错** → await 永不返回 →
+`finally` 不执行 → 标志位**永久 true** → 此后所有会话落盘被静默跳过。`JsonFileStore._doWrite`
+还吞掉异常（设计如此），所以连日志都没有。
+
+推理闭合：①恢复是成功的（显示的就是会话第 336 首）→ `_isRestoringPlaybackSession` 已复位；
+②退出时 `persistPlaybackStateNow()` 先 `await _persistPlaybackSession()` 再写 volume，而 volume
+01:36 更新了 → 说明它是**快速 return 命中守卫**，不是挂起。
+
+## 实现
+
+- `bool _isPersistingPlaybackSession` → `int? _persistingSinceMs` **租约**（15s）：过期即强制
+  放行并 `Logger.warn` 留证。纯时间戳比较，**不创建任何 Timer**。
+  - 不用 `Future.timeout()`：它在 flutter_test 的 fakeAsync 下是 FakeTimer，写入走真实 IO
+    不会在 fake 时钟内完成 → Timer 永远 pending → 撞上框架断言
+    「A Timer is still pending even after the widget tree was disposed」（实测 widget_test 因此红）。
+- 音量写入从会话 try 里**独立**出来：原实现会话一失败音量就不落盘（退出后音量回 100%）。
+- 新增 `syncLocalQueueNow()`：会话恢复后立即把队列镜像给服务端（恢复路径不走常规播放入口，
+  服务端可能还留着上次进程的旧队列）。**未注册时不主动触发注册** —— `_registerSelf()` 会拉起
+  心跳 Timer，会把 widget_test 的 Timer 不变量再次打挂。
+- 歌单上下文 `queueOrigin`（如 `playlist:pl-random-songs`）**本来就落盘且恢复时回填**，无需新增。
+
+## 验证
+
+- `flutter analyze lib/` 0 error；**663 测试全绿**（含 widget_test，回归过一次已修）；
+  5 守卫（interaction / workflow yaml / gpu / handoff chain / handoff e2e）+ l10n 门禁通过。
+
+## 发版
+
+- tag `v4.3.49`。配套服务端 **v2.3.33**（主仓 e30d444，播放优选对齐：探测与实际出流一致，
+  消除 8.3% 白跳 + web→local 优选补上源有效性探测）。
+- 真机待验：升级后播几首 → 退出 → 重开，队列应停在退出前那首，而不是「我的好兄弟」。
+
+---
+
+# 上一轮（2026-09-12 凌晨 · 预探测时效性修复：随机模式死链不再落地）
 
 > v4.3.48（tag `v4.3.48`，commit 5ee0b4c）
 

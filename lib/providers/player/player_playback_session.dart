@@ -2,7 +2,38 @@ part of 'player_provider.dart';
 
 const Duration _playbackSessionPersistInterval = Duration(seconds: 5);
 
+/// 租约时长：一次落盘占用「正在写」标记的最长时间。超过即视为上次落盘已死
+/// （await 永久挂起），强制放行下一次写入。
+///
+/// 为什么**不用** `Future.timeout()` 兜底：`.timeout()` 会创建一颗 Timer，而
+/// flutter_test 的 fakeAsync 环境下它是 FakeTimer —— 写入走真实 IO、不会在
+/// fakeAsync 时钟内完成，那颗 Timer 就永远 pending，撞上框架的不变量断言
+/// 「A Timer is still pending even after the widget tree was disposed」。
+/// 租约是纯时间戳比较，不创建任何 Timer，测试与生产行为一致。
+const Duration _persistLease = Duration(seconds: 15);
+
 mixin PlayerPlaybackSessionInternals on PlayerNotifier {
+  /// 落盘是否正在进行中（租约制，见 _persistingSinceMs）。
+  bool get _isPersistingPlaybackSession {
+    final since = _persistingSinceMs;
+    if (since == null) return false;
+    final stuckMs = DateTime.now().millisecondsSinceEpoch - since;
+    if (stuckMs <= _persistLease.inMilliseconds) return true;
+    // 租约过期：上次落盘的 await 永久挂起，finally 没机会复位标记。强制
+    // 放行并留证，否则会话落盘永久停摆（每次重启都恢复成同一首旧歌）。
+    Logger.warnWithTag(
+      _playerLogTag,
+      'playback session persist lease expired, forcing next write '
+      '(stuckForMs=$stuckMs)',
+    );
+    _persistingSinceMs = null;
+    return false;
+  }
+
+  void _beginPersistLease() =>
+      _persistingSinceMs = DateTime.now().millisecondsSinceEpoch;
+
+  void _endPersistLease() => _persistingSinceMs = null;
   void _schedulePersistPlaybackSession({bool immediate = false}) {
     if (!mounted || _isRestoringPlaybackSession) return;
 
@@ -43,11 +74,16 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
     // 关闭(dispose)时 mounted 已为 false,但不能因此跳过落盘 —— 否则退出瞬间
     // 刚更新的进度/歌曲就会丢,重开无法续播。只在「恢复会话进行中」与「正在写」
     // 时跳过,其余情况(含关闭)都照常保存。
-    if (_isRestoringPlaybackSession || _isPersistingPlaybackSession) {
+    if (_isRestoringPlaybackSession) return;
+    if (_isPersistingPlaybackSession) {
+      Logger.debugWithTag(
+        _playerLogTag,
+        'skip persist: previous write still in flight',
+      );
       return;
     }
 
-    _isPersistingPlaybackSession = true;
+    _beginPersistLease();
     try {
       final payload = _buildPlaybackSessionPayload();
       if (payload == null) {
@@ -62,10 +98,10 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
         'queueLen=${(payload['queue'] as List).length} '
         'updatedAt=${payload['updatedAt']}',
       );
+      // 挂起风险:Windows 上 tmp.rename 覆盖已存在文件时若被杀软/索引服务
+      // 占用会阻塞等待而非抛错,await 永不返回 → finally 不执行。此时靠
+      // _persistingSinceMs 租约兜底(见 _persistLease),不再用 .timeout()。
       await LocalStorage.savePlaybackSession(payload);
-      // 顺带持久化音量：随会话周期反复落盘，即使滑块松手那次写入丢失，
-      // 下次周期也会补上，避免「直接退出客户端后音量回到 100%」。
-      await LocalStorage.setPlayerVolume(state.volume);
     } catch (e) {
       Logger.warnWithTag(
         _playerLogTag,
@@ -73,7 +109,15 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
         e,
       );
     } finally {
-      _isPersistingPlaybackSession = false;
+      _endPersistLease();
+    }
+
+    // 音量单独成块:即使会话写入失败/超时也要保住音量,避免「直接退出客户端
+    // 后音量回到 100%」。原实现与会话同一个 try,会话一失败音量就跟着不落盘。
+    try {
+      await LocalStorage.setPlayerVolume(state.volume);
+    } catch (e) {
+      Logger.warnWithTag(_playerLogTag, 'failed to persist player volume', e);
     }
   }
 
@@ -147,6 +191,19 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
 
       Logger.infoWithTag(_playerLogTag, 'playback session restored');
       restored = true;
+
+      // 恢复后立即把队列镜像给服务端:恢复路径不走常规播放入口,服务端可能
+      // 还留着上次进程的旧队列。失败不影响本地续播(下个变化点会再试)。
+      try {
+        await _ref
+            .read(castPeerControllerProvider.notifier)
+            .syncLocalQueueNow();
+      } catch (e) {
+        Logger.debugWithTag(
+          _playerLogTag,
+          'post-restore queue mirror skipped: $e',
+        );
+      }
     } catch (e) {
       Logger.warnWithTag(
         _playerLogTag,

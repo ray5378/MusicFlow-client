@@ -230,6 +230,32 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     });
   }
 
+  /// 会话恢复后立刻把本机队列镜像到服务端 —— 即「告诉服务端这是本次需要
+  /// 恢复的播放队列」。
+  ///
+  /// 日常队列/游标变化由 _watchLocalQueue 防抖上报,但**启动恢复这一下必须
+  /// 单独补**:恢复路径直接调 playSong,不经过常规播放入口,且此时服务端
+  /// 可能还留着上一次进程的旧队列。若本地落盘异常(曾出现会话文件停更,
+  /// 每次都恢复成同一首旧歌),还能顺手把陈旧队列推给服务端,两端一起陈旧
+  /// 但至少一致,不会再出现「界面一首、服务端另一首」。
+  Future<void> syncLocalQueueNow() async {
+    if (state.activePeer != null) return; // 投屏中:队列归设备,不写本机
+    // 未注册时**不**顺带触发注册:_registerSelf 会拉起心跳 Timer,而本方法
+    // 跑在会话恢复路径上(启动时),在 widget/单测环境里那颗 Timer 来不及被
+    // 取消,会撞上 flutter_test 的「Timer 不变量」断言。注册由既有流程负责,
+    // 注册成功后的下一次队列变化自然会补齐镜像(见 _watchLocalQueue)。
+    final pid = _localPeerId;
+    if (pid == null || pid.isEmpty) return;
+    final s = _ref.read(playerProvider);
+    if (s.queue.isEmpty) return;
+    await _syncLocalQueue(
+      s.queue,
+      s.currentIndex,
+      mapLocalPlayMode(s.playbackMode),
+      full: true,
+    );
+  }
+
   /// 把本机队列/游标/模式镜像到服务端。失败静默(下个变化点再试)。
   Future<void> _syncLocalQueue(
     List<Song> queue,

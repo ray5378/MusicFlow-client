@@ -166,7 +166,17 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   // 由 2s 放宽到 5s：降频 2.5 倍，崩溃续播最多损失 ~5s 进度，与主流播放器一致。
   Timer? _playbackSessionPersistTimer;
   Timer? _volumePersistTimer;
-  bool _isPersistingPlaybackSession = false;
+  /// 落盘进行中标记 —— 用「租约起点时间戳」而非布尔量实现。
+  ///
+  /// 布尔量的致命缺陷：它靠 `_persistPlaybackSession` 的 finally 复位，一旦
+  /// 某个 await 永久挂起（Windows 上 tmp.rename 覆盖已存在文件时若被杀软/
+  /// 索引服务占用会**阻塞等待**而非抛错），finally 永不执行 → 标记永久 true
+  /// → **此后所有播放会话落盘被静默跳过**。
+  /// 实测症状：playback_session_v1.json 停在某个时刻再不更新，而同目录其它
+  /// key 正常写入，于是每次重启都恢复成同一首旧歌。
+  /// 改用时间戳租约后，即使超时兜底也失效，过期即强制放行：宁可并发写一次，
+  /// 也不能再也不写。
+  int? _persistingSinceMs;
   bool _isRestoringPlaybackSession = false;
   // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
   // 队列序列化缓存移入 _payloadEncoder(PlaybackPayloadEncoder)。
