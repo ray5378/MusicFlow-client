@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
@@ -23,15 +22,19 @@ import 'package:musicflow_client/widgets/windows_title_bar.dart';
 final statusLyricsEnabledProvider = StateProvider<bool>((ref) => false);
 
 /// 桌面歌词播放模式字符串推导(纯函数,单测锁定):
-/// shuffle → 'shuffle';单曲循环 → 'repeatOne';其余 → 'repeatAll'。
-/// 与 PlayerNotifier.playbackMode 同一规则,原生层按
-/// 0=shuffle / 1=repeatAll / 2=repeatOne 解释。
-String deriveDesktopLyricMode({
-  required bool shuffleEnabled,
-  required LoopMode loopMode,
-}) {
-  if (shuffleEnabled) return 'shuffle';
-  return loopMode == LoopMode.one ? 'repeatOne' : 'repeatAll';
+/// shuffle → 'shuffle';单曲循环 → 'repeatOne';顺序播放 → 'order';
+/// 列表循环 → 'repeatAll'。直接吃 PlayerState.playbackMode 四态权威值
+/// (对齐迷你条模式按钮的取值),原生层按
+/// 0=shuffle / 1=repeatAll / 2=repeatOne / 3=order 解释。
+/// 注意:不能从 (shuffleEnabled, loopMode) 二元组推导——那会丢掉
+/// order/all 的区分,导致歌词窗在顺序播放下错画列表循环箭头。
+String deriveDesktopLyricMode({required PlaybackMode playbackMode}) {
+  return switch (playbackMode) {
+    PlaybackMode.shuffle => 'shuffle',
+    PlaybackMode.one => 'repeatOne',
+    PlaybackMode.order => 'order',
+    PlaybackMode.all => 'repeatAll',
+  };
 }
 
 /// cast 链路 playMode(order|one|all|shuffle) → 歌词窗模式串
@@ -112,12 +115,11 @@ class StatusLyricsController {
           ),
           (_, __) => _push(),
         ),
-        _ref.listen<bool>(
-          playerProvider.select((s) => s.shuffleEnabled),
-          (_, __) => _push(),
-        ),
-        _ref.listen<LoopMode>(
-          playerProvider.select((s) => s.loopMode),
+        // 播放模式:直接监听四态权威值 playbackMode(与 deriveDesktopLyricMode
+        // 同源)。不能拆成 shuffleEnabled/loopMode 两个监听——order↔all
+        // 底层同为 (off,false),切换时两者皆不变,会漏推导致歌词窗图标滞后。
+        _ref.listen<PlaybackMode>(
+          playerProvider.select((s) => s.playbackMode),
           (_, __) => _push(),
         ),
         _ref.listen<String?>(
@@ -228,10 +230,7 @@ class StatusLyricsController {
     if (dlna.isCasting) return castPlayModeToLyricMode(dlna.playMode);
     final cast = _ref.read(castPeerControllerProvider);
     if (cast.activePeer != null) return castPlayModeToLyricMode(cast.playMode);
-    return deriveDesktopLyricMode(
-      shuffleEnabled: player.shuffleEnabled,
-      loopMode: player.loopMode,
-    );
+    return deriveDesktopLyricMode(playbackMode: player.playbackMode);
   }
 
   // ==================== 播放队列 / 切换播放器弹窗 ====================

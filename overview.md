@@ -1,3 +1,41 @@
+# 本轮改动总览（2026-09-12 · 桌面歌词播放模式图标对齐 MINI + 实时刷新）
+
+> v4.3.51（tag `v4.3.51`，仅客户端；后端无改动）
+
+## 一句话
+
+桌面歌词浮窗的「播放模式」按钮在顺序播放(order)下错画列表循环箭头（与 MINI 播放条不一致），
+且点击切换后图标不实时更新。两处同根：本机链路的模式推导与监听都绕开了四态权威值
+`PlayerState.playbackMode`。
+
+## 根因
+
+1. **图标画错**：`deriveDesktopLyricMode(shuffleEnabled, loopMode)` 二元组信息有损——
+   order 与 all 底层同为 (LoopMode.off, shuffle=false)，全被压成 `'repeatAll'`；
+   原生层 kModeOrder=3 → remix 有序列表图形的分支永远走不到（仅投屏链路的
+   `castPlayModeToLyricMode` 正确透传 order）。
+2. **点击不刷新**：歌词控制器监听的是 shuffleEnabled + loopMode 两个派生字段。
+   `order ↔ all` 切换时两者皆不变（off/false → off/false），无监听触发 → `_push()`
+   不跑 → 歌词窗停在旧图标。此前未暴露正是因为两态图标本来就一样；第 1 项修好后显形。
+
+## 修复
+
+- `deriveDesktopLyricMode` 改吃 `PlaybackMode` 四态权威值（与 MINI 播放条同源）：
+  order→'order' / all→'repeatAll' / one→'repeatOne' / shuffle→'shuffle'。
+- 歌词控制器两个派生字段监听合并为一个 `playbackMode` 监听（点哪里切模式都实时回推）。
+- 原生层零改动（flutter_window.cpp 的 mode→int 解析与 remix 字形早已就绪）。
+
+## 验证
+
+| 项 | 结果 |
+|---|---|
+| `status_lyrics_provider_test` | 11 / 11（新增 order 四态用例 + 原生枚举契约锁 4 值） |
+| `flutter test` 全量 | 669 / 669 |
+| l10n 守卫 / handoff 契约扫描 | 双绿 |
+| 真机（本机 debug） | 顺序播放图标与 MINI 一致；点击循环切换实时更新 |
+
+---
+
 # 本轮改动总览（2026-09-12 · 恢复卡死根修 + 启动新鲜度竞速：v4.3.49 之后依旧恢复旧队列）
 
 > v4.3.50（tag `v4.3.50`，与主仓 v2.3.34 lockstep）

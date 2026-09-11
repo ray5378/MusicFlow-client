@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
+import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/widgets/windows_title_bar.dart';
 
 /// 桌面歌词推送链路单测:
@@ -11,54 +11,46 @@ import 'package:musicflow_client/widgets/windows_title_bar.dart';
 ///      锁定「CI(ubuntu) 上误触平台通道」这类的回归。
 void main() {
   group('deriveDesktopLyricMode', () {
-    test('shuffle 开启 → shuffle(优先级最高)', () {
+    test('shuffle → shuffle', () {
       expect(
-        deriveDesktopLyricMode(
-          shuffleEnabled: true,
-          loopMode: LoopMode.one,
-        ),
+        deriveDesktopLyricMode(playbackMode: PlaybackMode.shuffle),
         'shuffle',
       );
     });
 
     test('单曲循环 → repeatOne', () {
       expect(
-        deriveDesktopLyricMode(
-          shuffleEnabled: false,
-          loopMode: LoopMode.one,
-        ),
+        deriveDesktopLyricMode(playbackMode: PlaybackMode.one),
         'repeatOne',
       );
     });
 
-    test('列表循环/关闭循环 → repeatAll', () {
+    test('顺序播放 → order(歌词窗必须用有序列表图形,与列表循环区分)', () {
       expect(
-        deriveDesktopLyricMode(
-          shuffleEnabled: false,
-          loopMode: LoopMode.off,
-        ),
-        'repeatAll',
+        deriveDesktopLyricMode(playbackMode: PlaybackMode.order),
+        'order',
       );
+    });
+
+    test('列表循环 → repeatAll', () {
       expect(
-        deriveDesktopLyricMode(
-          shuffleEnabled: false,
-          loopMode: LoopMode.all,
-        ),
+        deriveDesktopLyricMode(playbackMode: PlaybackMode.all),
         'repeatAll',
       );
     });
 
-    test('原生层枚举契约: shuffle=0 / repeatAll=1 / repeatOne=2 不可变',
+    test('原生层枚举契约: shuffle=0 / repeatAll=1 / repeatOne=2 / order=3 不可变',
         () {
-      // 原生 desktop_lyric.cpp 的 kModeShuffle/kModeRepeatAll/kModeRepeatOne
-      // 与 flutter_window.cpp 的解析(shuffle→0, repeatOne→2, 其余→1)
-      // 依赖这三个字符串字面量;改名即跨端断链,此处显式锁定。
+      // 原生 desktop_lyric.cpp 的 kModeShuffle/kModeRepeatAll/kModeRepeatOne/
+      // kModeOrder 与 flutter_window.cpp 的解析(shuffle→0, repeatOne→2,
+      // order→3, 其余→1)依赖这些字符串字面量;改名即跨端断链,此处显式锁定。
       const expected = <String, int>{
         'shuffle': 0,
         'repeatAll': 1,
         'repeatOne': 2,
+        'order': 3,
       };
-      expect(expected.length, 3);
+      expect(expected.length, 4);
     });
   });
 
