@@ -1,4 +1,55 @@
-# 本轮改动总览（2026-09-11 深夜 · 播放端临时 ID 隔离 + 本机队列上报）
+# 本轮改动总览（2026-09-12 凌晨 · 预探测时效性修复：随机模式死链不再落地）
+
+> v4.3.48（tag `v4.3.48`，commit 5ee0b4c）
+
+## 一句话
+
+修掉「随机模式遇到死链不会提前跳过」：探测结论 TTL 只有 45s，而单曲通常播 3~5 分钟，
+切歌时判定早已过期 → 沿服务端洗牌序列的跳过一次都没生效，只能落地报错后靠兜底跳。
+现在单曲临近结束（剩余 ≤60s）会补探一次窗口，且过期判定不再挡住重探。
+
+## 用户需求
+
+1. 随机（shuffle）播放遇到「无可用音源」的歌要自动跳过，不要落地卡一下才跳。
+2. 服务端侧要先确认没问题（真机取证）。
+3. 顺带：明明同曲多源组里有可播行却被判死（组级换源救援，服务端）。
+4. 顺带：Web 前端本机随机也改由服务端洗牌序列驱动。
+
+## 根因（改动前）
+
+真机取证（服务端 v2.3.29 + 客户端 v4.3.47，94 首新歌单）：
+
+- 服务端**完全正常**：序列跟随正确（67[序列第 0 位] → 87[第 1 位]）、预探测在跑
+  （`preProbe ready=2 scanned=3`）、四态判定与独立复探一致、死链率 4/25≈16%。
+- 客户端三个缺陷叠加：
+  1. `_probeUpcoming()` **只在切歌瞬间调一次**，探接下来 3 首；
+  2. `probeCacheTtlMs = 45s` < 单曲时长 → 切歌时判定已过期，`_isKnownUnplayable` 恒 false；
+  3. 候选收集用 `!_probeCache.containsKey(id)` —— **过期条目也算「已探」**，挡住重探，
+     而过期条目的清理只在读取时发生 → 死循环。
+
+## 实现（client 侧，B+C 最小彻底修）
+
+- `_maybeProbeNearEnd()`：由进度流驱动，剩余 ≤60s 时补探一次（同一首 60s 节流）。
+- `_probeNeedsRefresh()`：未缓存 **或已过期** 都要重探（替换原 `containsKey` 判据）。
+- part/mixin 跨文件需在 `PlayerNotifier` 基类补抽象声明（老坑，已补 3 个）。
+
+## 验证
+
+- `flutter analyze lib/providers/player/` 0 error；**663 测试全绿**；
+  5 守卫（interaction / workflow yaml / gpu / handoff chain / handoff e2e）+ l10n 门禁通过。
+
+## 发版
+
+- commit `5ee0b4c` / tag `v4.3.48` / CI（Build Client + Test Suite + UI Guard + server-contract
+  等 10 个 workflow）全 success；Release author/uploader 均 github-actions[bot]。
+- 产物：MusicFlow-v4348-android.apk 46.2MB + MusicFlow-v4348-windows-setup.exe 31.8MB。
+- 配套服务端 **v2.3.31**（主仓 a57e679，同日发；v2.3.30 已被 v2.3.31 取代 —— 组级救援的
+  缓存写反了，见主仓提交说明）。
+- 真机待验：升级后在随机模式下放新歌单，看死链是否被**提前跳过**（不再落地报错）。
+
+---
+
+# 上一轮改动总览（2026-09-11 深夜 · 播放端临时 ID 隔离 + 本机队列上报）
 
 > v4.3.46（tag `v4.3.46`，commit a791cb0）
 
