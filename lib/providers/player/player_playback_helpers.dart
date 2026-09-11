@@ -113,11 +113,12 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
     return idx;
   }
 
-  /// 预探测接下来可能播放的歌曲是否可用（与主项目前端 probeUpcoming 一致）。
-  /// 后端 POST /rest/api/v1/stream/probe 对本地歌曲零开销,
-  /// 对 web 歌曲做 Range 探测并自动换源写回 DB —— 价值在「提前治愈」源
-  /// （服务端把失效链换成可用源并持久化）；不再据此预先跳歌，坏歌由
-  /// 播放失败兜底无限跳（无死歌集合、无停播阈值）。
+  /// 预探测接下来可能播放的歌曲是否可用（服务端裁决,与主项目前端 probeUpcoming 一致）。
+  ///
+  /// 后端 POST /rest/api/v1/stream/probe 对本地歌曲零开销,对 web 歌曲做 Range 探测
+  /// 并自动换源写回 DB,返回**四态判定**(playable/unplayable/transient/unknown)。
+  /// 结果固化进 _probeCache → 顺序推进(order/all)时 `_skipKnownUnplayable` 据此
+  /// **只在 unplayable 时预跳**;transient/unknown 照常播放,由播放失败兜底无限跳。
   Future<void> _probeUpcoming() async {
     if (_probing || state.queue.isEmpty) return;
     final queue = state.queue;
@@ -169,15 +170,25 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
         final songId = (r['songId'] as String?) ?? '';
         if (songId.isEmpty) continue;
         final ok = r['ok'] == true;
+        // 服务端四态判定(2026-09-11):playable/unplayable/transient/unknown。
+        // 旧服务端无 verdict → 按 ok 推断(向后兼容)。
+        final verdict = (r['verdict'] as String?) ?? (ok ? 'playable' : 'unknown');
+        // 只固化「确定」的两态：transient/unknown 不写缓存 → 下次推进仍会重问,
+        // 网络恢复后自动复活(与服务端 negativeTtlSeconds 语义一致)。
+        if (verdict != 'playable' && verdict != 'unplayable') continue;
         // 带上限：超限时整体重置（一次性清空），避免无界增长。
         if (_probeCache.length >= _probeCacheMaxEntries) {
           _probeCache.clear();
         }
-        _probeCache[songId] = ProbeCacheEntry(ok: ok, at: DateTime.now().millisecondsSinceEpoch);
-        if (!ok) {
+        _probeCache[songId] = ProbeCacheEntry(
+          ok: verdict == 'playable',
+          at: DateTime.now().millisecondsSinceEpoch,
+          verdict: verdict,
+        );
+        if (verdict == 'unplayable') {
           Logger.warnWithTag(
             _playerLogTag,
-            'pre-probe unplayable (runtime skip/heal will handle): $songId (${r['reason'] ?? 'no usable audio source'})',
+            'pre-probe unplayable → 预跳过: $songId (${r['reason'] ?? 'no usable audio source'})',
           );
         }
       }

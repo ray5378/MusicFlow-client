@@ -29,20 +29,25 @@ const probeCacheTtlMs = 45 * 1000;
 
 /// 预探测结论条目(带时间戳,TTL 判定用)。
 class ProbeCacheEntry {
-  const ProbeCacheEntry({required this.ok, required this.at});
+  const ProbeCacheEntry({required this.ok, required this.at, this.verdict});
   final bool ok;
   final int at; // ms epoch
+  /// 服务端四态判定(2026-09-11):playable | unplayable | transient | unknown。
+  /// null = 旧构造(仅 ok)/ 旧服务端 → 回落到按 [ok] 推断。
+  final String? verdict;
 }
 
 /// 某条预探测结论当前是否构成「明确的、未过期的不可播」。
 ///
 /// §8.3 护栏 3:**无记录 / 已过期 → false(未知 → 照常播放)**。
 /// 绝不把「不知道」当成「死的」—— 这是拆除永久拉黑时定下的边界。
-/// 纯函数(守卫测试直接锁定四向)。
+/// 四态后:**只有服务端明确判定 unplayable 才预跳**;transient(网络抖动)与
+/// unknown(未探过)一律不跳,由播放失败兜底。纯函数(守卫测试直接锁定)。
 bool isProbeEntryUnplayable(ProbeCacheEntry? entry, int nowMs) {
   if (entry == null) return false;
   if (nowMs - entry.at >= probeCacheTtlMs) return false;
-  return !entry.ok;
+  if (entry.verdict != null) return entry.verdict == 'unplayable';
+  return !entry.ok; // 旧构造 / 旧服务端兼容
 }
 
 /// 预跳过的纯函数核心(§8.3):从 [startIndex] 起连续越过「明确的、未过期的

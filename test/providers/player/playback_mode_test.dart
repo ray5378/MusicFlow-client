@@ -147,5 +147,46 @@ void main() {
         isFalse,
       );
     });
+
+    test("四态 verdict:只有 unplayable 预跳,transient/unknown 绝不误杀", () {
+      const now = 1000 * 1000;
+      // 服务端明确不可播 → 允许预跳
+      expect(
+        isProbeEntryUnplayable(
+          const ProbeCacheEntry(ok: false, at: now - 1000, verdict: 'unplayable'),
+          now,
+        ),
+        isTrue,
+      );
+      // 网络抖动:ok=false 但**不是** unplayable → 不跳(旧逻辑会误杀,这条锁回归)
+      expect(
+        isProbeEntryUnplayable(
+          const ProbeCacheEntry(ok: false, at: now - 1000, verdict: 'transient'),
+          now,
+        ),
+        isFalse,
+      );
+      // 未探过 → 不跳
+      expect(
+        isProbeEntryUnplayable(
+          const ProbeCacheEntry(ok: false, at: now - 1000, verdict: 'unknown'),
+          now,
+        ),
+        isFalse,
+      );
+      // 可播 → 不跳
+      expect(
+        isProbeEntryUnplayable(
+          const ProbeCacheEntry(ok: true, at: now - 1000, verdict: 'playable'),
+          now,
+        ),
+        isFalse,
+      );
+      // verdict 缺省(旧服务端) → 回落 ok
+      expect(
+        isProbeEntryUnplayable(const ProbeCacheEntry(ok: false, at: now - 1000), now),
+        isTrue,
+      );
+    });
   });
 }

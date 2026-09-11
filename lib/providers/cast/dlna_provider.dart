@@ -80,7 +80,11 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
               orElse: () => const <String, dynamic>{},
             );
         if (hit.isEmpty) return true; // 服务端未返回该曲结果：不误杀
-        return hit['ok'] == true;
+        // 四态(2026-09-11):只有服务端明确 unplayable 才算「无源」;
+        // transient(网络抖动)/unknown(未探过) 不误杀,交设备实测兜底。
+        final verdict = hit['verdict'] as String?;
+        if (verdict != null) return verdict != 'unplayable';
+        return hit['ok'] == true; // 旧服务端兼容
       } on DlnaSongUnplayableException {
         return false;
       } catch (_) {
