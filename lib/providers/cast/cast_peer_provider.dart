@@ -87,6 +87,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Timer? _heartbeatTimer;
   String? _localPeerId;
 
+  /// 本机 peer 的对外 ID(`local:<uid>`,打码视图;真实实例 ID 只在服务端)。
+  /// 播放器据此拉取服务端权威洗牌序列(SEE SPEC:洗牌序列唯一权威在服务端)。
+  String? get localPeerId => _localPeerId;
+
   /// 连续轮询失败计数(离线判定)。
   int _failureCount = 0;
 

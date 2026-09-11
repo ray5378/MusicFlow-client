@@ -80,9 +80,10 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
   /// 本机播放预跳过(§8.3):顺序推进时越过「明确的、未过期的不可播」的歌。
   ///
   /// 边界(全部有意为之):
-  ///   - 只做顺序推进(order/all);**shuffle 模式不预跳** —— 随机序列由
-  ///     shuffle history 权威管理,预跳会破坏序列语义,交给播放失败兜底
-  ///     (失败后随机重抽,语义等价「跳过」);
+  ///   - 只做顺序推进(order/all);**shuffle 模式不在这里预跳** —— shuffle
+  ///     沿服务端权威序列推进并在 `_pickServerShuffleNext` 里用同一套
+  ///     `_isKnownUnplayable` 判据跳死链(2026-09-11 补齐 SPEC);无服务端
+  ///     序列的离线随机模式交给播放失败兜底(失败后随机重抽,语义等价)。
   ///   - 只在队列范围内跳,**不回绕** —— all 模式回绕后的死源由下一轮
   ///     next 的预跳过/播放失败兜底接力;
   ///   - **不改队列**(护栏 4):只推进游标,items 原样;
@@ -131,24 +132,53 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
     bool isRemoteSong(Song s) => s.isPreview || s.id.startsWith('remote:');
 
     // 收集接下来 _probeWindow 首未探测过的非远程歌曲 ID
-    for (var i = 1; i <= _probeWindow; i++) {
-      final idx = currentIndex + i;
-      if (idx < queue.length) {
-        final s = queue[idx];
-        if (s.id.isNotEmpty &&
-            !isRemoteSong(s) &&
-            !_probeCache.containsKey(s.id)) {
-          cands.add(s.id);
+    //
+    // shuffle:沿**服务端权威洗牌序列**取候选(2026-09-11 补齐 SPEC)——
+    // 随机模式下线性窗口扫到的位置根本不会播,纯浪费;沿序列扫才能让
+    // 服务端/客户端预探测真正覆盖「接下来实际会听的歌」。序列拿不到
+    // (离线/未注册)则退回线性窗口,保持旧行为不劣化。
+    var usedShuffleSeq = false;
+    if (state.shuffleEnabled) {
+      final seqOk = await _refreshServerShuffleSeq();
+      final order = _srvShuffleOrder;
+      if (seqOk && order != null && order.isNotEmpty) {
+        var pos = _srvShufflePos;
+        if (pos < 0 || pos >= order.length || order[pos] != currentIndex) {
+          pos = order.indexOf(currentIndex);
         }
-      } else if (idx >= queue.length && state.playbackMode == PlaybackMode.all) {
-        // 列表循环(all)回绕;order 到末尾不回绕(未来没有歌,窗口自然缩短)
-        final wrap = idx % queue.length;
-        if (wrap != currentIndex) {
-          final s = queue[wrap];
+        if (pos >= 0) {
+          usedShuffleSeq = true;
+          for (var k = 1; k <= _probeWindow && pos + k < order.length; k++) {
+            final s = queue[order[pos + k]];
+            if (s.id.isNotEmpty &&
+                !isRemoteSong(s) &&
+                !_probeCache.containsKey(s.id)) {
+              cands.add(s.id);
+            }
+          }
+        }
+      }
+    }
+    if (!usedShuffleSeq) {
+      for (var i = 1; i <= _probeWindow; i++) {
+        final idx = currentIndex + i;
+        if (idx < queue.length) {
+          final s = queue[idx];
           if (s.id.isNotEmpty &&
               !isRemoteSong(s) &&
               !_probeCache.containsKey(s.id)) {
             cands.add(s.id);
+          }
+        } else if (idx >= queue.length && state.playbackMode == PlaybackMode.all) {
+          // 列表循环(all)回绕;order 到末尾不回绕(未来没有歌,窗口自然缩短)
+          final wrap = idx % queue.length;
+          if (wrap != currentIndex) {
+            final s = queue[wrap];
+            if (s.id.isNotEmpty &&
+                !isRemoteSong(s) &&
+                !_probeCache.containsKey(s.id)) {
+              cands.add(s.id);
+            }
           }
         }
       }

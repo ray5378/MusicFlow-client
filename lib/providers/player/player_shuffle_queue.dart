@@ -183,4 +183,112 @@ mixin PlayerShuffleQueueInternals on PlayerNotifier {
     _forcedNextIndex = null;
   }
 
+
+  // ==================== 服务端权威洗牌序列(2026-09-11 补齐 SPEC) ====================
+  //
+  // SPEC(player/types.ts,2026-09-10 定):洗牌序列唯一权威在服务端,客户端只做
+  // 镜像。此前只有投屏链路实现了,本机链路漏掉 —— 客户端自己随机抽,导致
+  // ①服务端预探测扫不到本机 shuffle 窗口;②本机 shuffle 无预跳(没有确定
+  // 的"下一首"可跳)。现在补齐:shuffle 推进沿服务端序列走,拿不到序列
+  // (离线/未注册)时回退旧本地随机,离线语义不变。
+
+  /// 服务端序列镜像缓存(epoch 变了必须整体重定位)。
+  List<int>? _srvShuffleOrder;
+  int _srvShuffleEpoch = -1;
+  int _srvShufflePos = -1;
+  bool _srvShuffleFetching = false;
+
+  /// 拉取(或显式重洗)服务端洗牌序列。返回是否成功。
+  Future<bool> _refreshServerShuffleSeq({bool reshuffle = false}) async {
+    if (_srvShuffleFetching) return _srvShuffleOrder != null;
+    final pid = _ref.read(castPeerControllerProvider.notifier).localPeerId;
+    if (pid == null || pid.isEmpty) return false;
+    _srvShuffleFetching = true;
+    try {
+      final enc = Uri.encodeComponent(pid);
+      // 短超时:这条请求在切歌路径上,失败即回退本地随机,不能拖慢兜底循环。
+      const t = Duration(seconds: 5);
+      final resp = reshuffle
+          ? await _apiClient.postRaw('/rest/api/v1/peers/$enc/queue/reshuffle',
+              receiveTimeout: t)
+          : await _apiClient.getRaw('/rest/api/v1/peers/$enc/queue/shuffle',
+              receiveTimeout: t);
+      if (resp is! Map) return false;
+      final order = (resp['shuffleOrder'] as List?)?.whereType<num>().map((e) => e.toInt()).toList();
+      if (order == null) return false;
+      _srvShuffleOrder = order;
+      final newEpoch = (resp['shuffleEpoch'] as num?)?.toInt() ?? -1;
+      if (newEpoch != _srvShuffleEpoch) {
+        // 序列换版(重洗/整队替换/服务端重启)→ 旧位置作废,由调用方重定位。
+        Logger.debugWithTag('PLAYER',
+            'srv-shuffle epoch $_srvShuffleEpoch -> $newEpoch (reshuffle=$reshuffle)');
+        _srvShuffleEpoch = newEpoch;
+        _srvShufflePos = -1;
+      }
+      if (!reshuffle) {
+        _srvShufflePos = (resp['shufflePos'] as num?)?.toInt() ?? _srvShufflePos;
+      }
+      return true;
+    } catch (_) {
+      // 离线/无服务:清缓存,回退本地随机。
+      _srvShuffleOrder = null;
+      _srvShufflePos = -1;
+      return false;
+    } finally {
+      _srvShuffleFetching = false;
+    }
+  }
+
+  /// 沿服务端洗牌序列推进,越过「明确的、未过期的不可播」的歌(与顺序模式
+  /// 的 _skipKnownUnplayable 同一四态语义:只跳 unplayable,transient/unknown
+  /// 照播)。返回应播放的队列下标;拿不到序列返回 null(调用方回退本地随机)。
+  ///
+  /// 序列尾自动重洗(用户确认语义):reshuffle 后取新序列第 0 位。
+  /// 已知死链跳过不消耗回绕 —— 序列走到尾即触发重洗,由新序列接力。
+  Future<int?> _pickServerShuffleNext() async {
+    if (!state.shuffleEnabled || state.queue.isEmpty) return null;
+    var ok = await _refreshServerShuffleSeq();
+    if (!ok) return null;
+    var order = _srvShuffleOrder!;
+    var pos = _srvShufflePos;
+    // 序列版本对不上/缓存位置与当前曲不符 → 重新定位(跳歌/换队列/重启后)。
+    if (pos < 0 || pos >= order.length || order[pos] != state.currentIndex) {
+      pos = order.indexOf(state.currentIndex);
+    }
+    if (pos < 0) return null;
+
+    var nextPos = pos + 1;
+    if (nextPos >= order.length) {
+      // 序列尾 → 自动重洗,新序列从头接续。
+      ok = await _refreshServerShuffleSeq(reshuffle: true);
+      if (!ok || _srvShuffleOrder == null || _srvShuffleOrder!.isEmpty) return null;
+      order = _srvShuffleOrder!;
+      nextPos = 0;
+    }
+    // 沿序列跳过已知死链(不回绕;越过的位置照常消耗,一轮语义不变)。
+    var p = nextPos;
+    var skipped = 0;
+    while (p < order.length && _isKnownUnplayable(state.queue[order[p]].id)) {
+      p++;
+      skipped++;
+    }
+    if (p >= order.length) {
+      // 剩余全死 → 重洗一次,从新序列头找第一首非死链。
+      ok = await _refreshServerShuffleSeq(reshuffle: true);
+      if (!ok || _srvShuffleOrder == null) return null;
+      order = _srvShuffleOrder!;
+      p = 0;
+      while (p < order.length && _isKnownUnplayable(state.queue[order[p]].id)) {
+        p++;
+      }
+      if (p >= order.length) return null;
+    }
+    _srvShufflePos = p;
+    if (skipped > 0) {
+      Logger.infoWithTag('PLAYER', 'srv-shuffle skip ahead: skipped $skipped known-unplayable song(s)');
+    }
+    final idx = order[p];
+    if (idx < 0 || idx >= state.queue.length) return null;
+    return idx;
+  }
 }

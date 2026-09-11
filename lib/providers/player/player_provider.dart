@@ -27,6 +27,7 @@ import 'package:musicflow_client/core/services/smtc_service.dart';
 
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
 import 'package:musicflow_client/providers/player/crossfade_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
@@ -234,6 +235,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _persistPlaybackSession(); // ignore: unused_element, unused_element_parameter
   Future<void> _probeUpcoming(); // ignore: unused_element, unused_element_parameter
   int _skipKnownUnplayable(int startIndex); // ignore: unused_element, unused_element_parameter
+  bool _isKnownUnplayable(String songId); // ignore: unused_element, unused_element_parameter
+  Future<bool> _refreshServerShuffleSeq({bool reshuffle = false}); // ignore: unused_element, unused_element_parameter
+  Future<int?> _pickServerShuffleNext(); // ignore: unused_element, unused_element_parameter
+  List<int>? get _srvShuffleOrder; // ignore: unused_element
+  int get _srvShufflePos; // ignore: unused_element
   void _releaseSeekAnchor(int seekGeneration); // ignore: unused_element, unused_element_parameter
   Future<bool> _replaceLoadedSource({ required String songId, required String label, required bool Function() ownsSource, required Future<void> Function(AudioPlayer player) setSource, }); // ignore: unused_element, unused_element_parameter
   void _resetShuffleHistory({bool updateState = true}); // ignore: unused_element, unused_element_parameter
@@ -1741,6 +1747,21 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
           index: forwardIndex,
           recordShuffleHistory: false,
           clearShuffleForwardHistory: false,
+        );
+        return;
+      }
+      // 服务端权威洗牌序列优先(2026-09-11 补齐 SPEC):沿序列推进 + 预跳
+      // 已知死链(与顺序模式同一四态语义);拿不到序列(离线/未注册)才走
+      // 下面的本地随机兜底 —— 离线行为不变。
+      final srvIdx = await _pickServerShuffleNext();
+      if (srvIdx != null && srvIdx != state.currentIndex) {
+        final srvSong = state.queue[srvIdx];
+        await playSong(
+          srvSong,
+          queue: state.queue,
+          index: srvIdx,
+          recordShuffleHistory: true,
+          clearShuffleForwardHistory: true,
         );
         return;
       }
