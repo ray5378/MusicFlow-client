@@ -139,7 +139,8 @@ void checkOriginPersisted(File payload, File session) {
   if (!p.contains('Object? $sessionOriginReader(')) {
     fail('会话契约回归：playback_payload 缺少恢复侧读取入口 $sessionOriginReader。');
   }
-  if (!s.contains('$sessionOriginReader(session)')) {
+  // 容忍 `session!`(恢复路径里 session 为可空,非空断言是正常写法)。
+  if (!RegExp('$sessionOriginReader\\(session!?\\)').hasMatch(s)) {
     fail(
       '会话契约回归：player_playback_session 恢复时未读取队列来源。',
     );
