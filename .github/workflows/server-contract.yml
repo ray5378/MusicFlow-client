@@ -1,0 +1,70 @@
+name: server-contract
+
+# 服务端发版联动门禁(与主仓 MusicFlow 的 contract-gate.yml 配对):
+# 主仓打 v2.3.* tag 且其契约冒烟通过后,repository_dispatch 通知本 workflow ——
+#   1. 检出主仓对应 tag 的后端,起隔离实例;
+#   2. 用主仓 scripts/contract_smoke.cjs 对真实实例做端到端契约校验;
+#   3. 跑本仓 Dart 契约测试(test/contract/),锁定客户端对服务端的请求形状。
+# 也可手动 workflow_dispatch 触发(可指定主仓 ref)。
+
+on:
+  repository_dispatch:
+    types: [server-released]
+  workflow_dispatch:
+    inputs:
+      server_ref:
+        description: 主仓 ref(默认 main)
+        required: false
+        default: main
+
+concurrency:
+  group: server-contract-${{ github.event.client_payload.tag || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  client-contract-check:
+    name: client 对服务端契约校验(真实实例 + Dart 契约)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout MusicFlow server repo
+        uses: actions/checkout@v4
+        with:
+          repository: ray5378/MusicFlow
+          ref: ${{ github.event.client_payload.tag || inputs.server_ref || 'main' }}
+          path: server
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/backend/package-lock.json
+      - name: Install backend dependencies
+        run: cd server/backend && npm ci
+      - name: Build backend
+        run: cd server/backend && npm run build
+      - name: Start isolated backend instance
+        run: |
+          cd server/backend
+          DATA_DIR=$(mktemp -d) PORT=46999 node dist/index.js > /tmp/mf-server.log 2>&1 &
+          echo $! > /tmp/mf-server.pid
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:46999/ || true)
+            if [ "$code" = "200" ]; then echo "backend healthy"; exit 0; fi
+            sleep 2
+          done
+          echo "backend not healthy, log:"
+          tail -50 /tmp/mf-server.log
+          exit 1
+      - name: Run server contract smoke
+        run: MF_BASE=http://127.0.0.1:46999 node server/scripts/contract_smoke.cjs
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Run client contract tests
+        run: flutter test test/contract/
+      - name: Dump backend log on failure
+        if: failure()
+        run: tail -80 /tmp/mf-server.log
