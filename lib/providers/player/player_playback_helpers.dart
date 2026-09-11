@@ -188,7 +188,7 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
         if (verdict == 'unplayable') {
           Logger.warnWithTag(
             _playerLogTag,
-            'pre-probe unplayable → 预跳过: $songId (${r['reason'] ?? 'no usable audio source'})',
+            'pre-probe unplayable → skip: $songId (${r['reason'] ?? 'no usable audio source'})',
           );
         }
       }

@@ -1,3 +1,55 @@
+# 本轮改动总览（2026-09-11 夜 · 三条链路共用服务端预探测）
+
+## 一句话
+
+让**服务端预探测**成为 Web / 投屏(DLNA) / 本机客户端三条链路共用的"提前找可播源"大脑：
+服务端为**本机队列**也开始预扫描，三端都读同一套四态判定（`playable/unplayable/transient/unknown`），
+**只在 `unplayable` 时预跳**；洗牌模式下 `enqueue` 路径也会物化洗牌序并向前扫描（修复 scanned=0）。
+
+## 用户需求
+
+原目标「三条链路都吃到服务端预探测」此前未达成：投屏链路仅 order/all 生效、shuffle 失效；
+Web 与本机客户端"未接入、服务端不跳"。要求：队列变化触发向前扫描，死源被标记且不可播，
+三条链路都消费同一结果，客户端跳过死源、自动播可播源。
+
+## 根因
+
+1. **洗牌不扫描**：`peekUpcomingPositions` 的 shuffle 分支依赖 `shuffleOrder`；
+   只有 `setQueue`(playFrom) 会物化洗牌序，`enqueue` / `setPlayMode` 不物化 →
+   调度时洗牌序为空 → 向前扫描 0 个位置。**是路径差异，不是播放模式差异**。
+2. **本机链路缺失**：`PreProbeScheduler` 只被 `QueueController`（投屏）订阅；
+   本机队列走 `PeerManager`，无人调度、快照无 `preProbe` 字段。
+3. **多订阅互相覆盖**：调度器只有单个 `onChange` 回调，两个消费者会互相顶掉。
+4. **判定语义单一**：`/v1/stream/probe` 只回 `ok` 布尔，客户端无法区分
+   「网络抖动(transient)」与「确实无源(unplayable)」，存在误杀风险。
+
+## 实现
+
+- 后端 `preProbeScheduler`：单回调 → 多监听者 (`addOnChange`)，投屏与本机可共存订阅。
+- 后端 `QueueController`：`setPlayMode/enqueue/removeAt/reorder` 调度前先按需物化洗牌序
+  (reorder 因长度不变改为 `rebuildShuffle({keepCurrent:true})`)。
+- 后端 `PeerManager`：本机队列也接入调度器 (`scheduleLocalPreProbe`)，快照附带 `preProbe`。
+- 后端 `/v1/stream/probe`：新增四态 `verdict`（`getCachedPlayability` 同源判据）；
+  保留 `ok` 字段向后兼容。客户端**只应在 `unplayable` 时预跳**。
+- 客户端 `ProbeCacheEntry` 增 `verdict`；`isProbeEntryUnplayable` 优先看 verdict；
+  `probeSong` 钩子解析 verdict；新增四态护栏测试。
+
+## 验证
+
+- backend：`npm run build`(tsc) 通过；`npm test` **846/846** 全绿（新增 `localPreProbe.test.ts` 5 例）。
+- frontend：`npm run build`(vue-tsc+vite) 通过；i18n 守卫通过。
+- client：`flutter analyze` 无新增问题；`playback_mode_test.dart` **11/11**；
+  5 个阻断型守卫（interaction_feedback / workflow_yaml / gpu_guard_scan /
+  handoff_chain_scan / handoff_e2e_scan）全绿；l10n 守卫通过。
+
+## 发版
+
+- client commit `621d2bc` → 首轮 tag `v4.3.44`（l10n 守卫报红：调试日志含硬编码中文）
+- client commit（本次）→ tag **`v4.3.45`**：修 l10n 守卫（调试日志改英文）
+- 主仓库配套 tag **`v2.3.27`**（修 i18n 守卫同类问题）
+
+---
+
 # 本轮改动总览（2026-09-10 晚 · 联调版已启动）
 
 ## 一句话
