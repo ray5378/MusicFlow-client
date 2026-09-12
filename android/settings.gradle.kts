@@ -11,13 +11,21 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
-        // 国内镜像优先，规避直接访问 google()/mavenCentral() 的 TLS 墙
+        // Gradle 遇仓库 5xx(如 Aliyun 偶发 502)不会跨仓库回退(视为硬失败)，
+        // 而 CI(海外 runner) 直连 google()/mavenCentral() 畅通，故 CI 下可靠源优先，
+        // 避免发版被镜像 5xx 阻断；本地(国内)仍 Aliyun 优先，规避直连 TLS 墙。
+        if (System.getenv("CI") != null) {
+            google()
+            mavenCentral()
+        }
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/central") }
         maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
-        google()
-        mavenCentral()
+        if (System.getenv("CI") == null) {
+            google()
+            mavenCentral()
+        }
         gradlePluginPortal()
     }
 }
@@ -25,13 +33,19 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        if (System.getenv("CI") != null) {
+            google()
+            mavenCentral()
+        }
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/central") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         // Flutter 引擎 AAR(io.flutter:x86_64_debug 等) 镜像；PREFER_SETTINGS 下须显式声明
         maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
-        google()
-        mavenCentral()
+        if (System.getenv("CI") == null) {
+            google()
+            mavenCentral()
+        }
     }
 }
 
