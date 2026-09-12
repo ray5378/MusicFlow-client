@@ -20,6 +20,7 @@ import 'package:musicflow_client/core/design/components/music_flow_message.dart'
 import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
+import 'package:musicflow_client/core/player/server_shuffle_sequence.dart';
 import 'package:musicflow_client/core/player/shuffle_queue_indexer.dart';
 import 'package:musicflow_client/core/player/playback_payload.dart';
 import 'package:musicflow_client/core/services/audio_handler_service.dart';

@@ -48,6 +48,19 @@ jobs:
       - name: Run local playback chain guard tests
         run: flutter test test/core/player/playback_error_guard_test.dart
 
+      # 本机播放模式契约(阻塞):四态映射 / 旧名迁移 / 顺序模式预跳过护栏。
+      # 之前只在非阻塞 test-suite 跑,回归不挡发布 —— 随机/顺序模式被破坏时
+      # 只会在桌面端被真人发现。playback_mode_test 钉死 order/all/one/shuffle
+      # 的语义边界与持久化旧值映射,必须阻塞发布。
+      - name: Run local playback-mode contract tests
+        run: flutter test test/providers/player/playback_mode_test.dart
+
+      # 进度条点击/长按 seek 守卫(阻塞):Windows 鼠标按住 ≥ kPressTimeout 时
+      # tap 竞技场判胜、drag 被淘汰会误触发取消——修复后必须锁住「鼠标长按
+      # 不动再松开仍 seek」这一回归,否则发版后又退回「点击进度条弹回原处」。
+      - name: Run scrubber seek (mouse press-and-hold) regression tests
+        run: flutter test test/features/player/player_scrubber_test.dart
+
       # 接续搬移链路守卫（2026-09-10 拍板）：搬移必须主通道优先 + songId 身份
       # 定位 + 队列来源随会话持久化。这三条跨越「发起→落盘→重启恢复→搬移」
       # 四个环节，任何一环被绕开都不会让既有单测变红（已用变异验证确认：

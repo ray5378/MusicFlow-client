@@ -217,7 +217,16 @@ class _MusicFlowPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
                   ? (details) => _update(details.localPosition.dx, width)
                   : null,
               onHorizontalDragEnd: _enabled ? (_) => _finish() : null,
-              onHorizontalDragCancel: _enabled ? _cancel : null,
+              onHorizontalDragCancel: _enabled
+                  ? () {
+                      // 关键:drag 识别器在竞技场中败给 tap(如按住 >= kPressTimeout
+                      // 后 tap 依 deadline 判胜)时,Flutter 也会回调
+                      // onHorizontalDragCancel——此时拖拽从未 start 过,属于 tap 的
+                      // 正常流程,绝不能终止进行中的 tap 会话,否则 onChangeEnd 不
+                      // 再触发、点击 seek 失效。只有拖拽真正开始过才需要取消。
+                      if (_horizontalDragActive) _cancel();
+                    }
+                  : null,
               child: SizedBox(
                 key: const ValueKey<String>('musicflow-player-scrubber'),
                 height: context.musicFlowInteraction.minimumTouchTarget,

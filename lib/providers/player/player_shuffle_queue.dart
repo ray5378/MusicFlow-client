@@ -245,10 +245,12 @@ mixin PlayerShuffleQueueInternals on PlayerNotifier {
   ///
   /// 序列尾自动重洗(用户确认语义):reshuffle 后取新序列第 0 位。
   /// 已知死链跳过不消耗回绕 —— 序列走到尾即触发重洗,由新序列接力。
+  /// 推进核心(跳死链 + 越尾判重洗)由 [ServerShuffleSequence.advance] 承载,
+  /// 与 HTTP/状态解耦以便单测。
   Future<int?> _pickServerShuffleNext() async {
     if (!state.shuffleEnabled || state.queue.isEmpty) return null;
-    var ok = await _refreshServerShuffleSeq();
-    if (!ok) return null;
+    final ok0 = await _refreshServerShuffleSeq();
+    if (!ok0) return null;
     var order = _srvShuffleOrder!;
     var pos = _srvShufflePos;
     // 序列版本对不上/缓存位置与当前曲不符 → 重新定位(跳歌/换队列/重启后)。
@@ -257,37 +259,26 @@ mixin PlayerShuffleQueueInternals on PlayerNotifier {
     }
     if (pos < 0) return null;
 
-    var nextPos = pos + 1;
-    if (nextPos >= order.length) {
-      // 序列尾 → 自动重洗,新序列从头接续。
-      ok = await _refreshServerShuffleSeq(reshuffle: true);
-      if (!ok || _srvShuffleOrder == null || _srvShuffleOrder!.isEmpty) return null;
-      order = _srvShuffleOrder!;
-      nextPos = 0;
-    }
-    // 沿序列跳过已知死链(不回绕;越过的位置照常消耗,一轮语义不变)。
-    var p = nextPos;
-    var skipped = 0;
-    while (p < order.length && _isKnownUnplayable(state.queue[order[p]].id)) {
-      p++;
-      skipped++;
-    }
-    if (p >= order.length) {
-      // 剩余全死 → 重洗一次,从新序列头找第一首非死链。
-      ok = await _refreshServerShuffleSeq(reshuffle: true);
-      if (!ok || _srvShuffleOrder == null) return null;
-      order = _srvShuffleOrder!;
-      p = 0;
-      while (p < order.length && _isKnownUnplayable(state.queue[order[p]].id)) {
-        p++;
+    final isUnplayable = (int queueIndex) =>
+        _isKnownUnplayable(state.queue[queueIndex].id);
+
+    // 序列内推进,跳过已知死链;耗尽则整轮重洗一次,从新序列头再找第一首非死链。
+    var idx = ServerShuffleSequence.advance(order, pos, isUnplayable);
+    if (idx == null) {
+      final reshuffled = await _refreshServerShuffleSeq(reshuffle: true);
+      if (!reshuffled ||
+          _srvShuffleOrder == null ||
+          _srvShuffleOrder!.isEmpty) {
+        return null;
       }
-      if (p >= order.length) return null;
+      order = _srvShuffleOrder!;
+      idx = ServerShuffleSequence.advance(order, -1, isUnplayable);
     }
+    if (idx == null) return null;
+
+    final p = order.indexOf(idx);
+    if (p < 0) return null;
     _srvShufflePos = p;
-    if (skipped > 0) {
-      Logger.infoWithTag('PLAYER', 'srv-shuffle skip ahead: skipped $skipped known-unplayable song(s)');
-    }
-    final idx = order[p];
     if (idx < 0 || idx >= state.queue.length) return null;
     return idx;
   }
