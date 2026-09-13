@@ -91,7 +91,7 @@ class PeerCastRow extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      _DlnaBadge(colors: colors),
+                      _PeerBadge(label: peer.kindLabel, colors: colors),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -133,10 +133,11 @@ class PeerCastRow extends ConsumerWidget {
   }
 }
 
-/// 「DLNA」小徽章:设备类型标签,跟设备名同行(替代原第二行的 kind 字样)。
-class _DlnaBadge extends StatelessWidget {
-  const _DlnaBadge({required this.colors});
+/// 设备类型小徽章:紧跟设备名同行,展示 peer.kind(如 DLNA / AirPlay / Sendspin)。
+class _PeerBadge extends StatelessWidget {
+  const _PeerBadge({required this.label, required this.colors});
 
+  final String label;
   final MusicFlowColors colors;
 
   @override
@@ -148,7 +149,7 @@ class _DlnaBadge extends StatelessWidget {
         border: Border.all(color: colors.controlBoundary, width: 0.5),
       ),
       child: Text(
-        'DLNA',
+        label,
         style: context.musicFlowTypography.body.copyWith(
           fontSize: 10,
           height: 1.4,

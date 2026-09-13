@@ -37,7 +37,7 @@ class PeerInfo {
 
   final String peerId;
   final String name;
-  /// local / dlna / airplay / group
+  /// local / dlna / airplay / group / sendspin
   final String kind;
   final bool available;
   final int queueTotal;
@@ -49,6 +49,7 @@ class PeerInfo {
         'local' => l10nNowCurrent().peer_self,
         'airplay' => 'AirPlay',
         'group' => l10nNowCurrent().peer_group,
+        'sendspin' => 'Sendspin',
         _ => 'DLNA',
       };
 
