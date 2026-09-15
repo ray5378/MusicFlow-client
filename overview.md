@@ -1,5 +1,39 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.5（tag `v5.0.5` · 播放器圆形快捷区 + 拖拽流转队列）
+
+> 配套服务端 **v3.0.22+**（新增 `POST /v1/peers/:peerId/queue/transfer-from`）。
+
+### 用户需求（核心理念：音乐可以随时在不同播放器之间流转）
+- 连接成功后，mini 播放器**上方**自动出现一排**圆形**播放端：圆内是该端当前在播的封面，
+  下方短名过长可截断；没在播时显示设备图标（手机 / 显示器 / 音箱 / 群组）。
+- 也可**长按 mini 播放器的封面**（触屏与鼠标同一套手势）唤出；松手/拖完立即收起，
+  闲置数秒也自动收起。
+- **按住某个圆拖到另一个圆**即完成一次流转 —— 拖动方向就是「源 → 目标」。
+- **本机不额外占一个圆**：它就是 mini 播放器那张封面本身，既是节点又是长按开关。
+- 收录范围：全部**在线**端（DLNA / AirPlay / Sendspin / 群组 / 同账号其它客户端实例）。
+- 本质：把「选择播放器」里既有的推 / 拉播放列表换成拖拽手势，并放开到**任意两端**。
+
+### 实现
+- **服务端（主仓 v3.0.22）**：新增流转端点，服务端内部从源端取队列再按既有分派写给目标端，
+  **请求体不收 items**（队列实体本就在服务端）—— 客户端零上传，几千首也是一次请求。
+- `peer.dart`：`PeerNowPlaying` 补 `coverArt`。
+- `cast_peer_provider.dart`：`fetchPeerNowPlaying` 补封面（设备侧优先、队列当前项兜底，
+  与标题**各自独立**回落，唯一门控是「在播」）；新增 `transferQueue(from, to)` 三条路由：
+  本机→远端 `pushLocalToPeer` / 远端→本机 `pullPeerToLocal` /
+  远端→远端 新端点（成功后给源端发 stop，与 `pullPeerToLocal` 的搬移语义一致）。
+- 新增 `player_quick_ring.dart`：快捷区组件 + `quickRingPeersProvider`（autoDispose，
+  收起即释放、不常驻轮询）+ 拖拽源/落点（`Draggable` + `DragTarget`）+
+  落点高亮 + 闲置自动收起。
+- `mini_player.dart`：封面挂长按唤出（收起态）并兼作本机节点（展开态：拖出=推、拖入=拉）；
+  `MiniPlayerView` 改为 `ConsumerStatefulWidget`；Stack 加 `clipBehavior: Clip.none`
+  以在 mini 条**上方**浮出快捷区。
+
+### CI 守卫
+- `test/providers/cast_transfer_queue_test.dart`（4 用例）接入 blocking 门禁，
+  锁三条路由 + 「同端短路」「不得上传 items」。
+- 变异验证 2/2 捕获（远端→远端改回直接失败 / 去掉同端短路）。
+
 ## v5.0.4（tag `v5.0.4` · 命令影子：音量 / 播放态被滞后上报顶回）
 
 > 与 HA 卡片 **v2.4.2**、Web 前端 **v3.0.21** 是同一根因、同一套修法。
