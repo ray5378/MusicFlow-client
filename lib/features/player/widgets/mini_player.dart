@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
@@ -20,6 +21,7 @@ import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 import 'package:musicflow_client/features/player/widgets/volume_button.dart';
 import 'package:musicflow_client/features/player/widgets/player_switcher.dart';
+import 'package:musicflow_client/features/player/widgets/player_quick_ring.dart';
 
 /// Stable bridge between the application shell and the immersive player.
 class MiniPlayer extends ConsumerWidget {
@@ -199,7 +201,7 @@ void showPlayerSwitcherPopover({required BuildContext context}) {
 /// Pure player surface kept public so gesture, semantics and large-text
 /// behaviour can be tested without constructing the audio engine.
 @visibleForTesting
-class MiniPlayerView extends StatefulWidget {
+class MiniPlayerView extends ConsumerStatefulWidget {
   const MiniPlayerView({
     super.key,
     required this.playerState,
@@ -261,10 +263,10 @@ class MiniPlayerView extends StatefulWidget {
   final Widget? progressLayer;
 
   @override
-  State<MiniPlayerView> createState() => _MiniPlayerViewState();
+  ConsumerState<MiniPlayerView> createState() => _MiniPlayerViewState();
 }
 
-class _MiniPlayerViewState extends State<MiniPlayerView> {
+class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
   static const double _verticalExpandThreshold = 36;
 
   double _verticalDragDy = 0;
@@ -467,6 +469,25 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
     widget.onOpenPlayer();
   }
 
+  /// 快捷区拖拽的落地动作：把 [from] 的队列流转给 [to]。
+  ///
+  /// 三条路由（本机↔远端、远端↔远端）都在 `transferQueue` 里分派，这里只管
+  /// 提示与刷新镜像 —— 两端的「正在播」都变了，圆里的封面与选择播放器第二行要跟着更新。
+  Future<bool> _transferBetweenPeers(PeerInfo from, PeerInfo to) async {
+    final controller = ref.read(castPeerControllerProvider.notifier);
+    final loc = AppLocalizations.of(context);
+    final ok = await controller.transferQueue(from, to);
+    if (!mounted) return ok;
+    ref.invalidate(peerNowPlayingProvider(from.peerId));
+    ref.invalidate(peerNowPlayingProvider(to.peerId));
+    showMusicFlowMessage(
+      context,
+      ok ? loc.player_handoff_push_success(to.name) : loc.player_handoff_failed,
+      kind: ok ? MusicFlowMessageKind.success : MusicFlowMessageKind.error,
+    );
+    return ok;
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSong = _playerState.currentSong;
@@ -521,6 +542,9 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                 key: const Key('mini-player-surface'),
                 height: MiniPlayer.height,
                 child: Stack(
+                  // 快捷区浮在 mini 条**上方**（位置口径：mini 播放器上面），
+                  // 会超出 Stack 自身高度 —— 必须放行裁剪。
+                  clipBehavior: Clip.none,
                   children: <Widget>[
                     Positioned.fill(
                       child: Hero(
@@ -553,6 +577,7 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                                   child: _MiniPlayerTrack(
                                     song: song,
                                     useHero: true,
+                                    onTransfer: _transferBetweenPeers,
                                     showSubtitle: showSubtitle,
                                     lyricLine: widget.lyricLine,
                                     lyricAccent: lyricAccent,
@@ -593,6 +618,24 @@ class _MiniPlayerViewState extends State<MiniPlayerView> {
                               duration: _playerState.duration,
                               onSeek: widget.onSeek,
                             ),
+                      ),
+                    ),
+                    // 播放器圆形快捷区：长按 mini 封面唤出后出现在 mini 条上方。
+                    // 收起时整棵子树不在树上 ⇒ 里面的 autoDispose provider 随之释放，
+                    // 不会常驻轮询列表。
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: MiniPlayer.height + 8,
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          if (!ref.watch(playerQuickRingVisibleProvider)) {
+                            return const SizedBox.shrink();
+                          }
+                          return PlayerQuickRing(
+                            onTransfer: _transferBetweenPeers,
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -801,7 +844,11 @@ class _MiniPlayerTrack extends StatelessWidget {
     required this.lyricAccent,
     required this.coverRingProgress,
     required this.coverRingColor,
+    this.onTransfer,
   });
+
+  /// 快捷区流转的落地动作（由 mini 播放器注入，复用统一提示）。
+  final Future<bool> Function(PeerInfo from, PeerInfo to)? onTransfer;
 
   final Song? song;
   final bool useHero;
@@ -841,12 +888,67 @@ class _MiniPlayerTrack extends StatelessWidget {
         : coverInner;
     // RepaintBoundary:进度环 200~500ms 重绘隔离在 46px 环内,不连带
     // 封面/歌名/歌词/背景等整条迷你条重绘(智能按需渲染 §GPU 门控)。
-    final cover = RepaintBoundary(
+    final coverCore = RepaintBoundary(
       child: _MiniPlayerProgressRing(
         progress: coverRingProgress,
         color: coverRingColor,
         child: coverHero,
       ),
+    );
+    // 封面既是「本机」这个播放端节点，也是快捷区的开关：
+    //   收起态 → 长按唤出（触屏长按与鼠标按住是同一套手势）；
+    //   展开态 → 按住它拖出去 = 把本机队列推给别人；别的圆拖进来 = 拉回本机。
+    final cover = Consumer(
+      builder: (context, ref, child) {
+        final expanded = ref.watch(playerQuickRingVisibleProvider);
+        if (!expanded) {
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPress: () =>
+                ref.read(playerQuickRingVisibleProvider.notifier).state = true,
+            child: child,
+          );
+        }
+        final self = ref.watch(quickRingPeersProvider).valueOrNull?.self;
+        return DragTarget<PeerInfo>(
+          onWillAcceptWithDetails: (details) =>
+              self != null && details.data.peerId != self.peerId,
+          onAcceptWithDetails: (details) {
+            final src = details.data;
+            final to = self;
+            if (to == null) return;
+            ref.read(playerQuickRingVisibleProvider.notifier).state = false;
+            onTransfer?.call(src, to);
+          },
+          builder: (context, candidates, rejected) {
+            final hot = candidates.isNotEmpty;
+            return Draggable<PeerInfo>(
+              data: self,
+              // 本机身份未知（未注册 / 离线）时不允许作为源拖出。
+              maxSimultaneousDrags: self == null ? 0 : 1,
+              feedback: Material(
+                color: Colors.transparent,
+                child: Opacity(opacity: 0.92, child: child),
+              ),
+              childWhenDragging: Opacity(opacity: 0.28, child: child),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                decoration: hot
+                    ? BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 2.5,
+                        ),
+                      )
+                    : null,
+                child: child,
+              ),
+            );
+          },
+        );
+      },
+      child: coverCore,
     );
     final title = _MiniPlayerTitle(
       song: song,

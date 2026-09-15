@@ -635,13 +635,23 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 队列当前项是同一份权威数据(Web 前端 `peerPlayingTitle` 也是取
       // `queue.items[currentIndex].title`),故在 `currentMedia` 拿不到标题时改读它。
       // 仍以 `currentMedia` 优先 → 设备侧显示与既有行为完全一致,不受影响。
-      if (title.isEmpty && isActive) {
+      // 封面同源:设备侧实时值优先,缺失时同样回落到队列当前项
+      // (local 的 currentMedia 只有 songId,封面只在 items 里)。
+      var coverArt = media is Map ? (media['coverArt'] as String?) : null;
+      // 注意:封面与标题**各自独立**回落到队列当前项 —— 不能因为「设备侧给了标题」
+      // 就跳过封面(存在标题齐、封面缺的端)。唯一门控是「在播」:没在播不显示封面。
+      if (isActive) {
         final items = data['items'];
         if (items is List && currentIndex >= 0 && currentIndex < items.length) {
           final item = items[currentIndex];
           if (item is Map) {
-            title = '${item['title'] ?? ''}';
-            artist = item['artist'] as String?;
+            if (title.isEmpty) {
+              title = '${item['title'] ?? ''}';
+              artist = item['artist'] as String?;
+            }
+            if (coverArt == null || coverArt.isEmpty) {
+              coverArt = item['coverArt'] as String?;
+            }
           }
         }
       }
@@ -651,6 +661,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         total: (data['total'] as num?)?.toInt() ?? 0,
         title: title,
         artist: artist,
+        coverArt: coverArt,
       );
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'fetchPeerNowPlaying failed: $e');
@@ -687,6 +698,53 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ///
   /// 来源不可解析时（首页随机 discover / 搜索结果 search / 本地任意队列 other、
   /// 或来源 id 缺失）仍回落整队推送 —— 服务端无从重建这些队列，只能原样搬运。
+  /// 队列流转:把 [from] 的队列整体交给 [to] 播放 —— 快捷区拖拽的落地动作。
+  ///
+  /// 设计目标:**音乐可以随时在不同播放端之间流转**(任意两端,不限于本机)。
+  /// 三条路由,前两条复用既有能力,只有「远端 → 远端」走新端点:
+  ///   1. 本机 → 远端:[pushLocalToPeer](主通道 /v1/play,本机队列来源可解析);
+  ///   2. 远端 → 本机:[pullPeerToLocal](搬回本机 just_audio 播);
+  ///   3. 远端 → 远端:`POST /peers/:to/queue/transfer-from { from }` ——
+  ///      服务端内部从源端取队列再写给目标端,**不收 items**(队列实体本就在服务端),
+  ///      所以几千首的队列也是一次请求,不存在大队列 body 的体积闸门问题。
+  ///
+  /// 语义为**搬移**:源端在成功后停止(与 pullPeerToLocal 的「搬完原边停止」一致)。
+  Future<bool> transferQueue(PeerInfo from, PeerInfo to) async {
+    if (from.peerId == to.peerId) return false;
+    final fromIsSelf = from.isLocal && from.self;
+    final toIsSelf = to.isLocal && to.self;
+    if (fromIsSelf) return pushLocalToPeer(to);
+    if (toIsSelf) return pullPeerToLocal(from);
+
+    final client = _ref.read(subsonicApiClientProvider);
+    final base = '/rest/api/v1/peers/${Uri.encodeComponent(to.peerId)}';
+    try {
+      final res = await client
+          .postRaw(
+            '$base/queue/transfer-from',
+            data: <String, dynamic>{'from': from.peerId},
+            receiveTimeout: kQueueFetchBudget,
+          )
+          .timeout(kQueueFetchBudget);
+      if (!(res is Map && res['success'] == true)) return false;
+
+      // 源端停止(搬移语义)。失败不影响流转本身 —— 队列已经搬完并在目标端起播。
+      try {
+        await client
+            .postRaw('/rest/api/v1/peers/${Uri.encodeComponent(from.peerId)}/stop')
+            .timeout(const Duration(seconds: 8));
+      } catch (e) {
+        Logger.debugWithTag('CAST-PEER', 'transferQueue: stop source failed: $e');
+      }
+      // 若目标端正是当前被遥控的那台,立即刷新镜像(队列/游标/模式都换了)。
+      unawaited(pollOnce(fullQueue: true));
+      return true;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'transferQueue failed: $e');
+      return false;
+    }
+  }
+
   Future<bool> pushLocalToPeer(PeerInfo peer) async {
     // 只排除「本端自己那条」(推给自己没有意义,与 switchTo 同一判据)。
     //

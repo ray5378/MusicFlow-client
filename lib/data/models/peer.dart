@@ -161,6 +161,7 @@ class PeerNowPlaying {
     required this.total,
     required this.title,
     this.artist,
+    this.coverArt,
   });
 
   final bool isActive;
@@ -168,6 +169,10 @@ class PeerNowPlaying {
   final int total;
   final String title;
   final String? artist;
+
+  /// 当前曲封面标识(服务端 coverArt id,形如 `so-<songId>`)。
+  /// 快捷区的圆里就显示它;为空(未在播 / 曲目无封面)时由 UI 落回设备图标。
+  final String? coverArt;
 
   /// 「歌曲 - 歌手」展示串;无曲目返回空串。
   String get trackLabel {
