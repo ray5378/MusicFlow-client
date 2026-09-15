@@ -64,6 +64,14 @@ Duration queueTransferBudget(int itemCount) =>
 /// 拉取队列快照时的保守预算（规模未知，按最坏 5000 首量级给）。
 const Duration kQueueFetchBudget = Duration(seconds: 60);
 
+/// 「命令影子」保护窗口:本端下发控制命令后,在该窗口内忽略**采样早于命令**的
+/// 滞后上报字段(音量 / 静音 / 进度)。
+///
+/// 取值依据:远端客户端的状态上报周期实测约 4s(见 `_projectPolledPosition`),
+/// 取 8s = 一个上报周期 + 一倍余量,既覆盖最坏延迟,又不会在命令真的没生效时
+/// 长时间掩盖真实状态(超时后自动恢复采纳服务端值)。
+const int kCommandShadowWindowMs = 8000;
+
 /// **主通道**（`POST /rest/api/v1/play`，服务端内容点播）的超时预算。
 ///
 /// 为什么不能像历史那样固定 15s：
@@ -102,6 +110,13 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 远端客户端要等下一个上报周期(~4s)才回新位置,期间轮询读到的仍是旧采样,
   /// 采纳它会把刚拖好的进度条拽回 seek 之前(与 HA 卡片 `_seekIssuedAt` 同款)。
   int _seekIssuedAtMs = 0;
+  /// 最近一次本端下发**音量类命令**(volume / mute)的时刻(ms)。
+  /// 与 seek 同因:远端客户端的音量也是周期上报的,连续拖动时(20→50→30)
+  /// 上报回来的可能还是上一拍的 50,会把手上的 30 顶掉。
+  int _volumeCommandAtMs = 0;
+  /// 最近一次本端下发**传输类命令**(play / pause)的时刻(ms)。
+  /// 远端上报滞后会让刚点的暂停被顶回「播放中」(详见 _applyTransportShadow)。
+  int _transportCommandAtMs = 0;
 
   /// 队列自然播完检测:设备上一轮是否处于活跃播放。
   bool _wasActivePlaying = false;
@@ -777,6 +792,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       return;
     }
     final target = !state.status.playing;
+    _transportCommandAtMs = DateTime.now().millisecondsSinceEpoch;
     await _post(target ? 'play' : 'pause');
     // 乐观置位(对齐前端 castTogglePlay):点击后按钮立即翻转,不依赖轮询/事件;
     // 轮询随后以后端权威状态修正。
@@ -796,6 +812,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       return;
     }
     if (!state.status.playing) return;
+    _transportCommandAtMs = DateTime.now().millisecondsSinceEpoch;
     await _post('pause');
     state = state.copyWith(
       status: state.status.copyWith(
@@ -878,6 +895,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   Future<void> setVolume(int volume) async {
     if (state.activePeer == null) return;
+    // 先打点再下发:上报是周期性的(~4s),连续拖动时回传的可能是上一拍的值。
+    _volumeCommandAtMs = DateTime.now().millisecondsSinceEpoch;
     await _post('volume', data: <String, dynamic>{'volume': volume});
     final nextStatus = state.status.copyWith(volume: volume);
     state = state.copyWith(status: nextStatus);
@@ -886,6 +905,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 静音开关(投屏设备;群组/端到端由后端分发)。
   Future<void> setMuted(bool muted) async {
     if (state.activePeer == null) return;
+    // 与 setVolume 同理:静音态同样来自远端周期上报。
+    _volumeCommandAtMs = DateTime.now().millisecondsSinceEpoch;
     await _post('mute', data: <String, dynamic>{'muted': muted});
     final nextStatus = state.status.copyWith(muted: muted);
     state = state.copyWith(status: nextStatus);
@@ -1266,6 +1287,61 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         : projected;
   }
 
+  /// 把「本端刚下发的**音量类**命令」叠加到滞后上报上。
+  ///
+  /// 远端客户端的音量与 position 一样是**周期上报**的(实测 ~4s 一次)。连续拖动
+  /// (20 → 50 → 30)时,上报回来的可能还是上一拍的 50,直接采纳会把手上的 30
+  /// **顶掉**,表现为「拖到 30 又跳回 50」。
+  ///
+  /// 判据:采样时刻(`reportedAt`)早于命令下发时刻 → 该采样不含本次命令结果,
+  /// volume / muted 一律沿用本地值;采样时刻追上命令后自动恢复采纳。
+  /// 无 `reportedAt`(设备型 peer 走实时查询)→ 原样返回,设备链路行为不变。
+  /// 该上报是不是「命令下发**之前**采的样」—— 即尚未包含本次命令结果。
+  ///
+  /// 判据:采样时刻(`reportedAt`)早于命令下发时刻,且仍在保护窗口内。
+  /// 无 `reportedAt`(设备型 peer 走实时查询)→ 恒 false,设备链路不受影响。
+  bool _isStaleSample(PeerStatus s, int commandAtMs) {
+    final at = s.reportedAtMs;
+    if (at == null || commandAtMs <= 0) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - commandAtMs > kCommandShadowWindowMs) return false;
+    return at < commandAtMs;
+  }
+
+  PeerStatus _applyVolumeShadow(PeerStatus s) {
+    if (!_isStaleSample(s, _volumeCommandAtMs)) return s;
+    final cur = state.status;
+    return PeerStatus(
+      state: s.state,
+      positionSeconds: s.positionSeconds,
+      durationSeconds: s.durationSeconds,
+      volume: cur.volume,
+      muted: cur.muted,
+      active: s.active,
+      reportedAtMs: s.reportedAtMs,
+    );
+  }
+
+  /// 播放/暂停(传输类)命令的影子,与音量同因。
+  ///
+  /// 点暂停后,陈旧上报仍是 `state=PLAYING` 且 position 还在前进 —— 不仅会覆盖
+  /// 本地乐观置位,还会触发 `_tick` 里的 `advancing` 自愈(「position 在前进 → 判在播」)
+  /// 把 PAUSED **强制改回 PLAYING**,表现为「点了暂停没反应 / 自己又播起来」。
+  /// 故在窗口内:沿用在地状态,并停用 advancing 自愈(见 `_tick`)。
+  PeerStatus _applyTransportShadow(PeerStatus s) {
+    if (!_isStaleSample(s, _transportCommandAtMs)) return s;
+    final cur = state.status;
+    return PeerStatus(
+      state: cur.state,
+      positionSeconds: s.positionSeconds,
+      durationSeconds: s.durationSeconds,
+      volume: s.volume,
+      muted: s.muted,
+      active: cur.active,
+      reportedAtMs: s.reportedAtMs,
+    );
+  }
+
   /// 平滑进度插值:播放中按 tick 递增,轮询结果回写修正。
   void _advanceSmooth() {
     final st = state;
@@ -1293,13 +1369,20 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 后 GENA 事件缓存的 state 停留在旧值(如 STOPPED)并覆盖 SOAP 实时 PLAYING,
       // 轮询读到 state=STOPPED 却 position 仍在前进(进度条在走)。此时以「position 真实
       // 前进」作为在播的权威证据,强制 playing=true,避免按钮卡在「未播放」。
-      final advancing = next.durationSeconds > 0 &&
+      // 传输类命令(play/pause)刚下发时,陈旧上报的 position 仍在前进,若照常做
+      // 「position 前进 → 判在播」自愈,会把刚点的**暂停**改回 PLAYING
+      // (表现为「点了暂停没反应,自己又播起来」)→ 窗口内先停用该自愈。
+      final transportStale = _isStaleSample(next, _transportCommandAtMs);
+      final advancing = !transportStale &&
+          next.durationSeconds > 0 &&
           next.positionSeconds > _lastPollPosition &&
           next.positionSeconds < next.durationSeconds;
       _lastPollPosition = next.positionSeconds;
-      final effectiveStatus = (advancing && next.state != 'PLAYING')
+      final healedStatus = (advancing && next.state != 'PLAYING')
           ? next.copyWith(state: 'PLAYING', active: true)
           : next;
+      // 沿用本端刚置位的播放/暂停态,不被滞后上报顶掉。
+      final effectiveStatus = _applyTransportShadow(healedStatus);
 
       // 队列自然播完检测:设备曾处于活跃播放,随后无任何客户端命令干预而跳变为
       // 非活跃(STOPPED/空)即判定整轮队列播放完毕,endOfQueueCount +1,
@@ -1431,13 +1514,16 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs <= 6000 &&
           effectiveStatus.reportedAtMs != null &&
           effectiveStatus.reportedAtMs! < _seekIssuedAtMs;
+      // 音量/静音同样来自远端周期上报,连续拖动会被上一拍的值顶掉(详见
+      // _applyVolumeShadow)。设备型 peer 无 reportedAt → 原样,不受影响。
+      final mergedStatus = _applyVolumeShadow(effectiveStatus);
       state = state.copyWith(
-        status: effectiveStatus,
+        status: mergedStatus,
         // 客户端实例的 position 是周期上报的采样,必须按 reportedAt 外推到此刻;
         // 直接写采样值会让进度条/歌词每两轮回退一次(详见 _projectPolledPosition)。
         smoothPositionSeconds: staleAfterSeek
             ? state.smoothPositionSeconds
-            : _projectPolledPosition(effectiveStatus),
+            : _projectPolledPosition(mergedStatus),
         castIndex: idx,
         playMode: mode,
         castQueue: items,

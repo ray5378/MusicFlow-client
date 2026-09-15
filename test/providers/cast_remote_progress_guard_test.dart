@@ -56,12 +56,14 @@ void main() {
     double position = 10,
     double duration = 200,
     int? reportedAt,
+    int? volume,
   }) =>
       <String, dynamic>{
         'state': state,
         'position': position,
         'duration': duration,
         if (reportedAt != null) 'reportedAt': reportedAt,
+        if (volume != null) 'volume': volume,
       };
 
   Map<String, dynamic> queueSnapshot() => <String, dynamic>{
@@ -116,6 +118,15 @@ void main() {
     registerFallbackValue(<String, dynamic>{});
     registerFallbackValue(const Duration(seconds: 10));
     stubAll();
+    // 所有控制命令(volume / mute / play / pause / seek)一律成功。
+    when(
+      () => client.postRaw(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+        data: any(named: 'data'),
+        receiveTimeout: any(named: 'receiveTimeout'),
+      ),
+    ).thenAnswer((_) async => <String, dynamic>{'success': true});
   });
 
   tearDown(() {
@@ -180,6 +191,102 @@ void main() {
         controller.state.smoothPositionSeconds,
         10.0,
         reason: '暂停态外推会让进度条自己往前跑',
+      );
+    });
+  });
+
+  group('命令影子:音量 / 静音不被滞后上报顶回', () {
+    test('拖到 50 后,上报仍是上一拍的 20 → 保持 50', () async {
+      stubStatus(statusBody(
+        position: 5,
+        volume: 20,
+        reportedAt: DateTime.now().millisecondsSinceEpoch - 1000,
+      ));
+      await switchToRemote();
+      await controller.pollOnce();
+      expect(controller.state.status.volume, 20);
+
+      // 下发 50;远端此刻上报的仍是**命令之前**采的 20。
+      await controller.setVolume(50);
+      expect(controller.state.status.volume, 50);
+
+      stubStatus(statusBody(
+        position: 5,
+        volume: 20,
+        // 采样早于命令 → 必须被忽略
+        reportedAt: DateTime.now().millisecondsSinceEpoch - 3000,
+      ));
+      await controller.pollOnce();
+
+      expect(
+        controller.state.status.volume,
+        50,
+        reason: '连续拖动时(20→50→30)上报会滞后一拍;采纳旧值会让滑块跳回上一拍',
+      );
+    });
+
+    test('采样追上命令后 → 采纳服务端值(保护不会永久掩盖真实状态)', () async {
+      stubStatus(statusBody(
+        volume: 20,
+        reportedAt: DateTime.now().millisecondsSinceEpoch - 1000,
+      ));
+      await switchToRemote();
+      await controller.pollOnce();
+
+      final issuedAt = DateTime.now().millisecondsSinceEpoch;
+      await controller.setVolume(50);
+
+      // 采样时刻**晚于**命令 → 已包含本次命令结果,应当采纳。
+      stubStatus(statusBody(volume: 33, reportedAt: issuedAt + 500));
+      await controller.pollOnce();
+
+      expect(controller.state.status.volume, 33);
+    });
+
+    test('无 reportedAt(设备型 peer):音量照常采纳,不受影子影响', () async {
+      stubStatus(statusBody(volume: 20));
+      await switchToRemote();
+      await controller.pollOnce();
+
+      await controller.setVolume(50);
+      stubStatus(statusBody(volume: 77)); // 无 reportedAt
+      await controller.pollOnce();
+
+      expect(
+        controller.state.status.volume,
+        77,
+        reason: '设备型 peer 走实时查询,不涉及滞后上报;保护只作用于客户端实例',
+      );
+    });
+  });
+
+  group('命令影子:播放 / 暂停不被滞后上报顶回', () {
+    test('点了暂停后,上报仍是 PLAYING 且 position 在前进 → 保持暂停', () async {
+      stubStatus(statusBody(
+        state: 'PLAYING',
+        position: 10,
+        reportedAt: DateTime.now().millisecondsSinceEpoch - 1000,
+      ));
+      await switchToRemote();
+      await controller.pollOnce();
+      expect(controller.state.status.playing, isTrue);
+
+      await controller.pause();
+      expect(controller.state.status.playing, isFalse);
+
+      // 陈旧上报:state 仍是 PLAYING,position 还在前进(会触发 advancing 自愈)。
+      stubStatus(statusBody(
+        state: 'PLAYING',
+        position: 13,
+        reportedAt: DateTime.now().millisecondsSinceEpoch - 2000,
+      ));
+      await controller.pollOnce();
+
+      expect(
+        controller.state.status.playing,
+        isFalse,
+        reason: '「position 在前进 → 判在播」的自愈会把刚点的暂停改回播放中,'
+            '表现为「点了暂停没反应,自己又播起来」',
       );
     });
   });
