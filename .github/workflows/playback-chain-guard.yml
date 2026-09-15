@@ -73,6 +73,20 @@ jobs:
       - name: "Guard - handoff main-channel-first + origin persistence"
         run: dart run tool/handoff_chain_scan.dart
 
+      # 客户端互控链路(2026-09-15 拍板):安卓 / Windows 客户端之间互相遥控。
+      # 三条契约的共同点是**静默失效** —— UI 不报错、功能悄悄没了:
+      #   1. pushLocalToPeer 曾按 `if (peer.isLocal) return false;` 一刀切,
+      #      把另一台客户端也挡在门外 → 「选择播放器」里给别的客户端推流必失败
+      #      (而接回本机正常,极易被误判为"推流功能本身坏了");
+      #   2. fetchPeerNowPlaying 曾只读 `/queue` 的 currentMedia,而该字段服务端
+      #      **只对 dlna/airplay/sendspin 填充**,local 恒 undefined
+      #      → 别的客户端那行永远显示「未在播放」;
+      #   3. scrobble 曾用 POST,而 /rest/scrobble 是 GET 端点 → 404,播放历史静默丢失。
+      # 三者都已做**变异验证**:分别把修复改回 bug 形态,7 个用例对应失败
+      # (不是"字面存在即通过"的空转断言)。
+      - name: Run client link (client-to-client) guard tests
+        run: flutter test test/contract/client_link_guard_test.dart
+
       # 4 条链路「坏源 / 换源 / 全源失效」模拟（2026-09-10 用户要求）：
       # 本机源无效、WebDAV 源无效、未命中歌曲、换源、全部源失效切歌 —— 任一场景
       # 都不得让播放链路卡住。这里既跑真行为模拟（handoff_e2e_test 起本地 HTTP
