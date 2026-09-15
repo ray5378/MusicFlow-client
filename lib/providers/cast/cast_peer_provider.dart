@@ -599,13 +599,39 @@ class CastPeerController extends StateNotifier<CastPeerState> {
             receiveTimeout: kQueueFetchBudget,
           )
           .timeout(kQueueFetchBudget) as Map<String, dynamic>;
+      final isActive = data['isActive'] == true;
+      final currentIndex = (data['currentIndex'] as num?)?.toInt() ?? -1;
+      // 曲目第一来源:设备侧实时值(`currentMedia`)。
       final media = data['currentMedia'];
+      var title = media is Map ? '${media['title'] ?? ''}' : '';
+      var artist = media is Map ? (media['artist'] as String?) : null;
+      // 兜底第二来源:队列当前项。
+      //
+      // 服务端 `GET /v1/peers/:id/queue` 的 `currentMedia` **只对 dlna / airplay /
+      // sendspin 填充** —— `local`(安卓 / Windows 客户端实例)与 `group` 恒为
+      // undefined。这里原先只读 `currentMedia`,于是「选择播放器」弹窗里
+      // **别的客户端那一行的播放状态永远接不上**(恒显示「未在播放」,
+      // 用户 2026-09-15 反馈)。
+      //
+      // 队列当前项是同一份权威数据(Web 前端 `peerPlayingTitle` 也是取
+      // `queue.items[currentIndex].title`),故在 `currentMedia` 拿不到标题时改读它。
+      // 仍以 `currentMedia` 优先 → 设备侧显示与既有行为完全一致,不受影响。
+      if (title.isEmpty && isActive) {
+        final items = data['items'];
+        if (items is List && currentIndex >= 0 && currentIndex < items.length) {
+          final item = items[currentIndex];
+          if (item is Map) {
+            title = '${item['title'] ?? ''}';
+            artist = item['artist'] as String?;
+          }
+        }
+      }
       return PeerNowPlaying(
-        isActive: data['isActive'] == true,
-        currentIndex: (data['currentIndex'] as num?)?.toInt() ?? -1,
+        isActive: isActive,
+        currentIndex: currentIndex,
         total: (data['total'] as num?)?.toInt() ?? 0,
-        title: media is Map ? '${media['title'] ?? ''}' : '',
-        artist: media is Map ? (media['artist'] as String?) : null,
+        title: title,
+        artist: artist,
       );
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'fetchPeerNowPlaying failed: $e');
@@ -643,7 +669,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 来源不可解析时（首页随机 discover / 搜索结果 search / 本地任意队列 other、
   /// 或来源 id 缺失）仍回落整队推送 —— 服务端无从重建这些队列，只能原样搬运。
   Future<bool> pushLocalToPeer(PeerInfo peer) async {
-    if (peer.isLocal) return false;
+    // 只排除「本端自己那条」(推给自己没有意义,与 switchTo 同一判据)。
+    //
+    // 这里原先是 `if (peer.isLocal) return false;` —— 一刀切把**另一台客户端**
+    // 也挡在门外,于是「选择播放器」里给别的客户端按推流箭头必然失败
+    // (用户 2026-09-15 反馈:推到别的客户端不能用,接回本机反而正常)。
+    // 该守卫来自「本机端还不可被遥控」的年代;现在服务端对 local 目标的
+    // `/v1/play` 与 `/queue/play` 都已实现(写入目标实例的权威队列 → 目标客户端
+    // 按 peer_queue_changed 跟随起播),与 DLNA 走的是**同一条链路**,故不应再特判。
+    if (peer.isLocal && peer.self) return false;
     final ps = _ref.read(playerProvider);
     if (ps.queue.isEmpty) return false;
     final items = ps.queue.map(songToQueueItem).toList(growable: false);

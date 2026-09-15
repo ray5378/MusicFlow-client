@@ -28,9 +28,14 @@ class FavoriteScrobbleHandler {
       _ref.read(musicRepositoryProvider) ?? MusicRepository(_apiClient);
 
   /// 上报播放记录（Scrobble）
+  ///
+  /// **必须用 GET**：Subsonic / OpenSubsonic 规范的 `/rest/scrobble` 是 GET 端点，
+  /// 服务端也只注册了 GET（`rest/index.ts`）。此前这里用 POST，服务端直接 404
+  /// —— 表现为「日志里 Failed to scrobble (404)、播放历史里查不到任何记录」
+  /// （2026-09-15 实测）。参数仍走 query，与服务端 `getParam` 的读取方式一致。
   Future<void> scrobble(String songId, {required bool submission}) async {
     try {
-      await _apiClient.post(
+      await _apiClient.get(
         ApiConstants.scrobble,
         queryParameters: {
           'id': songId,
