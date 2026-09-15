@@ -87,6 +87,16 @@ jobs:
       - name: Run client link (client-to-client) guard tests
         run: flutter test test/contract/client_link_guard_test.dart
 
+      # 遥控**远端客户端实例**时的进度外推(2026-09-16,与 HA 卡片 v2.4.1 同一个 bug):
+      # 客户端实例的 position 是周期上报的采样(~4s 一次,采样时刻 = /status 的
+      # reportedAt),本端 2s 轮询却把它当「此刻」写进 smoothPositionSeconds →
+      # 每两轮把已在推进的时钟拽回旧值,表现为进度条/歌词「前进一段又回退」。
+      # 同时锁死边界:无 reportedAt 的设备型 peer(DLNA/AirPlay/Sendspin/群组)
+      # 走实时查询,**绝不外推**。
+      # 已做变异验证:回退成直接写采样值 / 去掉 seek 打点,对应用例均转红。
+      - name: Run remote client progress projection guard tests
+        run: flutter test test/providers/cast_remote_progress_guard_test.dart
+
       # 4 条链路「坏源 / 换源 / 全源失效」模拟（2026-09-10 用户要求）：
       # 本机源无效、WebDAV 源无效、未命中歌曲、换源、全部源失效切歌 —— 任一场景
       # 都不得让播放链路卡住。这里既跑真行为模拟（handoff_e2e_test 起本地 HTTP
