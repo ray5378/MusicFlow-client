@@ -1,5 +1,37 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.3（tag `v5.0.3` · 遥控远端客户端时进度/歌词回退）
+
+> 配套服务端 v3.0.19+。与 HA 卡片 **v2.4.1** 是同一个 bug、同一套修法。
+
+### 用户需求
+- 客户端遥控**另一台客户端**（安卓 / Windows）时，进度条与歌词「一直后退约 2 秒」。
+
+### 根因
+- 客户端实例的 `position` 是**周期性上报的采样**（实测约 4s 一次），采样时刻由
+  `GET /peers/:id/status` 的 `reportedAt` 给出。本端 2s 轮询，却在 `_tick` 里
+  `smoothPositionSeconds: next.positionSeconds` 直接把采样值当「此刻」写入 ——
+  每两轮就把本地已在推进的时钟（250/500ms tick）**拽回**旧值。
+  回退幅度 = 一个上报周期（约 2~4s），不是固定 2 秒。
+- 顺带同源问题：`seek()` 后立刻 `pollOnce()`，而远端要等下一个上报周期才回新位置，
+  期间读到的是 seek 之前的采样 → 刚拖好的进度条被拽回（再过两秒又跳回去）。
+
+### 修法
+- `PeerStatus` 增补 `reportedAtMs`（解析 `reportedAt`）。
+  注意：**不能用 `updatedAt` 代替** —— 对 local 而言那是「队列行写入时刻」，
+  2026-09-16 实测与真实采样时刻相差 **53 秒**。
+- 新增 `_projectPolledPosition()`：`采样值 + (现在 − reportedAt)` 外推到此刻；
+  暂停不外推；`reportedAt` 缺失 / 年龄 ≤0 / >30s（时钟异常）→ 原样。
+- 新增 `_seekIssuedAtMs`：6s 窗口内丢弃「采样早于本次 seek」的上报。
+- **边界**：只有客户端实例的 status 带 `reportedAt`（设备型 peer 走实时查询、无此字段）
+  → DLNA / AirPlay / Sendspin / 群组行为完全不变。
+
+### CI 守卫
+- 新增 `test/providers/cast_remote_progress_guard_test.dart`（4 用例），接入
+  `playback-chain-guard.yml`（blocking）。两条均做变异验证（回退外推 / 去掉 seek 打点 → 转红）。
+- 测试踩坑：peerId 经 `Uri.encodeComponent` 后 `:` 变 `%3A`，按精确路径 stub 会对不上，
+  改用「按 `/status`、`/queue` 后缀分流」的通吃 stub。
+
 ## v5.0.2（tag `v5.0.2` · 客户端互控链路修复 + CI 守卫）
 
 > 配套服务端 **v3.0.19+**（`/rest/scrobble` 起同时接受 GET 与 POST）。
