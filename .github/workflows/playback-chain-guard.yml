@@ -97,6 +97,15 @@ jobs:
       - name: Run remote client progress projection guard tests
         run: flutter test test/providers/cast_remote_progress_guard_test.dart
 
+      # 队列流转路由守卫(快捷区「拖拽流转队列」的落地动作,2026-09-16):
+      # 用户口径是「音乐可以随时在不同播放端之间流转」(任意两端,不限于本机)。
+      # 三条路由各有归属,走错会静默降级或直接失败:
+      #   本机→远端 pushLocalToPeer / 远端→本机 pullPeerToLocal /
+      #   远端→远端 服务端 transfer-from(不收 items)。
+      # 已做变异验证:远端→远端改回直接失败、去掉同端短路,对应用例均转红。
+      - name: Run queue transfer routing guard tests
+        run: flutter test test/providers/cast_transfer_queue_test.dart
+
       # 4 条链路「坏源 / 换源 / 全源失效」模拟（2026-09-10 用户要求）：
       # 本机源无效、WebDAV 源无效、未命中歌曲、换源、全部源失效切歌 —— 任一场景
       # 都不得让播放链路卡住。这里既跑真行为模拟（handoff_e2e_test 起本地 HTTP
