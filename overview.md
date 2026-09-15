@@ -1,5 +1,57 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.2（tag `v5.0.2` · 客户端互控链路修复 + CI 守卫）
+
+> 配套服务端 **v3.0.19+**（`/rest/scrobble` 起同时接受 GET 与 POST）。
+
+### 用户需求
+- 「选择播放器」推流到**另一台客户端**（安卓 / Windows）不能用，接回本机却正常。
+- 「选择播放器」里别的客户端那一行的**播放状态接不上**（恒显示「未在播放」）。
+- 播放记录上报失败（日志 `Failed to scrobble (404)`，播放历史里查不到记录）。
+
+### 根因
+- `pushLocalToPeer` 开头 `if (peer.isLocal) return false;` 一刀切 —— 本意是排除「推给自己」，
+  实际把**另一台客户端**也挡在门外。推送链路（主通道 `/v1/play` + 兜底 `/queue/play`）
+  与 DLNA 完全共用，服务端对 local 目标已实现，无需特判。改为 `peer.isLocal && peer.self`
+  （与同文件 `switchTo` 同一判据）。
+- `fetchPeerNowPlaying` 只读 `/queue` 的 `currentMedia`，而该字段服务端**只对
+  dlna / airplay / sendspin 填充**，`local` 恒 undefined。补队列当前项
+  `items[currentIndex]` 兜底（与 Web 前端 `peerPlayingTitle` 同源），`currentMedia` 仍优先。
+- `scrobble` 用 POST，而 `/rest/scrobble` 是 Subsonic 规范的 **GET** 端点 → 404。改 GET
+  （服务端 v3.0.19 起同时接受 POST，兼容已安装的旧版客户端）。
+
+### CI 守卫（防回归）
+- 新增 `test/contract/client_link_guard_test.dart`（7 用例），接入
+  `.github/workflows/playback-chain-guard.yml`（**blocking**，push main / PR 即跑）。
+- 三条契约的共同点是**静默失效**（UI 不报错、功能悄悄没了），本地手测难复现，故钉死。
+- 三条均做**变异验证**：把修复分别改回 bug 形态，对应用例确实失败 —— 不是空转断言。
+
+### 验证
+- `flutter test test/contract/client_link_guard_test.dart` **7/7 绿**；变异验证 3/3 捕获。
+- 真机实测（安卓模拟器 + Windows debug）：客户端间推流、now-playing、状态显示均正常。
+
+## v5.0.1（tag `v5.0.1`，commit `1ea4ae3` · 播放器统一化收尾：清理 Web 播放器标签）
+
+> 配套服务端 **v3.0.18**。
+
+### 用户需求
+- 客户端同步清理「Web 播放器」概念：本机实例不再单列为 Web 播放器，统一标「客户端」。
+- 与服务端 v3.0.18 一起发正式版本号。
+
+### 实现
+- `peer.dart`：去掉 web 分支，非 self 本机实例一律标「客户端」；删除 `peer_web` i18n 键并重新生成 l10n。
+- `random_songs_push_provider.dart`：WS 重连仅在「有活跃库」时排程，避免无凭据空转定时器（修复 `main_scaffold_navigation_test` 遗留 pending timer）。
+- `cast_peer_provider.dart`：`switchTo` 仅对 `peer.isLocal && peer.self` 回本机（清空 activePeer）。
+- 新增 `peer_remote_control_provider.dart`（本端被 Web/HA 遥控）；`test_player_notifier.dart` 桩对齐 `clearQueue({bool keepCurrent})`。
+
+### 验证
+- 5 个 dart 守卫 + `node tool/check-l10n.mjs --gate-cjk` 全绿。
+- `flutter test` **689 全绿**（修复两例：switchTo 本机语义、WS 重连定时器泄漏）。
+- CI Build Client / Test Suite / UI Guard：进行中（tag 触发，产物 android.apk + windows-setup.exe）。
+
+### 发版
+- `git tag v5.0.1` → `git push origin main` + `git push origin v5.0.1`。
+
 > v5.0.0（tag `v5.0.0`，纯发版：采用 origin/main `ffc7c4b`；本地未提交改动已丢弃）
 
 ## 一句话
