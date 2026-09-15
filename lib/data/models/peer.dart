@@ -98,6 +98,7 @@ class PeerStatus {
     this.volume,
     this.muted = false,
     this.active = false,
+    this.reportedAtMs,
   });
 
   factory PeerStatus.fromJson(Map<String, dynamic> j) => PeerStatus(
@@ -110,6 +111,12 @@ class PeerStatus {
           'PLAYING' || 'PAUSED_PLAYBACK' || 'TRANSITIONING' => true,
           _ => false,
         },
+        // 采样时刻(服务端时钟,ms)。**只有客户端实例(local)的 /status 才带** ——
+        // 它的 position 是周期上报的采样(实测约 4s 一次),不是实时值;
+        // DLNA / AirPlay / Sendspin / 群组的 status 走实时查询,没有这个字段。
+        // 注意:不能用 `updatedAt` 代替 —— 对 local 而言那是「队列行写入时刻」,
+        // 实测与真实采样时刻能差几十秒(2026-09-16 实测相差 53s)。
+        reportedAtMs: (j['reportedAt'] as num?)?.toInt(),
       );
 
   final String state;
@@ -118,6 +125,9 @@ class PeerStatus {
   final int? volume;
   final bool muted;
   final bool active;
+
+  /// `positionSeconds` 的**采样时刻**(服务端时钟,毫秒)。仅客户端实例有,设备型为 null。
+  final int? reportedAtMs;
 
   bool get playing => state == 'PLAYING';
 
@@ -128,6 +138,7 @@ class PeerStatus {
     int? volume,
     bool? muted,
     bool? active,
+    int? reportedAtMs,
   }) {
     return PeerStatus(
       state: state ?? this.state,
@@ -136,6 +147,7 @@ class PeerStatus {
       volume: volume ?? this.volume,
       muted: muted ?? this.muted,
       active: active ?? this.active,
+      reportedAtMs: reportedAtMs ?? this.reportedAtMs,
     );
   }
 }

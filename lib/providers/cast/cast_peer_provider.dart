@@ -98,6 +98,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   /// 上次轮询读到的 position(用于「position 真实前进」播放态自愈判定)。
   double _lastPollPosition = -1;
+  /// 最近一次本端发起 seek 的时刻(ms)。用于丢弃「seek 之前采样」的上报 ——
+  /// 远端客户端要等下一个上报周期(~4s)才回新位置,期间轮询读到的仍是旧采样,
+  /// 采纳它会把刚拖好的进度条拽回 seek 之前(与 HA 卡片 `_seekIssuedAt` 同款)。
+  int _seekIssuedAtMs = 0;
 
   /// 队列自然播完检测:设备上一轮是否处于活跃播放。
   bool _wasActivePlaying = false;
@@ -867,6 +871,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
     await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
     // 立即用目标位置对齐平滑进度,减少插值滞后。
+    _seekIssuedAtMs = DateTime.now().millisecondsSinceEpoch;
     state = state.copyWith(smoothPositionSeconds: position.inSeconds.toDouble());
     unawaited(pollOnce());
   }
@@ -1218,6 +1223,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _tickTimer = null;
     _failureCount = 0;
     _lastPollPosition = -1;
+    _seekIssuedAtMs = 0;
   }
 
   /// 立即刷新一次。
@@ -1229,6 +1235,35 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<void> pollOnce({bool fullQueue = false}) async {
     final peerId = state.activePeer?.peerId;
     if (peerId != null) await _tick(peerId, fullQueue: fullQueue);
+  }
+
+  /// 把远端**客户端实例**上报的 position 采样外推到「此刻」。
+  ///
+  /// 客户端实例的 position 是**周期性上报**的采样(实测约 4s 一次),不是实时值;
+  /// 采样时刻由 `/status` 的 `reportedAt`(服务端时钟,ms)给出。
+  ///
+  /// 直接把采样值当「此刻」写进平滑进度,会把本地已在推进的时钟(250/500ms tick)
+  /// 每轮询**拽回**旧值 —— 表现为进度条 / 歌词「前进一段又回退」(回退幅度 = 一个
+  /// 上报周期,约 2~4s,不是固定 2s;本端 2s 轮询、远端 ~4s 上报,故每两轮一次)。
+  /// 与 HA 卡片 v2.4.1 修的是同一个 bug(`_projectStatusPosition`)。
+  ///
+  /// 修法:`采样值 + (现在 − reportedAt)` 外推到此刻 —— 两次上报之间连续推进,
+  /// 新上报只重新对齐锚点,不再回退。暂停时保持上报值(不外推,避免暂停态漂移)。
+  ///
+  /// 边界:**只有客户端实例的 status 带 reportedAt** —— DLNA / AirPlay / Sendspin /
+  /// 群组的 status 走各自实时查询,没有该字段 → 原样返回,设备型链路行为完全不变。
+  double _projectPolledPosition(PeerStatus s) {
+    if (!s.playing) return s.positionSeconds;
+    final at = s.reportedAtMs;
+    if (at == null || at <= 0) return s.positionSeconds;
+    final ageSec = (DateTime.now().millisecondsSinceEpoch - at) / 1000.0;
+    // 上报过旧(>30s,见服务端 local-status TTL)或时钟异常
+    // (本端时钟落后/超前服务端 → age 为负或过大)→ 原样,不做外推。
+    if (ageSec <= 0 || ageSec > 30) return s.positionSeconds;
+    final projected = s.positionSeconds + ageSec;
+    return s.durationSeconds > 0
+        ? projected.clamp(0.0, s.durationSeconds)
+        : projected;
   }
 
   /// 平滑进度插值:播放中按 tick 递增,轮询结果回写修正。
@@ -1388,9 +1423,21 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       _failureCount = 0;
       _pollInterval = const Duration(seconds: 2);
       if (!mounted) return;
+      // 本端刚 seek 过时,跳过「seek 之前采样」的上报:远端客户端此刻回的仍是
+      // **旧位置**(要等它下一个上报周期才更新),采纳它会把刚拖好的进度条拽回
+      // seek 之前,过两秒再跳回去。窗口 6s。
+      // 无 reportedAt 的设备型 peer 不参与(它们走实时查询,seek 后立刻能读到新值)。
+      final staleAfterSeek = _seekIssuedAtMs > 0 &&
+          DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs <= 6000 &&
+          effectiveStatus.reportedAtMs != null &&
+          effectiveStatus.reportedAtMs! < _seekIssuedAtMs;
       state = state.copyWith(
         status: effectiveStatus,
-        smoothPositionSeconds: next.positionSeconds,
+        // 客户端实例的 position 是周期上报的采样,必须按 reportedAt 外推到此刻;
+        // 直接写采样值会让进度条/歌词每两轮回退一次(详见 _projectPolledPosition)。
+        smoothPositionSeconds: staleAfterSeek
+            ? state.smoothPositionSeconds
+            : _projectPolledPosition(effectiveStatus),
         castIndex: idx,
         playMode: mode,
         castQueue: items,
