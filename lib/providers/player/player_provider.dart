@@ -2160,12 +2160,15 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// 清空队列
-  Future<void> clearQueue() async {
+  /// [keepCurrent] 仅对**本地清空按钮**保持历史语义(保留正在播的一首,只清后续);
+  /// 远端遥控跟随(服务端权威队列已清空)必须传 false 全清+停止,否则当前歌会
+  /// 被保留并被 _watchLocalQueue 镜像回服务端,把权威队列顶回 1 首。
+  Future<void> clearQueue({bool keepCurrent = true}) async {
     _clearForcedNext();
     _resetShuffleHistory(updateState: false);
 
     final currentSong = state.currentSong;
-    if (currentSong != null) {
+    if (keepCurrent && currentSong != null) {
       // 保留当前正在播放/暂停的歌曲，仅清空后续队列。
       state = state.copyWith(
         queue: [currentSong],
@@ -2307,6 +2310,38 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     );
     _favoriteHandler.invalidateFavoriteProviders(albumId: song.albumId);
     return newStarred;
+  }
+
+  /// 套用「外部改的收藏状态」(来自服务端 WS `song_starred` 推送)。
+  ///
+  /// 场景:用户在 Web 端点红心,同账号的其它播放端(Windows / 安卓客户端、别的
+  /// 标签页)应同步亮起。本端的 `Song.starred` 是入队时的快照,而服务端队列项
+  /// 不带 starred,光靠队列轮询永远刷不到 —— 必须由这条推送驱动。
+  ///
+  /// 与 [toggleSongFavorite] 的区别:不改服务端(状态是别人改的),也不写回本地
+  /// 仓库,只把当前镜像里的那份数据对齐 + 让收藏相关的 provider 失效重取。
+  void applyExternalStarred(String songId, bool starred) {
+    if (songId.isEmpty) return;
+    final currentSong = state.currentSong;
+    final queueHasIt = state.queue.any((s) => s.id == songId);
+    if (!queueHasIt && (currentSong == null || currentSong.id != songId)) {
+      // 与当前镜像无关(收藏的是别的歌)→ 只失效 provider,不动播放状态。
+      _favoriteHandler.invalidateFavoriteProviders();
+      return;
+    }
+    final updatedQueue = _favoriteHandler.updateQueueStarred(
+      state.queue,
+      songId,
+      starred,
+    );
+    final updatedCurrentSong = currentSong != null && currentSong.id == songId
+        ? currentSong.copyWith(starred: starred)
+        : currentSong;
+    state = state.copyWith(
+      currentSong: updatedCurrentSong,
+      queue: updatedQueue,
+    );
+    _favoriteHandler.invalidateFavoriteProviders(albumId: updatedCurrentSong?.albumId);
   }
 
   Future<void> refreshSongMetadata(String songId) async {

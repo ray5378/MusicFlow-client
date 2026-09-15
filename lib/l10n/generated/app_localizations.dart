@@ -5146,6 +5146,12 @@ abstract class AppLocalizations {
   /// **'本机'**
   String get peer_self;
 
+  /// peer_client
+  ///
+  /// In zh, this message translates to:
+  /// **'客户端'**
+  String get peer_client;
+
   /// peer_group
   ///
   /// In zh, this message translates to:

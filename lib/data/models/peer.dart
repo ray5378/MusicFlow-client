@@ -10,6 +10,8 @@ class PeerInfo {
     required this.name,
     required this.kind,
     required this.available,
+    this.self = false,
+    this.platform,
     this.queueTotal = 0,
     this.queueActive = false,
   });
@@ -19,6 +21,12 @@ class PeerInfo {
         name: (j['name'] ?? '').toString(),
         kind: (j['kind'] ?? '').toString(),
         available: j['available'] == true,
+        // 服务端只给「发起本次请求的那个实例」那行打 self —— 客户端因此无需知道
+        // 自己的实例键,靠它区分「我这条」与「同账号的其它播放端」。
+        self: j['self'] == true,
+        platform: (j['platform'] as String?)?.trim().isEmpty == true
+            ? null
+            : j['platform'] as String?,
         // 注意:`GET /rest/api/v1/peers`(列表)返回的 queue **没有 total 字段**,
         // 只有 items 数组(实测 2026-09-10:主卧 3246 首,queue.total 为 undefined);
         // 而 `GET /rest/api/v1/peers/:id/queue`(单设备)**有 total**。
@@ -40,18 +48,38 @@ class PeerInfo {
   /// local / dlna / airplay / group / sendspin
   final String kind;
   final bool available;
+
+  /// 是否是「本端自己那条」local 行(服务端按请求方实例键打标)。
+  final bool self;
+
+  /// 设备名片里的平台(本机 peer 才有):web / windows / android / ios / macos …
+  /// 本机实例统一标为「客户端」;服务端与请求方实例键对齐,不再单列「Web 播放器」。
+  final String? platform;
   final int queueTotal;
   final bool queueActive;
 
   bool get isLocal => kind == 'local';
 
-  String get kindLabel => switch (kind) {
-        'local' => l10nNowCurrent().peer_self,
-        'airplay' => 'AirPlay',
-        'group' => l10nNowCurrent().peer_group,
-        'sendspin' => 'Sendspin',
-        _ => 'DLNA',
-      };
+  /// 是否是**另一台**本机播放端(另一台客户端 / 设备)—— 可被本端遥控的独立播放端。
+  /// 语义与主项目前端的 `isRemotePeer` 扩展一致:local 但不是我那条。
+  bool get isOtherLocal => isLocal && !self;
+
+  /// 播放端类别标签 —— 与主项目前端 `utils/peerLabel.ts` 同一口径:
+  /// **只有「我这条」才叫「本机」**,其余统一显示「客户端」,
+  /// 否则在同一账号多端在线时,列表里会出现一排都叫「本机」的行。
+  String get kindLabel {
+    final loc = l10nNowCurrent();
+    if (isLocal) {
+      if (self) return loc.peer_self;
+      return loc.peer_client;
+    }
+    return switch (kind) {
+      'airplay' => 'AirPlay',
+      'group' => loc.peer_group,
+      'sendspin' => 'Sendspin',
+      _ => 'DLNA',
+    };
+  }
 
   /// 队列摘要:`21 首 · 播放中`;空队列返回空串。
   String get queueLabel => queueTotal <= 0

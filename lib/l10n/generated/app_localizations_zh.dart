@@ -2823,6 +2823,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get peer_self => '本机';
 
   @override
+  String get peer_client => '客户端';
+
+  @override
   String get peer_group => '群组';
 
   @override

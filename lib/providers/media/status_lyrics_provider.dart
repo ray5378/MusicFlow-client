@@ -452,7 +452,9 @@ class StatusLyricsController {
 
   /// 可用的远端设备(离线不上列表,与 MINI 小弹窗同一取舍)。
   List<PeerInfo> _availableRemotePeers() {
-    return _switchPeers.where((p) => !p.isLocal && p.available).toList();
+    // !self 而非 !isLocal:同账号的**另一台本机播放端**(网页端 / 别的客户端)
+    // 是可被本端遥控的独立播放端,应与 DLNA 设备一样出现在设备列表里。
+    return _switchPeers.where((p) => !p.self && p.available).toList();
   }
 
   /// 组拼当前设备列表(纯函数 composeDesktopLyricSwitchList 的取参壳)。

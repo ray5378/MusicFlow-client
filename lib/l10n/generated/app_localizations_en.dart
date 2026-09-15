@@ -2969,6 +2969,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get peer_self => 'This device';
 
   @override
+  String get peer_client => 'Client';
+
+  @override
   String get peer_group => 'Group';
 
   @override

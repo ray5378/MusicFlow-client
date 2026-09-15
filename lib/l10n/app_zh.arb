@@ -2968,6 +2968,10 @@
   "@peer_self": {
     "description": "peer_self"
   },
+  "peer_client": "客户端",
+  "@peer_client": {
+    "description": "peer_client"
+  },
   "peer_group": "群组",
   "@peer_group": {
     "description": "peer_group"

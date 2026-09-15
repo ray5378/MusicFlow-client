@@ -303,9 +303,13 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     final cast = ref.watch(castPeerControllerProvider);
     final controller = ref.read(castPeerControllerProvider.notifier);
     final peers = _peers;
-    // 只展示后端回报为可用（available）的远端设备，离线设备不显示。
+    // 展示后端回报为可用（available）的**非本端**播放端：DLNA / AirPlay / 群组
+    // 之外,还包括同账号的**另一台本机播放端**(网页端 / 另一台客户端)——它们
+    // 同样是可被本端遥控的独立播放端。self 是服务端按发起请求的实例打的标,
+    // 用它排除「本端自己那条」,而不是拿 kind=='local' 一刀切(那样会把别的
+    // 客户端/网页端一起隐藏,表现为「切换播放器里看不到 Web 播放器」)。
     final remotePeers = (peers ?? const <PeerInfo>[])
-        .where((p) => !p.isLocal && p.available)
+        .where((p) => !p.self && p.available)
         .toList();
 
     return MusicFlowBottomSheet(
@@ -472,7 +476,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
     final controller = ref.read(castPeerControllerProvider.notifier);
     final peers = _peers;
     final remotePeers = (peers ?? const <PeerInfo>[])
-        .where((p) => !p.isLocal && p.available)
+        .where((p) => !p.self && p.available)
         .toList();
     final isDesktop = switch (Theme.of(context).platform) {
       TargetPlatform.windows ||

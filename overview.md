@@ -1,3 +1,51 @@
+# 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
+
+> v5.0.0（tag `v5.0.0`，纯发版：采用 origin/main `ffc7c4b`；本地未提交改动已丢弃）
+
+## 一句话
+
+用户要求用 GitHub 主线（比本地新 1 个提交）的最新源码打 **v5.0.0** 发版。本地有未提交 WIP
+（playback-chain-guard.yml 修改 + 2 个未跟踪测试文件 + .trae/），按用户决定**全部丢弃**，
+以主线 `ffc7c4b`（`feat(renderer): 切换器接入 sendspin peer(遥控模式)`）为权威源码。
+
+## 用户需求
+
+1. 用主线最新源码发版（本地落后，主线更新）。
+2. 版本号 **v5.0.0**（从 v4.3.53 大版本跃迁，用户指定）。
+3. 本地未提交改动丢弃，不带入发版。
+
+## 发版流程（无功能代码改动，纯取主线 + tag）
+
+- 丢弃本地：`git checkout -- .github/workflows/playback-chain-guard.yml` + `git clean -fd`
+  （清掉未跟踪测试文件与 .trae/，及 android/.kotlin 构建缓存）。
+- 同步主线：`git merge --ff-only origin/main` → HEAD = `ffc7c4b`，工作树干净。
+- tag 可用性：REST API 双重校验 `refs/tags/v5.0.0` 与 `releases/tags/v5.0.0` 均 404（无 hijack）。
+- 发版前守卫：5 个 dart 守卫（interaction_feedback / workflow_yaml / gpu_guard_scan /
+  handoff_chain_scan / handoff_e2e_scan）+ `node tool/check-l10n.mjs --gate-cjk` **全绿**
+  （exit=0；未本地跑全量 `flutter test`，由 CI Test Suite 覆盖）。
+- 打 tag：`git tag -a v5.0.0 -m "..."`（annotated，指向 ffc7c4b）；`git push origin v5.0.0`。
+- pubspec 维持 `0.0.0+0` 假版本号，CI 用 `--build-name` 从 tag 覆盖（纯 tag 触发，未改 pubspec）。
+
+## 验证
+
+| 项 | 结果 |
+|---|---|
+| CI Build Client | **success** |
+| CI Test Suite | **success** |
+| CI UI Guard | **success** |
+| 其余观察型守卫（GPU / Desktop Lyric / Offline Cache / Cover Display / Transcode / Playback Chain Guard） | 全部 success |
+| Release draft / prerelease | False / False |
+| Release author / 全部 uploader | 均 `github-actions[bot]` |
+
+## 发版产物
+
+- tag `v5.0.0` / commit `ffc7c4b` / CI 全 success。
+- `MusicFlow-v500-android.apk` **46.24 MB**（uploader github-actions[bot]）
+- `MusicFlow-v500-windows-setup.exe` **31.80 MB**（uploader github-actions[bot]）
+- 说明：`windows.zip` 自 v4.3.42 起已取消，本版**仅两产物**，缺 zip 属预期。
+
+---
+
 # 本轮改动总览（2026-09-12 · 桌面歌词播放模式图标对齐 MINI + 实时刷新）
 
 > v4.3.51（tag `v4.3.51`，仅客户端；后端无改动）

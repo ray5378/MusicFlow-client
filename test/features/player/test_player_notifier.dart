@@ -112,12 +112,16 @@ class TestPlayerNotifier extends StateNotifier<PlayerState>
   }
 
   @override
-  Future<void> clearQueue() async {
+  Future<void> clearQueue({bool keepCurrent = true}) async {
     clearCount += 1;
-    final current = state.currentSong;
-    state = current == null
-        ? PlayerState()
-        : state.copyWith(queue: <Song>[current], currentIndex: 0);
+    if (keepCurrent) {
+      final current = state.currentSong;
+      state = current == null
+          ? PlayerState()
+          : state.copyWith(queue: <Song>[current], currentIndex: 0);
+    } else {
+      state = PlayerState();
+    }
   }
 
   @override

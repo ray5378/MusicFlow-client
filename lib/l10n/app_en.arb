@@ -2968,6 +2968,10 @@
   "@peer_self": {
     "description": "peer_self"
   },
+  "peer_client": "Client",
+  "@peer_client": {
+    "description": "peer_client"
+  },
   "peer_group": "Group",
   "@peer_group": {
     "description": "peer_group"

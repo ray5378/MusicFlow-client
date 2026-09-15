@@ -9,6 +9,7 @@ import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 export 'package:musicflow_client/providers/cast/cast_peer_state.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_state.dart';
+import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
@@ -135,6 +136,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     await _registerSelf();
     startHeartbeat();
     _watchLocalQueue();
+    _startLocalStatusReporting();
   }
 
   /// 注册本端(不碰心跳/监听),供 registerAndHeartbeat 与心跳补注册复用。
@@ -143,16 +145,54 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     try {
       final resp = await client.postRaw(
         '/rest/api/v1/peers/register',
-        data: <String, dynamic>{'name': ''},
+        data: <String, dynamic>{
+          'name': '',
+          // 设备名片:服务端据此把本实例分进侧边栏「播放器」页的「客户端」模块、
+          // 并在切换器里显示机型名/电脑名(而不是笼统的「本机」或账号名)。
+          ..._deviceCard(),
+        },
       );
       if (resp is Map<String, dynamic> && resp['peer'] is Map<String, dynamic>) {
         final peer = resp['peer'] as Map<String, dynamic>;
         final pid = peer['peerId'];
-        if (pid is String && pid.isNotEmpty) _localPeerId = pid;
+        if (pid is String && pid.isNotEmpty) {
+          _localPeerId = pid;
+          // 同一个 peerId 也是 WS 广播里 peer_id 的形式(maskLocalPeerId 的输出),
+          // 本端据此识别「这条队列变更广播是发给我的」,见 peer_remote_control_provider。
+          _ref.read(peerRemoteControlProvider.notifier).noteSelfPeerId(pid);
+        }
       }
     } catch (e) {
       // 注册失败不阻塞登录;下个心跳周期自动补注册(见 startHeartbeat)。
       Logger.debugWithTag('CAST-PEER', 'register self peer failed: $e');
+    }
+  }
+
+  /// 本端设备名片:platform(平台)+ model(电脑名)。
+  /// 桌面端取 `Platform.localHostname`(Windows 计算机名);移动端机型名需要额外
+  /// 插件,暂只报 platform,名字由服务端退回上报名。
+  Map<String, String> _deviceCard() {
+    try {
+      final platform = Platform.isWindows
+          ? 'windows'
+          : Platform.isAndroid
+              ? 'android'
+              : Platform.isIOS
+                  ? 'ios'
+                  : Platform.isMacOS
+                      ? 'macos'
+                      : Platform.isLinux
+                          ? 'linux'
+                          : '';
+      final isMobile = Platform.isAndroid || Platform.isIOS;
+      final host = isMobile ? '' : Platform.localHostname;
+      return <String, String>{
+        if (platform.isNotEmpty) 'platform': platform,
+        if (host.isNotEmpty) 'model': host,
+      };
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'device card unavailable: $e');
+      return const <String, String>{};
     }
   }
 
@@ -188,6 +228,74 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   void stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    // 登出 / dispose:状态上报与心跳同生命周期(都是「本端还在线」的证据)。
+    _stopLocalStatusReporting();
+  }
+
+  // ==================== 本机播放状态上报(供别的播放端遥控时镜像)====================
+  //
+  // 本机播放的传输状态(是否在播 / 播到第几秒 / 音量)权威在本地 just_audio,服务端
+  // 只存队列元数据,光靠队列快照答不出传输状态。当**别的**播放端(网页 / HA / 另
+  // 一台客户端)切成遥控本端时,它靠轮询 `GET /peers/:id/status` 镜像进度条与播放
+  // 按钮 —— 没有这份上报,对端只能读到队列快照,进度条恒为 0、按钮恒显示「未播放」,
+  // 遥控就变成了盲操。
+  //
+  // 上报节奏:播放/暂停/切歌**事件**立即上报(对端下个 2s 轮询周期就能看到变化),
+  // 播放中再按 4s 周期补报刷新进度;服务端侧 TTL 30s(见 PeerManager.getLocalStatusReport)。
+  // 投屏中(本端只是遥控器、本地不出声)如实上报 STOPPED。
+  Timer? _statusTimer;
+  bool _statusWatcherOn = false;
+
+  /// 启动状态上报:事件监听 + 周期补报。停止由 [stopHeartbeat] 统一收尾。
+  void _startLocalStatusReporting() {
+    if (_statusWatcherOn) return;
+    _statusWatcherOn = true;
+    // 只关心「播/停切换」与「切歌」;position 变化由周期补报覆盖,
+    // 避免每次进度 tick 都发一次请求(position polling 频率很高)。
+    _ref.listen<PlayerState>(playerProvider, (prev, next) {
+      if (prev?.isPlaying == next.isPlaying &&
+          prev?.currentSong?.id == next.currentSong?.id) {
+        return;
+      }
+      unawaited(_pushLocalStatus());
+    });
+    _statusTimer ??= Timer.periodic(const Duration(seconds: 4), (_) {
+      unawaited(_pushLocalStatus());
+    });
+    unawaited(_pushLocalStatus());
+  }
+
+  void _stopLocalStatusReporting() {
+    _statusTimer?.cancel();
+    _statusTimer = null;
+  }
+
+  /// 上报一次本机播放状态。失败静默(下个周期再试)。
+  Future<void> _pushLocalStatus() async {
+    final pid = _localPeerId;
+    if (pid == null || pid.isEmpty) return;
+    final s = _ref.read(playerProvider);
+    // 投屏中本端不出声(只是遥控器)→ 如实报 STOPPED,不冒充在播。
+    final casting = state.activePeer != null;
+    final songId = casting ? null : s.currentSong?.id;
+    final String playState = (songId == null || songId.isEmpty)
+        ? 'STOPPED'
+        : (s.isPlaying ? 'PLAYING' : 'PAUSED_PLAYBACK');
+    final client = _ref.read(subsonicApiClientProvider);
+    try {
+      await client.postRaw(
+        '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/local-status',
+        data: <String, dynamic>{
+          'state': playState,
+          'position': casting ? 0.0 : s.position.inMilliseconds / 1000.0,
+          'duration': s.duration.inMilliseconds / 1000.0,
+          'volume': (s.volume * 100).clamp(0, 100),
+          if (songId != null && songId.isNotEmpty) 'songId': songId,
+        },
+      );
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'local status report failed: $e');
+    }
   }
 
   // ==================== 本机队列上报(服务端隔离账本) ====================
@@ -378,7 +486,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 离开本机时:保存本地状态快照并暂停本机(SPEC §3.1 本机播放与投屏互斥,
   /// 避免双实例抢音频设备);回本机时经 [backToLocal] 恢复快照。
   Future<bool> switchTo(PeerInfo peer) async {
-    if (peer.isLocal) {
+    // 只有「本端自己那条」才算回本机。其它本机播放端(另一台客户端)与 DLNA 设备
+    // 一样是**独立播放端**,走同一条遥控路径 —— 此前这里拿 kind=='local' 一刀切,
+    // 会把非自身的本机播放端误判回本机、控制不到对方(Web 端现已由服务端从客户端视角过滤掉)。
+    if (peer.isLocal && peer.self) {
       await backToLocal(resumeLocal: true);
       return true;
     }

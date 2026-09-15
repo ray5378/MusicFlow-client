@@ -50,6 +50,7 @@ void main() {
     name: '本机',
     kind: 'local',
     available: true,
+    self: true,
   );
   final song = Song(
     id: 's1',
