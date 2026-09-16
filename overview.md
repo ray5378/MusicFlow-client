@@ -1,5 +1,38 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.6（tag `v5.0.6` · 流转播放 专用页面 + 7 项修复 + 改名）
+
+> 配套服务端 **v3.0.24**（Web 前端「切换播放器→流转播放」改名 + 含 v3.0.23 同一首连续卡死修复）。
+
+### 用户需求（圆形快捷区升级为专用流转页面）
+- 长按 mini 播放器封面 → 打开**专用全屏流转页面**（底色/动效与现有大屏播放器一致），列出服务端全部在线播放器；
+  **本机恒置首位**圆形节点；圆够大（78px），**拖拽时自动放大**。
+- 圆内显示实时封面或设备图标；设备名完整显示不截断。
+- 拖一个圆到另一个圆 = 把源端队列流转到目标端（任意两端，含远端→远端，服务端权威）。
+
+### 实现
+- 新增 `player_transfer_page.dart`：替代原 `player_quick_ring.dart`（已删除）。
+  `WidgetsBinding.addPostFrameCallback` 加载 peers（修 Riverpod「Tried to modify a provider while building」）；
+  `MusicFlowMediaColorScope` + `MusicFlowPlayerBackdrop` 复用大屏配色；
+  点空白关闭（GestureDetector 作为 Scrollable **祖先**层，吞掉误触）；长按 = `PlayerTransferPage.open(ctx, onTransfer:)`。
+- `cast_peer_provider.dart`：`transferQueue(from, to)` 三条路由（pushLocalToPeer / pullPeerToLocal / 服务端端点）；
+  `_registerSelf()` 加 900ms 重试（修注册 401 后不重试）。
+- `player_provider.dart`：`setPlaybackMode` 改**乐观状态 + 串行 `_modeApplyChain`**（just_audio 调用串行化），修快速点击回退。
+- `favorite_scrobble_handler.dart`：移除 `randomSongsProvider` 的 invalidate（修收藏触发首页随机歌曲刷新）。
+- `mini_player.dart` / `full_player_page.dart`：模式/收藏按钮**选中只改前景色、背景恒透明**，与大屏兄弟按钮一致。
+- l10n：键 `player_switch_current/select_source_*` → `player_transfer_playback_*`；值「切换播放器/选择播放器」→「流转播放」。
+
+### 修复（debug 联调发现的 4 处崩溃/交互）
+1. 纯白底 → 复用大屏配色作用域。
+2. 一直转圈（0 圆）→ `initState` 写 Riverpod 状态（provider 构建期修改）修正。
+3. 注册 401 → 命令早于 token 注入，加重试。
+4. 点空白难关闭 → Scrollable opaque 吞事件，关闭手势上移到祖先层。
+
+### 验证
+- 5 个 dart 守卫 + `check-l10n.mjs --gate-cjk` 全绿；`flutter test` **708 全绿**（0 失败）。
+- Build Client / Test Suite / UI Guard / Desktop Lyric Guard / GPU Render Guard 均 success。
+- 发版：commit `372d409` / tag `v5.0.6`；产物 android.apk + windows-setup.exe（author/uploader 均 github-actions[bot]）。
+
 ## v5.0.5（tag `v5.0.5` · 播放器圆形快捷区 + 拖拽流转队列）
 
 > 配套服务端 **v3.0.22+**（新增 `POST /v1/peers/:peerId/queue/transfer-from`）。
