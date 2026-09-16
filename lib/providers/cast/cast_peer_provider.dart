@@ -750,8 +750,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ///
   /// best-effort：清空失败不影响流转结果（队列已搬到目标端并起播）。
   /// 本机做**源端**时配合 [_abandonLocalSession] 把内存会话也一并抛弃。
+  ///
+  /// 现仅供 [_resetPeer] 作**旧服务端降级**用；正常路径一律走 [_resetPeer]。
   Future<void> _clearSourceQueue(String peerId) async {
-    if (peerId.isEmpty) return;
+    if (peerId.isEmpty) {
+      // 不再静默返回：本机做源端时若拿不到 localPeerId，服务端队列一次都不会清，
+      // 而调用方看起来「已经清过了」——这种静默失败最难查，必须留痕。
+      Logger.debugWithTag(
+        'CAST-PEER',
+        'clearSourceQueue skipped: empty peerId (local peer not registered?)',
+      );
+      return;
+    }
     final client = _ref.read(subsonicApiClientProvider);
     try {
       await client
@@ -764,29 +774,69 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
   }
 
+  /// 彻底重置一个播放端的播放状态（流转「搬走」/ 回收站「销毁」的源端收尾）：
+  /// **停止 + 清空队列 + 清服务端运行态**（设备端媒体缓存、洗牌序列、定时暂停、
+  /// 预探测，以及本机 /local-status 上报里的 state / position / volume / songId）。
+  ///
+  /// 取代原先零散的 `stop` + `DELETE /queue` 两步 —— 那两步只清队列实体，
+  /// 运行态各留各的，于是源端队列虽空、GET /status 仍把它报成「在播某一首」。
+  ///
+  /// **刻意保留**：peer 注册（列表里还在，不会消失）与 playMode（用户设定，
+  /// 不该被一次搬移或销毁带走）。
+  ///
+  /// 旧服务端没有该端点时自动降级回两步，保证不比现状更差。
+  /// 返回值：stop 环节是否成功（清空队列永远 best-effort，不计入成败）。
+  Future<bool> _resetPeer(String peerId) async {
+    if (peerId.isEmpty) {
+      Logger.debugWithTag(
+        'CAST-PEER',
+        'resetPeer skipped: empty peerId (local peer not registered?)',
+      );
+      return false;
+    }
+    // 用户主动触发的状态变更:先标记,免得轮询器把刚清掉的状态又盖回来。
+    _markUserCommand();
+    final client = _ref.read(subsonicApiClientProvider);
+    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
+    try {
+      final res = await client
+          .postRaw('$base/reset')
+          .timeout(const Duration(seconds: 8));
+      if (res is Map && res['success'] == true) return true;
+    } catch (e) {
+      Logger.debugWithTag(
+        'CAST-PEER',
+        'resetPeer($peerId) failed, fallback to stop+clear: $e',
+      );
+    }
+    // 降级：旧服务端无 /reset —— 退回 stop + DELETE /queue。
+    var stopped = true;
+    try {
+      await client.postRaw('$base/stop').timeout(const Duration(seconds: 8));
+    } catch (e) {
+      stopped = false;
+      Logger.debugWithTag('CAST-PEER', 'resetPeer fallback stop failed: $e');
+    }
+    await _clearSourceQueue(peerId);
+    return stopped;
+  }
+
   /// 销毁播放端（流转页底部「回收站」的落点动作）：
-  /// 停止该端播放 + 清空其队列（本机 = 内存会话一并抛弃）。
+  /// **彻底重置**该端 —— 停止播放 + 清空队列 + 清服务端运行态
+  /// （设备端媒体缓存 / 洗牌序列 / 定时暂停 / 预探测 / 本机状态上报）。
+  /// 本机额外抛弃内存会话。peer 本身**保留**在列表里，playMode 也保留。
   ///
   /// 切回本机的条件收窄：**只有被销毁的正是当前遥控对象**时才回本机
   /// （backToLocal 不续播）；销毁别的播放器不影响当前遥控目标。
   /// 失败尽力而为：stop 失败记为失败返回，清空队列永远 best-effort。
   Future<bool> destroyPeer(PeerInfo peer) async {
-    final client = _ref.read(subsonicApiClientProvider);
     final isSelfLocal = peer.isLocal && peer.self;
-    var ok = true;
     if (isSelfLocal) {
+      // 本机:先停音频 + 清内存队列;服务端那份权威队列与状态上报交给 _resetPeer。
       await _abandonLocalSession();
-    } else {
-      try {
-        await client
-            .postRaw('/rest/api/v1/peers/${Uri.encodeComponent(peer.peerId)}/stop')
-            .timeout(const Duration(seconds: 8));
-      } catch (e) {
-        ok = false;
-        Logger.debugWithTag('CAST-PEER', 'destroyPeer: stop ${peer.peerId} failed: $e');
-      }
     }
-    await _clearSourceQueue(peer.peerId);
+    // 彻底重置:停止 + 清队列 + 清服务端运行态(非本机的 stop 失败记为失败)。
+    final ok = await _resetPeer(peer.peerId);
     if (ok && state.activePeer?.peerId == peer.peerId) {
       await backToLocal(resumeLocal: false);
     }
@@ -812,16 +862,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           .timeout(kQueueFetchBudget);
       if (!(res is Map && res['success'] == true)) return false;
 
-      // 源端收尾(搬移语义 = 停播 + 清空队列,不是复制):失败均不影响
-      // 流转本身 —— 队列已经搬完并在目标端起播。
-      try {
-        await client
-            .postRaw('/rest/api/v1/peers/${Uri.encodeComponent(from.peerId)}/stop')
-            .timeout(const Duration(seconds: 8));
-      } catch (e) {
-        Logger.debugWithTag('CAST-PEER', 'transferQueue: stop source failed: $e');
-      }
-      await _clearSourceQueue(from.peerId);
+      // 源端收尾(搬移语义 = 搬走了,不是复制):**彻底重置** —— 停止 + 清队列 +
+      // 清服务端运行态(设备端媒体缓存 / 定时暂停 / 预探测 / 本机状态上报)。
+      // 原先只做 stop + DELETE /queue,运行态各留各的,源端虽空仍被报成「在播」。
+      // 失败均不影响流转本身 —— 队列已经搬完并在目标端起播。
+      await _resetPeer(from.peerId);
       // 若目标端正是当前被遥控的那台,立即刷新镜像(队列/游标/模式都换了)。
       unawaited(pollOnce(fullQueue: true));
       return true;
@@ -867,7 +912,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         localStartIndex: start,
       );
       if (ok) {
-        await _clearSourceQueue(_localPeerId ?? '');
+        await _resetPeer(_localPeerId ?? '');
         await _abandonLocalSession();
         return true;
       }
@@ -880,7 +925,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 兜底：整队推送（来源服务端无从解析时必须走这条）。
     final pushed = await _pushQueueAndPlay(peer.peerId, items, start);
     if (pushed) {
-      await _clearSourceQueue(_localPeerId ?? '');
+      await _resetPeer(_localPeerId ?? '');
       await _abandonLocalSession();
     }
     return pushed;
@@ -930,8 +975,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
             index: index,
             autoPlay: true,
           );
-      // 本机接续成功才算搬完：清空源设备的服务端队列(搬移语义)。
-      await _clearSourceQueue(peer.peerId);
+      // 本机接续成功才算搬完:彻底重置源端 —— 停止 + 清队列 + 清服务端运行态
+      // (设备端媒体缓存 / 定时暂停 / 预探测 / 本机状态上报)。
+      await _resetPeer(peer.peerId);
       return true;
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'pullPeerToLocal: local resume failed: $e');
