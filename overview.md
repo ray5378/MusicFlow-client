@@ -1,22 +1,16 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
-## v5.0.12（tag `v5.0.12` · 回滚重置到 v5.0.7，丢弃 v5.0.8/9/10/11 客户端实验；不变更服务端）
+## v5.0.13（tag `v5.0.13` · 撤销 v5.0.12 回滚；「流转播放看不到」真因 = WAF 拦截 HTTPS，非客户端代码）
 
-> 用户认定 v5.0.7 为唯一稳定基线。v5.0.8/9/10/11 在「流转播放对端看不到歌/封面」上反复
-> 修复未生效（含分页 1MB→15KB 的 v5.0.11），且这些改动互相叠加、难以定位，决定**整体回滚**。
+> **根因锁定（用户实证）**：「流转播放对端看不到歌/封面」的真因是 **HTTPS 请求被 WAF 拦截**，
+> 与客户端代码无关 —— v5.0.8/9/10/11 的客户端改动并非病因。
 >
-> 本版客户端源码状态 = **v5.0.7 完全一致**。版本号沿用 CI 由 git tag 注入（v5.0.12）。
-> 服务端（MusicFlow）本轮未动。
-
-### 回滚内容（相对 v5.0.7 一并撤销）
-- v5.0.8 全局封面并发闸门 `_CoverRequestGate`（cover_art_image.dart）
-- v5.0.9/10 失败自动跳节流 + 不冻结加载闸口（player_provider.dart / player_seek.dart）
-- v5.0.11 `fetchPeerNowPlaying` 分页拉当前项（cast_peer_provider.dart）
-- 对应测试 `client_link_guard_test.dart` / `playback_error_guard_test.dart` 一并回到 v5.0.7
-
-### 验证
-- 6 个文件 `git checkout v5.0.7 -- ...` 后无未定义符号（analyze 无 error）。
-- 回滚后 `client_link_guard_test.dart`（7 条）+ `playback_error_guard_test.dart`（5 条）全部通过。
+> 因此撤销 v5.0.12 的整包回滚，**代码恢复到 v5.0.11 状态**（保留封面并发闸门、失败自动跳
+> 节流、不冻结加载闸口、`fetchPeerNowPlaying` 分页拉当前项 1MB→15KB）。分页修复顺带缩小了
+> 请求体，降低被 WAF 扫描/拦截的概率。版本号沿用 CI 由 git tag 注入（v5.0.13）；服务端未动。
+>
+> WAF 放行对策：针对 `/rest/api/v1/peers/*/queue`、`/stream*`、`/rest/*` 等客户端轮询路径
+> 在 WAF/lucky 侧放行（或仅对非浏览器 UA 放宽），具体在服务端入口配置，不在本仓库。
 
 ## v5.0.11（tag `v5.0.11` · 流转播放对端恒「未在播放」真根因：整队 1MB 轮询；改分页拉当前项）
 

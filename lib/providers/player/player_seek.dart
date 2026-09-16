@@ -1,5 +1,12 @@
 part of 'player_provider.dart';
 
+/// 「连续失败自动跳」连跳段的网络加载节流时长。
+///
+/// 只把真正发起音频加载（setUrl/setAudioSource 的 GET）这一步延后，绝不冻结
+/// next() / state / currentSong 的推进，避免 v5.0.9「Future.delayed 冻结跳转
+/// 导致流转上报读不到歌」的回归。
+const _kLoadThrottleOnFailStreak = Duration(milliseconds: 300);
+
 mixin PlayerSeekInternals on PlayerNotifier {
   Duration _normalizeSeekPosition(Duration position) => normalizeSeekPosition(
       position,
@@ -271,6 +278,15 @@ mixin PlayerSeekInternals on PlayerNotifier {
     final generation = ++_sourceGeneration;
     _loadedSourceSongId = null;
     _playDbg('source=$label load begin song=$songId generation=$generation');
+
+    // 网络加载节流闸口（2026-09-17）：当正处于「连续失败自动跳」的连跳段且已
+    // 连错 >= 2 首时，在每次真实加载前短暂 sleep，压低坏源成片时对反代的拉流/
+    // 探测并发冲击。此处不冻结 next()——游标/state/currentSong 已在
+    // _handlePlaybackError 里同步推进并照常上报，仅这一下网络 GET 被轻微延后。
+    // 单次失败（_consecutiveFailSkips==1）立即重试、不 gate，避免拖慢轻量重试。
+    if (_consecutiveFailSkips >= 2) {
+      await Future<void>.delayed(_kLoadThrottleOnFailStreak);
+    }
 
     try {
       await setSource(player);
