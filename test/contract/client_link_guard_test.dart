@@ -6,6 +6,7 @@ import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+import 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 
 import '../features/player/test_player_notifier.dart';
@@ -150,8 +151,6 @@ void main() {
   });
 
   group('契约2: now-playing 必须有队列兜底(currentMedia 对 local 恒空)', () {
-    // 模拟服务端分页:fetchPeerNowPlaying 现在按 offset/size 拉小页(2026-09-17),
-    // 不再整队拉 1MB。此处按真实行为切页:size>0 时截取 [offset, offset+size)。
     Future<PeerNowPlaying?> fetchWith(Map<String, dynamic> body) async {
       when(
         () => client.getRaw(
@@ -159,17 +158,7 @@ void main() {
           queryParameters: any(named: 'queryParameters'),
           receiveTimeout: any(named: 'receiveTimeout'),
         ),
-      ).thenAnswer((inv) async {
-        final named = inv.namedArguments;
-        final qp = (named[#queryParameters] as Map<String, dynamic>?) ??
-            const <String, dynamic>{};
-        final offset = (qp['offset'] as num?)?.toInt() ?? 0;
-        final size = (qp['size'] as num?)?.toInt() ?? 0;
-        final items = (body['items'] as List).cast<Map<String, dynamic>>();
-        final merged = Map<String, dynamic>.from(body);
-        merged['items'] = size > 0 ? items.skip(offset).take(size).toList() : items;
-        return merged;
-      });
+      ).thenAnswer((_) async => body);
       return controller.fetchPeerNowPlaying('local:u:abc123');
     }
 
@@ -218,27 +207,6 @@ void main() {
 
       expect(np!.title, isEmpty, reason: '没在播放就不该凭队列项硬凑一个标题');
       expect(np.isActive, isFalse);
-    });
-
-    test('拉当前项必须走分页(offset/size),不得整队拉 1MB', () async {
-      // 回归守卫:2026-09-17 实测整队 /queue(3229 首)≈1MB,而 peerNowPlayingProvider
-      // 每 5s 对每台远端拉一次,手机容易超时/掉包 → 流转页/弹窗对端恒「未在播放」。
-      // 修复后 fetchPeerNowPlaying 改为带 offset/size 分页拉当前项;这条钉死「必须分页」,
-      // 防止将来有人把请求改回无分页整队拉取(那样即便本组其他断言仍过,也会复发)。
-      await fetchWith(queueBody());
-      final captured = verify(
-        () => client.getRaw(
-          any(),
-          queryParameters: captureAny(named: 'queryParameters'),
-          receiveTimeout: any(named: 'receiveTimeout'),
-        ),
-      ).captured.cast<Map<String, dynamic>>();
-      expect(captured, isNotEmpty);
-      expect(
-        captured.any((qp) => qp['offset'] is int && qp['size'] == 1),
-        isTrue,
-        reason: '必须至少一次带 offset+size 分页参数,否则又是一次整队 1MB 拉取',
-      );
     });
   });
 

@@ -233,9 +233,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 防止并发预探测。
   bool _probing = false;
 
-  /// 连续失败跳转计数(真正播放成功一次即清零;日志诊断用)。
-  int _consecutiveFailSkips = 0;
-
   /// 预探测窗口大小：提前探测接下来几首。
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -1332,30 +1329,17 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 播放失败自动跳过：无停播阈值，无限跳（用户拍板，2026-09-09）。
   /// 不记死歌 —— 坏歌每次都真试，服务端换源治愈（probe/拉流写回新链）后
   /// 自动复活；顺序模式到队尾自然结束，循环模式由用户手动停。
-  ///
-  /// 节流历史（2026-09-16 → 2026-09-17 修正）：最初为防坏源成片全速连发
-  /// 拉流/探测灌爆反代，改成用 `Future.delayed` 冻结 `next()`。这会让播放器
-  /// 停在失败态（isPlaying=false、currentSong 不推进），本机实时状态上报
-  /// 变成「无在播歌」→ 流转播放页对端读不到歌曲/封面（v5.0.9 回归）。现改为：
-  /// **永远同步推进 `next()`**，保证 state/currentIndex 连贯、上报链路不受影
-  /// 响（不阻塞状态推进）。每首歌仍会被真试那一遍。
   void _handlePlaybackError(String? songId) {
     if (!mounted) return;
-    _consecutiveFailSkips += 1;
     Logger.warnWithTag(
       _playerLogTag,
-      'play fail songId=$songId, auto-skip '
-      'consecutive=$_consecutiveFailSkips',
+      'play fail songId=$songId, auto-skip (no stop threshold)',
     );
-    // 同步推进下一首（不延迟）：状态连贯,流转播放/实时上报/远端镜像读到的
-    // currentSong 始终是「正在/即将演唱」的下一首,不会因停留失败态而缺歌。
     next();
   }
 
 
   Future<void> _syncPlaybackAfterSourceReady({required bool autoPlay}) async {
-    // 真正播出一首后清零失败连跳计数,供日志反映当前失败段的长短。
-    _consecutiveFailSkips = 0;
     if (autoPlay) {
       _startPlayback();
       return;

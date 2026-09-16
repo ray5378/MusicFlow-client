@@ -1,5 +1,23 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.12（tag `v5.0.12` · 回滚重置到 v5.0.7，丢弃 v5.0.8/9/10/11 客户端实验；不变更服务端）
+
+> 用户认定 v5.0.7 为唯一稳定基线。v5.0.8/9/10/11 在「流转播放对端看不到歌/封面」上反复
+> 修复未生效（含分页 1MB→15KB 的 v5.0.11），且这些改动互相叠加、难以定位，决定**整体回滚**。
+>
+> 本版客户端源码状态 = **v5.0.7 完全一致**。版本号沿用 CI 由 git tag 注入（v5.0.12）。
+> 服务端（MusicFlow）本轮未动。
+
+### 回滚内容（相对 v5.0.7 一并撤销）
+- v5.0.8 全局封面并发闸门 `_CoverRequestGate`（cover_art_image.dart）
+- v5.0.9/10 失败自动跳节流 + 不冻结加载闸口（player_provider.dart / player_seek.dart）
+- v5.0.11 `fetchPeerNowPlaying` 分页拉当前项（cast_peer_provider.dart）
+- 对应测试 `client_link_guard_test.dart` / `playback_error_guard_test.dart` 一并回到 v5.0.7
+
+### 验证
+- 6 个文件 `git checkout v5.0.7 -- ...` 后无未定义符号（analyze 无 error）。
+- 回滚后 `client_link_guard_test.dart`（7 条）+ `playback_error_guard_test.dart`（5 条）全部通过。
+
 ## v5.0.11（tag `v5.0.11` · 流转播放对端恒「未在播放」真根因：整队 1MB 轮询；改分页拉当前项）
 
 > ⚠️ 更正 v5.0.10 归因：v5.0.10 假设「失败自动跳冻结 → 上报读到无在播歌」。后续用账号直查服务端 `/v1/peers/:id/queue` 实证，被看端 **isActive=true、items 完整、currentIndex 正常**，上报与账本都正确 —— v5.0.9/10 的失败跳时序并非本次根因；且用户确认 v5.0.8 未测试这块，真实基线是 v5.0.7。

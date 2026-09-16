@@ -94,20 +94,4 @@ void main() {
       expect(src.contains(banned), isFalse, reason: '契约回归：$banned 已整体移除');
     }
   });
-
-  test('失败自动跳必须同步推进：不得冻结 next 阻断流转上报', () {
-    // 2026-09-17 修正 v5.0.9 回归：把失败跳转改成 `Future.delayed(wait, next)`
-    // 会在坏源/切歌时让播放器停在失败态（isPlaying=false、currentSong 不推进），
-    // 本机实时状态上报变「无在播歌」→ 流转播放页对端读不到歌曲/封面。
-    // 因此契约改为：失败跳转**同步**调用 next()，禁止用延迟冻结它。
-    final body = _methodBody(src, 'void _handlePlaybackError(String? songId) {');
-    // 同方法体里不得出现延迟跳转（去延迟 = 回归实录），否则会在那段时间里
-    // 把播放器冻结在失败态，破坏流转播放的实时上报。
-    expect(body.contains('Future.delayed'), isFalse,
-        reason: '失败自动跳不得用 Future.delayed 冻结 next()：坏源时段会停在失败态，'
-            '流转播放页读不到歌曲与封面（v5.0.9 回归）');
-    // 排除「延迟 + 提前 return」形态：wait 分支 return 会让 next() 变成可被延后。
-    expect(RegExp(r'wait\s*[<>]=\s*\w+').hasMatch(body), isFalse,
-        reason: '不得用 wait 类分支提前 return 延后 next()');
-  });
 }

@@ -620,70 +620,56 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 拉取 peer 实时队列摘要：当前曲目（歌名/歌手）+ 游标 + 是否在播。
   /// 供「流转播放」弹窗第二行展示与「接回本机」按钮可用性判断。
   /// 请求失败（设备掉线/网络抖）返回 null，调用方按「未知」处理。
-  ///
-  /// **分页拉当前项（2026-09-17）**：原先一次拉整队 `queue`（3000+ 首 ≈ **1MB**），
-  /// 而 `peerNowPlayingProvider` 每 5s 对每台远端都轮询一次 —— 手机端这种高频
-  /// 大 payload 极易超时/掉包，`fetchPeerNowPlaying` 抛异常返回 null，流转页/弹窗
-  /// 就对端恒「未在播放」，而本机走本地 provider 反而正常（2026-09-17 实证：
-  /// 全量 1,043,789B/634ms vs 分页 size=1 15,601B/55ms）。现改为先拉 meta 页拿
-  /// `currentIndex`，再精确拉那一项（size=1）—— 30KB 内解决，极端缩小 ~35×。
   Future<PeerNowPlaying?> fetchPeerNowPlaying(String peerId) async {
     final client = _ref.read(subsonicApiClientProvider);
-    Future<Map<String, dynamic>> fetchPage(int offset, int size) async {
-      final raw = await client
+    try {
+      final data = await client
           .getRaw(
             '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue',
-            queryParameters: <String, dynamic>{'offset': offset, 'size': size},
             receiveTimeout: kQueueFetchBudget,
           )
-          .timeout(kQueueFetchBudget);
-      return raw as Map<String, dynamic>;
-    }
-
-    try {
-      // 先拉元数据页(极小):服务端的 `isActive / currentIndex / total / currentMedia`
-      // 恒在响应体里,不受分页影响。
-      final meta = await fetchPage(0, 1);
-      final isActive = meta['isActive'] == true;
-      final currentIndex = (meta['currentIndex'] as num?)?.toInt() ?? -1;
-      final total = (meta['total'] as num?)?.toInt() ?? 0;
-
-      // 当前项:需求只展示「在播的那一首」,绝不再整队拉 1MB。
-      Map<String, dynamic>? current;
-      if (isActive && currentIndex >= 0 && currentIndex < total) {
-        if (currentIndex == 0) {
-          final items0 = meta['items'];
-          if (items0 is List && items0.isNotEmpty) {
-            current = items0.first as Map<String, dynamic>?;
-          }
-        } else {
-          final page = await fetchPage(currentIndex, 1);
-          final its = page['items'];
-          if (its is List && its.isNotEmpty) {
-            current = its.first as Map<String, dynamic>?;
-          }
-        }
-      }
-
-      // 曲目第一来源:设备侧实时值(`currentMedia`)。`local`(安卓 / Windows 客户端)
-      // 恒为 undefined —— 这是「流转播放」里别的客户端行恒不显示的历史根因
-      // (2026-09-15 反馈)；因此标题/封面独立回落到队列当前项,以 `currentMedia`
-      // 优先、缺失再回落;唯一门控是「在播」,没在播不凑标题。
-      final media = meta['currentMedia'];
+          .timeout(kQueueFetchBudget) as Map<String, dynamic>;
+      final isActive = data['isActive'] == true;
+      final currentIndex = (data['currentIndex'] as num?)?.toInt() ?? -1;
+      // 曲目第一来源:设备侧实时值(`currentMedia`)。
+      final media = data['currentMedia'];
       var title = media is Map ? '${media['title'] ?? ''}' : '';
       var artist = media is Map ? (media['artist'] as String?) : null;
+      // 兜底第二来源:队列当前项。
+      //
+      // 服务端 `GET /v1/peers/:id/queue` 的 `currentMedia` **只对 dlna / airplay /
+      // sendspin 填充** —— `local`(安卓 / Windows 客户端实例)与 `group` 恒为
+      // undefined。这里原先只读 `currentMedia`,于是「流转播放」弹窗里
+      // **别的客户端那一行的播放状态永远接不上**(恒显示「未在播放」,
+      // 用户 2026-09-15 反馈)。
+      //
+      // 队列当前项是同一份权威数据(Web 前端 `peerPlayingTitle` 也是取
+      // `queue.items[currentIndex].title`),故在 `currentMedia` 拿不到标题时改读它。
+      // 仍以 `currentMedia` 优先 → 设备侧显示与既有行为完全一致,不受影响。
+      // 封面同源:设备侧实时值优先,缺失时同样回落到队列当前项
+      // (local 的 currentMedia 只有 songId,封面只在 items 里)。
       var coverArt = media is Map ? (media['coverArt'] as String?) : null;
-      if (current != null) {
-        if (title.isEmpty) title = '${current['title'] ?? ''}';
-        artist ??= current['artist'] as String?;
-        if (coverArt == null || coverArt.isEmpty) {
-          coverArt = current['coverArt'] as String?;
+      // 注意:封面与标题**各自独立**回落到队列当前项 —— 不能因为「设备侧给了标题」
+      // 就跳过封面(存在标题齐、封面缺的端)。唯一门控是「在播」:没在播不显示封面。
+      if (isActive) {
+        final items = data['items'];
+        if (items is List && currentIndex >= 0 && currentIndex < items.length) {
+          final item = items[currentIndex];
+          if (item is Map) {
+            if (title.isEmpty) {
+              title = '${item['title'] ?? ''}';
+              artist = item['artist'] as String?;
+            }
+            if (coverArt == null || coverArt.isEmpty) {
+              coverArt = item['coverArt'] as String?;
+            }
+          }
         }
       }
       return PeerNowPlaying(
         isActive: isActive,
         currentIndex: currentIndex,
-        total: total,
+        total: (data['total'] as num?)?.toInt() ?? 0,
         title: title,
         artist: artist,
         coverArt: coverArt,
