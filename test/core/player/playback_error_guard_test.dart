@@ -94,4 +94,24 @@ void main() {
       expect(src.contains(banned), isFalse, reason: '契约回归：$banned 已整体移除');
     }
   });
+
+  test('失败自动跳有节奏限制（坏源成片不连发），且成功播放即复位', () {
+    // 2026-09-16 定位：失败→next() 无节流硬循环，坏源成片(尤其远程/签名
+    // URL 过期)时全速连发拉流/探测灌满反代。要求：连跳有最小间隔、长串降速、
+    // 真正播出一首后复位，避免把已治愈的歌永久误拉低。
+    final body = _methodBody(src, 'void _handlePlaybackError(String? songId) {');
+    // 必须有最小间隔与降速参数（成片坏源时不再光速连发）。
+    expect(body, contains('_autoSkipMinGap'),
+        reason: '失败自动跳须有最小间隔，否则坏源成片时全速连发');
+    expect(body, contains('_autoSkipStallThreshold'),
+        reason: '连续失败须有降速阈值，否则死歌单回绕时以全速反复拉流');
+    // 节奏限制必须真的 delay，而不是恒真短路掉 next()（去节奏=回归全速连发）。
+    expect(body, contains('Future.delayed(wait'),
+        reason: '间隔不足时必须延迟 next()，禁止恒真短路跳过节奏限制');
+    // 成功播放一首后清零连跳计数：正常切歌后首次失败不被上一段 burst 连带降速。
+    final syncBody = _methodBody(
+        src, 'Future<void> _syncPlaybackAfterSourceReady({required bool autoPlay}) async {');
+    expect(syncBody.contains('_consecutiveFailSkips = 0'), isTrue,
+        reason: '真正播出一首后须清零失败连跳计数，避免永久陷入降速');
+  });
 }
