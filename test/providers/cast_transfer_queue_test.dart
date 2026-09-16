@@ -144,7 +144,7 @@ void main() {
         reason: '搬到本机要由客户端 just_audio 接手，服务端搬运无法让它出声');
   });
 
-  test('远端 → 远端：调用服务端 transfer-from，并让源端停止', () async {
+  test('远端 → 远端：调用服务端 transfer-from，并让源端彻底重置', () async {
     final ok = await controller.transferQueue(remoteA, remoteB);
 
     expect(ok, isTrue);
@@ -156,9 +156,13 @@ void main() {
     expect((transfer.first.data as Map).containsKey('items'), isFalse,
         reason: '队列实体在服务端，客户端**不得**上传 items —— 这是零上传设计的红线');
     expect(
-      posts.any((p) => p.path.contains(Uri.encodeComponent(remoteA.peerId)) && p.path.endsWith('/stop')),
+      posts.any((p) =>
+          p.path.contains(Uri.encodeComponent(remoteA.peerId)) &&
+          p.path.endsWith('/reset')),
       isTrue,
-      reason: '搬移语义：搬完源端停止',
+      reason: '搬移语义：搬完源端**彻底重置**（停止 + 清队列 + 清服务端运行态）。'
+          '不再只 stop —— 只 stop 会留下运行态，源端队列虽空仍被 GET /status '
+          '报成「在播某一首」',
     );
   });
 
