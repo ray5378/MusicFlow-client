@@ -281,7 +281,7 @@ void FlutterWindow::HandleWindowMethod(
     return;
   }
   if (method == "update_desktop_lyric_switch_list") {
-    // 桌面歌词「切换播放器」弹窗数据:设备行(名称/状态副标题/是否当前目标)。
+    // 桌面歌词「流转播放」弹窗数据:设备行(名称/状态副标题/是否当前目标)。
     // 原生层只画两行文字并回传行号,切换动作由 Flutter 执行。
     DesktopLyricSwitchList list;
     if (const flutter::EncodableValue* arguments = call.arguments()) {

@@ -12,7 +12,7 @@
 //      鼠标输入被歌词窗吃光,主窗口表现为「点不动」;
 //   5. Dart 推送去重 key 必须包含 lyricColor —— 丢掉会导致歌词颜色
 //      跟随 MINI 播放器失效(封面配色变了浮窗不刷新)。
-//   6. 切换播放器按钮必须「紧挨音量右侧」(kOffSwitch < kOffVolume),
+//   6. 流转播放按钮必须「紧挨音量右侧」(kOffSwitch < kOffVolume),
 //      且点击只在自己的弹窗里 toggle —— 用户 2026-09-10 明确要求
 //      「基站图标放在音量的右边」+「弹窗在桌面歌词上面新增,不回到主窗口」,
 //      回归成回到主窗口弹窗或按钮跑回音量左边都会被这条拦下。
@@ -129,7 +129,7 @@ void main(List<String> args) {
     }
   }
 
-  // ---- 6. 切换播放器按钮位置 + 弹窗归属 ----
+  // ---- 6. 流转播放按钮位置 + 弹窗归属 ----
   if (lyricSrc.isNotEmpty) {
     // 6a. 基站图标必须在音量右边:kOffSwitch 的偏移要小于 kOffVolume
     // (偏移是从右缘向左量的,越小越靠右)。
@@ -139,7 +139,7 @@ void main(List<String> args) {
       errors.add('$kNativeLyricFile: 找不到 kOffSwitch/kOffVolume 常量');
     } else if (offSwitch >= offVolume) {
       errors.add(
-        '$kNativeLyricFile: 切换播放器按钮不在音量右侧'
+        '$kNativeLyricFile: 流转播放按钮不在音量右侧'
         '(kOffSwitch=$offSwitch 必须 < kOffVolume=$offVolume;'
         '偏移自右缘向左量,越小越靠右)',
       );
@@ -159,20 +159,20 @@ void main(List<String> args) {
     } else {
       if (!body.contains('PopupKind::Switch')) {
         errors.add(
-          '$kNativeLyricFile: 切换播放器按钮未展开自带弹窗'
+          '$kNativeLyricFile: 流转播放按钮未展开自带弹窗'
           '(必须 SetPopup(PopupKind::Switch) —— 弹窗要长在歌词窗上方,'
           '不是回到主窗口弹)',
         );
       }
       if (body.contains('"switch_player"')) {
         errors.add(
-          '$kNativeLyricFile: 切换播放器按钮仍在发旧的 switch_player'
+          '$kNativeLyricFile: 流转播放按钮仍在发旧的 switch_player'
           '(回归成「回主窗口弹窗」;应发 switch_player_open)',
         );
       }
       if (!body.contains('switch_player_open')) {
         errors.add(
-          '$kNativeLyricFile: 切换播放器按钮未发 switch_player_open'
+          '$kNativeLyricFile: 流转播放按钮未发 switch_player_open'
           '(原生层需要用它在展开时向 Flutter 要设备列表)',
         );
       }
@@ -461,7 +461,7 @@ void main(List<String> args) {
 
   stdout.writeln(
     'OK: 桌面歌词守卫通过 —— 顶层句柄/恢复分支/逐像素alpha管线/'
-    '捕获释放/取色去重 key/切换播放器按钮位置与弹窗归属 全部符合约定',
+    '捕获释放/取色去重 key/流转播放按钮位置与弹窗归属 全部符合约定',
   );
 }
 

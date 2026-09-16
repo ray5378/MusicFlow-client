@@ -1981,6 +1981,9 @@
     "description": "state_enabled"
   },
   "player_close": "关闭播放器",
+  "player_transfer_title": "流转播放队列",
+  "player_transfer_hint": "按住任意一个播放器拖到另一个，即可把它的队列流转过去",
+  "player_transfer_empty": "当前没有其它可用的播放器",
   "@player_close": {
     "description": "player_close"
   },
@@ -2102,9 +2105,9 @@
   "@player_favorite": {
     "description": "player_favorite"
   },
-  "player_switch_current": "切换播放器，当前：{name}",
-  "@player_switch_current": {
-    "description": "player_switch_current",
+  "player_transfer_playback_current": "流转播放，当前：{name}",
+  "@player_transfer_playback_current": {
+    "description": "player_transfer_playback_current",
     "placeholders": {
       "name": {
         "type": "String"
@@ -2150,7 +2153,7 @@
   "@player_switched_local": {
     "description": "player_switched_local"
   },
-  "player_dlna_dialog_subtitle": "客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。",
+  "player_dlna_dialog_subtitle": "客户端自扫局域网设备并本地推流，与「流转播放」（服务端投屏）相互独立。",
   "@player_dlna_dialog_subtitle": {
     "description": "player_dlna_dialog_subtitle"
   },
@@ -2224,13 +2227,13 @@
       }
     }
   },
-  "player_select_source_title": "选择播放器",
-  "@player_select_source_title": {
-    "description": "player_select_source_title"
+  "player_transfer_playback_title": "流转播放",
+  "@player_transfer_playback_title": {
+    "description": "player_transfer_playback_title"
   },
-  "player_select_source_subtitle": "切换播放器仅改变当前控制目标,不会停止其他播放器。",
-  "@player_select_source_subtitle": {
-    "description": "player_select_source_subtitle"
+  "player_transfer_playback_subtitle": "流转播放仅改变当前控制目标,不会停止其他播放器。",
+  "@player_transfer_playback_subtitle": {
+    "description": "player_transfer_playback_subtitle"
   },
   "player_source_local_title": "本机播放",
   "@player_source_local_title": {

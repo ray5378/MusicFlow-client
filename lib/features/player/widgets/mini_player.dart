@@ -21,7 +21,7 @@ import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 import 'package:musicflow_client/features/player/widgets/volume_button.dart';
 import 'package:musicflow_client/features/player/widgets/player_switcher.dart';
-import 'package:musicflow_client/features/player/widgets/player_quick_ring.dart';
+import 'package:musicflow_client/features/player/pages/player_transfer_page.dart';
 
 /// Stable bridge between the application shell and the immersive player.
 class MiniPlayer extends ConsumerWidget {
@@ -45,7 +45,7 @@ class MiniPlayer extends ConsumerWidget {
     final dlnaCast = ref.watch(dlnaCastProvider);
     final dlnaCasting = dlnaCast.isCasting;
 
-    // 投屏(切换播放器)激活时,迷你条反映后端 peer 的实时状态:
+    // 投屏(流转播放)激活时,迷你条反映后端 peer 的实时状态:
     // 曲目经队列 currentIndex 回写同步,进度/播放态取自 /peers/:id/status。
     final playerState = PlayerState(
       currentSong: currentSong,
@@ -147,9 +147,9 @@ bool _isDesktopShell(BuildContext context) => switch (Theme.of(context).platform
   _ => false,
 };
 
-/// 打开「切换播放器」弹窗（平台自适应：桌面小弹窗 / 移动端底部弹层）。
+/// 打开「流转播放」弹窗（平台自适应：桌面小弹窗 / 移动端底部弹层）。
 ///
-/// 供迷你播放条按钮与 Windows 桌面歌词浮窗的「切换播放器」按钮共用——
+/// 供迷你播放条按钮与 Windows 桌面歌词浮窗的「流转播放」按钮共用——
 /// 后者经 tray 字符串通道回传 `switch_player`，由 MainScaffold 调用本函数。
 Future<void> showPlayerSwitcher({
   required BuildContext context,
@@ -179,7 +179,7 @@ Future<void> showPlayerSwitcher({
   });
 }
 
-/// 桌面端「切换播放器」小弹窗：以 Overlay 呈现，播放控件上方小窗，
+/// 桌面端「流转播放」小弹窗：以 Overlay 呈现，播放控件上方小窗，
 /// 点击弹窗外任意位置关闭；切换完成后弹出右上角 Toast 反馈。
 void showPlayerSwitcherPopover({required BuildContext context}) {
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
@@ -347,6 +347,11 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
           label: isFav ? loc.player_unfavorite : loc.player_favorite,
           iconSize: 20,
           selected: isFav,
+          // 底色**永远透明**，选中只靠前景色(accent)表达：
+          // MusicFlowIconButton 在 selected 时会带一块 accent 14% 的底色块，
+          // 而同排的上一首/下一首/播放/投屏都是「无底色纯图标」—— 于是这两个
+          // 按钮一旦选中就"和周边不一样"（多出一块背景）。这里统一掉。
+          backgroundColor: Colors.transparent,
           onPressed: widget.onToggleFavorite,
         ),
       ),
@@ -363,10 +368,10 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
       ),
       const VolumeButton(),
       Tooltip(
-        message: loc.player_switch_current(widget.currentPlayerName),
+        message: loc.player_transfer_playback_current(widget.currentPlayerName),
         child: MusicFlowIconButton(
           icon: AppIcons.signalTower,
-          label: loc.player_switch_current(widget.currentPlayerName),
+          label: loc.player_transfer_playback_current(widget.currentPlayerName),
           iconSize: 20,
           foregroundColor: widget.isCasting
               ? context.musicFlowColors.accent
@@ -380,7 +385,7 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
 
   /// 响应式桌面端控件：随窗口宽度「渐隐」非核心按钮。
   /// 保留最关键的 上一首/播放暂停/下一首(列表前三个)，其余
-  /// (播放模式/红心/队列/音量/切换播放器)在窗口变窄时从右往左
+  /// (播放模式/红心/队列/音量/流转播放)在窗口变窄时从右往左
   /// 依次淡出；最边缘的一个按钮按剩余空间比例降低透明度，形成
   /// 平滑淡入淡出而非突兀截断。同时避免迷你条溢出。
   List<Widget> _buildResponsiveDesktopControls(
@@ -440,7 +445,7 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
       ),
       MusicFlowIconButton(
         icon: AppIcons.signalTower,
-        label: loc.player_switch_current(widget.currentPlayerName),
+        label: loc.player_transfer_playback_current(widget.currentPlayerName),
         iconSize: 20,
         foregroundColor: widget.isCasting
             ? context.musicFlowColors.accent
@@ -472,7 +477,7 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
   /// 快捷区拖拽的落地动作：把 [from] 的队列流转给 [to]。
   ///
   /// 三条路由（本机↔远端、远端↔远端）都在 `transferQueue` 里分派，这里只管
-  /// 提示与刷新镜像 —— 两端的「正在播」都变了，圆里的封面与选择播放器第二行要跟着更新。
+  /// 提示与刷新镜像 —— 两端的「正在播」都变了，圆里的封面与流转播放第二行要跟着更新。
   Future<bool> _transferBetweenPeers(PeerInfo from, PeerInfo to) async {
     final controller = ref.read(castPeerControllerProvider.notifier);
     final loc = AppLocalizations.of(context);
@@ -542,9 +547,6 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
                 key: const Key('mini-player-surface'),
                 height: MiniPlayer.height,
                 child: Stack(
-                  // 快捷区浮在 mini 条**上方**（位置口径：mini 播放器上面），
-                  // 会超出 Stack 自身高度 —— 必须放行裁剪。
-                  clipBehavior: Clip.none,
                   children: <Widget>[
                     Positioned.fill(
                       child: Hero(
@@ -618,24 +620,6 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
                               duration: _playerState.duration,
                               onSeek: widget.onSeek,
                             ),
-                      ),
-                    ),
-                    // 播放器圆形快捷区：长按 mini 封面唤出后出现在 mini 条上方。
-                    // 收起时整棵子树不在树上 ⇒ 里面的 autoDispose provider 随之释放，
-                    // 不会常驻轮询列表。
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: MiniPlayer.height + 8,
-                      child: Consumer(
-                        builder: (context, ref, _) {
-                          if (!ref.watch(playerQuickRingVisibleProvider)) {
-                            return const SizedBox.shrink();
-                          }
-                          return PlayerQuickRing(
-                            onTransfer: _transferBetweenPeers,
-                          );
-                        },
                       ),
                     ),
                   ],
@@ -844,11 +828,11 @@ class _MiniPlayerTrack extends StatelessWidget {
     required this.lyricAccent,
     required this.coverRingProgress,
     required this.coverRingColor,
-    this.onTransfer,
+    required this.onTransfer,
   });
 
-  /// 快捷区流转的落地动作（由 mini 播放器注入，复用统一提示）。
-  final Future<bool> Function(PeerInfo from, PeerInfo to)? onTransfer;
+  /// 「流转播放队列」页面的落地动作（由 mini 播放器注入，复用统一提示）。
+  final Future<bool> Function(PeerInfo from, PeerInfo to) onTransfer;
 
   final Song? song;
   final bool useHero;
@@ -888,67 +872,23 @@ class _MiniPlayerTrack extends StatelessWidget {
         : coverInner;
     // RepaintBoundary:进度环 200~500ms 重绘隔离在 46px 环内,不连带
     // 封面/歌名/歌词/背景等整条迷你条重绘(智能按需渲染 §GPU 门控)。
-    final coverCore = RepaintBoundary(
-      child: _MiniPlayerProgressRing(
-        progress: coverRingProgress,
-        color: coverRingColor,
-        child: coverHero,
-      ),
-    );
-    // 封面既是「本机」这个播放端节点，也是快捷区的开关：
-    //   收起态 → 长按唤出（触屏长按与鼠标按住是同一套手势）；
-    //   展开态 → 按住它拖出去 = 把本机队列推给别人；别的圆拖进来 = 拉回本机。
-    final cover = Consumer(
-      builder: (context, ref, child) {
-        final expanded = ref.watch(playerQuickRingVisibleProvider);
-        if (!expanded) {
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onLongPress: () =>
-                ref.read(playerQuickRingVisibleProvider.notifier).state = true,
-            child: child,
-          );
-        }
-        final self = ref.watch(quickRingPeersProvider).valueOrNull?.self;
-        return DragTarget<PeerInfo>(
-          onWillAcceptWithDetails: (details) =>
-              self != null && details.data.peerId != self.peerId,
-          onAcceptWithDetails: (details) {
-            final src = details.data;
-            final to = self;
-            if (to == null) return;
-            ref.read(playerQuickRingVisibleProvider.notifier).state = false;
-            onTransfer?.call(src, to);
-          },
-          builder: (context, candidates, rejected) {
-            final hot = candidates.isNotEmpty;
-            return Draggable<PeerInfo>(
-              data: self,
-              // 本机身份未知（未注册 / 离线）时不允许作为源拖出。
-              maxSimultaneousDrags: self == null ? 0 : 1,
-              feedback: Material(
-                color: Colors.transparent,
-                child: Opacity(opacity: 0.92, child: child),
-              ),
-              childWhenDragging: Opacity(opacity: 0.28, child: child),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 140),
-                decoration: hot
-                    ? BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 2.5,
-                        ),
-                      )
-                    : null,
-                child: child,
-              ),
-            );
-          },
-        );
+    // 封面是快捷区的开关：长按唤出「流转播放队列」专用页面
+    // （触屏长按与鼠标按住是同一套手势）。
+    // 注意：本机**不再**寄生在这张封面上 —— 它在专用页面里占第一个圆，
+    // 所以这里只负责唤出，不参与拖拽。
+    final cover = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () {
+        final ctx = context;
+        PlayerTransferPage.open(ctx, onTransfer: onTransfer);
       },
-      child: coverCore,
+      child: RepaintBoundary(
+        child: _MiniPlayerProgressRing(
+          progress: coverRingProgress,
+          color: coverRingColor,
+          child: coverHero,
+        ),
+      ),
     );
     final title = _MiniPlayerTitle(
       song: song,
@@ -1227,7 +1167,10 @@ class _PlayModeButton extends StatelessWidget {
       _ => loc.player_mode_list,
     };
     // 仅 随机/单曲 为「非常规顺序」态,高亮提示(对齐主项目前端 type=primary)。
-    final selected = mode != 'all' && mode != 'order';
+    // 用**白名单**而不是 `mode != 'all' && mode != 'order'`：后者碰到任何意外值
+    // (空串 / 投屏态服务端返回的其它字符串 / 未来新增模式)都会判成 true ⇒ 按钮
+    // 永远高亮。白名单只在真的处于 one/shuffle 时高亮。
+    final selected = mode == 'one' || mode == 'shuffle';
     return Tooltip(
       message: modeLabel,
       child: MusicFlowIconButton(
@@ -1235,6 +1178,9 @@ class _PlayModeButton extends StatelessWidget {
         label: modeLabel,
         iconSize: iconSize,
         selected: selected,
+        // 同喜欢按钮:底色永远透明,one/shuffle 的"高亮"只由前景色 accent 表达,
+        // 外观与同排其它图标按钮保持一致。
+        backgroundColor: Colors.transparent,
         onPressed: onPressed,
       ),
     );
@@ -1277,7 +1223,7 @@ class _MiniPlayerScrubBubble extends StatelessWidget {
   }
 }
 
-/// 「切换播放器」底部弹层 —— 对齐主项目前端「选择播放器」。
+/// 「流转播放」底部弹层 —— 对齐主项目前端「流转播放」。
 /// 数据源为主项目后端 GET /rest/api/v1/peers(本机 + DLNA/AirPlay/群组);
 /// 选中远端 peer = 纯 UI 控制目标切换(对齐前端 switchPeer):不推队列/不投屏,
 /// 此后点歌/专辑/歌单由后端在设备播放,客户端是后端的远程遥控器。

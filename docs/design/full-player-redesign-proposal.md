@@ -9,7 +9,7 @@
 | # | 议题 | 最终决策 |
 |---|---|---|
 | 暖黄 | §3 二选一 | **A 自适应暖黄**：`#FFC233` 基色 + `MusicFlowMediaVisuals.ensureAccentContrast` 对三段舞台底色保 4.5:1 |
-| 投屏按钮 | — | 「局域网 DLNA 直投」与「切换播放器」**两个独立按钮都保留**：一个最左、一个最右（同现状） |
+| 投屏按钮 | — | 「局域网 DLNA 直投」与「流转播放」**两个独立按钮都保留**：一个最左、一个最右（同现状） |
 | 顶部「更多」 | — | **移除**。菜单里的动作（下一曲播放/添加到歌单/跳转歌手/专辑）在信息页「操作 → 歌曲操作」入口继续可达 |
 
 ### 手势方向说明（重要）
@@ -131,7 +131,7 @@ SafeArea
 ├─ 3. 歌曲名（大号，居中）
 ├─ 4. 歌手名（中号，居中，muted）
 ├─ 5. 当前歌词行（1–2 行，居中，muted）
-├─ 6. 工具栏：切换播放器 │ 我喜欢 │ 客户端投屏 │ 音量控制
+├─ 6. 工具栏：流转播放 │ 我喜欢 │ 客户端投屏 │ 音量控制
 ├─ 7. 进度条 + 左右时间
 └─ 8. 播放控制行：循环 │ 上一首 │ 播放/暂停 │ 下一首 │ 队列
 ```
@@ -168,7 +168,7 @@ SafeArea
 
 | 序 | 功能 | 图标 | 现有实现 |
 |---|---|---|---|
-| 1 | 切换播放器 | `AppIcons.signalTower` | 直接复用，投屏态加边框高亮 |
+| 1 | 流转播放 | `AppIcons.signalTower` | 直接复用，投屏态加边框高亮 |
 | 2 | 我喜欢 | `AppIcons.heart` / `heartOutline` | 直接复用 |
 | 3 | 客户端投屏 | `AppIcons.dlnaLocal` | 直接复用（局域网 DLNA 直投）|
 | 4 | 音量控制 | 音量图标 | 复用 `VolumeButton` |
@@ -267,7 +267,7 @@ SafeArea
 | 文件 | 改动 |
 |---|---|
 | `lib/features/player/pages/full_player_page.dart` | 核心：3 页 PageView、移除 `_buildQualityIndicator()`、拆出 `_SongInfoPage`、重排底部为「工具栏→进度条→播放控制」、文本顺序改为「歌名→歌手→歌词行」、顶部栏加 3 圆点指示器 |
-| `lib/features/player/pages/full_player_page.dart`（`_PlayerUtilityBar`）| 6 项 → 4 项：移除播放模式与队列（下沉到播放控制行），保留切换播放器/喜欢/客户端投屏/音量 |
+| `lib/features/player/pages/full_player_page.dart`（`_PlayerUtilityBar`）| 6 项 → 4 项：移除播放模式与队列（下沉到播放控制行），保留流转播放/喜欢/客户端投屏/音量 |
 | `lib/features/player/widgets/synced_lyrics_view.dart` | 新增 `activeColor` 注入（暖黄），默认仍走 `colors.accent` |
 | `lib/core/design/media/music_flow_media_visuals.dart` | **仅方案 B 需要**：stage 分支锁定暗色带 + 固定浅墨前景 |
 

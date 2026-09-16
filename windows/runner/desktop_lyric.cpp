@@ -27,7 +27,7 @@ constexpr wchar_t kRegPosY[] = L"LyricY";
 
 // ---- 布局常量(逻辑像素,实际使用时按 DPI 缩放 S()) ----
 constexpr int kWindowWidth = 572;     // 窗口固定宽度
-// 宽度 520 -> 572(2026-09-10):悬停按钮栏新增「切换播放器」后共 8 个按钮,
+// 宽度 520 -> 572(2026-09-10):悬停按钮栏新增「流转播放」后共 8 个按钮,
 // 最左的 kOffPrev 从 351 推到 403, 窗口同步加宽保证文字区不被挤占。
 constexpr int kWindowHeight = 84;     // 歌词区固定高度
 constexpr int kPaddingX = 26;         // 文字左边距
@@ -63,14 +63,14 @@ constexpr COLORREF kThumbColor = RGB(255, 255, 255);  // 滑块
 
 // 按钮(圆心,逻辑坐标,自右缘向左排;窗口宽 W,歌词区高 84,中线 y=弹窗高+42):
 // 上一首 / 播放暂停(大) / 下一首 / 播放模式 / 喜欢 / 播放队列 /
-// 音量(滑条弹窗) / 切换播放器(最贴边,紧挨音量右侧)
+// 音量(滑条弹窗) / 流转播放(最贴边,紧挨音量右侧)
 constexpr int kBtnR = 17;             // 普通按钮半径
 constexpr int kPlayR = 22;            // 播放按钮半径
 // 圆心相对右缘的偏移(逻辑 px): volume=35(最右), switch=87, queue=139,
 // like=191, mode=243, next=295, play=349, prev=403
-// 注意:切换播放器(switch)必须紧挨音量(volume)右侧 —— 用户 2026-09-10 明确
+// 注意:流转播放(switch)必须紧挨音量(volume)右侧 —— 用户 2026-09-10 明确
 // 要求「基站图标放在音量的右边」,即 switch 的偏移要比 volume 更靠右(更小)。
-constexpr int kOffSwitch = 35;   // 最右:切换播放器
+constexpr int kOffSwitch = 35;   // 最右:流转播放
 constexpr int kOffVolume = 87;   // 音量(滑条弹窗)
 constexpr int kOffQueue = 139;
 constexpr int kOffLike = 191;
@@ -104,7 +104,7 @@ constexpr int kListPopupMarginV = 6;
 constexpr int kListRowPadX = 14;      // 行内左右留白
 constexpr int kListRowGap = 6;        // 行与行之间的间隙
 
-// 「切换播放器」弹窗(逻辑 px):比队列弹窗略高的行(要放两行文字:
+// 「流转播放」弹窗(逻辑 px):比队列弹窗略高的行(要放两行文字:
 // 设备名 + 状态副标题),宽度对齐 MINI 播放条小弹窗的 320。
 constexpr int kSwitchRowH = 42;
 constexpr int kSwitchMaxRows = 6;
@@ -175,7 +175,7 @@ int g_pressedButton = -1;      // 按下中的按钮索引
 POINT g_dragOffset{};
 
 // ---- 弹窗(同一时间最多展开一个,展开时窗口向上增高) ----
-// Switch:桌面歌词自己的「切换播放器」弹窗(内容与 MINI 播放条的小弹窗一致,
+// Switch:桌面歌词自己的「流转播放」弹窗(内容与 MINI 播放条的小弹窗一致,
 // 由 Flutter 组好设备行文本推送过来)。它在歌词窗上方展开,而不是回到主窗口
 // 弹——用户 2026-09-10 明确要求「弹窗不是在主窗口弹,是在桌面歌词上面新增一个
 // 弹窗,里面的内容和 MINI 弹窗一样」。
@@ -187,7 +187,7 @@ int g_queueIndex = -1;
 int g_queueScroll = 0;  // 顶部可见行下标(滚轮滚动)
 int g_hotRow = -1;  // 悬停中的列表行(面板内高亮)
 
-// 「切换播放器」弹窗数据(Flutter 推送,全量替换):每行 = 设备名,
+// 「流转播放」弹窗数据(Flutter 推送,全量替换):每行 = 设备名,
 // cur 标记当前控制目标(高亮);可选副标题(状态文案)。
 // badge = 设备类型小徽章文本(本机行空);canPull/canPush 决定行右侧的
 // 两支接续箭头(见 kHandoffR 处注释,语义与 MINI 弹窗 PeerCastRow 一致)。
@@ -332,7 +332,7 @@ RECT ListPanelRect() {
   return rc;
 }
 
-// 「切换播放器」面板:锚定在切换按钮(最右)下方,比列表弹窗窄一些,
+// 「流转播放」面板:锚定在切换按钮(最右)下方,比列表弹窗窄一些,
 // 呈现成一张从右缘探出的小卡(与 MINI 播放条的 320px 小弹窗观感一致)。
 //
 // 注意:这里必须写 std::min<int>/std::max<int> 显式指定类型——
@@ -406,7 +406,7 @@ RECT ListRowsRect() {
   return rc;
 }
 
-// 当前展开的列表弹窗是否属于「可滚动列表」类(队列 / 切换播放器)。
+// 当前展开的列表弹窗是否属于「可滚动列表」类(队列 / 流转播放)。
 // 两者的滚动基准(q_queueScroll / q_switchScroll)与行高不同,由下面
 // 几个取值函数统一分派,避免每个调用点各写一遍 if。
 bool PopupIsListLike() {
@@ -1008,8 +1008,8 @@ void DrawButton(gd::Graphics& g, int idx) {
       DrawRemixGlyph(g, kRemixQueue, b, iconColor);
       return;
     case kBtnIdxSwitch:
-      // 切换播放器:与主界面同款 remix「设备切换」图形(硬编码轮廓),
-      // 点击后通知 Flutter 打开「选择播放器」弹窗。
+      // 流转播放:与主界面同款 remix「设备切换」图形(硬编码轮廓),
+      // 点击后通知 Flutter 打开「流转播放」弹窗。
       DrawRemixGlyph(g, kRemixSwitchPlayer, b, iconColor);
       return;
   }
@@ -1150,7 +1150,7 @@ void DrawQueuePopup(gd::Graphics& g) {
   g.ResetClip();
 }
 
-// 「切换播放器」弹窗:每行两行文字(设备名 / 状态副标题),当前控制目标高亮。
+// 「流转播放」弹窗:每行两行文字(设备名 / 状态副标题),当前控制目标高亮。
 // 内容与 MINI 播放条的小弹窗一致,由 Flutter 组好文本推送(见
 // DesktopLyricUpdateSwitch),原生层只负责画与回传行号。
 void DrawSwitchPopup(gd::Graphics& g) {
@@ -1708,7 +1708,7 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
         const int row = HitTestListRow(pt);
         if (row >= 0) {
           if (g_popup == PopupKind::Switch) {
-            // 切换播放器:把选中行回传 Flutter(由它按 peerId 执行切换),
+            // 流转播放:把选中行回传 Flutter(由它按 peerId 执行切换),
             // 并收起弹窗;Flutter 会在切换完成后回推最新状态与 toast。
             char buf[32];
             snprintf(buf, sizeof(buf), "switch_pick:%d", row);
@@ -1770,7 +1770,7 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
                                                    : PopupKind::Queue);
               break;
             case kBtnIdxSwitch:
-              // 切换播放器:在歌词窗【上方】展开自己的设备列表弹窗(内容与
+              // 流转播放:在歌词窗【上方】展开自己的设备列表弹窗(内容与
               // MINI 播放条的小弹窗一致),而不是回到主窗口弹。首次展开时
               // 顺带请 Flutter 拉一次最新设备列表并推过来。
               // 再次点击同一按钮 = toggle 收起(用户明确要求)。
@@ -1821,7 +1821,7 @@ LRESULT CALLBACK LyricWndProc(HWND hwnd, UINT message, WPARAM wParam,
       return 0;
     }
     case WM_MOUSEWHEEL: {
-      // 列表弹窗滚轮滚动(队列 / 切换播放器共用,行高与基准各自分派)。
+      // 列表弹窗滚轮滚动(队列 / 流转播放共用,行高与基准各自分派)。
       if (!PopupIsListLike()) return 0;
       const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
       if (delta == 0) return 0;

@@ -6,11 +6,11 @@
 >
 > **v3 重写要点**：
 > - **全量对齐主项目后端**：客户端是 MusicFlow 主项目（`ray5378/MusicFlow`，Node/TS 后端 + Vue 前端）的全量客户端，接口面、数据契约、行为表现一律以主项目为准。
-> - **DLNA 由后端推送（链路 A）**：「切换播放器」投屏走主项目 `/rest/api/v1/peers*` 统一控制面，由后端 `QueueController` 向 DLNA/AirPlay/群组设备投流，客户端不自行 SSDP/SOAP/推流、仅做控制面。**（链路 B 例外见 v3.1 记录 + §3.6。）「控制后端 DLNA 播放」是当前未完成功能，v3 给出完整契约与完成项清单（§3）。**
-> - **交互对标网易云 / QQ 音乐**：播放器主流程交互体验（迷你条 → 全屏 → 队列 → 切换播放器）参考主流音乐 App（§7.1）；首页（发现页）内容与交互保持现有实现为基准。
+> - **DLNA 由后端推送（链路 A）**：「流转播放」投屏走主项目 `/rest/api/v1/peers*` 统一控制面，由后端 `QueueController` 向 DLNA/AirPlay/群组设备投流，客户端不自行 SSDP/SOAP/推流、仅做控制面。**（链路 B 例外见 v3.1 记录 + §3.6。）「控制后端 DLNA 播放」是当前未完成功能，v3 给出完整契约与完成项清单（§3）。**
+> - **交互对标网易云 / QQ 音乐**：播放器主流程交互体验（迷你条 → 全屏 → 队列 → 流转播放）参考主流音乐 App（§7.1）；首页（发现页）内容与交互保持现有实现为基准。
 > - **Windows 渲染性能成为硬性契约**：新增「§八 Windows 桌面端渲染性能约束」，把特效降级、高频重建、音频后端选型、发布前性能验收写死，治理 Windows 卡顿与渲染差。
 > - **修复旧版硬伤**：API 端点体系统一（删除三套并存）、DLNA 存档区清理、测试清单按仓库实际重列、基础库依赖表按 pubspec 实测修正、目录结构按现状更新。
-> - **v3.1 修订（用户/ray 确认，2026-08-26）**：新增**链路 B「局域网 DLNA 直投」**——Android/Windows 客户端**自行 SSDP 发现 + SOAP 控制 + 本地中继推流**到局域网 DLNA 设备（支持投屏队列自动续播），与现有「切换播放器」（**链路 A**，后端投屏、客户端仅遥控）**完全独立并存**。详见 §1.1 / §3.6 / §10。
+> - **v3.1 修订（用户/ray 确认，2026-08-26）**：新增**链路 B「局域网 DLNA 直投」**——Android/Windows 客户端**自行 SSDP 发现 + SOAP 控制 + 本地中继推流**到局域网 DLNA 设备（支持投屏队列自动续播），与现有「流转播放」（**链路 A**，后端投屏、客户端仅遥控）**完全独立并存**。详见 §1.1 / §3.6 / §10。
 > - **v3.2 修订（用户/ray 确认，2026-08-27）**：**砍掉链路 B 的本地中继与本地 HttpServer 推流**，回归标准 DLNA 分工——客户端仅作 **Control Point（遥控器）：进度显示 / 遥控操作 / 播控中心**；把**服务端直连流 URL** 交给 DLNA 设备，设备作为 **DMR 自拉流**。
 
 ---
@@ -21,7 +21,7 @@
 
 - 本仓库是 **MusicFlow 主项目后端的全量客户端**（Flutter），首发 **Windows + Android**，后续扩展 iOS/鸿蒙/Web。
 - 客户端消费主项目三套接口面：**原生 API**（`/rest/api/v1/*`）、**OpenSubsonic**（`/rest/*`）、**WebSocket**（`/ws`）。
-- 播放目标统一抽象为 **peer**（本机 `local:<uid>` / DLNA `dlna:<id>` / 群组 `group:<id>` / AirPlay `airplay:<id>`）。**链路 A（切换播放器）投屏一律由后端推流**，客户端只做控制面（§3）。
+- 播放目标统一抽象为 **peer**（本机 `local:<uid>` / DLNA `dlna:<id>` / 群组 `group:<id>` / AirPlay `airplay:<id>`）。**链路 A（流转播放）投屏一律由后端推流**，客户端只做控制面（§3）。
 - **链路 B（局域网 DLNA 直投，§3.6）例外**：Android/Windows 客户端允许**自行 SSDP 发现 + SOAP 控制**到局域网 DLNA 设备，支持投屏队列自动续播；**客户端不做本地中继/推流**（v3.2 起），只把**服务端直连流 URL** 交给设备，让设备**自拉流**，客户端仅遥控。链路 B 与链路 A **完全独立**，状态/设备/控制互不并入。
 - **首页（发现页）是基准**：现有 Android / Windows 首页展示的内容与交互逻辑已被确认为正确，**作为基准保留，不得擅自改版**（见 §7.3）。
 
@@ -151,7 +151,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 ---
 
-## 三、播放架构与「切换播放器 / 后端 DLNA 控制」（重点）
+## 三、播放架构与「流转播放 / 后端 DLNA 控制」（重点）
 
 ### 3.1 播放架构：本机 vs 远端 peer（对齐前端 `player.ts`）
 
@@ -229,7 +229,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - [x] 播放/暂停/上一首/下一首/seek/音量/静音 经 `POST /:peerId/{play|pause|next|prev|seek|volume|mute}`（本机走 just_audio）
 - [x] 2s 轮询 `/status` + `/queue` 并回写 `currentIndex`（后端权威队列镜像到本地，迷你条/歌词/相邻关系跟随设备）
 - [x] **平滑进度**：250ms（桌面 500ms）tick 插值 + 轮询回写修正（§3.3）
-- [x] 迷你条「切换播放器」入口 + 面板（含 `POST /rest/api/v1/dlna/scan` 扫描）
+- [x] 迷你条「流转播放」入口 + 面板（含 `POST /rest/api/v1/dlna/scan` 扫描）
 - [x] 反馈三要素：面板 ✓ 高亮 / 入口投屏态变色+设备名 / 切换成功&失败 toast
 - [x] **注册与保活**：登录后 `POST /peers/register` + 每 30s `POST /peers/:peerId/heartbeat`
 - [x] **回本机语义对齐**：`backToLocal`（仅切换控制目标，远端继续播放）vs `stopCasting`（`stop`+`queue/deactivate` 停止设备）
@@ -259,7 +259,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 1. **直传**：`Stop → SetAVTransportURI(服务端直连流 URL + DIDL-Lite) → Play`，设备用自己的网卡直连 `getStreamUrl(songId, token, 品质)` **自拉流**，客户端只遥控。**自动续播**：优先 `SetNextAVTransportURI` 预置下一曲（`probeEnqueueSupport`），不支持则用**墙钟看门狗**兜底——设备对 RawHTTP 常报 `duration=0/position=0`，故以 `DlnaCastTrack.duration`（真实时长）+ 累计 `_playbackElapsed` 判定曲末自动推进 `_queueIndex` 并续投下一曲；曲中段连续异常停止（≥2）判失败自动跳过，连续失败达上限（8）停止；`_lastCompletionAdvance` 互斥防轮询/看门狗双触发重复跳曲。
 2. **设备发现**：客户端主动 SSDP `M-SEARCH` + 被动 `NOTIFY`（`ssdp_discovery.dart` 已实现）；Android 需持 **`MulticastLock`**（自写 MethodChannel acquire/release）；Android 13+ 按需申请 **`NEARBY_WIFI_DEVICES`**（`neverForLocation`，运行时）；Windows 提示放行防火墙"专用网络"。
 3. **进度/状态回写**：2s `Timer.periodic` 轮询 `GetTransportInfo/GetPositionInfo/GetVolume` 回写与会话；进度按 §3.3 同款插值，设备号 0 时长时用墙钟兜底保证播控中心进度跟随。所有定时器在停止/退出时 `dispose`，无递归 `Future.delayed`（§1.5 / §10 #14）。
-4. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"选择播放器"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
+4. **UI**：**仅全屏播放器**提供**独立样式**的「局域网投屏」入口 + 独立面板（复用 `MusicFlowBottomSheet` 视觉，但不复用/混入现有"流转播放"面板）。链路 B 与链路 A 互不显示对方设备、互不写入对方状态，避免链条混淆。
 5. **强制 http 拉流（ray 确认，2026-08-30）**：交给 DLNA 设备的**所有资源 URL（流/封面等）一律强制 http**——很多 DLNA 设备没有 TLS 栈，收到 https 拉流地址会直接拒拉（卡 TRANSITIONING 无声）。规则：
    - http 地址可用性**沿用地址池健康检查结果**（`status == ok`），不额外探测；当前活跃地址本身是 http 时优先直接用；
    - **手动锁定 https 线路不影响投流**（锁定只约束客户端控制面，不限制拉流面）；
@@ -399,7 +399,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
   - **网易云**：黑胶唱片全屏播放器 + 滚动歌词 + 左右滑动手势（上一首/下一首）、迷你条常驻底部 + 封面旋转。
   - **QQ 音乐**：首页信息流式卡片 + 横向滑动区块、播放页下滑收起、列表页点歌即播 + 播放态高亮。
   - **落地清单**（以下交互为必做，其余以现有实现为准）：
-    1. 迷你播放条：常驻底部，封面缩略图 + 标题/歌手 + 播放/暂停 + 队列 + 投屏（切换播放器）入口；手机端定版两键（§7.4）。
+    1. 迷你播放条：常驻底部，封面缩略图 + 标题/歌手 + 播放/暂停 + 队列 + 投屏（流转播放）入口；手机端定版两键（§7.4）。
     2. 全屏播放器：黑胶唱片动画 + 歌词滚动跟随 + 拖动进度 + 音量；支持下滑/返回收起；投屏态显示设备名。
     3. 队列面板：从底部弹出，当前曲高亮 + 播放模式切换 + 拖拽排序 + 点歌即播；投屏态经后端队列 API 操作（§3.5）。
     4. 播放器切换页：设备列表（本机/DLNA/群组/AirPlay）+ 当前播放设备高亮 + 设备状态摘要（§3.2）。
@@ -433,7 +433,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 
 ### 7.4 播放器设计
 
-- **迷你播放器**：底部条（对标网易云/QQ）；封面缩略图 + 标题/歌手 + 播放/暂停 + 队列 + 投屏（切换播放器）。手机端迷你条定版两键（不放上一首/下一首，切歌在全屏/队列面板）。
+- **迷你播放器**：底部条（对标网易云/QQ）；封面缩略图 + 标题/歌手 + 播放/暂停 + 队列 + 投屏（流转播放）。手机端迷你条定版两键（不放上一首/下一首，切歌在全屏/队列面板）。
 - **全屏播放器**：黑胶唱片动画 + 歌词滚动 + 进度条 + 控制 + 音量；支持下滑/返回收起；支持投屏态显示（设备名）。交互对标网易云（左右滑切歌、歌词跟随）。
 - **队列面板**：可拖拽排序、播放模式切换、当前曲高亮、点歌即播；投屏态下经 `queue/jump`/`queue/reorder`/`queue/:index` 操作后端队列（§3.5）。
 
@@ -524,7 +524,7 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 - runner 目标开 `/WX`：数据字面量**必须带 `f` 后缀**（double→float 截断 C4305 被当 error；且整数不能拼 `1100f`——非法，要 `1100.0f`）。
 - patch 标记必须用**完整唯一行**：数据区起始标记 `// ---- 硬编码 remixicon 字形轮廓(由 tool/gen_lyric_glyphs.py 生成` 与函数说明注释 `// ---- 硬编码 remixicon 字形 ----` 前 20 字符相同，截短匹配会吞掉 struct 定义区。
 - `windows/flutter/ephemeral/cpp_client_wrapper/*.cc` 残缺报 C1083：从 SDK 缓存 `bin/cache/artifacts/engine/windows-x64/cpp_client_wrapper/` cp 补齐即可，无需 clean。
-- 桌面歌词按钮图标的语义对齐：与迷你条共用语义（队列=播放三角列表 `play_list_2_line`，顺序播放=数字有序列表 `list_ordered_2`，切换播放器=基站 `base_station_line` 0xEAA6，经 `AppIcons.queue`/`AppIcons.orderPlayback`/`AppIcons.signalTower`），原生侧硬编码轮廓必须与 pub 包 remixicon 同码点同字体文件。
+- 桌面歌词按钮图标的语义对齐：与迷你条共用语义（队列=播放三角列表 `play_list_2_line`，顺序播放=数字有序列表 `list_ordered_2`，流转播放=基站 `base_station_line` 0xEAA6，经 `AppIcons.queue`/`AppIcons.orderPlayback`/`AppIcons.signalTower`），原生侧硬编码轮廓必须与 pub 包 remixicon 同码点同字体文件。
 
 ### 8.7 桌面歌词悬停按钮栏布局（v4.3.42 起 8 按钮）
 
@@ -540,10 +540,10 @@ IDLE ⇄ PLAYING ⇄ PAUSED ⇄ BUFFERING
 | 4 | `kBtnIdxLike` | 191 | heart | `toggle_like` |
 | 5 | `kBtnIdxQueue` | 139 | 队列 | 内部弹窗（队列） |
 | 6 | `kBtnIdxVolume` | 87 | volume | 内部弹窗（音量滑条） |
-| 7 | `kBtnIdxSwitch` | 35 | 基站 | 内部弹窗（切换播放器） |
+| 7 | `kBtnIdxSwitch` | 35 | 基站 | 内部弹窗（流转播放） |
 
-**切换播放器(基站)必须是最靠右的那个按钮，且紧挨音量右侧**
-（`kOffSwitch < kOffVolume`）——GUI 上「音量 → 切换播放器」的相邻关系是
+**流转播放(基站)必须是最靠右的那个按钮，且紧挨音量右侧**
+（`kOffSwitch < kOffVolume`）——GUI 上「音量 → 流转播放」的相邻关系是
 用户明确要求的排布（2026-09-10 反馈），`tool/desktop_lyric_guard.dart` 规则 6a
 已把这条写死为阻断项。
 

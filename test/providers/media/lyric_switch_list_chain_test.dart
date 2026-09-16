@@ -9,7 +9,7 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import '../../features/player/test_player_notifier.dart';
 import '../../helpers/mocks.dart';
 
-/// 桌面歌词「切换播放器」弹窗数据链路的回归防线。
+/// 桌面歌词「流转播放」弹窗数据链路的回归防线。
 ///
 /// 2026-09-10 用户反馈:歌词窗上的设备弹窗**只显示「本机」**,
 /// 实际服务端返回的设备都没有出现。

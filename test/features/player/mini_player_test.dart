@@ -97,10 +97,10 @@ void main() {
       tester.getSize(find.byKey(const Key('mini-player-surface'))).height,
       MiniPlayer.height,
     );
-    // 产品定版:手机端两键 = 播放暂停 + 投屏控制(切换播放器)。
+    // 产品定版:手机端两键 = 播放暂停 + 投屏控制(流转播放)。
     expect(find.byType(MusicFlowIconButton), findsNWidgets(2));
     expect(find.bySemanticsLabel('播放'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('切换播放器')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('流转播放')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -128,7 +128,7 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('播放'));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel(RegExp('切换播放器')));
+    await tester.tap(find.bySemanticsLabel(RegExp('流转播放')));
     await tester.pump();
 
     expect(toggles, 1);
@@ -144,10 +144,10 @@ void main() {
     await tester.pump();
 
     // 非投屏时 MiniPlayer 默认名称为「本机」,这里传入设备名验证透传:
-    // 语义标签携带当前播放器名称,作为切换播放器的状态反馈。
-    // 切换播放器图标统一使用 signalTower(信号塔,选择播放器语义)。
+    // 语义标签携带当前播放器名称,作为流转播放的状态反馈。
+    // 流转播放图标统一使用 signalTower(信号塔,流转播放语义)。
     expect(find.byIcon(AppIcons.signalTower), findsOneWidget);
-    final labeled = find.bySemanticsLabel(RegExp('切换播放器，当前：客厅音箱'));
+    final labeled = find.bySemanticsLabel(RegExp('流转播放，当前：客厅音箱'));
     expect(labeled, findsOneWidget);
 
     // 投屏态由 MiniPlayer 的 provider 分支注入设备名,这里验证

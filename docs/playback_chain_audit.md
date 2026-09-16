@@ -62,7 +62,7 @@ playSong(player_provider.dart:660)
 
 ### 3. 服务端投 DLNA（链路B）
 ```
-客户端「切换播放器」选 DLNA peer → POST /peers/:id/queue/play(api/index.ts:2811)
+客户端「流转播放」选 DLNA peer → POST /peers/:id/queue/play(api/index.ts:2811)
  → QueueController.playCurrent(QueueController.ts:338-390)
  → ensurePlayableStream(:353→streamFallback.ts:239) 投前预探测+换源 ✅
    失败→移出队列跳下一首 ✅；连跳 ≥3 停

@@ -6,7 +6,7 @@ import 'package:musicflow_client/core/theme/app_theme.dart';
 import 'package:musicflow_client/features/player/widgets/player_switcher.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
-/// 桌面端「切换播放器」小弹窗的布局回归防线。
+/// 桌面端「流转播放」小弹窗的布局回归防线。
 ///
 /// 真实运行路径:PC 端点迷你播放条的切换按钮 → [showPlayerSwitcherPopover]
 /// 把 [PlayerSwitcherPopover] 经 OverlayEntry 插进根 Overlay。
@@ -89,7 +89,7 @@ void main() {
     );
 
     // 3. 弹窗标题确实渲染出来了(证明不是整块被摘除)。
-    expect(find.text('选择播放器'), findsOneWidget);
+    expect(find.text('流转播放'), findsOneWidget);
   });
 
   testWidgets('点击弹窗外区域触发关闭回调', (tester) async {
@@ -113,7 +113,7 @@ void main() {
     expect(mask.height, 800);
 
     // 弹窗本体锚在右下:标题中心应当落在窗口右半侧、下半侧。
-    final title = tester.getCenter(find.text('选择播放器'));
+    final title = tester.getCenter(find.text('流转播放'));
     expect(title.dx, greaterThan(1200 / 2));
     expect(title.dy, greaterThan(800 / 2));
   });

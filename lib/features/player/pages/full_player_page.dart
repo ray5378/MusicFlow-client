@@ -1300,7 +1300,8 @@ class PlaybackControls extends ConsumerWidget {
                 _PlayerIconButton(
                   icon: modeIcon,
                   label: modeLabel,
-                  selected: mode != 'all' && mode != 'order',
+                  // 白名单(同 mini):黑名单碰到意外值会判成 true ⇒ 永远高亮。
+                  selected: mode == 'one' || mode == 'shuffle',
                   onPressed: () {
                     // 链路 B 投屏态:指挥 DLNA 设备;链路 A 投屏态下发后端 play-mode;
                     // 本机走本地三态。
@@ -1375,7 +1376,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[
-            // 链路 B（局域网 DLNA 直投）独立按钮：置于最左，与「切换播放器」拉开距离，
+            // 链路 B（局域网 DLNA 直投）独立按钮：置于最左，与「流转播放」拉开距离，
             // 避免与链路 A（后端投屏）靠得太近而混淆。
             _PlayerIconButton(
               icon: AppIcons.dlnaLocal,
@@ -1393,7 +1394,7 @@ class _PlayerUtilityBar extends ConsumerWidget {
                 ref.read(playerProvider.notifier).toggleFavorite();
               },
             ),
-            // 音量：弹出式音量调节弹窗，与「喜欢」「切换播放器」并排。
+            // 音量：弹出式音量调节弹窗，与「喜欢」「流转播放」并排。
             const VolumeButton(),
             // 定时暂停:预设倒计时弹窗,到点后自动暂停(停止)播放。
             _PlayerIconButton(
@@ -1404,11 +1405,11 @@ class _PlayerUtilityBar extends ConsumerWidget {
               selected: sleepActive,
               onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
             ),
-            // 「切换播放器」：使用 base_station(信号) 图标，与选择播放器弹窗中
+            // 「流转播放」：使用 base_station(信号) 图标，与流转播放弹窗中
             // DLNA 设备行(信号/三角) 保持一致；置于最右，与最左的 DLNA 直投拉开距离。
             _PlayerIconButton(
               icon: AppIcons.signalTower,
-              label: loc.player_switch_current(currentPlayerName(cast)),
+              label: loc.player_transfer_playback_current(currentPlayerName(cast)),
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
             ),
@@ -1523,16 +1524,20 @@ class _PlayerIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
     final enabled = onPressed != null;
+    // 选中态用**前景色**(accent)表达，不再加一块 ink 14% 的底色：
+    // 整排里只有模式 / 喜欢这类按钮会 selected，一旦它们带底色就跟旁边的
+    // 上一首 / 下一首 / 播放 / 投屏（无底色纯图标）"不是一套"。
+    // 与 mini 播放器同款处理（那边是 MusicFlowIconButton 的 accent 14% 底色）。
     final foreground = emphasized
         ? MusicFlowColors.readableOn(colors.ink)
-        : enabled
-        ? colors.ink
-        : colors.onDisabled;
+        : !enabled
+        ? colors.onDisabled
+        : selected
+        ? colors.accent
+        : colors.ink;
     final background = emphasized
         ? colors.ink
-        : selected
-        ? colors.ink.withValues(alpha: 0.14)
-        : Colors.transparent;
+        : Colors.transparent; // 永远透明：选中只靠颜色，不靠底色块
 
     return Tooltip(
       // 桌面端鼠标悬停显示文字注释（对齐 mini 播放器的按钮提示）；
@@ -1552,9 +1557,8 @@ class _PlayerIconButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: background,
               borderRadius: context.musicFlowRadii.pill,
-              border: !emphasized && selected
-                  ? Border.all(color: colors.accent)
-                  : null,
+              // 选中**不再加边框**：整排里其余按钮都没有边框，只给个别按钮描边
+              // 同样会造成"不是一套"。选中态统一只由前景色(accent)表达。
             ),
             child: Center(
               child: Transform.translate(

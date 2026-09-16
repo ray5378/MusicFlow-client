@@ -76,7 +76,7 @@ jobs:
       # 客户端互控链路(2026-09-15 拍板):安卓 / Windows 客户端之间互相遥控。
       # 三条契约的共同点是**静默失效** —— UI 不报错、功能悄悄没了:
       #   1. pushLocalToPeer 曾按 `if (peer.isLocal) return false;` 一刀切,
-      #      把另一台客户端也挡在门外 → 「选择播放器」里给别的客户端推流必失败
+      #      把另一台客户端也挡在门外 → 「流转播放」里给别的客户端推流必失败
       #      (而接回本机正常,极易被误判为"推流功能本身坏了");
       #   2. fetchPeerNowPlaying 曾只读 `/queue` 的 currentMedia,而该字段服务端
       #      **只对 dlna/airplay/sendspin 填充**,local 恒 undefined

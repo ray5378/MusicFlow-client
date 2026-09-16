@@ -3768,6 +3768,24 @@ abstract class AppLocalizations {
   /// **'关闭播放器'**
   String get player_close;
 
+  /// No description provided for @player_transfer_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'流转播放队列'**
+  String get player_transfer_title;
+
+  /// No description provided for @player_transfer_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'按住任意一个播放器拖到另一个，即可把它的队列流转过去'**
+  String get player_transfer_hint;
+
+  /// No description provided for @player_transfer_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前没有其它可用的播放器'**
+  String get player_transfer_empty;
+
   /// player_empty_title
   ///
   /// In zh, this message translates to:
@@ -3918,11 +3936,11 @@ abstract class AppLocalizations {
   /// **'红心'**
   String get player_favorite;
 
-  /// player_switch_current
+  /// player_transfer_playback_current
   ///
   /// In zh, this message translates to:
-  /// **'切换播放器，当前：{name}'**
-  String player_switch_current(String name);
+  /// **'流转播放，当前：{name}'**
+  String player_transfer_playback_current(String name);
 
   /// No description provided for @player_sleep_timer.
   ///
@@ -3999,7 +4017,7 @@ abstract class AppLocalizations {
   /// player_dlna_dialog_subtitle
   ///
   /// In zh, this message translates to:
-  /// **'客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。'**
+  /// **'客户端自扫局域网设备并本地推流，与「流转播放」（服务端投屏）相互独立。'**
   String get player_dlna_dialog_subtitle;
 
   /// player_progress
@@ -4080,17 +4098,17 @@ abstract class AppLocalizations {
   /// **'音量 {percent}%'**
   String player_volume_percent(int percent);
 
-  /// player_select_source_title
+  /// player_transfer_playback_title
   ///
   /// In zh, this message translates to:
-  /// **'选择播放器'**
-  String get player_select_source_title;
+  /// **'流转播放'**
+  String get player_transfer_playback_title;
 
-  /// player_select_source_subtitle
+  /// player_transfer_playback_subtitle
   ///
   /// In zh, this message translates to:
-  /// **'切换播放器仅改变当前控制目标,不会停止其他播放器。'**
-  String get player_select_source_subtitle;
+  /// **'流转播放仅改变当前控制目标,不会停止其他播放器。'**
+  String get player_transfer_playback_subtitle;
 
   /// player_source_local_title
   ///

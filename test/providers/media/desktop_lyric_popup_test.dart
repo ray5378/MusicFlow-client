@@ -68,7 +68,7 @@ void main() {
     });
   });
 
-  // 桌面歌词「切换播放器」弹窗(歌词窗上方自弹,内容与 MINI 小弹窗一致)。
+  // 桌面歌词「流转播放」弹窗(歌词窗上方自弹,内容与 MINI 小弹窗一致)。
   // 行号是原生层与 Dart 之间的唯一契约(switch_pick:N),顺序错位会导致
   // 「点 A 设备切到 B」,必须用单测锁死。
   group('composeDesktopLyricSwitchList', () {

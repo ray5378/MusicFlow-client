@@ -307,14 +307,14 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     // 之外,还包括同账号的**另一台本机播放端**(网页端 / 另一台客户端)——它们
     // 同样是可被本端遥控的独立播放端。self 是服务端按发起请求的实例打的标,
     // 用它排除「本端自己那条」,而不是拿 kind=='local' 一刀切(那样会把别的
-    // 客户端/网页端一起隐藏,表现为「切换播放器里看不到 Web 播放器」)。
+    // 客户端/网页端一起隐藏,表现为「流转播放里看不到 Web 播放器」)。
     final remotePeers = (peers ?? const <PeerInfo>[])
         .where((p) => !p.self && p.available)
         .toList();
 
     return MusicFlowBottomSheet(
-      title: loc.player_select_source_title,
-      subtitle: loc.player_select_source_subtitle,
+      title: loc.player_transfer_playback_title,
+      subtitle: loc.player_transfer_playback_subtitle,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.6,
@@ -406,7 +406,7 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
   }
 }
 
-/// 电脑端「切换播放器」小弹窗：播放控件上方弹出、点击外部自动关闭。
+/// 电脑端「流转播放」小弹窗：播放控件上方弹出、点击外部自动关闭。
 /// 数据源直接取后端 /peers 列表（后端自行扫描维护可用状态，客户端不触发
 /// 扫描）；只展示 available 的远端设备，离线设备不显示。
 /// 切换完成或关闭后通过 [onSwitched] 回调通知调用方弹出右上角 Toast。
@@ -536,7 +536,7 @@ class _PlayerSwitcherPopoverState extends ConsumerState<PlayerSwitcherPopover> {
                             children: <Widget>[
                               Expanded(
                                 child: Text(
-                                  loc.player_select_source_title,
+                                  loc.player_transfer_playback_title,
                                   style: context.musicFlowTypography.headline,
                                 ),
                               ),

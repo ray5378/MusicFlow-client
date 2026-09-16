@@ -15,9 +15,9 @@ import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 
-/// 「切换播放器」控制器 —— 对齐主项目前端 stores/player.ts 的 peer 机制:
+/// 「流转播放」控制器 —— 对齐主项目前端 stores/player.ts 的 peer 机制:
 /// - 面板列出 `GET /rest/api/v1/peers`(本机 + DLNA/AirPlay/群组);
-/// - **切换播放器 = 纯 UI 控制目标切换**(对齐前端 switchPeer):只改控制目标,
+/// - **流转播放 = 纯 UI 控制目标切换**(对齐前端 switchPeer):只改控制目标,
 ///   不推本地队列、不自动投屏;此后客户端是后端的**远程遥控器** —— 点歌/专辑/歌单
 ///   走 [playQueueOnPeer]/[playSongOnPeer] 命令**后端**在所选设备播放,播放控件
 ///   直接作用于该设备;
@@ -159,7 +159,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   }
 
   /// 注册本端(不碰心跳/监听),供 registerAndHeartbeat 与心跳补注册复用。
-  Future<void> _registerSelf() async {
+  ///
+  /// [attempt] 为就近重试计数：冷启动时注册是由 auth 状态翻转**立刻**触发的，
+  /// 而那一刻 API client 的 token 可能还没注入 → 必然 401。原先只能等 30s 后的
+  /// 下一次心跳补注册，期间本端在服务端是个「离线端」（别的端看不到这台机器、
+  /// 本机也不出现在播放器列表里）。故这里短延迟重试一次，把空窗从 30s 压到 ~1s。
+  Future<void> _registerSelf({int attempt = 0}) async {
     final client = _ref.read(subsonicApiClientProvider);
     try {
       final resp = await client.postRaw(
@@ -182,6 +187,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         }
       }
     } catch (e) {
+      // 冷启动的 token 竞态：就近重试一次，仍失败就交给 30s 心跳周期补注册。
+      if (attempt < 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        if (mounted) return _registerSelf(attempt: attempt + 1);
+        return;
+      }
       // 注册失败不阻塞登录;下个心跳周期自动补注册(见 startHeartbeat)。
       Logger.debugWithTag('CAST-PEER', 'register self peer failed: $e');
     }
@@ -494,9 +505,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
   }
 
-  // ==================== 切换播放器 ====================
+  // ==================== 流转播放 ====================
 
-  /// 切换播放器 = **纯 UI 控制目标切换**(对齐主项目前端 switchPeer):
+  /// 流转播放 = **纯 UI 控制目标切换**(对齐主项目前端 switchPeer):
   /// 只改控制目标,不推本地队列、不自动投屏;
   /// 选中远端 peer 时开始状态轮询,由轮询拉取其队列让 UI 镜像设备当前播放。
   /// 之后在客户端点歌/专辑/歌单会走 [playQueueOnPeer]/[playSongOnPeer]
@@ -607,7 +618,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   // ==================== 接续搬移（本机 ⇄ DLNA 设备） ====================
 
   /// 拉取 peer 实时队列摘要：当前曲目（歌名/歌手）+ 游标 + 是否在播。
-  /// 供「选择播放器」弹窗第二行展示与「接回本机」按钮可用性判断。
+  /// 供「流转播放」弹窗第二行展示与「接回本机」按钮可用性判断。
   /// 请求失败（设备掉线/网络抖）返回 null，调用方按「未知」处理。
   Future<PeerNowPlaying?> fetchPeerNowPlaying(String peerId) async {
     final client = _ref.read(subsonicApiClientProvider);
@@ -628,7 +639,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       //
       // 服务端 `GET /v1/peers/:id/queue` 的 `currentMedia` **只对 dlna / airplay /
       // sendspin 填充** —— `local`(安卓 / Windows 客户端实例)与 `group` 恒为
-      // undefined。这里原先只读 `currentMedia`,于是「选择播放器」弹窗里
+      // undefined。这里原先只读 `currentMedia`,于是「流转播放」弹窗里
       // **别的客户端那一行的播放状态永远接不上**(恒显示「未在播放」,
       // 用户 2026-09-15 反馈)。
       //
@@ -749,7 +760,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 只排除「本端自己那条」(推给自己没有意义,与 switchTo 同一判据)。
     //
     // 这里原先是 `if (peer.isLocal) return false;` —— 一刀切把**另一台客户端**
-    // 也挡在门外,于是「选择播放器」里给别的客户端按推流箭头必然失败
+    // 也挡在门外,于是「流转播放」里给别的客户端按推流箭头必然失败
     // (用户 2026-09-15 反馈:推到别的客户端不能用,接回本机反而正常)。
     // 该守卫来自「本机端还不可被遥控」的年代;现在服务端对 local 目标的
     // `/v1/play` 与 `/queue/play` 都已实现(写入目标实例的权威队列 → 目标客户端
@@ -1658,7 +1669,7 @@ final isCastingProvider = Provider<bool>((ref) {
   );
 });
 
-/// 单个 peer 的实时队列摘要(FutureProvider.family):「选择播放器」弹窗
+/// 单个 peer 的实时队列摘要(FutureProvider.family):「流转播放」弹窗
 /// 每个设备行 watch 自己的 peerId,打开弹窗即拉、autoDispose 自动回收。
 /// 刷新时 invalidate 全部条目;失败保留上一次结果(按「未知/未在播放」展示)。
 ///

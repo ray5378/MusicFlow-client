@@ -1981,6 +1981,9 @@
     "description": "state_enabled"
   },
   "player_close": "Close player",
+  "player_transfer_title": "Transfer queue",
+  "player_transfer_hint": "Press and drag any player onto another to move its queue",
+  "player_transfer_empty": "No other players are available right now",
   "@player_close": {
     "description": "player_close"
   },
@@ -2102,9 +2105,9 @@
   "@player_favorite": {
     "description": "player_favorite"
   },
-  "player_switch_current": "Switch player, current: {name}",
-  "@player_switch_current": {
-    "description": "player_switch_current",
+  "player_transfer_playback_current": "Transfer playback, current: {name}",
+  "@player_transfer_playback_current": {
+    "description": "player_transfer_playback_current",
     "placeholders": {
       "name": {
         "type": "String"
@@ -2150,7 +2153,7 @@
   "@player_switched_local": {
     "description": "player_switched_local"
   },
-  "player_dlna_dialog_subtitle": "The client discovers LAN devices and pushes streams locally, independent of “Switch player” (server-side casting).",
+  "player_dlna_dialog_subtitle": "The client discovers LAN devices and pushes streams locally, independent of “Transfer playback” (server-side casting).",
   "@player_dlna_dialog_subtitle": {
     "description": "player_dlna_dialog_subtitle"
   },
@@ -2224,13 +2227,13 @@
       }
     }
   },
-  "player_select_source_title": "Select player",
-  "@player_select_source_title": {
-    "description": "player_select_source_title"
+  "player_transfer_playback_title": "Transfer playback",
+  "@player_transfer_playback_title": {
+    "description": "player_transfer_playback_title"
   },
-  "player_select_source_subtitle": "Switching player only changes the control target and won't stop other players.",
-  "@player_select_source_subtitle": {
-    "description": "player_select_source_subtitle"
+  "player_transfer_playback_subtitle": "Transferring playback only changes the control target and won't stop other players.",
+  "@player_transfer_playback_subtitle": {
+    "description": "player_transfer_playback_subtitle"
   },
   "player_source_local_title": "Play on this device",
   "@player_source_local_title": {

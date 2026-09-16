@@ -2164,6 +2164,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get player_close => 'Close player';
 
   @override
+  String get player_transfer_title => 'Transfer queue';
+
+  @override
+  String get player_transfer_hint =>
+      'Press and drag any player onto another to move its queue';
+
+  @override
+  String get player_transfer_empty =>
+      'No other players are available right now';
+
+  @override
   String get player_empty_title => 'Nothing playing';
 
   @override
@@ -2248,8 +2259,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get player_favorite => 'Like';
 
   @override
-  String player_switch_current(String name) {
-    return 'Switch player, current: $name';
+  String player_transfer_playback_current(String name) {
+    return 'Transfer playback, current: $name';
   }
 
   @override
@@ -2298,7 +2309,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get player_dlna_dialog_subtitle =>
-      'The client discovers LAN devices and pushes streams locally, independent of “Switch player” (server-side casting).';
+      'The client discovers LAN devices and pushes streams locally, independent of “Transfer playback” (server-side casting).';
 
   @override
   String get player_progress => 'Playback progress';
@@ -2346,11 +2357,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get player_select_source_title => 'Select player';
+  String get player_transfer_playback_title => 'Transfer playback';
 
   @override
-  String get player_select_source_subtitle =>
-      'Switching player only changes the control target and won\'t stop other players.';
+  String get player_transfer_playback_subtitle =>
+      'Transferring playback only changes the control target and won\'t stop other players.';
 
   @override
   String get player_source_local_title => 'Play on this device';

@@ -197,7 +197,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         }
         return '';
       }
-      // 桌面歌词「切换播放器」弹窗:原生层展开时来要设备列表(自己拉并推回),
+      // 桌面歌词「流转播放」弹窗:原生层展开时来要设备列表(自己拉并推回),
       // 点某一行时把行号回传,由控制器按行号执行切换。
       // switch_pull:N / switch_push:N = 该行设备的接续箭头(↓ 接回本机 /
       // ↑ 推到该设备),与 MINI 弹窗的接续按钮同一套语义。
@@ -248,7 +248,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           await ref.read(playerProvider.notifier).toggleFavorite();
           break;
         case 'switch_player_open':
-          // 桌面歌词浮窗「切换播放器」按钮:不回到主窗口弹窗,而是让原生层在
+          // 桌面歌词浮窗「流转播放」按钮:不回到主窗口弹窗,而是让原生层在
           // 歌词窗上方展开设备列表弹窗(内容与 MINI 播放条小弹窗一致)。
           // 这里只负责把最新设备列表拉好推过去。
           await ref

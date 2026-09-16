@@ -35,7 +35,7 @@ FONT_DEFAULT = ("C:/Users/ray5378/AppData/Local/Pub/Cache/hosted/pub.dev/"
 GLYPHS = [
     (0xF00D, "Queue", "play_list_2_line"),
     (0xF399, "Order", "list_ordered_2"),
-    # 切换播放器:与 Flutter 侧 AppIcons.signalTower 同款字形
+    # 流转播放:与 Flutter 侧 AppIcons.signalTower 同款字形
     # (Remix.base_station_line = 0xEAA6)。
     (0xEAA6, "SwitchPlayer", "base_station_line"),
     # 设备行图标(2026-09-10 对标 MINI 弹窗 PeerCastRow):

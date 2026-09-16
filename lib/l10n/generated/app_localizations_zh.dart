@@ -2043,6 +2043,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get player_close => '关闭播放器';
 
   @override
+  String get player_transfer_title => '流转播放队列';
+
+  @override
+  String get player_transfer_hint => '按住任意一个播放器拖到另一个，即可把它的队列流转过去';
+
+  @override
+  String get player_transfer_empty => '当前没有其它可用的播放器';
+
+  @override
   String get player_empty_title => '暂无播放内容';
 
   @override
@@ -2124,8 +2133,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get player_favorite => '红心';
 
   @override
-  String player_switch_current(String name) {
-    return '切换播放器，当前：$name';
+  String player_transfer_playback_current(String name) {
+    return '流转播放，当前：$name';
   }
 
   @override
@@ -2172,7 +2181,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get player_dlna_dialog_subtitle =>
-      '客户端自扫局域网设备并本地推流，与「切换播放器」（服务端投屏）相互独立。';
+      '客户端自扫局域网设备并本地推流，与「流转播放」（服务端投屏）相互独立。';
 
   @override
   String get player_progress => '播放进度';
@@ -2220,10 +2229,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get player_select_source_title => '选择播放器';
+  String get player_transfer_playback_title => '流转播放';
 
   @override
-  String get player_select_source_subtitle => '切换播放器仅改变当前控制目标,不会停止其他播放器。';
+  String get player_transfer_playback_subtitle => '流转播放仅改变当前控制目标,不会停止其他播放器。';
 
   @override
   String get player_source_local_title => '本机播放';

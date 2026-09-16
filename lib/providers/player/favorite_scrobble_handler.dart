@@ -129,10 +129,14 @@ class FavoriteScrobbleHandler {
 
   /// 刷新收藏相关的 provider
   void invalidateFavoriteProviders({String? albumId}) {
+    // 收藏只影响「收藏相关」的数据，**不碰首页随机歌单**。
+    // 原先这里会把 randomSongsProvider 失效并广播"随机歌曲变了"，于是点一次
+    // 收藏/取消收藏，首页那份随机列表就整个重拉重排 —— 用户正在看的内容被换掉，
+    // 明显不合理（收藏一首歌与"今天随机推荐哪些"毫无关系）。
+    // 代价：首页随机列表里那几颗心的状态要等它下次自然刷新才对齐；
+    // 播放器内（mini/大屏）的心形不受影响 —— 那边读的是 playerProvider 的
+    // currentSong/queue，toggleSongFavorite 已经就地更新过。
     _ref.invalidate(starredProvider);
-    _ref.invalidate(randomSongsProvider);
-    // 广播变更信号,让随机歌曲区块按需重拉最新内容。
-    notifyRandomSongsChanged();
     _ref.invalidate(allSongsProvider);
     if (albumId != null && albumId.isNotEmpty) {
       _ref.invalidate(albumDetailProvider(albumId));

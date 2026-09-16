@@ -20,7 +20,7 @@ import '../helpers/mocks.dart';
 ///
 ///   1. 推流不得按 `kind == local` 一刀切拒绝 —— 只拒绝「本端自己那条」。
 ///      历史 bug：`if (peer.isLocal) return false;` 把另一台客户端也挡在门外，
-///      于是「选择播放器」里给别的客户端按推流箭头必然失败，而接回本机正常。
+///      于是「流转播放」里给别的客户端按推流箭头必然失败，而接回本机正常。
 ///   2. now-playing 必须有队列兜底 —— 服务端 `GET /peers/:id/queue` 的
 ///      `currentMedia` **只对 dlna / airplay / sendspin 填充**，`local` 恒为
 ///      undefined，只读它会让别的客户端那行永远显示「未在播放」。
@@ -185,7 +185,7 @@ void main() {
       expect(np, isNotNull);
       expect(np!.title, 'T2',
           reason: 'local 的 currentMedia 恒为 undefined,'
-              '只读它会让「选择播放器」里别的客户端永远显示「未在播放」');
+              '只读它会让「流转播放」里别的客户端永远显示「未在播放」');
       expect(np.artist, 'A2');
       expect(np.currentIndex, 2);
     });

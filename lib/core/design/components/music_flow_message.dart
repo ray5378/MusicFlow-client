@@ -118,7 +118,7 @@ void showMusicFlowMessage(
 }
 
 /// 右上角 Toast：从右侧滑入 + 淡入淡出，默认 3 秒自动消失。
-/// 用于「切换播放器」等操作的轻量反馈（对齐主项目前端 Toast 交互）。
+/// 用于「流转播放」等操作的轻量反馈（对齐主项目前端 Toast 交互）。
 void showMusicFlowToast(
   BuildContext context,
   String message, {

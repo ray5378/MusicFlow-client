@@ -153,7 +153,7 @@ class PeerStatus {
 }
 
 /// peer 实时队列摘要（GET /v1/peers/:id/queue 的弹窗消费子集）：
-/// 当前曲目 + 游标 + 是否在播，用于「选择播放器」弹窗第二行与接续按钮可用性。
+/// 当前曲目 + 游标 + 是否在播，用于「流转播放」弹窗第二行与接续按钮可用性。
 class PeerNowPlaying {
   const PeerNowPlaying({
     required this.isActive,

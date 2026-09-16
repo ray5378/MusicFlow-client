@@ -2037,55 +2037,56 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   PlaybackMode get playbackMode => state.playbackMode;
 
   /// 设置四态播放模式(order/all/one/shuffle)。
+  /// 底层(just_audio)模式下发的**串行链**。
+  ///
+  /// 快速连点切模式时会连续下发 setLoopMode / setShuffleModeEnabled；若让它们并发，
+  /// 先发的有一次可能**后完成**，把最终落地状态覆盖成上一个模式 —— 用户看到的就是
+  /// 「切了之后又回退」。这里按点击顺序串起来，保证最后一次点击赢。
+  Future<void> _modeApplyChain = Future<void>.value();
+
   Future<void> setPlaybackMode(PlaybackMode mode, {bool persist = true}) async {
-    switch (mode) {
-      case PlaybackMode.order:
-      case PlaybackMode.all:
-        // 队列切歌由外层状态机驱动,order 与 all 底层同为 LoopMode.off
-        // (避免底层播放器在单音源下自动回放当前曲目)。两者的行为差异
-        // —— order 到末尾停止、all 回绕 —— 由外层 next/_onSongCompleted
-        // 按 playbackMode 分支实现,底层无法表达。
-        await _audioPlayer?.setShuffleModeEnabled(false);
-        await _audioPlayer?.setLoopMode(LoopMode.off);
-        _resetShuffleHistory(updateState: false);
-        if (mounted) {
-          state = state.copyWith(
-            loopMode: LoopMode.off,
-            shuffleEnabled: false,
-            playbackMode: mode,
-            shuffleHistoryCount: 0,
-          );
-        }
-        break;
-      case PlaybackMode.one:
-        await _audioPlayer?.setShuffleModeEnabled(false);
-        await _audioPlayer?.setLoopMode(LoopMode.one);
-        _resetShuffleHistory(updateState: false);
-        if (mounted) {
-          state = state.copyWith(
-            loopMode: LoopMode.one,
-            shuffleEnabled: false,
-            playbackMode: mode,
-            shuffleHistoryCount: 0,
-          );
-        }
-        break;
-      case PlaybackMode.shuffle:
-        // 队列是手动切歌而非播放器内建列表。
-        // 在随机模式使用 LoopMode.off，避免底层播放器自动重放当前单曲。
-        await _audioPlayer?.setLoopMode(LoopMode.off);
-        await _audioPlayer?.setShuffleModeEnabled(true);
-        _resetShuffleHistory(updateState: false);
-        if (mounted) {
-          state = state.copyWith(
-            loopMode: LoopMode.off,
-            shuffleEnabled: true,
-            playbackMode: mode,
-            shuffleHistoryCount: 0,
-          );
-        }
-        break;
+    // ==================== ① 状态乐观先行 ====================
+    // cyclePlaybackMode 是**基于当前 playbackMode 算下一档**的。原先 state 要等
+    // 两个 await(底层播放器)之后才更新，于是快速连点时会连着读到同一个旧值，
+    // 每次都算成同一档 —— 表现为「点了几下只在原地打转 / 切了又回退」。
+    // 先落状态，下一档才有正确的基准。
+    if (mounted) {
+      state = state.copyWith(
+        // order 与 all 底层同为 LoopMode.off（避免底层播放器在单音源下自动回放
+        // 当前曲目）；两者的差异 —— order 到末尾停止、all 回绕 —— 由外层
+        // next/_onSongCompleted 按 playbackMode 分支实现，底层无法表达。
+        loopMode: mode == PlaybackMode.one ? LoopMode.one : LoopMode.off,
+        shuffleEnabled: mode == PlaybackMode.shuffle,
+        playbackMode: mode,
+        shuffleHistoryCount: 0,
+      );
     }
+    _resetShuffleHistory(updateState: false);
+
+    // ==================== ② 底层下发串行化 ====================
+    _modeApplyChain = _modeApplyChain
+        .then((_) async {
+          switch (mode) {
+            case PlaybackMode.order:
+            case PlaybackMode.all:
+              await _audioPlayer?.setShuffleModeEnabled(false);
+              await _audioPlayer?.setLoopMode(LoopMode.off);
+              break;
+            case PlaybackMode.one:
+              await _audioPlayer?.setShuffleModeEnabled(false);
+              await _audioPlayer?.setLoopMode(LoopMode.one);
+              break;
+            case PlaybackMode.shuffle:
+              // 队列是手动切歌而非播放器内建列表。
+              // 在随机模式使用 LoopMode.off，避免底层播放器自动重放当前单曲。
+              await _audioPlayer?.setLoopMode(LoopMode.off);
+              await _audioPlayer?.setShuffleModeEnabled(true);
+              break;
+          }
+        })
+        .catchError((Object e) {
+          Logger.warnWithTag(_playerLogTag, 'apply playback mode failed', e);
+        });
 
     if (persist) {
       await _persistPlaybackMode(mode);

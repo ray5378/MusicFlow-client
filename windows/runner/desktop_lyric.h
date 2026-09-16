@@ -15,7 +15,7 @@
 // right-click menu to hide.
 // 两行显示(歌名-歌手 / 当前行歌词);鼠标悬停右缘浮出控制按钮:
 // 上一首/播放暂停/下一首/播放模式/喜欢/播放队列(列表弹窗)/音量(滑条弹窗)/
-// 切换播放器(设备列表弹窗,在歌词窗上方展开,内容与 MINI 播放条小弹窗一致)。
+// 流转播放(设备列表弹窗,在歌词窗上方展开,内容与 MINI 播放条小弹窗一致)。
 // 状态由 Flutter 推送(DesktopLyricUpdateState 等),按钮事件经
 // DesktopLyricEventCallback 回传 Flutter(与托盘共用 tray 字符串通道)。
 
@@ -50,7 +50,7 @@ struct DesktopLyricQueue {
   int index = -1;
 };
 
-// 「切换播放器」弹窗数据(Flutter → Native):按当前控制目标排好序的设备
+// 「流转播放」弹窗数据(Flutter → Native):按当前控制目标排好序的设备
 // 列表(本机在最前,与 MINI 播放条小弹窗同序),cur 标记当前正在控制的那台。
 //
 // 2026-09-10 补齐「与 MINI 弹窗同款」的行内元素(用户反馈歌词窗少了

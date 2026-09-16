@@ -169,7 +169,7 @@ void main() {
       find.descendant(of: transport, matching: find.byIcon(AppIcons.queue)),
       findsOneWidget,
     );
-    // 工具栏精简为 4 项:DLNA 直投(最左) / 红心 / 音量 / 切换播放器(最右)。
+    // 工具栏精简为 4 项:DLNA 直投(最左) / 红心 / 音量 / 流转播放(最右)。
     expect(
       find.descendant(
           of: utility, matching: find.byIcon(AppIcons.heartOutline)),

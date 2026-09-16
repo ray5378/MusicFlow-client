@@ -142,7 +142,7 @@ class App extends ConsumerWidget {
             navigatorKey: rootNavigatorKey,
             // Windows 无系统标题栏：窗口控制按钮 + 顶部拖拽条挂在
             // MaterialApp.builder 层（Navigator/Overlay 之外），
-            // 保证任何页面、任何弹窗（切换播放器、发现新版本……）打开时，
+            // 保证任何页面、任何弹窗（流转播放、发现新版本……）打开时，
             // 顶部依旧可以拖动窗口、双击最大化。此前它挂在 MainScaffold
             // 内部，被模态路由盖住 → 「弹窗顶部无法拖动」。
             child: isWindowsDesktop

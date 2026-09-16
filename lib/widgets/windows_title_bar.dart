@@ -109,9 +109,9 @@ Future<void> setDesktopLyricQueue({
   }
 }
 
-/// 推送桌面歌词「切换播放器」弹窗数据。
+/// 推送桌面歌词「流转播放」弹窗数据。
 ///
-/// 桌面歌词浮窗的切换播放器按钮不再回到主窗口弹窗,而是在歌词窗**上方**
+/// 桌面歌词浮窗的流转播放按钮不再回到主窗口弹窗,而是在歌词窗**上方**
 /// 展开自己的设备列表弹窗(内容与 MINI 播放条的小弹窗一致,2026-09-10 起)。
 /// [items] 的元素形如
 /// `{'title': 设备名, 'subtitle': 状态文案, 'current': bool}`;
@@ -153,7 +153,7 @@ Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop
 /// 按钮。仅 Windows 桌面端生效；安卓/Web 走系统窗口装饰。
 ///
 /// **挂载位置是 MaterialApp.builder 层**（见 app.dart），即位于
-/// Navigator / Overlay **之上**：任何页面、任何弹窗（切换播放器、
+/// Navigator / Overlay **之上**：任何页面、任何弹窗（流转播放、
 /// 发现新版本、锚点菜单……）打开时，顶部依旧可以拖动窗口。
 /// 此前挂在 MainScaffold 内部，被模态路由整个盖住，
 /// 表现为「打开弹窗后顶部无法拖动窗口」。

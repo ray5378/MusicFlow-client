@@ -10,7 +10,7 @@ import 'package:musicflow_client/widgets/windows_title_bar.dart' show isWindowsD
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 链路 B：局域网 DLNA 直投面板（独立副轨道）
-/// 与「选择播放器」（链路 A，cast_peer_provider）完全独立：客户端自行 SSDP 发现
+/// 与「流转播放」（链路 A，cast_peer_provider）完全独立：客户端自行 SSDP 发现
 /// 设备并本地推流，投屏队列来自本机当前播放队列（拷贝脱钩）。
 /// 独立样式（标题/图标/文案）避免与链路 A 混淆。
 class LocalDlnaCastSheet extends ConsumerStatefulWidget {

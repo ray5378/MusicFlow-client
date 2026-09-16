@@ -233,7 +233,7 @@ class StatusLyricsController {
     return deriveDesktopLyricMode(playbackMode: player.playbackMode);
   }
 
-  // ==================== 播放队列 / 切换播放器弹窗 ====================
+  // ==================== 播放队列 / 流转播放弹窗 ====================
 
   String? _lastQueueKey;
 
@@ -273,7 +273,7 @@ class StatusLyricsController {
     await _ref.read(playerProvider.notifier).skipToQueueItem(index);
   }
 
-  // ==================== 「切换播放器」弹窗(歌词窗内) ====================
+  // ==================== 「流转播放」弹窗(歌词窗内) ====================
 
   String? _lastSwitchKey;
 

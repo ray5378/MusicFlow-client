@@ -30,7 +30,7 @@ class _ContainerRef implements WidgetRef {
       throw UnsupportedError('_ContainerRef.${invocation.memberName}');
 }
 
-/// 投屏(切换播放器)控制器单元测试 —— 对齐 SPEC §3.5。
+/// 投屏(流转播放)控制器单元测试 —— 对齐 SPEC §3.5。
 /// 用 MockSubsonicApiClient 桩掉 /rest/api/v1/peers* 网络调用,
 /// 用 TestPlayerNotifier 提供本机播放器状态,不构造真实音频引擎。
 void main() {
@@ -352,7 +352,7 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // 切换播放器(投屏)
+  // 流转播放(投屏)
   // -------------------------------------------------------------------------
 
   group('switchTo', () {
