@@ -3777,7 +3777,7 @@ abstract class AppLocalizations {
   /// No description provided for @player_transfer_hint.
   ///
   /// In zh, this message translates to:
-  /// **'按住任意一个播放器拖到另一个，即可把它的队列流转过去'**
+  /// **'点击播放器即可远程遥控它；拖到另一个流转队列，拖到下方回收站销毁'**
   String get player_transfer_hint;
 
   /// No description provided for @player_transfer_empty.
@@ -4223,6 +4223,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'正在远控「{name}」'**
   String player_remote_control(String name);
+
+  /// No description provided for @player_destroy_zone.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖播放器到这里销毁'**
+  String get player_destroy_zone;
+
+  /// player_destroy_success
+  ///
+  /// In zh, this message translates to:
+  /// **'已停止并清空「{name}」'**
+  String player_destroy_success(String name);
+
+  /// player_destroy_failed
+  ///
+  /// In zh, this message translates to:
+  /// **'销毁「{name}」失败'**
+  String player_destroy_failed(String name);
 
   /// song_cover_semantic
   ///

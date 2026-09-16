@@ -24,6 +24,10 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+; 安装/卸载前自动关闭运行中的客户端:Restart Manager 兜底 + [Code] 里的
+; taskkill 双保险(RM 对部分 Flutter 应用探测不到,taskkill 是确定性手段)。
+CloseApplications=force
+RestartApplications=no
 OutputDir=.
 OutputBaseFilename=MusicFlow-{#ArtifactTag}-windows-setup
 SetupIconFile=runner\resources\app_icon.ico
@@ -54,3 +58,32 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// 安装前结束正在运行的客户端(含子进程)。
+// 此前一直"不起作用"的根因:脚本里压根没有关闭机制 —— Inno 默认的
+// CloseApplications 依赖 Restart Manager,对 Flutter 应用经常探测不到;
+// taskkill 是确定性手段,探测不到进程时静默失败(返回非零,忽略)。
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Result := '';
+  Exec(ExpandConstant('{sys}\taskkill.exe'),
+    '/f /t /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 给系统一点时间释放被占用文件句柄,避免随后复制文件报"正在使用"。
+  Sleep(500);
+end;
+
+// 卸载前同样先结束客户端,否则卸载会残留文件/报"文件正在使用"。
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'),
+      '/f /t /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(500);
+  end;
+end;

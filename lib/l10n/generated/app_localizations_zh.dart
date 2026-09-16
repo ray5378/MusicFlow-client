@@ -2046,7 +2046,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get player_transfer_title => '流转播放队列';
 
   @override
-  String get player_transfer_hint => '按住任意一个播放器拖到另一个，即可把它的队列流转过去';
+  String get player_transfer_hint => '点击播放器即可远程遥控它；拖到另一个流转队列，拖到下方回收站销毁';
 
   @override
   String get player_transfer_empty => '当前没有其它可用的播放器';
@@ -2301,6 +2301,19 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String player_remote_control(String name) {
     return '正在远控「$name」';
+  }
+
+  @override
+  String get player_destroy_zone => '拖播放器到这里销毁';
+
+  @override
+  String player_destroy_success(String name) {
+    return '已停止并清空「$name」';
+  }
+
+  @override
+  String player_destroy_failed(String name) {
+    return '销毁「$name」失败';
   }
 
   @override

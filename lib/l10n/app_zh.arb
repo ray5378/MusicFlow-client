@@ -1982,7 +1982,7 @@
   },
   "player_close": "关闭播放器",
   "player_transfer_title": "流转播放队列",
-  "player_transfer_hint": "按住任意一个播放器拖到另一个，即可把它的队列流转过去",
+  "player_transfer_hint": "点击播放器即可远程遥控它；拖到另一个流转队列，拖到下方回收站销毁",
   "player_transfer_empty": "当前没有其它可用的播放器",
   "@player_close": {
     "description": "player_close"
@@ -2335,6 +2335,25 @@
   "player_remote_control": "正在远控「{name}」",
   "@player_remote_control": {
     "description": "player_remote_control",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_destroy_zone": "拖播放器到这里销毁",
+  "player_destroy_success": "已停止并清空「{name}」",
+  "@player_destroy_success": {
+    "description": "player_destroy_success",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_destroy_failed": "销毁「{name}」失败",
+  "@player_destroy_failed": {
+    "description": "player_destroy_failed",
     "placeholders": {
       "name": {
         "type": "String"

@@ -20,7 +20,6 @@ import 'package:musicflow_client/features/player/widgets/player_hero_helpers.dar
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 import 'package:musicflow_client/features/player/widgets/volume_button.dart';
-import 'package:musicflow_client/features/player/widgets/player_switcher.dart';
 import 'package:musicflow_client/features/player/pages/player_transfer_page.dart';
 
 /// Stable bridge between the application shell and the immersive player.
@@ -76,7 +75,29 @@ class MiniPlayer extends ConsumerWidget {
       onTogglePlayPause: () => toggleEffectivePlayback(ref),
       onSeek: (position) => seekEffectivePlayback(ref, position),
       progressLayer: const _ProviderMiniPlayerProgress(),
-      onSwitchPlayer: () => _showPlayerSwitcher(context: context, ref: ref),
+      onSwitchPlayer: () => showPlayerSwitcher(
+        context: context,
+        ref: ref,
+        onTransfer: (from, to) async {
+          final controller = ref.read(castPeerControllerProvider.notifier);
+          final loc = AppLocalizations.of(context);
+          final ok = await controller.transferQueue(from, to);
+          if (context.mounted) {
+            ref.invalidate(peerNowPlayingProvider(from.peerId));
+            ref.invalidate(peerNowPlayingProvider(to.peerId));
+            showMusicFlowMessage(
+              context,
+              ok
+                  ? loc.player_handoff_push_success(to.name)
+                  : loc.player_handoff_failed,
+              kind: ok
+                  ? MusicFlowMessageKind.success
+                  : MusicFlowMessageKind.error,
+            );
+          }
+          return ok;
+        },
+      ),
       onPrevious: () => dlnaCasting
         ? ref.read(dlnaCastProvider.notifier).previous()
         : (isCasting
@@ -129,73 +150,20 @@ class MiniPlayer extends ConsumerWidget {
       ),
     );
   }
-
-  static Future<void> _showPlayerSwitcher({
-    required BuildContext context,
-    required WidgetRef ref,
-  }) {
-    // 统一走顶层 showPlayerSwitcher，避免两份平台分支逻辑漂移。
-    return showPlayerSwitcher(context: context, ref: ref);
-  }
 }
 
-/// 桌面端（Windows/macOS/Linux）：用播放控件上方的小弹窗代替安卓底部弹层。
-bool _isDesktopShell(BuildContext context) => switch (Theme.of(context).platform) {
-  TargetPlatform.windows ||
-  TargetPlatform.macOS ||
-  TargetPlatform.linux => true,
-  _ => false,
-};
-
-/// 打开「流转播放」弹窗（平台自适应：桌面小弹窗 / 移动端底部弹层）。
+/// 打开「流转播放」**专用页面**。
 ///
-/// 供迷你播放条按钮与 Windows 桌面歌词浮窗的「流转播放」按钮共用——
-/// 后者经 tray 字符串通道回传 `switch_player`，由 MainScaffold 调用本函数。
+/// 入口收敛（2026-09-16）：MINI 条最右侧「流转播放」按钮 = 进页面；
+/// 原桌面遮盖小弹窗（PlayerSwitcherPopover）与移动端底部弹层均已移除，
+/// 封面长按旧入口也已移除。桌面歌词浮窗的设备列表走原生层独立通道
+/// （statusLyricsController.requestSwitchList），与本函数无关。
 Future<void> showPlayerSwitcher({
   required BuildContext context,
   required WidgetRef ref,
+  required Future<bool> Function(PeerInfo from, PeerInfo to) onTransfer,
 }) {
-  final loc = AppLocalizations.of(context);
-  if (_isDesktopShell(context)) {
-    showPlayerSwitcherPopover(context: context);
-    return Future<void>.value();
-  }
-  return showMusicFlowBottomSheet<void>(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    builder: (sheetContext) => const PlayerSwitcherSheet(),
-  ).then((_) {
-    if (context.mounted) {
-      final cast = ref.read(castPeerControllerProvider);
-      showMusicFlowToast(
-        context,
-        cast.activePeer != null
-            ? loc.player_remote_control(currentPlayerName(cast))
-            : loc.player_switched_local,
-        kind: MusicFlowMessageKind.success,
-      );
-    }
-  });
-}
-
-/// 桌面端「流转播放」小弹窗：以 Overlay 呈现，播放控件上方小窗，
-/// 点击弹窗外任意位置关闭；切换完成后弹出右上角 Toast 反馈。
-void showPlayerSwitcherPopover({required BuildContext context}) {
-  final overlay = Overlay.maybeOf(context, rootOverlay: true);
-  if (overlay == null) return;
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (entryContext) => PlayerSwitcherPopover(
-      onSwitched: (message) {
-        if (entry.mounted) entry.remove();
-        if (message != null && context.mounted) {
-          showMusicFlowToast(context, message, kind: MusicFlowMessageKind.success);
-        }
-      },
-    ),
-  );
-  overlay.insert(entry);
+  return PlayerTransferPage.open(context, onTransfer: onTransfer);
 }
 
 /// Pure player surface kept public so gesture, semantics and large-text
@@ -474,25 +442,6 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
     widget.onOpenPlayer();
   }
 
-  /// 快捷区拖拽的落地动作：把 [from] 的队列流转给 [to]。
-  ///
-  /// 三条路由（本机↔远端、远端↔远端）都在 `transferQueue` 里分派，这里只管
-  /// 提示与刷新镜像 —— 两端的「正在播」都变了，圆里的封面与流转播放第二行要跟着更新。
-  Future<bool> _transferBetweenPeers(PeerInfo from, PeerInfo to) async {
-    final controller = ref.read(castPeerControllerProvider.notifier);
-    final loc = AppLocalizations.of(context);
-    final ok = await controller.transferQueue(from, to);
-    if (!mounted) return ok;
-    ref.invalidate(peerNowPlayingProvider(from.peerId));
-    ref.invalidate(peerNowPlayingProvider(to.peerId));
-    showMusicFlowMessage(
-      context,
-      ok ? loc.player_handoff_push_success(to.name) : loc.player_handoff_failed,
-      kind: ok ? MusicFlowMessageKind.success : MusicFlowMessageKind.error,
-    );
-    return ok;
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentSong = _playerState.currentSong;
@@ -579,7 +528,6 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
                                   child: _MiniPlayerTrack(
                                     song: song,
                                     useHero: true,
-                                    onTransfer: _transferBetweenPeers,
                                     showSubtitle: showSubtitle,
                                     lyricLine: widget.lyricLine,
                                     lyricAccent: lyricAccent,
@@ -828,11 +776,7 @@ class _MiniPlayerTrack extends StatelessWidget {
     required this.lyricAccent,
     required this.coverRingProgress,
     required this.coverRingColor,
-    required this.onTransfer,
   });
-
-  /// 「流转播放队列」页面的落地动作（由 mini 播放器注入，复用统一提示）。
-  final Future<bool> Function(PeerInfo from, PeerInfo to) onTransfer;
 
   final Song? song;
   final bool useHero;
@@ -872,22 +816,13 @@ class _MiniPlayerTrack extends StatelessWidget {
         : coverInner;
     // RepaintBoundary:进度环 200~500ms 重绘隔离在 46px 环内,不连带
     // 封面/歌名/歌词/背景等整条迷你条重绘(智能按需渲染 §GPU 门控)。
-    // 封面是快捷区的开关：长按唤出「流转播放队列」专用页面
-    // （触屏长按与鼠标按住是同一套手势）。
-    // 注意：本机**不再**寄生在这张封面上 —— 它在专用页面里占第一个圆，
-    // 所以这里只负责唤出，不参与拖拽。
-    final cover = GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onLongPress: () {
-        final ctx = context;
-        PlayerTransferPage.open(ctx, onTransfer: onTransfer);
-      },
-      child: RepaintBoundary(
-        child: _MiniPlayerProgressRing(
-          progress: coverRingProgress,
-          color: coverRingColor,
-          child: coverHero,
-        ),
+    // 封面不再承载任何入口：唤出「流转播放」专用页面走最右侧按钮
+    // （封面长按旧入口已移除，2026-09-16）。
+    final cover = RepaintBoundary(
+      child: _MiniPlayerProgressRing(
+        progress: coverRingProgress,
+        color: coverRingColor,
+        child: coverHero,
       ),
     );
     final title = _MiniPlayerTitle(
@@ -898,7 +833,13 @@ class _MiniPlayerTrack extends StatelessWidget {
 
     return Row(
       children: <Widget>[
-        cover,
+        // 前导 2px：进度环的描边中心画在 46px 圆周上,外侧还会**超出 1px**;
+        // cover 是本 Row 第一个元素,紧贴外层 ClipRect(裁标题/歌词滚动溢出)
+        // 的左边界 —— 不留缝的话环的左侧弧线正好被裁掉(2026-09-16 用户实测)。
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: 2),
+          child: cover,
+        ),
         SizedBox(width: context.musicFlowSpacing.sm),
         Expanded(
           child: Column(
@@ -1025,6 +966,8 @@ class _MiniPlayerProgressRing extends StatelessWidget {
     //   播放条 = MiniPlayer.height(56)；内容区 = 56 - 上下 padding(4+4) = 48；
     //   环取 46（封面 44 + 两侧各 1），在 48 内容区内居中，上下各留 1px 余量，
     //   任何 1px 级的布局误差都不会触发 ClipRect(48) 裁剪。
+    //   注意环描边中心画在圆周上,实际外沿还要**再超出 1px** —— 上下恰好贴着
+    //   1px 余量,左右则由 track Row 的前导 2px 间隙兜住（见 _MiniPlayerTrack）。
     const double ringDimension = 46;
     const double coverDimension = 44;
     final normalized = progress.clamp(0.0, 1.0).toDouble();

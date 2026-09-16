@@ -1982,7 +1982,7 @@
   },
   "player_close": "Close player",
   "player_transfer_title": "Transfer queue",
-  "player_transfer_hint": "Press and drag any player onto another to move its queue",
+  "player_transfer_hint": "Tap a player to control it remotely; drag onto another to move its queue, or onto the bin below to stop & clear",
   "player_transfer_empty": "No other players are available right now",
   "@player_close": {
     "description": "player_close"
@@ -2335,6 +2335,25 @@
   "player_remote_control": "Remotely controlling “{name}”",
   "@player_remote_control": {
     "description": "player_remote_control",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_destroy_zone": "Drop a player here to stop & clear",
+  "player_destroy_success": "Stopped and cleared “{name}”",
+  "@player_destroy_success": {
+    "description": "player_destroy_success",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_destroy_failed": "Failed to stop and clear “{name}”",
+  "@player_destroy_failed": {
+    "description": "player_destroy_failed",
     "placeholders": {
       "name": {
         "type": "String"

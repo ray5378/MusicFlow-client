@@ -2168,7 +2168,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get player_transfer_hint =>
-      'Press and drag any player onto another to move its queue';
+      'Tap a player to control it remotely; drag onto another to move its queue, or onto the bin below to stop & clear';
 
   @override
   String get player_transfer_empty =>
@@ -2432,6 +2432,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String player_remote_control(String name) {
     return 'Remotely controlling “$name”';
+  }
+
+  @override
+  String get player_destroy_zone => 'Drop a player here to stop & clear';
+
+  @override
+  String player_destroy_success(String name) {
+    return 'Stopped and cleared “$name”';
+  }
+
+  @override
+  String player_destroy_failed(String name) {
+    return 'Failed to stop and clear “$name”';
   }
 
   @override
