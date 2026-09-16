@@ -1,5 +1,20 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.10（tag `v5.0.10` · 修复 v5.0.9 流转上报回归；节流改为不冻结的加载闸口）
+
+### 回归根因
+- v5.0.9 把 `_handlePlaybackError` 的失败自动跳改成 `Future.delayed(wait, next)` 冻结节流后，坏源/切歌时播放器**停在失败态**（`isPlaying=false`、`currentSong` 不推进）。
+- 本机实时状态上报（`cast_peer_provider._pushLocalStatus`）读到的是「无在播歌」；而「流转播放」页展示对端正在播的歌曲/封面，取自服务端该 peer 的 `/queue` 快照（`fetchPeerNowPlaying` 的 `isActive && items[currentIndex]`，封面色 `isActive` 才渲染）。播放器停留失败态 → 对端读不到歌曲/封面（用户确认 v5.0.8 正常、v5.0.9 回归）。
+
+### 修复
+- `_handlePlaybackError` **恢复同步 `next()`**：不再用 `Future.delayed` 冻结跳转，保证 `state/currentSong/currentIndex` 连贯、流转上报链路不受阻。
+- 抗坏源爆发改为**不冻结的加载闸口**（`player_seek.dart` `_replaceLoadedSource`，`setSource` 的 GET 之前，约 :287）：当处于连续失败连跳段且 `_consecutiveFailSkips >= 2` 时，每次真实加载前 `await Future.delayed(300ms)`。只延后网络 GET，不阻碍游标/状态推进 → 全面解锁「不灌爆反代」与「不破坏流转上报」。
+- 清理 v5.0.9 遗留的节流常量与 `_lastAutoSkipAt`；`_consecutiveFailSkips` 仅留日志。
+
+### 验证
+- `flutter analyze`：无新增问题。
+- `test/core/player/playback_error_guard_test.dart` 与他人 6 条守卫全部通过（新增契约：`_handlePlaybackError` 不得含 `Future.delayed`、不得用 wait 分支延后 next）。
+
 ## v5.0.9（tag `v5.0.9` · 失败自动跳加节奏限制：坏源成片不再全速连发拉流/探测灌爆反代）
 
 ### 背景根因
