@@ -233,17 +233,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 防止并发预探测。
   bool _probing = false;
 
-  /// 失败自动跳转的时间间隔下限。避免「坏源成片」时以全速反复拉流/探测,
-  /// 把反代连接与 CPU 灌满(见 2026-09-16 定位:失败→next() 无节流硬循环)。
-  /// 只约束连续失败的节奏,不改变语义 —— 每首歌仍会真试那一遍。
-  static const Duration _autoSkipMinGap = Duration(milliseconds: 400);
-  /// 连续失败超过该阈值后降速为 [_autoSkipStallGap],防止光速刷完整张死歌单回绕。
-  static const int _autoSkipStallThreshold = 50;
-  /// 长串死源时每次跳转的间隔(仍会真试,只是不连发)。
-  static const Duration _autoSkipStallGap = Duration(seconds: 3);
-  /// 上一次自动失败跳转的绝对时间(仅由失败路径更新)。
-  DateTime _lastAutoSkipAt = DateTime.fromMillisecondsSinceEpoch(0);
-  /// 连续失败跳转计数(真正播放成功一次即清零)。
+  /// 连续失败跳转计数(真正播放成功一次即清零;日志诊断用)。
   int _consecutiveFailSkips = 0;
 
   /// 预探测窗口大小：提前探测接下来几首。
@@ -1343,38 +1333,28 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 不记死歌 —— 坏歌每次都真试，服务端换源治愈（probe/拉流写回新链）后
   /// 自动复活；顺序模式到队尾自然结束，循环模式由用户手动停。
   ///
-  /// 2026-09-16 加节奏限制：坏源成片时(尤其远程/签名 URL 过期的整张死歌单)，
-  /// 「失败→next→失败」是无节流硬循环，会全速连发拉流/探测把反代灌满。
-  /// 这里只约束连续失败的间隔([_autoSkipMinGap]，长串降速为
-  /// [_autoSkipStallGap])，每首歌仍会被真试那一遍，语义不变。
+  /// 节流历史（2026-09-16 → 2026-09-17 修正）：最初为防坏源成片全速连发
+  /// 拉流/探测灌爆反代，改成用 `Future.delayed` 冻结 `next()`。这会让播放器
+  /// 停在失败态（isPlaying=false、currentSong 不推进），本机实时状态上报
+  /// 变成「无在播歌」→ 流转播放页对端读不到歌曲/封面（v5.0.9 回归）。现改为：
+  /// **永远同步推进 `next()`**，保证 state/currentIndex 连贯、上报链路不受影
+  /// 响（不阻塞状态推进）。每首歌仍会被真试那一遍。
   void _handlePlaybackError(String? songId) {
     if (!mounted) return;
-    final now = DateTime.now();
-    final sinceLast = now.difference(_lastAutoSkipAt);
-    _lastAutoSkipAt = now;
     _consecutiveFailSkips += 1;
-    final stall = _consecutiveFailSkips >= _autoSkipStallThreshold;
-    final gap = stall ? _autoSkipStallGap : _autoSkipMinGap;
-    final wait = gap - sinceLast;
     Logger.warnWithTag(
       _playerLogTag,
-      'play fail songId=$songId, auto-skip${stall ? ' (stalled burst)' : ''} '
-      'consecutive=$_consecutiveFailSkips${wait > Duration.zero ? ' wait=${wait.inMilliseconds}ms' : ''}',
+      'play fail songId=$songId, auto-skip '
+      'consecutive=$_consecutiveFailSkips',
     );
-    if (wait > Duration.zero) {
-      // 刚跳过几首又失败：够了间隔再跳，避免对同一批坏源全速重发。
-      Future.delayed(wait, () {
-        if (mounted) next();
-      });
-      return;
-    }
+    // 同步推进下一首（不延迟）：状态连贯,流转播放/实时上报/远端镜像读到的
+    // currentSong 始终是「正在/即将演唱」的下一首,不会因停留失败态而缺歌。
     next();
   }
 
 
   Future<void> _syncPlaybackAfterSourceReady({required bool autoPlay}) async {
-    // 真正播出一首后清零失败连跳计数：下次失败按正常的 [_autoSkipMinGap] 节奏，
-    // 不被上一段死源 burst 的降速连带。
+    // 真正播出一首后清零失败连跳计数,供日志反映当前失败段的长短。
     _consecutiveFailSkips = 0;
     if (autoPlay) {
       _startPlayback();

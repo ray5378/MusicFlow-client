@@ -95,23 +95,19 @@ void main() {
     }
   });
 
-  test('失败自动跳有节奏限制（坏源成片不连发），且成功播放即复位', () {
-    // 2026-09-16 定位：失败→next() 无节流硬循环，坏源成片(尤其远程/签名
-    // URL 过期)时全速连发拉流/探测灌满反代。要求：连跳有最小间隔、长串降速、
-    // 真正播出一首后复位，避免把已治愈的歌永久误拉低。
+  test('失败自动跳必须同步推进：不得冻结 next 阻断流转上报', () {
+    // 2026-09-17 修正 v5.0.9 回归：把失败跳转改成 `Future.delayed(wait, next)`
+    // 会在坏源/切歌时让播放器停在失败态（isPlaying=false、currentSong 不推进），
+    // 本机实时状态上报变「无在播歌」→ 流转播放页对端读不到歌曲/封面。
+    // 因此契约改为：失败跳转**同步**调用 next()，禁止用延迟冻结它。
     final body = _methodBody(src, 'void _handlePlaybackError(String? songId) {');
-    // 必须有最小间隔与降速参数（成片坏源时不再光速连发）。
-    expect(body, contains('_autoSkipMinGap'),
-        reason: '失败自动跳须有最小间隔，否则坏源成片时全速连发');
-    expect(body, contains('_autoSkipStallThreshold'),
-        reason: '连续失败须有降速阈值，否则死歌单回绕时以全速反复拉流');
-    // 节奏限制必须真的 delay，而不是恒真短路掉 next()（去节奏=回归全速连发）。
-    expect(body, contains('Future.delayed(wait'),
-        reason: '间隔不足时必须延迟 next()，禁止恒真短路跳过节奏限制');
-    // 成功播放一首后清零连跳计数：正常切歌后首次失败不被上一段 burst 连带降速。
-    final syncBody = _methodBody(
-        src, 'Future<void> _syncPlaybackAfterSourceReady({required bool autoPlay}) async {');
-    expect(syncBody.contains('_consecutiveFailSkips = 0'), isTrue,
-        reason: '真正播出一首后须清零失败连跳计数，避免永久陷入降速');
+    // 同方法体里不得出现延迟跳转（去延迟 = 回归实录），否则会在那段时间里
+    // 把播放器冻结在失败态，破坏流转播放的实时上报。
+    expect(body.contains('Future.delayed'), isFalse,
+        reason: '失败自动跳不得用 Future.delayed 冻结 next()：坏源时段会停在失败态，'
+            '流转播放页读不到歌曲与封面（v5.0.9 回归）');
+    // 排除「延迟 + 提前 return」形态：wait 分支 return 会让 next() 变成可被延后。
+    expect(RegExp(r'wait\s*[<>]=\s*\w+').hasMatch(body), isFalse,
+        reason: '不得用 wait 类分支提前 return 延后 next()');
   });
 }
