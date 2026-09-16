@@ -1,5 +1,26 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.7（tag `v5.0.7` · 流转页交互完善 + 入口收敛 + 安装器自动关闭修复）
+
+### 用户需求（逐条确认后落地）
+- 单击流转页圆 = **切遥控目标**（与原小弹窗点行完全同义，不推队列不投屏）；点本机且正在遥控远端 = 切回本机并续播；点当前遥控目标仅关页。
+- 圆**右侧**显示该端正在播的「歌名 - 歌手」。
+- 当前遥控的圆加**动态高亮**（首版幅度不够，加大到 accent 描边 + 呼吸光环 scale 1.26）。
+- 排版自适应不同客户端：按可用宽度自动算列数（**一行排满才换行**），单格上限 320、**整组水平居中**。
+- 流转 = **搬移语义**：源端停止 + 清空队列（本机做源端时内存会话一并抛弃，保持口径一致）；流转完成后**控制目标自动跟到目的地**（A→B 自动遥控 B）。
+- 页面底部**回收站**：拖任意播放器（含本机）进回收站 = 停止 + 清空队列；**仅销毁的正是当前遥控对象时**才切回本机且**不续播**；成功 Toast **不关页**；回收站圆面 96px **大于**播放器圆 78px，悬停红色高亮放大。
+- 入口收敛：MINI 条最右侧「流转播放」按钮直接进专用页；**删除桌面遮盖小弹窗 PlayerSwitcherPopover**（连同其测试文件）；封面长按旧入口移除。
+- 修复 MINI 封面进度环左侧被裁。
+
+### 关键根因
+1. **拖动卡死**：`Draggable.feedback` 被插进根 Overlay（只给无界约束），新布局里的 `Row + Expanded` 无界宽度下布局崩（`size: MISSING`）→ hit test 连环异常冻结 UI。修法：feedback 先 `SizedBox(width: cellWidth)` 给有界宽。与 player_switcher 的 Overlay 坑同源。
+2. **进度环左侧被裁**：`CircularProgressIndicator(strokeWidth:2)` 描边中心画在圆周上，外沿**超出 SizedBox 1px**；cover 紧贴 track 外层 `ClipRect` 左边界 → 左弧被裁。修法：track Row 加 2px 前导缝。教训：描边类绘制外沿永远比 SizedBox 大 stroke/2。
+3. **安装器"自动关闭运行中的客户端"一直不起作用**：`installer.iss` 根本没有关闭机制（Inno 默认 CloseApplications 依赖 Restart Manager，对 Flutter 应用经常探测不到）。修法：`[Code] PrepareToInstall` / 卸载步骤里 `taskkill /f /t /im MusicFlow.exe` + `CloseApplications=force` 兜底。
+
+### 验证
+- 5 个 dart 守卫 + `check-l10n.mjs --gate-cjk` 全绿；`flutter test` **705 全绿（0 失败）**（随 Popover 删除其测试，基线下降 3 属预期）。
+- analyze 全绿；真机 debug 联调：单击切遥控 / 拖拽流转 / 回收站销毁（含本机）链路全部实测走通。
+
 ## v5.0.6（tag `v5.0.6` · 流转播放 专用页面 + 7 项修复 + 改名）
 
 > 配套服务端 **v3.0.24**（Web 前端「切换播放器→流转播放」改名 + 含 v3.0.23 同一首连续卡死修复）。
