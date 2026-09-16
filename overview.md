@@ -1,5 +1,22 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.9（tag `v5.0.9` · 失败自动跳加节奏限制：坏源成片不再全速连发拉流/探测灌爆反代）
+
+### 背景根因
+- 用户怀疑“客户端取到坏的音乐源，一直发信息”，且 lucky 反代在 v5.0.8 并发封顶后仍 CPU 70%+、内存不回落。
+- 码证（`lib/providers/player/player_provider.dart`）：播放失败走 `_handlePlaybackError → next()`，是一条**无节流硬循环**；`all`（列表循环）模式到队尾回绕 `skipToQueueItem(0)` → 整张死歌单被无限全速反复拉流/探测。
+- 更糟：`player_playback_helpers.dart` 的 `isRemoteSong`（`isPreview` / `id` 以 `remote:` 开头）被排除出 `_probeUpcoming`，死链预跳门禁对**远程/试听歌完全失效** → 远程或签名 URL 过期的整单坏源，每一首都会全速真试，直接灌满反代连接与 CPU。
+
+### 修复
+- `_handlePlaybackError` 加**节奏限制**（语义不变：每首歌仍真试那一遍，服务端换源可治愈）：
+  - 连跳间隔下限 `_autoSkipMinGap`（400ms）；
+  - 连续失败 ≥ `_autoSkipStallThreshold`（50）降速为 `_autoSkipStallGap`（3s），防死歌单回绕光速连发；
+  - `_syncPlaybackAfterSourceReady` 真正播出一首后 `_consecutiveFailSkips = 0` 复位，不被上一段 burst 连带降速。
+
+### 验证
+- `flutter analyze` 零 error（lib/ 无新增告警）。
+- `flutter test` **705 全绿（0 失败）**，契约守卫 `playback_error_guard_test.dart` 新增「失败自动跳有节奏限制 + 成功即复位」断言全过。
+
 ## v5.0.8（tag `v5.0.8` · 封面全局并发闸门：根治播放大歌单时数十路并发连接撑爆反代）
 
 ### 背景根因
