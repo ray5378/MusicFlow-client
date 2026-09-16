@@ -1,5 +1,21 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.11（tag `v5.0.11` · 流转播放对端恒「未在播放」真根因：整队 1MB 轮询；改分页拉当前项）
+
+> ⚠️ 更正 v5.0.10 归因：v5.0.10 假设「失败自动跳冻结 → 上报读到无在播歌」。后续用账号直查服务端 `/v1/peers/:id/queue` 实证，被看端 **isActive=true、items 完整、currentIndex 正常**，上报与账本都正确 —— v5.0.9/10 的失败跳时序并非本次根因；且用户确认 v5.0.8 未测试这块，真实基线是 v5.0.7。
+
+### 根因（实证）
+- `fetchPeerNowPlaying`（供「流转播放」弹窗第二行 + 流转播放页远端圆取「歌名-封面」）原先**一次拉整队 `/queue`**：3000+ 首 ≈ **1,043,789 B / 634ms**。而 `peerNowPlayingProvider` **每 5s 对每台远端**轮询一次 → 手机端这种高频大 payload 极易超时/掉包，`fetchPeerNowPlaying` 一抛异常即返回 null → UI 按「未在播放」渲染。本机圆走本地 provider（不碰这），恒正常 —— 与「自己看自己 OK、两端互看都空」的现象完全吻合。
+- 分页 `?offset=<idx>&size=1` 仅 **15,601 B / 55ms**，缩 ≈35×。
+
+### 修复
+- `fetchPeerNowPlaying` 改为分页两段取：先 `offset=0&size=1` 拿 meta（`isActive/currentIndex/total/currentMedia` 恒在响应体），`currentIndex==0` 时首页即当前项、免第二次；否则 `offset=currentIndex&size=1` 精确拉那一项。标题/封面仍以 `currentMedia` 优先、回落当前项、`isActive==false` 不凑标题（语义不变）。
+- 测试 `test/contract/client_link_guard_test.dart` mock 改为模拟服务端分页，并新增**回归守卫**：「拉当前项必须带 offset+size，不得整队拉 1MB」。
+
+### 验证
+- `flutter analyze` 两文件：无问题。
+- `client_link_guard_test.dart` 8 条（含新增分页守卫）全部通过。
+
 ## v5.0.10（tag `v5.0.10` · 修复 v5.0.9 流转上报回归；节流改为不冻结的加载闸口）
 
 ### 回归根因
