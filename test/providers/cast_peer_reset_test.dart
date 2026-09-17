@@ -231,6 +231,11 @@ void main() {
       reason: 'keepCurrent: false —— 当前曲一并清掉',
     );
     expect(
+      playerNotifier.state.currentSong,
+      isNull,
+      reason: '当前曲必须真的清掉：只清队列会留下孤儿（迷你条还显示歌名、点播放还能续播）',
+    );
+    expect(
       posts.any((p) => p.contains(srcPath(selfPeer)) && p.endsWith('/reset')),
       isTrue,
       reason: '服务端那一份权威队列与状态上报同样要清',

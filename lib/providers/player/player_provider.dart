@@ -340,6 +340,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         previous();
       };
       _audioHandler?.onSeek = seek;
+      // 通知栏/锁屏的播放键绕开本 notifier 直接驱动 just_audio，必须让它
+      // 先问一句「现在还有歌吗」—— 否则清空会话后仍能从系统播控中心出声。
+      _audioHandler?.canPlay = () => state.currentSong != null;
     } catch (e) {
       Logger.warn('AudioService not available: $e');
       player = AudioPlayer(
@@ -384,6 +387,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
     // 监听播放状态
     player.playingStream.listen((isPlaying) {
+      // 先判活再读 state：dispose 之后仍会有残余事件到达（just_audio 的
+      // dispose 自己就会异步补发一次 playing=false），而下面的日志要读
+      // state.currentSong —— 不拦会抛 StateNotifier 的「used after dispose」。
+      // 与 loopModeStream / shuffleModeEnabledStream 两个监听同一姿势。
+      if (!mounted) return;
       _playDbg(
         'playingStream playing=$isPlaying '
         'processing=${player.processingState.name} '
@@ -393,13 +401,19 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         'buffered=${_logicalPlayerPosition(player.bufferedPosition)} '
         'song=${state.currentSong?.id}',
       );
-      if (mounted) state = state.copyWith(isPlaying: isPlaying);
+      state = state.copyWith(isPlaying: isPlaying);
       _syncSmtc();
     });
 
     // 监听播放进度
     player.positionStream.listen((position) {
       if (!mounted) return;
+
+      // 空会话守卫：清空队列后 just_audio 仍持有**已加载的源**（它没有公开的
+      // 卸源 API，stop() 不卸载），其 position/duration 会继续 emit。不拦就会
+      // 把刚清掉的进度写回来 —— 迷你条上出现「显示未在播放、进度环却停在
+      // 销毁那一刻」的幽灵。约定同 _startPositionPolling 的同类守卫。
+      if (state.currentSong == null) return;
 
       // A queued seek is the user's latest intent. While the next source is
       // still loading, just_audio may continue to report the previous source
@@ -455,6 +469,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     // 监听缓冲进度
     player.bufferedPositionStream.listen((buffered) {
       if (mounted) {
+        // 空会话守卫：同 positionStream —— 已加载源的缓冲进度不该写进空会话。
+        if (state.currentSong == null) return;
         if (_shouldPreserveSeekPosition()) return;
         state = state.copyWith(
           bufferedPosition: _logicalPlayerPosition(buffered),
@@ -464,6 +480,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     // 监听总时长
     player.durationStream.listen((duration) {
       if (mounted) {
+        // 空会话守卫：已加载源的时长会把 duration 顶回老歌长度，
+        // 让「未在播放」的占位态还画出一段完整时长条。
+        if (state.currentSong == null) return;
         if (duration != null && duration > Duration.zero) {
           if (_shouldPreserveSeekPosition() && _seekByReloadStream) {
             _playDbg(
@@ -510,7 +529,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
     // 监听播放完成
     player.playerStateStream.listen((playerState) {
-      if (mounted && state.processingState != playerState.processingState) {
+      // 同 playingStream：dispose 后的残余事件会读 state，必须先判活。
+      if (!mounted) return;
+      if (state.processingState != playerState.processingState) {
         state = state.copyWith(processingState: playerState.processingState);
       }
       if (_lastProcessingStateForDebug != playerState.processingState) {
@@ -1704,6 +1725,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
   /// 播放（从暂停恢复，不使用淡入——淡入淡出仅用于切歌）
   Future<void> play() {
+    // 空会话守卫：没有当前曲就没有「可恢复的播放」。just_audio 的已加载源在
+    // stop() 之后仍然存在，不拦的话一次 play() 就能把已清空的会话复活 ——
+    // 表现为「迷你条写着未在播放，却在放刚才那首歌」。迷你条播放键常驻渲染，
+    // 这个入口必须自己把关。
+    if (state.currentSong == null) return Future<void>.value();
     _transportRequestGeneration += 1;
     _cancelFade(); // 取消任何进行中的淡入淡出，恢复音量到 1.0
     _startPlayback(fadeIn: false);
@@ -2199,8 +2225,14 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     await _audioHandler?.stop();
     _invalidateLoadedSource(reason: 'queue_cleared');
     _invalidateSeekRequests();
+    // ⚠️ currentSong / currentQuality / playbackSource 必须走**显式清除开关**：
+    // copyWith 里传 null 等于「未指定」，清不掉（曾经就是这里静默失败 ——
+    // 队列空、歌还在，迷你条继续显示歌名与本曲进度，点播放还能续播）。
+    // bufferedPosition 同属「已加载源的残留」，一并归零。
     state = state.copyWith(
-      currentSong: null,
+      clearCurrentSong: true,
+      clearPlaybackMeta: true,
+      clearBufferedPosition: true,
       queue: const [],
       currentIndex: 0,
       shuffleHistoryCount: 0,
@@ -2208,8 +2240,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       processingState: ProcessingState.idle,
       position: Duration.zero,
       duration: Duration.zero,
-      currentQuality: null,
-      playbackSource: null,
       currentBitRateKbps: 0,
     );
   }
@@ -2231,12 +2261,20 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       _audioHandler?.stop();
       _invalidateLoadedSource(reason: 'current_queue_item_removed');
       _invalidateSeekRequests();
+      // 与 clearQueue 同一口径：当前曲被移除 = 本会话无曲，整份播放态归零。
+      // 同走显式清除开关（copyWith 传 null 清不掉，见 [PlayerState.copyWith]）。
       state = state.copyWith(
+        clearCurrentSong: true,
+        clearPlaybackMeta: true,
+        clearBufferedPosition: true,
         queue: newQueue,
-        currentSong: null,
         currentIndex: 0,
         shuffleHistoryCount: 0,
         currentBitRateKbps: 0,
+        isPlaying: false,
+        processingState: ProcessingState.idle,
+        position: Duration.zero,
+        duration: Duration.zero,
       );
     } else {
       // 调整当前索引

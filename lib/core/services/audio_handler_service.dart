@@ -19,6 +19,15 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   Function()? onSkipToNext;
   Function()? onSkipToPrevious;
   Future<void> Function(Duration position)? onSeek;
+
+  /// 「当前是否有可播放的曲目」——由上层（PlayerNotifier）注册。
+  ///
+  /// 通知栏/锁屏/耳机按键的播放键走的是本 handler 的 [play]，它直接驱动
+  /// just_audio，**绕开** PlayerNotifier 的状态。而 just_audio 的已加载源在
+  /// stop() 之后依然存在，于是「清空队列 / 移除当前曲」之后，系统播控中心
+  /// 按一下播放就能让已清空的会话出声，而 App 内迷你条正显示「未在播放」。
+  /// 默认 true（未注册时不改变原有行为）。
+  bool Function()? canPlay;
   Duration _positionOffset = Duration.zero;
 
   /// 投屏/直投期间的合成进度：本机已暂停，位置不再自增，改为由投屏侧进度驱动，
@@ -162,6 +171,12 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   @override
   Future<void> play() async {
     Logger.info('AudioHandler: play');
+    // 无当前曲（已清空会话 / 当前曲被移除）时不出声：此时没有「可恢复的播放」，
+    // 放行只会让一个已被销毁的会话从系统播控中心复活（见 [canPlay]）。
+    if (!(canPlay?.call() ?? true)) {
+      Logger.info('AudioHandler: play ignored (no current song)');
+      return;
+    }
     // Android 13+ 媒体通知权限：本地播放同样依赖媒体前台服务通知，
     // 首次播放时申请一次（幂等、全静默失败降级，不阻断播放）。
     unawaited(ensureMediaNotificationPermission());

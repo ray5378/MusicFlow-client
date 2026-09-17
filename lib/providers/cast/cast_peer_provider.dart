@@ -738,7 +738,13 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// clearQueue(keepCurrent: false) 会停掉音频会话并清空内存队列；
   /// 服务端权威队列由 [_clearSourceQueue] 负责。两者配套 = 「本机的播放
   /// 上下文彻底清掉」，与远端源端的 stop+clear 同一口径。
+  /// 「回本机续播」快照同属本机上下文，一并作废（见方法内注释）。
   Future<void> _abandonLocalSession() async {
+    // 离开本机时冻结的「回本机续播」快照一并作废：它记录的是**这个**本机会话，
+    // 而本机会话刚被销毁/搬走。留着它，之后点「本机」时 _restoreLocalSnapshot
+    // 会把刚丢掉的队列与那首歌原样搬回来并续播（它不看来源死活），
+    // 等于销毁根本没生效。
+    _localSnapshot = null;
     try {
       await _ref.read(playerProvider.notifier).clearQueue(keepCurrent: false);
     } catch (e) {

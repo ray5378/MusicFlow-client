@@ -552,6 +552,59 @@ void main() {
       expect(playerNotifier.state.queue.length, 1);
       expect(playerNotifier.state.currentIndex, 0);
     });
+
+    test('销毁本机后快照作废:点回本机不会把已销毁的会话搬回来', () async {
+      // 场景(用户实测):先在播本机 → 流转到远端(此时冻结了本机快照)→
+      // 把本机卡片拖进回收站销毁 → 之后点「本机」。
+      // 快照记录的正是这个已被销毁的会话,不随销毁一起作废的话,
+      // _restoreLocalSnapshot 会把刚丢掉的队列与那首歌原样搬回来并续播。
+      playerNotifier.emit(
+        PlayerState(
+          currentSong: song,
+          queue: <Song>[song],
+          currentIndex: 0,
+          isPlaying: true,
+          position: const Duration(seconds: 10),
+          loopMode: LoopMode.all,
+        ),
+      );
+      when(() => client.getRaw(statusPath('dlna-1'))).thenAnswer(
+        (_) async => <String, dynamic>{
+          'state': 'PLAYING',
+          'position': 5,
+          'duration': 200,
+          'volume': 70,
+          'muted': false,
+        },
+      );
+      stubQueuePoll(queueSnapshot());
+      when(
+        () => client.postRaw(
+          any(),
+          queryParameters: any(named: 'queryParameters'),
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((_) async => <String, dynamic>{'success': true});
+
+      // 1. 离开本机 → 冻结快照;内存里仍留着「s1 在播」的镜像。
+      await controller.switchTo(dlnaPeer);
+      expect(controller.state.activePeer?.peerId, 'dlna-1');
+
+      // 2. 把本机拖进回收站 = 这个播放端没了。
+      final ok = await controller.destroyPeer(localPeer);
+      expect(ok, isTrue);
+
+      // 3. 之后点「本机」:不许把刚销毁掉的队列与那首歌搬回来。
+      await controller.backToLocal(resumeLocal: true);
+      expect(
+        playerNotifier.state.currentSong,
+        isNull,
+        reason: '快照记录的是已被销毁的会话,不该还留着「回本机续播」的凭据',
+      );
+      expect(playerNotifier.state.queue, isEmpty);
+      expect(playerNotifier.state.isPlaying, isFalse, reason: '更不许自动续播');
+    });
   });
 
   group('backToLocal / stopCasting', () {

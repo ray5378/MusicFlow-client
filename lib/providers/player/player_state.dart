@@ -124,6 +124,14 @@ class PlayerState {
     this.volume = 0.8,
   });
 
+  /// ⚠️ **可空字段的 null 一律表示「未指定」，不是「清成 null」。**
+  ///
+  /// 这是**有意**的兜底语义（调用方大量只改一两个字段），代价是
+  /// `copyWith(currentSong: null)` **清不掉当前曲** —— 它等价于「没传」。
+  /// 需要清空时必须用显式开关 [clearCurrentSong] / [clearPlaybackMeta] /
+  /// [clearBufferedPosition]；`copyWith()` 里传 null 是静默空操作，
+  /// 曾因此在「清空队列 / 移除当前曲」两处留下孤儿状态（队列空了、歌还在，
+  /// 迷你条继续显示歌名与本曲进度，点播放还能续播）。
   PlayerState copyWith({
     Song? currentSong,
     List<Song>? queue,
@@ -141,9 +149,12 @@ class PlayerState {
     int? currentBitRateKbps,
     Duration? bufferedPosition,
     double? volume,
+    bool clearCurrentSong = false,
+    bool clearPlaybackMeta = false,
+    bool clearBufferedPosition = false,
   }) {
     return PlayerState(
-      currentSong: currentSong ?? this.currentSong,
+      currentSong: clearCurrentSong ? null : (currentSong ?? this.currentSong),
       queue: queue ?? this.queue,
       currentIndex: currentIndex ?? this.currentIndex,
       isPlaying: isPlaying ?? this.isPlaying,
@@ -154,10 +165,16 @@ class PlayerState {
       shuffleEnabled: shuffleEnabled ?? this.shuffleEnabled,
       playbackMode: playbackMode ?? this.playbackMode,
       shuffleHistoryCount: shuffleHistoryCount ?? this.shuffleHistoryCount,
-      currentQuality: currentQuality ?? this.currentQuality,
-      playbackSource: playbackSource ?? this.playbackSource,
+      currentQuality: clearPlaybackMeta
+          ? null
+          : (currentQuality ?? this.currentQuality),
+      playbackSource: clearPlaybackMeta
+          ? null
+          : (playbackSource ?? this.playbackSource),
       currentBitRateKbps: currentBitRateKbps ?? this.currentBitRateKbps,
-      bufferedPosition: bufferedPosition ?? this.bufferedPosition,
+      bufferedPosition: clearBufferedPosition
+          ? Duration.zero
+          : (bufferedPosition ?? this.bufferedPosition),
       volume: volume ?? this.volume,
     );
   }
