@@ -70,19 +70,47 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
     );
   }
 
+  /// 落盘入口。**保证「最后一次状态一定写得进去」** —— 无论期间有多少轮并发。
+  ///
+  /// 旧实现在「上一轮还在写」时直接 `return` 丢弃本次请求。丢弃本身在当时看是
+  /// 无害的（下个 5s 防抖会补），但有两个致命窗口：
+  ///   1. 被丢弃的那次恰恰是「清空 / 销毁后的空会话」→ 磁盘上留着清空**前**的
+  ///      旧会话，重启即复活；
+  ///   2. 紧接着退出（进程结束）→ 再没有下一轮，旧会话永久留在盘上。
+  /// 现在改为：标记脏 + 本轮写完后自动补一轮（补的永远是最新 state）。
   Future<void> _persistPlaybackSession() async {
     // 关闭(dispose)时 mounted 已为 false,但不能因此跳过落盘 —— 否则退出瞬间
     // 刚更新的进度/歌曲就会丢,重开无法续播。只在「恢复会话进行中」与「正在写」
     // 时跳过,其余情况(含关闭)都照常保存。
     if (_isRestoringPlaybackSession) return;
     if (_isPersistingPlaybackSession) {
+      _persistDirty = true;
       Logger.debugWithTag(
         _playerLogTag,
-        'skip persist: previous write still in flight',
+        'persist deferred: previous write still in flight '
+        '(will re-run with latest state)',
       );
       return;
     }
 
+    _persistDirty = false;
+    final write = _persistOnce();
+    _persistInFlight = write;
+    try {
+      await write;
+    } finally {
+      if (identical(_persistInFlight, write)) _persistInFlight = null;
+    }
+
+    if (_persistDirty) {
+      _persistDirty = false;
+      // 期间状态又变了：立刻补写最新状态。不 await —— 调用方（含 dispose）
+      // 不该被这次补偿拖住，写盘自己有租约兜底。
+      unawaited(_persistPlaybackSession());
+    }
+  }
+
+  Future<void> _persistOnce() async {
     _beginPersistLease();
     try {
       final payload = _buildPlaybackSessionPayload();
@@ -90,6 +118,14 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
         await LocalStorage.clearPlaybackSession();
         return;
       }
+      // 测试注入点：payload **已按此刻状态算好**、但还没落盘之前的挂起点。
+      // 单测用它把这一轮写人为拉长，稳定复现「这轮写带着清空前的旧状态飞在半空，
+      // 期间用户把本机销毁 → 清空那次落盘请求被静默丢弃 → 磁盘上永远停着旧会话」。
+      //
+      // 位置很关键：必须在 payload 构造**之后**。挂在构造之前的话，被测轮次会等
+      // 到放行后才去读 state，读到的已是清空后的新状态，等于根本没复现那个竞态
+      // （实测：挂错位置时旧实现照样能过 B2，等于把这条契约放空）。
+      await debugBeforePersistWrite?.call();
       Logger.debugWithTag(
         _playerLogTag,
         'persist session currentSongId=${payload['currentSongId']} '
@@ -125,6 +161,10 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
     if (!mounted) return;
     var restored = false;
     var fromServer = false;
+    // 代际基线：恢复是异步长流程，中途随时可能被「清空 / 销毁」打断 ——
+    // 那时 _sessionGeneration 会自增，本次恢复必须整段作废（见下方守卫）。
+    final generation = _sessionGeneration;
+    var aborted = false;
     _restoreStartedAtMs = DateTime.now().millisecondsSinceEpoch;
 
     try {
@@ -210,6 +250,23 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
       }
       final song = queue[restoredIndex];
 
+      // ── 代际守卫：恢复途中本机被销毁 → 整段作废 ──
+      // 上一步到这一步之间隔着读盘 / 探服务端 / 读配置等多个 await，用户完全
+      // 可能在流转页把本机拖进回收站。若照旧往下走 playSong，就把刚刚清空的
+      // 会话又挂回当前曲 —— 用户看到的正是「销毁了，Mini 播放器一会儿又冒出
+      // 歌名、进度还接着走」。销毁是**终结语义**，恢复没有资格把它复活。
+      await debugBeforeRestoreResume?.call();
+      if (generation != _sessionGeneration) {
+        Logger.infoWithTag(
+          _playerLogTag,
+          'restore aborted: session torn down while restoring '
+          '(gen=$generation now=$_sessionGeneration)',
+        );
+        aborted = true;
+        debugRestoreAbortCount++;
+        return;
+      }
+
       // ── 恢复不再 await 音源加载 ──
       // playSong 会对当前曲 setUrl;死链/慢源下该 await 可能永久不返回,
       // 把整个恢复流程卡死 → 恢复标志(旧布尔量/现租约)长期为 true →
@@ -264,6 +321,13 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
       );
     } finally {
       _restoreStartedAtMs = null;
+      if (aborted) {
+        // 恢复在最后一步被作废（见代际守卫）：销毁那次的「立即落盘」曾被
+        // 「恢复中」闸门挡下（_schedulePersistPlaybackSession 在恢复期间直接
+        // 返回），这里补写一次「会话已结束」—— 否则磁盘上那份旧会话会在下次
+        // 启动把这局已经结束的播放再搬回来。此刻闸门已放开，写的是最新 state。
+        _schedulePersistPlaybackSession(immediate: true);
+      }
     }
 
     if (restored) {

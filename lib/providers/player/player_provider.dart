@@ -179,6 +179,43 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 也不能再也不写。
   int? _persistingSinceMs;
 
+  /// 上一轮落盘**进行中**时又有新的落盘请求 → 标记为脏，等这轮写完自动补一次。
+  ///
+  /// 旧实现是直接 `return` 丢弃：丢掉的那次若是「清空/销毁后的空会话」，
+  /// 磁盘上就留着清空前的旧会话 —— 重启后已销毁的歌原地复活。
+  bool _persistDirty = false;
+
+  /// 正在落地的那一轮写。退出（persistPlaybackStateNow）前要等它，
+  /// 否则本次写会被当作「进行中」跳过，磁盘留旧会话。
+  Future<void>? _persistInFlight;
+
+  /// 会话代际：每次「整份会话归零」（清空队列 / 移除当前曲）自增。
+  ///
+  /// 用来让**进行中的恢复**作废：恢复是异步长流程（读盘 → 探服务端 →
+  /// getAutoPlayOnLaunch → playSong），期间用户完全可能已经把本机销毁。
+  /// 若不自增比对，恢复流程照旧 playSong，就把刚销毁的会话又挂回当前曲 ——
+  /// 用户视角就是「销毁没生效，Mini 播放器一会儿又冒出歌名」。
+  int _sessionGeneration = 0;
+
+  /// 测试注入点：每轮落盘**真正写盘之前**的挂起点。单测用它把一轮写人为拉长，
+  /// 稳定复现「写完前状态又变了 → 旧实现静默丢弃这次写入」的竞态。
+  @visibleForTesting
+  Future<void> Function()? debugBeforePersistWrite;
+
+  /// 测试注入点：恢复流程「即将起播」之前的挂起点（见
+  /// [_restorePlaybackSession]）。单测用它把恢复卡在竞态窗口内，稳定复现
+  /// 「恢复到一半，本机被销毁」。
+  @visibleForTesting
+  Future<void> Function()? debugBeforeRestoreResume;
+
+  /// 测试观察点：代际守卫拦下恢复的次数（正常恢复恒为 0）。
+  ///
+  /// 为什么需要它：守卫放行之后那一步是 `playSong(...)`，它要碰离线缓存、音源
+  /// 加载、网络——在单测里既不收敛也不稳。而「守卫有没有误杀正常恢复」这件事
+  /// 只需要看这个计数，不必等 playSong 跑完（见 session_teardown_test 的 C2）。
+  @visibleForTesting
+  int debugRestoreAbortCount = 0;
+
   /// 会话恢复租约起点（替代布尔量 `_isRestoringPlaybackSession`）。
   ///
   /// 与落盘租约同理:恢复流程里有 `await playSong(...)`,而 playSong 会对
@@ -207,6 +244,13 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     _restoreStartedAtMs = null;
     return false;
   }
+
+  /// 测试观察点：恢复流程是否仍在进行中（含租约判定）。
+  ///
+  /// 恢复跑在 `_init()` 的异步尾巴上，测试要等它落地只能靠轮询；没有这个
+  /// 观察点就只能靠 `Future.delayed` 猜时长 —— 那正是 flaky 的来源。
+  @visibleForTesting
+  bool get debugIsRestoringPlaybackSession => _isRestoringPlaybackSession;
 
   // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
   // 队列序列化缓存移入 _payloadEncoder(PlaybackPayloadEncoder)。
@@ -2242,6 +2286,25 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       duration: Duration.zero,
       currentBitRateKbps: 0,
     );
+    _finishSessionTeardown();
+  }
+
+  /// 「整份会话归零」的统一收尾：清掉**跨 provider 的残留**并立刻落盘。
+  ///
+  /// 调用方负责把 `state` 归零（当前曲 / 队列 / 进度 / 元数据），本方法只管
+  /// 两件 state 之外的残留 —— 正是上一轮修复漏掉、导致「队列清空了但客户端
+  /// 还留着孤儿状态」的部分：
+  ///
+  /// 1. **队列来源**（[queueOriginProvider]）：歌单 / 专辑 / 首页列表页封面上的
+  ///    「正在播放」指示由它驱动。会话都归零了它还挂着，那首已停的歌在列表里
+  ///    继续亮着 —— 与「Mini 播放器还显示歌名」是同一类残留。
+  /// 2. **立刻落盘**（不走 5s 防抖）：销毁 / 清空是用户主动终结一次会话。
+  ///    默认落盘有 5 秒防抖，若此刻退出或被强杀，磁盘上留着的仍是清空前的
+  ///    旧会话 → 下次启动把已销毁的歌复活，看起来「销毁根本没生效」。
+  void _finishSessionTeardown() {
+    _sessionGeneration++;
+    _ref.read(queueOriginProvider.notifier).state = null;
+    _schedulePersistPlaybackSession(immediate: true);
   }
 
   /// 从队列移除
@@ -2276,6 +2339,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         position: Duration.zero,
         duration: Duration.zero,
       );
+      // 与 clearQueue 同一收尾：来源清空 + 立刻落盘（当前曲被移除 = 本会话无曲，
+      // 残留的「正在播放」指示与旧会话文件同样要一起清掉）。
+      _finishSessionTeardown();
     } else {
       // 调整当前索引
       final newIndex = index < state.currentIndex
@@ -2487,6 +2553,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     _playbackSessionPersistTimer = null;
     _volumePersistTimer?.cancel();
     _volumePersistTimer = null;
+    // 先把「正在写」的那一轮等掉。不等的话本次写会被当作并发写跳过
+    // （见 _persistPlaybackSession 的脏标记逻辑只在进程还活着时才补得回来，
+    // 而这里正是进程即将结束的时刻）→ 磁盘上留的是**上一轮**的状态，
+    // 清空/销毁后的空会话丢失，重启即复活。
+    await _awaitInFlightPersist();
     try {
       await _persistPlaybackSession();
     } catch (e) {
@@ -2500,6 +2571,31 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       await LocalStorage.setPlayerVolume(state.volume);
     } catch (e) {
       Logger.warnWithTag(_playerLogTag, 'exit persist volume failed', e);
+    }
+  }
+
+  /// 等掉正在落地的那一轮写，**以落盘租约为上限**。
+  ///
+  /// 上限不能省：Windows 上 tmp.rename 可能被杀软/索引服务占用而永久阻塞
+  /// （见 [_persistingSinceMs] 的注释），无上限就是「退出时卡死」——
+  /// 那比丢一次落盘更糟。超时后照常往下走，由租约强制放行下一次写。
+  Future<void> _awaitInFlightPersist() async {
+    final inflight = _persistInFlight;
+    if (inflight == null) return;
+
+    final deadline = Completer<void>();
+    final timer = Timer(_persistLease, () {
+      if (!deadline.isCompleted) deadline.complete();
+    });
+    try {
+      await Future.any<void>(<Future<void>>[
+        inflight.catchError((Object _) {}),
+        deadline.future,
+      ]);
+    } finally {
+      // 必须显式 cancel：否则这颗 15s 定时器会在测试里悬着（fakeAsync 的
+      // 「A Timer is still pending」断言），生产里也无谓占一颗 Timer。
+      timer.cancel();
     }
   }
 }
