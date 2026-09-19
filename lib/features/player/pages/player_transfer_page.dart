@@ -444,18 +444,32 @@ class _RingBubble extends ConsumerWidget {
     final String trackLabel;
     if (isSelf) {
       // 本机就是这个 App 自己 —— 本地播放态就是权威，省一次请求也零延迟。
-      cover = ref.watch(
-        playerProvider.select((s) => s.currentSong?.artworkReference),
+      // ⚠️ 但「正在遥控远端」（activePeer != null）时例外：此时本地队列已被
+      // 替换成**远端镜像**（客户端是遥控器的设计），不代表本机播放端在播 ——
+      // 直接读会把被控端的歌错当成「本机在播」（2026-09-19 用户实测实锤）。
+      // 与 PeerCastRow.canPush 同一口径：投屏态下本机队列没有「现场」，
+      // 本机圆按空闲显示（设备图标 + 不带曲目文案）。
+      final castingRemote = ref.watch(
+        castPeerControllerProvider.select((s) => s.activePeer != null),
       );
-      playing = ref.watch(playerProvider.select((s) => s.isPlaying));
-      final song = ref.watch(playerProvider.select((s) => s.currentSong));
-      final title = song?.title ?? '';
-      final artist = song?.artist ?? '';
-      trackLabel = title.isEmpty
-          ? ''
-          : artist.isEmpty
-          ? title
-          : '$title - $artist';
+      if (castingRemote) {
+        cover = null;
+        playing = false;
+        trackLabel = '';
+      } else {
+        cover = ref.watch(
+          playerProvider.select((s) => s.currentSong?.artworkReference),
+        );
+        playing = ref.watch(playerProvider.select((s) => s.isPlaying));
+        final song = ref.watch(playerProvider.select((s) => s.currentSong));
+        final title = song?.title ?? '';
+        final artist = song?.artist ?? '';
+        trackLabel = title.isEmpty
+            ? ''
+            : artist.isEmpty
+            ? title
+            : '$title - $artist';
+      }
     } else {
       final nowPlaying = ref
           .watch(peerNowPlayingProvider(peer.peerId))
@@ -474,6 +488,14 @@ class _RingBubble extends ConsumerWidget {
         shape: BoxShape.circle,
         // 取色体系里的 raised 面：深浅封面下都不会变成一块突兀的白。
         color: colors.raised,
+      ),
+      // 描边必须走 foregroundDecoration（画在子节点**之上**），不能放进
+      // decoration.border —— 后者会被 Container 当作内边距把子节点内缩：
+      // 封面被挤小一圈、圆边露出 raised 底色，看起来就是「封面是正方形、
+      // 没放大铺满圆」的缺口（高亮态 3px 比常态 1px 更明显）。
+      // 前景描边不参与布局，封面得以铺满整个圆，描边只是覆在其上的一圈。
+      foregroundDecoration: BoxDecoration(
+        shape: BoxShape.circle,
         border: Border.all(
           // 落点高亮：拖到哪个圆上哪个圆亮起来 —— 「会落到谁那儿」一眼可见。
           // 遥控目标高亮：accent 常亮描边，与落点高亮(primary)区分开。
@@ -490,6 +512,8 @@ class _RingBubble extends ConsumerWidget {
               coverArtId: cover,
               size: _kRingSize,
               requestSize: 240,
+              // 显式 cover：封面铺满整个圆，不做任何 letterbox 留白。
+              fit: BoxFit.cover,
               semanticLabel: peer.name,
             )
           : _DeviceIcon(peer: peer, dimmed: !playing),
