@@ -65,3 +65,9 @@ unlinked_spec.ds
 # 上述工具运行时吐出的采样结果快照(临时数据，非源文件)
 /tool/msg_hist_result.txt
 /tool/msg_hist_storm.txt
+
+# 第三方参考源码(Music Assistant dev 裁剪快照，18MB)—— 仅本机对照用，不入库。
+# 需要取证时按 commit 拉取，不要往任何仓库塞源码副本:
+#   git clone https://github.com/music-assistant/server && git checkout <sha>
+# 文档里写取证位置时给 repo + commit sha，别写本地快照路径(会失效的悬空指向)。
+/refs/
