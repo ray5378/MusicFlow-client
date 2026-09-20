@@ -2,6 +2,20 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.18] - 2026-09-21
+
+### 修复
+- 直投 DLNA 设备的传输状态**读失败不再误判「放完」**：`SoapControl.getTransportInfo` 失败时返回的 `UNKNOWN` 此前与真 `STOPPED` 走同一条判定分支，配合「时长未知即豁免曲末校验」的放宽，**一次 SOAP 读失败就会在时长未知的曲目上演成「放完了 → 推下一首」**（曲中段误切）。现在 15s 宽限窗口内沿用最近一次成功读数，超出窗口仍读不到才认输
+- `_restartPlaybackClock` 一并把状态记忆复位为 `PLAYING`：与同处合成的「新曲刚开播」`_currentStatus` 保持一致，否则上一曲末尾的 `STOPPED` 会被新曲的首次读失败沿用成「设备已停」，而 `prevState` 是合成的 `PLAYING` —— 两者矛盾会直接推走新曲
+
+### 配套说明
+- 15s 窗口与服务端 `dlna/control.ts` 的 `TRANSPORT_STATE_CACHE_MS` 同口径；建议与服务端 **v4.0.1** 同步升级
+- 预览流与离线播放不受本次改动影响
+
+### 构建信息
+- Android: `MusicFlow-v5018-android.apk`
+- Windows: `MusicFlow-v5018-windows-setup.exe`（安装版，安装时可勾选开始菜单 / 桌面快捷方式）
+
 ## [5.0.17] - 2026-09-21
 
 ### 新功能
