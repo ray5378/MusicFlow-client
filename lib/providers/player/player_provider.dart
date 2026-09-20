@@ -34,6 +34,7 @@ import 'package:musicflow_client/providers/player/crossfade_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_cache_daemon.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
+import 'package:musicflow_client/providers/library/library_provider.dart';
 
 export 'package:musicflow_client/providers/player/player_state.dart';
 export 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
@@ -968,6 +969,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         requestedMaxBitRate: maxBitRate,
         sourceFormat: song.suffix,
         sourceBitRate: song.bitRate,
+        // P2-3:新服务端全管道化 → 无条件 timeOffset seek(字节 Range 已死)。
+        serverPipelinedHttp: _serverPipelinedHttp(),
       );
 
       final activeAddress = await _ensureActiveAddressForPlayback(
@@ -1199,6 +1202,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         requestedMaxBitRate: 320,
         sourceFormat: song.suffix,
         sourceBitRate: song.bitRate,
+        // P2-3:同上,转码重试路径同样受服务端管道化影响。
+        serverPipelinedHttp: _serverPipelinedHttp(),
       );
       final isAppleHttpStream =
           _isApplePlatform && streamUrl.startsWith('http://');

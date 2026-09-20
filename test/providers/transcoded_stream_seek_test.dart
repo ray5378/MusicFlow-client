@@ -124,6 +124,69 @@ void main() {
     }
   });
 
+  group('P2-3 服务端管道化能力判定', () {
+    test('serverPipelinedHttp=true 时无条件走 timeOffset(格式一致也不例外)', () {
+      // P2-1 后服务端即使格式码率全匹配,返回的也是实时流,字节 seek 必死。
+      expect(
+        shouldUseServerTimeOffsetSeek(
+          requestedFormat: 'mp3',
+          requestedMaxBitRate: 320,
+          sourceFormat: 'mp3',
+          sourceBitRate: 192,
+          serverPipelinedHttp: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('默认保持旧判定(共享契约表不受影响)', () {
+      expect(
+        shouldUseServerTimeOffsetSeek(
+          requestedFormat: 'mp3',
+          requestedMaxBitRate: 320,
+          sourceFormat: 'mp3',
+          sourceBitRate: 192,
+        ),
+        isFalse,
+      );
+    });
+
+    test('serverPipesAllHttpStreams 版本门控', () {
+      // 非 MusicFlow 服务端(Navidrome):一律 false。
+      expect(
+        serverPipesAllHttpStreams(
+            serverType: 'navidrome', serverVersion: '0.60.0'),
+        isFalse,
+      );
+      // MusicFlow 老版本:直传仍在,false。
+      expect(
+        serverPipesAllHttpStreams(
+            serverType: 'MusicFlow', serverVersion: '3.0.46'),
+        isFalse,
+      );
+      expect(
+        serverPipesAllHttpStreams(
+            serverType: 'musicflow', serverVersion: '3.0.35'),
+        isFalse,
+      );
+      // 管道首版及之后:true(含跳号 3.1.0)。
+      expect(
+        serverPipesAllHttpStreams(
+            serverType: 'MusicFlow', serverVersion: '3.0.47'),
+        isTrue,
+      );
+      expect(
+        serverPipesAllHttpStreams(
+            serverType: 'musicflow', serverVersion: '3.1.0'),
+        isTrue,
+      );
+      // 未知/非法版本:保守 false。
+      expect(serverPipesAllHttpStreams(serverType: 'MusicFlow', serverVersion: null), isFalse);
+      expect(serverPipesAllHttpStreams(serverType: 'MusicFlow', serverVersion: 'dev'), isFalse);
+      expect(serverPipesAllHttpStreams(serverType: null, serverVersion: '3.0.47'), isFalse);
+    });
+  });
+
   group('TranscodedStreamSeekTarget', () {
     test(
       'splits logical time into whole-second offset and source remainder',

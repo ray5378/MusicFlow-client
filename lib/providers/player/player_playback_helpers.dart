@@ -51,6 +51,8 @@ mixin PlayerPlaybackInternals on PlayerNotifier {
             requestedMaxBitRate: _currentStreamMaxBitRate,
             sourceFormat: enriched.suffix,
             sourceBitRate: enriched.bitRate,
+            // P2-3:元数据补齐后重判,同样叠加服务端管道化能力。
+            serverPipelinedHttp: _serverPipelinedHttp(),
           );
           if (useServerTimeOffsetSeek != _seekByReloadStream) {
             _seekByReloadStream = useServerTimeOffsetSeek;
