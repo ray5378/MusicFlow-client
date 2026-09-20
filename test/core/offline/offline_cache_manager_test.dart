@@ -7,9 +7,12 @@ import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
 /// 离线缓存管理器单元测试。
 ///
 /// 通过 `rootForTest` 注入临时目录，脱离 path_provider 在纯 VM 环境跑。
-/// 所有变更缓存的用例都在最后写入后调用 [settleIndexFlush]（等待 1 秒
-/// debounce 定时器到期并把 index.json 落盘），保证持久化断言确定、
-/// 且测试收尾时不留 pending 定时器。
+///
+/// 断言要读落盘结果时（典型：「同根目录重开 manager」用例）一律调
+/// `await m.flushIndexNow()` —— 直接绕过 1 秒 debounce 立即写 index.json，
+/// 结果确定且不用等墙钟。
+/// [settleIndexFlush] **只用于 tearDown**：等可能仍在排队的 debounce 定时器
+/// 触发后再删临时目录，避免异步写盘撞上已删除目录抛 PathNotFound 污染结果。
 Future<void> settleIndexFlush() =>
     Future.delayed(const Duration(milliseconds: 1300));
 
@@ -55,7 +58,7 @@ void main() {
     expect(cached.artist, '测试');
     expect(cached.size, bytes.length);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('putCover 写入后封面在索引中且 owners 归属正确（防 owners bug 回归）',
@@ -76,7 +79,7 @@ void main() {
         owners: ['s9']);
     expect(m.countByKind()[OfflineCacheKind.cover], 2);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('putLyrics 后 lyricsCached 与 lyrics 读取一致', () async {
@@ -88,7 +91,7 @@ void main() {
     expect(m.lyricsCached('s1'), isTrue);
     expect(await m.lyrics('s1'), text);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('putPlaylistCover 后 hasPlaylistCover 生效', () async {
@@ -100,7 +103,7 @@ void main() {
     expect(m.playlistCoverFile('p1')!.existsSync(), isTrue);
     expect(m.countByKind()[OfflineCacheKind.playlistCover], 1);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('evictSong 删歌+歌词+仅归属该歌的封面，共享封面保留', () async {
@@ -126,7 +129,7 @@ void main() {
     expect(m.hasCover('only-s2'), isTrue);
     expect(m.countByKind()[OfflineCacheKind.cover], 2);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('setMaxBytes 超容量时 LRU 轮转最久未最近访问者(歌曲 evict 不死锁)', () async {
@@ -158,7 +161,7 @@ void main() {
     await first.putCover('c1', Uint8List.fromList(List.filled(8, 2)),
         owners: ['s1']);
     await first.putLyrics('s1', 'lyric');
-    await settleIndexFlush();
+    await first.flushIndexNow();
 
     final second = newManager();
     await second.init();
@@ -169,7 +172,7 @@ void main() {
     expect(second.hasCover('c1'), isTrue);
     expect(second.lyricsCached('s1'), isTrue);
 
-    await settleIndexFlush();
+    await second.flushIndexNow();
   });
 
   test('cachedSongs 按 lastAccess 新→旧排序', () async {
@@ -181,7 +184,7 @@ void main() {
 
     expect(m.cachedSongs.map((s) => s.songId).toList(), ['b', 'a']);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('关闭后所有 put* 均不落盘，重新开启恢复写入', () async {
@@ -215,7 +218,7 @@ void main() {
     await m.putSong('again', Uint8List.fromList(List.filled(8, 5)));
     expect(m.hasSong('again'), isTrue);
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 
   test('关闭 + clearAll 后磁盘无缓存文件（设置层「关闭并清除」路径）', () async {
@@ -224,7 +227,7 @@ void main() {
     await m.putSong('s1', Uint8List.fromList(List.filled(8, 1)));
     await m.putCover('c1', Uint8List.fromList(List.filled(8, 2)),
         owners: ['s1']);
-    await settleIndexFlush();
+    await m.flushIndexNow();
 
     m.setEnabled(false);
     await m.clearAll();
@@ -241,6 +244,6 @@ void main() {
       }
     }
 
-    await settleIndexFlush();
+    await m.flushIndexNow();
   });
 }
