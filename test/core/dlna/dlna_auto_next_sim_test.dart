@@ -37,6 +37,11 @@ class _FakeDlnaDevice {
   /// 进度推进倍速（模拟设备比墙钟快，缩短测试等待时间）。
   double speed = 1.0;
 
+  /// 是否让 GetTransportInfo 读失败（HTTP 500 + 空 body）。
+  /// 客户端 `SoapControl.getTransportInfo` 此时返回 `'UNKNOWN'` —— 复现
+  /// 「一次 SOAP 读失败」被误当成「设备停了 → 放完了」的回归场景。
+  bool failTransportInfo = false;
+
   /// stopAfterEnd 且 duration==0 时，播放 start 后延迟多久转 STOPPED。
   Duration stopDelay = const Duration(milliseconds: 3500);
 
@@ -70,6 +75,13 @@ class _FakeDlnaDevice {
     final soapAction = (req.headers.value('soapaction') ?? '')
         .replaceAll('"', '');
     final action = soapAction.split('#').last;
+
+    // 模拟 GetTransportInfo 读取失败：客户端据此返回 UNKNOWN（见 soap_control.dart）。
+    if (failTransportInfo && action == 'GetTransportInfo') {
+      req.response.statusCode = 500;
+      await req.response.close();
+      return;
+    }
 
     String inner = '';
     switch (action) {
@@ -419,5 +431,56 @@ void main() {
         reason: '列表循环应回环到队列第 0 首');
     expect(trace.length, greaterThanOrEqualTo(5),
         reason: '应发生 ≥5 次游标变化(0..4 轮)，验证多次连续自动续播');
+  });
+
+  test('【模拟设备 读失败】GetTransportInfo 瞬断返回 UNKNOWN，不得误判「放完」而切歌', () async {
+    // 设备不报时长/进度，且真实时长也给 null → durationKnown=false。
+    // 这正是最危险的组合：deviceEnded 的判据会豁免 nearTrackEnd 校验，
+    // 于是旧实现里「非 PLAYING 且非 PAUSED」的 UNKNOWN 被直接消费成「放完了」。
+    fake.duration = 0;
+    fake.reportPosition = false;
+    fake.endMode = 'keepPlaying';
+    manager.setPlayMode('all');
+
+    final ok = await manager.startCast(
+      _device(fake),
+      _tracks(duration: null),
+    );
+    expect(ok, isTrue);
+    expect(manager.castQueueIndex, 0);
+
+    // 先让它正常播过 playedEnough(≥3s)，再用一次读失败顶上去。
+    await Future.delayed(const Duration(seconds: 4));
+    final before = fake.playedUris.length;
+    expect(manager.castQueueIndex, 0, reason: '前置:此时仍应在第 0 首');
+
+    fake.failTransportInfo = true;
+    await Future.delayed(const Duration(seconds: 6)); // 轮询 2s 一帧 → 至少 3 帧读失败
+
+    expect(manager.castQueueIndex, 0,
+        reason: 'UNKNOWN 只是「读失败」，不是「设备停了」——不得推下一首');
+    expect(fake.playedUris.length, before,
+        reason: '不得因一次 SOAP 读失败就下发新曲直链');
+  });
+
+  test('【模拟设备 读失败】持续读不到超过宽限窗口后仍会推进，不发生永久卡死', () async {
+    fake.duration = 0;
+    fake.reportPosition = false;
+    fake.endMode = 'keepPlaying';
+    manager.setPlayMode('all');
+
+    final ok = await manager.startCast(
+      _device(fake),
+      _tracks(duration: null),
+    );
+    expect(ok, isTrue);
+
+    // 全程读失败：宽限窗口(15s)内沿用最近一次成功读数(PLAYING)不误切，
+    // 窗口过后仍恢复原判定 → 推进下一首，避免「永久卡死」。
+    fake.failTransportInfo = true;
+    final trace = await traceIndex(const Duration(seconds: 20));
+
+    expect(trace.last.$2, greaterThan(0),
+        reason: '超过宽限窗口仍读不到设备状态时应推进，避免永久卡死');
   });
 }

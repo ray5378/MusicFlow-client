@@ -106,6 +106,38 @@ class DlnaManager {
   /// 视为设备自环/重播而非停滞，仅清空停滞计数、不计入曲末硬触发。
   static const double _positionWrapDrift = 5.0;
 
+  /// 最近一次**成功读到**的设备传输状态及其时刻。
+  ///
+  /// 背景：`SoapControl.getTransportInfo` 失败时返回 `'UNKNOWN'`
+  /// （`soap_control.dart:178`），而它此前与真 `STOPPED` 走同一条判定分支 ——
+  /// `deviceEnded` 的判据是「非 PLAYING 且非 PAUSED」，配合「时长未知即豁免
+  /// nearTrackEnd 校验」的放宽，**一次 SOAP 读失败就会在时长未知的曲目上演成
+  /// 「放完了 → 推下一首」**（曲中段误切）。
+  /// 现在：`UNKNOWN` 在 `_transportStateGraceMs` 窗口内沿用最近一次成功读数；
+  /// 超出窗口仍读不到才认输(那时按既有 stalled/deviceEnded 链兜底，不会卡住)。
+  /// 15s 与服务端 `dlna/control.ts` 的 `TRANSPORT_STATE_CACHE_MS` 同口径。
+  String _lastKnownTransportState = 'UNKNOWN';
+  DateTime? _lastKnownTransportStateAt;
+  static const int _transportStateGraceMs = 15000;
+
+  /// 把本次读到的状态归一成可用于续播判定的状态。
+  /// 非 UNKNOWN 即刷新缓存；UNKNOWN 且在宽限窗口内则沿用最近一次成功读数。
+  String _resolveTransportState(String reported) {
+    final now = DateTime.now();
+    if (reported != 'UNKNOWN') {
+      _lastKnownTransportState = reported;
+      _lastKnownTransportStateAt = now;
+      return reported;
+    }
+    final at = _lastKnownTransportStateAt;
+    if (at != null &&
+        _lastKnownTransportState != 'UNKNOWN' &&
+        now.difference(at).inMilliseconds <= _transportStateGraceMs) {
+      return _lastKnownTransportState;
+    }
+    return 'UNKNOWN';
+  }
+
   // ==================== 回调 ====================
 
   /// 设备列表变化回调
@@ -749,9 +781,11 @@ class DlnaManager {
       final prevPosition = _currentStatus.position;
       final prevDuration = _currentStatus.duration;
 
-      // 获取播放状态
-      final state = await SoapControl.getTransportInfo(
-        _currentDevice!.avTransportUrl!,
+      // 获取播放状态。注意：读失败返回的是 UNKNOWN，**不是**「设备处于未知态」，
+      // 归一化后再用（见 _resolveTransportState）——否则一次 SOAP 读失败会在
+      // 「时长未知」的曲目上被 deviceEnded 消费成「放完了 → 推下一首」。
+      final state = _resolveTransportState(
+        await SoapControl.getTransportInfo(_currentDevice!.avTransportUrl!),
       );
 
       // 获取进度信息
@@ -1063,6 +1097,11 @@ class DlnaManager {
   void _restartPlaybackClock() {
     _playbackElapsed = 0;
     _playSegmentStart = DateTime.now();
+    // 状态记忆一并重启为 PLAYING：与同处合成的「新曲刚开播」_currentStatus 保持一致。
+    // 不清的话，上一曲末尾的 STOPPED 会被新曲的首次读失败沿用成「设备已停」，
+    // 而 prevState 是合成的 PLAYING —— 两者矛盾会直接推走新曲。
+    _lastKnownTransportState = 'PLAYING';
+    _lastKnownTransportStateAt = DateTime.now();
   }
 
   /// 播放失败/流中断兜底：无停播阈值，无限跳到按播放模式计算的下一首。
