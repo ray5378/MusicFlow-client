@@ -1,5 +1,36 @@
 # 本轮改动总览（2026-09-13 · 以 GitHub 主线最新源码发 v5.0.0 大版本）
 
+## v5.0.18（tag `v5.0.18` · 直投 DLNA 的传输状态读失败不再误判「放完」）
+
+### 用户需求
+- 直投 DLNA 设备播放时，**时长未知的曲目偶发在曲中段被切走**（客户端自己推下一首，设备没到头）。
+
+### 根因
+- `SoapControl.getTransportInfo` 读失败时返回 **`UNKNOWN`**（`soap_control.dart:178`），而它此前与真
+  `STOPPED` 走**同一条**判定分支 —— `deviceEnded` 的判据是「非 PLAYING 且非 PAUSED」，再叠加
+  「时长未知即豁免 `nearTrackEnd` 曲末校验」的放宽，于是**一次 SOAP 读失败**就足以在时长未知的
+  曲目上演成「放完了 → 推下一首」。读失败是瞬态（设备忙/网络抖动），不是状态。
+
+### 实现
+- 新增 `_lastKnownTransportState` / `_lastKnownTransportStateAt` + `_resolveTransportState()`：非
+  `UNKNOWN` 即刷新缓存；`UNKNOWN` 且在 **15s** 宽限窗口内沿用最近一次成功读数，超出窗口才认输
+  （那时按既有 stalled / `deviceEnded` 链兜底，不会永久卡死）。15s 与服务端 `dlna/control.ts`
+  的 `TRANSPORT_STATE_CACHE_MS` 同口径。
+- `_restartPlaybackClock` 一并把状态记忆复位为 `PLAYING`：与同处合成的「新曲刚开播」
+  `_currentStatus` 保持一致，否则上一曲末尾的 `STOPPED` 会被新曲的首次读失败沿用成「设备已停」，
+  而 `prevState` 是合成的 `PLAYING` —— 两者矛盾会直接推走新曲。
+
+### 验证
+- `dart analyze` 两文件：无问题。
+- `test/core/dlna/dlna_auto_next_sim_test.dart` **9/9** 通过（含新增 2 例：「瞬断返回 UNKNOWN 不得误判
+  放完」/「持续读不到超窗口仍会推进，不永久卡死」）。
+- 负向验证：变异体（直接用原始 `UNKNOWN`）精确变红 2 例，还原后复绿。
+- 发版前守卫：`check_interaction_feedback` / `check_workflow_yaml` / `gpu_guard_scan` /
+  `handoff_chain_scan` / `handoff_e2e_scan` / `check-l10n --gate-cjk` 全过。
+
+> 📌 `v5.0.14`–`v5.0.17` 未逐版补记本文件，细节见 `CHANGELOG.md`。
+
+
 ## v5.0.13（tag `v5.0.13` · 撤销 v5.0.12 回滚；「流转播放看不到」真因 = WAF 拦截 HTTPS，非客户端代码）
 
 > **根因锁定（用户实证）**：「流转播放对端看不到歌/封面」的真因是 **HTTPS 请求被 WAF 拦截**，
