@@ -45,7 +45,7 @@
 
 - `on`: push main + pull_request main + workflow_dispatch；`permissions: contents: read`
 - job `offline-cache-guard`，ubuntu-latest，timeout 20min
-- steps：checkout@v4 → `subosito/flutter-action@v2`(3.38.10, stable, cache:true，与 test-suite 一致) → `flutter pub get` → `flutter analyze --no-fatal-infos --no-fatal-warnings` → `flutter test test/core/offline test/features/discover/discover_page_test.dart`
+- steps：checkout@v4 → `subosito/flutter-action@v2`(3.47.5, stable, cache:true，与 test-suite 一致) → `flutter pub get` → `flutter analyze --no-fatal-infos --no-fatal-warnings` → `flutter test test/core/offline test/features/discover/discover_page_test.dart`
 - **不加 continue-on-error**（真门禁），命名沿用仓库 guard 系列风格。
 
 ### 不纳入本次范围

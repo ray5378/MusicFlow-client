@@ -53,7 +53,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.1'
+          flutter-version: '3.47.5'
           channel: 'stable'
           # 禁用缓存构建：每次 tag 发布都全新编译，避免缓存命中旧产物
           cache: false
@@ -111,7 +111,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.1'
+          flutter-version: '3.47.5'
           channel: 'stable'
           # 禁用缓存构建：每次 tag 发布都全新编译，避免缓存命中旧产物
           cache: false
@@ -185,7 +185,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.1'
+          flutter-version: '3.47.5'
           channel: 'stable'
           # 禁用缓存构建：每次 tag 发布都全新编译，避免缓存命中旧产物
           cache: false
