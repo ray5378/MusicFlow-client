@@ -360,6 +360,24 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     _init();
   }
 
+  /// 服务端能力(P2-3):当前库的服务端是否全通道管道化。
+  ///
+  /// MusicFlow ≥ 3.0.47 的一切 HTTP 流都是实时流 → seek 必须走 timeOffset 重拉;
+  /// 老版本/非 MusicFlow 服务端/版本未知 → false,沿用旧格式码率判定(不劣化)。
+  ///
+  /// 定义在 [PlayerNotifier] 而不是某个 Internals mixin:mixin 成员只对**混入
+  /// 它的类**可见,而本方法同时被基类自身与 `mixin ... on PlayerNotifier` 里的
+  /// 代码调用(起流 / 转码重试 / 元数据补齐后重判三条路径)。挂在基类才是三者
+  /// 共同可见的最小面 —— 放 mixin 里会因 PlayerNotifier 未 with 该 mixin 而报
+  /// undefined_method。
+  bool _serverPipelinedHttp() {
+    final lib = _ref.read(activeLibraryProvider);
+    return serverPipesAllHttpStreams(
+      serverType: lib?.serverType,
+      serverVersion: lib?.serverVersion,
+    );
+  }
+
   @override
   set state(PlayerState value) {
     super.state = value;

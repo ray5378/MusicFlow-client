@@ -8,17 +8,6 @@ part of 'player_provider.dart';
 const _kLoadThrottleOnFailStreak = Duration(milliseconds: 300);
 
 mixin PlayerSeekInternals on PlayerNotifier {
-  /// 服务端能力(P2-3):当前库的服务端是否全通道管道化。
-  /// MusicFlow ≥ 3.0.47 的一切 HTTP 流都是实时流 → seek 必须走 timeOffset 重拉;
-  /// 老版本/非 MusicFlow 服务端/版本未知 → false,沿用旧格式码率判定(不劣化)。
-  bool _serverPipelinedHttp() {
-    final lib = _ref.read(activeLibraryProvider);
-    return serverPipesAllHttpStreams(
-      serverType: lib?.serverType,
-      serverVersion: lib?.serverVersion,
-    );
-  }
-
   Duration _normalizeSeekPosition(Duration position) => normalizeSeekPosition(
       position,
       state.duration,
