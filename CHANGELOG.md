@@ -2,6 +2,18 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.20] - 2026-09-21
+
+### 修复 —— 离线缓存 flaky 测试（与产品行为无关，修 CI 信任度）
+
+- **根因**：3 例失败同源 —— 后台 debounce 落盘 Timer 在 tearDown 删临时目录后才触发，`_atomicPromote` 抛 `PathNotFound`，`unawaited` 异步异常被记到当时正在跑的用例头上（满负载 Timer 迟到即现形）。与 seek 改动无关（stash 双向对照）。
+- **修法双保险**：新增 `dispose()` 取消 Timer（＋`_disposed` 守卫）；`_flushIndex` 遇根目录消失静默跳过＋全体 try/catch（后台落盘永不抛，生产退出瞬间同样受益）。
+- 测试侧 tearDown 改确定性 `dispose`，不再依赖 1.3s 墙钟等待；新增回归用例（dispose 后删目录再等过窗口不抛）。
+
+### 构建信息
+- Android: `MusicFlow-v5020-android.apk`
+- Windows: `MusicFlow-v5020-windows-setup.exe`（安装版，安装时可勾选开始菜单 / 桌面快捷方式）
+
 ## [5.0.19] - 2026-09-21
 
 ### 修复 —— 拖动/点击进度条问题逐一修复
