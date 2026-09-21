@@ -115,6 +115,14 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 位置无进展时累计；一旦离开该状态或超出阈值即清零/reset。
   int _startupStuckTicks = 0;
 
+  /// seek 落位宽限:reload-stream 重拉成功后,新源 source 从余数(<1s)起步,
+  /// 0 秒卡死看门狗会误判「卡在起点」而 playSong 从头重载(再犯则 next 跳歌),
+  /// 近末尾守卫也可能把「刚 seek 到尾段 + 尾包未到」当完成切歌。
+  /// 置位后宽限 15s:期间不累计 _startupStuckTicks、不计近末尾完成;source
+  /// 一旦前进过 1500ms 即提前解除;到期自动解除,真卡死仍由看门狗接力。
+  /// 切歌(playSong/预览起播经 _clearStreamContext)即清除,不污染下一首。
+  DateTime? _seekSettleUntil;
+
   /// 期望正在自动播放（尚未被用户暂停）的意图标记。
   /// 仅在 playSong(autoPlay:true) 时置位、用户暂停时清除。
   /// 必要性：若底层 setSource(网络/缓存/转码)卡住不返回,play() 永远

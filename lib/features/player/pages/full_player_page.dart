@@ -1180,7 +1180,9 @@ class _ProgressBarState extends ConsumerState<ProgressBar>
                     ? null
                     : (endedValue) {
                         final sessionSongId = _dragSongId;
-                        final value = (_dragValue ?? endedValue)
+                        // 取 scrubber 同步终值(最新),不用 _dragValue:后者经 setState
+                        // 异步落盘,最后一次 dragUpdate 可能还没 flush,会偏小一帧。
+                        final value = endedValue
                             .clamp(0.0, maxMilliseconds)
                             .toDouble();
                         setState(_clearSeekSession);

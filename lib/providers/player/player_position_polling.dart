@@ -21,6 +21,18 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       final isReadyPlaying =
           player.playing && processing == ProcessingState.ready;
 
+      // seek 落位宽限:宽限内 source 未前进不算卡死/不计近末尾完成;source 一旦
+      // 前进过 1500ms 或宽限到期即自动解除,真卡死仍由看门狗接力。
+      bool inSeekSettle = false;
+      if (_seekSettleUntil != null) {
+        if (DateTime.now().isAfter(_seekSettleUntil!) ||
+            sourcePlayerPos > const Duration(milliseconds: 1500)) {
+          _seekSettleUntil = null;
+        } else {
+          inSeekSettle = true;
+        }
+      }
+
       // 「确实在播」信号按平台归一化：
       // - 移动端维持 isReadyPlaying(仅 processing==ready 累计)，避免长期缓冲
       //   被误跳；这是原实现、不影响 Android/iOS。
@@ -61,6 +73,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           atStart &&
           hasNoProgress &&
           !syntheticCarrying &&
+          !inSeekSettle &&
           !_shouldPreserveSeekPosition()) {
         _startupStuckTicks += 1;
       } else {
@@ -107,7 +120,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       final endEngaged =
           inNearEndWindow &&
           (player.playing || state.position >= state.duration);
-      if (endEngaged && deltaFromLast <= 150) {
+      if (endEngaged && deltaFromLast <= 150 && !inSeekSettle) {
         _nearEndStuckTicks += 1;
       } else {
         _nearEndStuckTicks = 0;

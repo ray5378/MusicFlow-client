@@ -129,6 +129,10 @@ class _MusicFlowPlayerScrubberState extends State<MusicFlowPlayerScrubber> {
           _horizontalDragActive) {
         return;
       }
+      // 点按输掉竞技场(如被父级滚动抢走):用户意图不是 seek,必须取消。
+      // (曾试过按提交处理,但会导致滚动误触成跳播,既有单测
+      // 'tap and canceled gestures close exactly one seek session' 锁定此语义。)
+      // 真实点按走 onTapUp→_finish,不受影响;长按由 onHorizontalDragCancel 守卫覆盖。
       _cancel();
     });
   }
