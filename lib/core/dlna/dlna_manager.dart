@@ -646,11 +646,33 @@ class DlnaManager {
 
   /// 跳转进度
   Future<void> seek(int seconds) async {
-    if (_currentDevice?.avTransportUrl == null) return;
+    // 静默早退是本方法最容易被忽略的失败路径:没有当前设备 / 还没拿到
+    // avTransportUrl 时直接 return,调用方只会看到「拖了没反应」。必须打出来。
+    if (_currentDevice?.avTransportUrl == null) {
+      Logger.debugWithTag(
+        'DLNA',
+        '[seek] 跳过 ${seconds}s:无当前设备或 avTransportUrl 未就绪 '
+            '(device=${_currentDevice?.friendlyName ?? "-"})',
+      );
+      return;
+    }
+    final t0 = DateTime.now().millisecondsSinceEpoch;
+    Logger.debugWithTag(
+      'DLNA',
+      '[seek] ${_currentDevice!.friendlyName} → ${seconds}s 下发 SOAP Seek',
+    );
     try {
       await SoapControl.seek(_currentDevice!.avTransportUrl!, seconds);
+      Logger.debugWithTag(
+        'DLNA',
+        '[seek] ${_currentDevice!.friendlyName} → ${seconds}s 成功 '
+            '${DateTime.now().millisecondsSinceEpoch - t0}ms',
+      );
     } catch (e) {
-      Logger.debugWithTag('DLNA', 'seek($seconds) failed: $e');
+      Logger.debugWithTag(
+        'DLNA',
+        '[seek] ${seconds}s 失败 ${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
+      );
     }
   }
 

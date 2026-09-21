@@ -1090,13 +1090,44 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   Future<void> seek(Duration position) async {
     if (state.activePeer == null) {
+      // 无活跃投屏 peer → 本机播放器自己 seek。
+      Logger.debugWithTag(
+        'CAST-PEER',
+        '[seek] 本机播放器(无投屏) → ${position.inMilliseconds}ms',
+      );
       await _ref.read(playerProvider.notifier).seek(position);
       return;
     }
-    await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
+    // 有投屏 peer → 命令下发到服务端,由服务端转给目标设备/客户端。
+    // 「拖了没反应」时先看这一行:有没有打出来(打到说明命令真的发出去了)、
+    // peerId 是不是你以为的那台设备。
+    final peerId = state.activePeer!.peerId;
+    final t0 = DateTime.now().millisecondsSinceEpoch;
+    Logger.debugWithTag(
+      'CAST-PEER',
+      '[seek] peer=$peerId 目标=${position.inSeconds}s '
+          '(${position.inMilliseconds}ms, 取整下发丢 ${position.inMilliseconds - position.inSeconds * 1000}ms)',
+    );
+    try {
+      await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
+    } catch (e) {
+      Logger.debugWithTag(
+        'CAST-PEER',
+        '[seek] peer=$peerId 目标=${position.inSeconds}s 下发失败 '
+            '${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
+      );
+      rethrow;
+    }
     // 立即用目标位置对齐平滑进度,减少插值滞后。
+    // 注意顺序:先置 _seekIssuedAtMs 再改 smoothPositionSeconds —— 置标记是给
+    // 轮询用的「丢弃 seek 前采样」护栏,漏置会让下一次轮询把进度条拽回去。
     _seekIssuedAtMs = DateTime.now().millisecondsSinceEpoch;
     state = state.copyWith(smoothPositionSeconds: position.inSeconds.toDouble());
+    Logger.debugWithTag(
+      'CAST-PEER',
+      '[seek] peer=$peerId 目标=${position.inSeconds}s 下发返回 '
+          '${DateTime.now().millisecondsSinceEpoch - t0}ms,已置护栏并乐观对齐进度',
+    );
     unawaited(pollOnce());
   }
 
@@ -1721,6 +1752,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs <= 6000 &&
           effectiveStatus.reportedAtMs != null &&
           effectiveStatus.reportedAtMs! < _seekIssuedAtMs;
+      // debug:进度条「拖完又跳回原位」的现场。这一行有 = 上报确实是 seek 之前
+      // 采的样(护栏正常生效,该挡);拖动后仍跳回却**没有**这一行 = 护栏没拦住
+      // (reportedAt 缺失 / 窗口过期 / 标记没置上),才是真 bug。
+      if (staleAfterSeek) {
+        Logger.debugWithTag(
+          'CAST-PEER',
+          '[seek-guard] 丢弃陈旧上报 reported=${effectiveStatus.positionSeconds}s'
+              ' reportedAt=${effectiveStatus.reportedAtMs} seekIssuedAt=$_seekIssuedAtMs'
+              ' 距 seek ${DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs}ms'
+              '(保持乐观值 ${state.smoothPositionSeconds}s)',
+        );
+      }
       // 音量/静音同样来自远端周期上报,连续拖动会被上一拍的值顶掉(详见
       // _applyVolumeShadow)。设备型 peer 无 reportedAt → 原样,不受影响。
       final mergedStatus = _applyVolumeShadow(effectiveStatus);

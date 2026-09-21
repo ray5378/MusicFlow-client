@@ -147,12 +147,18 @@ class SoapControl {
   }
 
   /// 跳转进度
+  ///
+  /// 注意 `seconds` 是**整型**、目标格式是 HH:MM:SS —— 小数秒在这里被丢弃,
+  /// 且小于 1s 的目标会被压成 00:00:00(等于回到开头)。调用方若从
+  /// `Duration.inSeconds` 取整传入,整体误差 <1s 属正常;若看到「定位恒偏小」
+  /// 且偏差接近 1s,根因就在这条取整链上(见下方 debug 日志)。
   static Future<void> seek(String controlUrl, int seconds) async {
     final h = (seconds ~/ 3600).toString().padLeft(2, '0');
     final m = ((seconds % 3600) ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
     final target = '$h:$m:$s';
 
+    Logger.debugWithTag('DLNA-SOAP', 'Seek REL_TIME=$target (入参 ${seconds}s)');
     await call(controlUrl, _avTransport, 'Seek', {
       'InstanceID': '0',
       'Unit': 'REL_TIME',
