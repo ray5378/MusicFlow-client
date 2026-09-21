@@ -2,6 +2,26 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.22] - 2026-09-22
+
+### 修复 —— 本机(local)播放拖动进度条「拖到哪都从头开始」
+
+- **根因**:服务端实时管道流**不可字节 seek**,而 `_seekWithFallback` 在漂移超标时的
+  兜底只是**把同一个无效动作再执行一次**(`player.seek()`),从不升级为代码里已存在的
+  `_reloadStreamForSeek()`。抓包证据:本机播放点击进度条 → 服务端 **0 次 seek、
+  0 次 `/rest/stream` 重拉**,只有起播那一次(且不带 `timeOffset`)。
+- **修法**:漂移 > 2000ms 且当前源是可重建 URL 的服务端流 → 一律升级为带 `timeOffset`
+  的重拉,即 MA 语义的「seek = 用新起点重建一条流」,而不是在旧流里挪指针。
+- **能力判定 fail-open**:`_serverPipelinedHttp()` 依赖 `library.serverType/serverVersion`,
+  这两个字段**只在密码登录时写入一次**,升级上来的库或复用旧会话进入时为 `null` →
+  误判 `false` → 拖动彻底失效。现在仅当明确识别出非 MusicFlow(Navidrome 等)才返回
+  `false`,字段缺失按「全管道化」处理 —— 误判 `true` 的代价只是一次重拉(服务端若忽略
+  `timeOffset`,由漂移兜底接住),误判 `false` 的代价是功能全废。
+
+### 配套
+- 服务端 **v4.0.6+**(本次服务端侧同步按 Music Assistant 语义重做了 sendspin / DLNA
+  的跳转链路,详见服务端 `docs/PLAYBACK_SEEK_MA_REWORK.md`)。
+
 ## [5.0.21] - 2026-09-21
 
 ### 改进

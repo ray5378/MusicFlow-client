@@ -380,10 +380,23 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// undefined_method。
   bool _serverPipelinedHttp() {
     final lib = _ref.read(activeLibraryProvider);
-    return serverPipesAllHttpStreams(
-      serverType: lib?.serverType,
-      serverVersion: lib?.serverVersion,
-    );
+    final type = lib?.serverType?.trim().toLowerCase();
+    final version = lib?.serverVersion;
+    // 明确识别出非 MusicFlow(Navidrome 等)→ false,沿用旧格式/码率判定。
+    if (type != null && type.isNotEmpty && type != 'musicflow') return false;
+    // MusicFlow 且版本已知 → 原 semver 判定(>= 3.0.47 走 timeOffset 重拉)。
+    if (type == 'musicflow' && version != null && version.trim().isNotEmpty) {
+      return serverPipesAllHttpStreams(
+        serverType: type,
+        serverVersion: version,
+      );
+    }
+    // ★ 字段缺失(老库/升级库:serverType、serverVersion 仅在密码登录时写入
+    //   一次,升级上来的库或复用旧会话进入时为 null):fail-open 按全管道化
+    //   处理。误判为 true 的代价只是一次重拉(服务端若忽略 timeOffset,
+    //   由 _seekWithFallback 的 drift 兜底接住);而误判为 false 会让拖动
+    //   彻底失效 —— 现场「拖到任何位置都从头开始」正是后者。
+    return true;
   }
 
   @override

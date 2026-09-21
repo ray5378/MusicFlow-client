@@ -157,6 +157,31 @@ mixin PlayerSeekInternals on PlayerNotifier {
     );
     if (drift <= 2000) return;
 
+    // ★ 服务端实时管道流不可字节 seek —— 再执行一次 player.seek() 永远无效。
+    // 现场:本机播放拖到任何位置都回到开头(服务端 0 次 seek、0 次重拉请求),
+    // 就死在这条兜底上:它只是把同一个无效动作重复一遍。
+    // 只要当前源是能重建 URL 的服务端流,一律升级为 timeOffset 重拉;
+    // 这样即使能力判定(依赖 library.serverType/serverVersion,仅在密码登录时
+    // 写入,升级库/老库可能为 null → 判 false)失效,拖动依然可用。
+    if (_currentStreamSongId == songId && _currentStreamUrl != null) {
+      _seekDbg(
+        'seek drift on non-seekable source (driftMs=$drift), '
+        'upgrading to reload-stream',
+      );
+      await _reloadStreamForSeek(
+        player: player,
+        songId: songId,
+        target: target,
+        seekTarget: TranscodedStreamSeekTarget.fromLogical(target),
+        streamFormat: _currentStreamFormat,
+        streamMaxBitRate: _currentStreamMaxBitRate,
+        shouldResume: player.playing,
+        isCurrentSeek: isCurrentSeek,
+        ownsSource: ownsSource,
+      );
+      return;
+    }
+
     // 直连流/本地文件也做一次强制重试，规避解码器刚起播时的 seek 抖动。
     final shouldResume = player.playing;
     Logger.warn(
