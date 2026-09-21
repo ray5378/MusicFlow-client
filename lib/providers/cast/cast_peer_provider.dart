@@ -110,6 +110,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 远端客户端要等下一个上报周期(~4s)才回新位置,期间轮询读到的仍是旧采样,
   /// 采纳它会把刚拖好的进度条拽回 seek 之前(与 HA 卡片 `_seekIssuedAt` 同款)。
   int _seekIssuedAtMs = 0;
+  /// seek REST 响应返回时刻(ms)。服务端 seek 同步语义:响应返回 = 位置锚点已落位,
+  /// 故「在此之前发起」的状态拉取数据可能早于 seek → 丢弃(MA 因果判定,无固定窗口)。
+  int _seekAckAtMs = 0;
+  /// 最近一次状态轮询的发起时刻(ms):与 [_seekAckAtMs] 比较判因果。
+  int _pollStartedAtMs = 0;
   /// 最近一次本端下发**音量类命令**(volume / mute)的时刻(ms)。
   /// 与 seek 同因:远端客户端的音量也是周期上报的,连续拖动时(20→50→30)
   /// 上报回来的可能还是上一拍的 50,会把手上的 30 顶掉。
@@ -1110,7 +1115,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     );
     try {
       await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
+      // 因果屏障:seek 响应返回 = 服务端锚点已落位,此后发起的轮询必含 seek 结果。
+      _seekAckAtMs = DateTime.now().millisecondsSinceEpoch;
     } catch (e) {
+      // seek 失败:服务端未落位,旧位置上报依然有效,清掉两个判定标记。
+      _seekIssuedAtMs = 0;
+      _seekAckAtMs = 0;
       Logger.debugWithTag(
         'CAST-PEER',
         '[seek] peer=$peerId target=${position.inSeconds}s send failed '
@@ -1600,6 +1610,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     if (state.activePeer?.peerId != peerId) return;
     final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
     try {
+      _pollStartedAtMs = DateTime.now().millisecondsSinceEpoch; // 因果判定基准(对齐卡片)
       final st = await client.getRaw('$base/status').timeout(const Duration(seconds: 6));
       final next = PeerStatus.fromJson((st as Map).cast<String, dynamic>());
 
@@ -1744,14 +1755,19 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       _failureCount = 0;
       _pollInterval = const Duration(seconds: 2);
       if (!mounted) return;
-      // 本端刚 seek 过时,跳过「seek 之前采样」的上报:远端客户端此刻回的仍是
-      // **旧位置**(要等它下一个上报周期才更新),采纳它会把刚拖好的进度条拽回
-      // seek 之前,过两秒再跳回去。窗口 6s。
-      // 无 reportedAt 的设备型 peer 不参与(它们走实时查询,seek 后立刻能读到新值)。
-      final staleAfterSeek = _seekIssuedAtMs > 0 &&
-          DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs <= 6000 &&
+      // MA 对齐(2026-09-22 去掉固定 6s 窗,与 HA 卡片同款):位置陈旧只用两个精确判据 ——
+      // ①因果:seek 响应返回(服务端锚点已落位)**之前发起**的状态拉取,数据可能早于
+      //   seek → 丢弃。设备型 peer(无 reportedAt)只靠这一条:精确、无窗口。
+      // ②采样:带 reportedAt 的客户端实例,采样时刻早于 seek 下发 → 未含 seek 结果;
+      //   时钟 sanity:reportedAt 与本机偏差 >120s 视为不可信,只按 ① 判定。
+      final fetchStale = _seekAckAtMs > 0 &&
+          _pollStartedAtMs > 0 &&
+          _pollStartedAtMs < _seekAckAtMs;
+      final sampleStale = _seekIssuedAtMs > 0 &&
           effectiveStatus.reportedAtMs != null &&
+          (DateTime.now().millisecondsSinceEpoch - effectiveStatus.reportedAtMs!).abs() < 120000 &&
           effectiveStatus.reportedAtMs! < _seekIssuedAtMs;
+      final staleAfterSeek = fetchStale || sampleStale;
       // debug:进度条「拖完又跳回原位」的现场。这一行有 = 上报确实是 seek 之前
       // 采的样(护栏正常生效,该挡);拖动后仍跳回却**没有**这一行 = 护栏没拦住
       // (reportedAt 缺失 / 窗口过期 / 标记没置上),才是真 bug。

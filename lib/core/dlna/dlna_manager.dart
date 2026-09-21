@@ -644,7 +644,13 @@ class DlnaManager {
     }
   }
 
-  /// 跳转进度
+  /// 跳转进度 —— MA 对齐(2026-09-22):**重投流重建**,不再发 SOAP REL_TIME Seek。
+  ///
+  /// 根因:设备拉的是服务端实时管道流(chunked,不可字节 seek),SOAP Seek 对它
+  /// 无效 —— 往后跳落在设备已缓冲区间内看似生效,往前跳设备拿不到数据 →
+  /// 重头拉流(表现为「同一首歌能往回跳,不能往前跳」)。
+  /// 修法与后端 reseekByRecast / MA play_index(seek_position) 同语义:
+  /// 带 timeOffset 重新 SetAVTransportURI + Play,用新起点重建流。
   Future<void> seek(int seconds) async {
     // 静默早退是本方法最容易被忽略的失败路径:没有当前设备 / 还没拿到
     // avTransportUrl 时直接 return,调用方只会看到「拖了没反应」。必须打出来。
@@ -657,15 +663,54 @@ class DlnaManager {
       return;
     }
     final t0 = DateTime.now().millisecondsSinceEpoch;
+    final device = _currentDevice!;
+    // 无队列信息(异常态)拿不到 songId → 退回 SOAP seek,尽力而为。
+    final track = (_queueIndex >= 0 && _queueIndex < _queue.length) ? _queue[_queueIndex] : null;
+    if (track == null) {
+      Logger.debugWithTag('DLNA', '[seek] no current track, fallback SOAP Seek ${seconds}s');
+      try {
+        await SoapControl.seek(device.avTransportUrl!, seconds);
+      } catch (e) {
+        Logger.debugWithTag('DLNA', '[seek] fallback SOAP Seek failed: $e');
+      }
+      return;
+    }
     Logger.debugWithTag(
       'DLNA',
-      '[seek] ${_currentDevice!.displayName} -> ${seconds}s sending SOAP Seek',
+      '[seek] ${device.displayName} -> ${seconds}s 重建流(timeOffset=$seconds, song=${track.songId})',
     );
     try {
-      await SoapControl.seek(_currentDevice!.avTransportUrl!, seconds);
+      String url = await _directStreamUrl(track.songId);
+      final sep = url.contains('?') ? '&' : '?';
+      url = '$url${sep}timeOffset=$seconds';
+      final metadata = buildDidlLite(
+        title: track.title,
+        uri: url,
+        mime: track.mimeHint ?? 'audio/mpeg',
+        artist: track.artist,
+        album: track.album,
+      );
+      // rebuild 期间设备短暂非播态:互斥防误判曲末(与切歌同款守卫)。
+      _lastCompletionAdvance = DateTime.now();
+      try {
+        await SoapControl.stop(device.avTransportUrl!);
+      } catch (_) {}
+      try {
+        await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
+      } catch (e) {
+        Logger.debugWithTag('DLNA', '[seek] setUri failed: $e');
+      }
+      try {
+        await SoapControl.play(device.avTransportUrl!);
+      } catch (e) {
+        Logger.debugWithTag('DLNA', '[seek] play failed: $e');
+      }
+      // 墙钟锚点改到目标秒:同曲重投,不重置时长/游标/队列。
+      _reanchorPlaybackClock(seconds.toDouble());
+      _currentStatus = _currentStatus.copyWith(state: 'PLAYING', position: seconds);
       Logger.debugWithTag(
         'DLNA',
-        '[seek] ${_currentDevice!.displayName} -> ${seconds}s ok '
+        '[seek] ${device.displayName} -> ${seconds}s 重建完成 '
             '${DateTime.now().millisecondsSinceEpoch - t0}ms',
       );
     } catch (e) {
@@ -1122,6 +1167,15 @@ class DlnaManager {
     // 状态记忆一并重启为 PLAYING：与同处合成的「新曲刚开播」_currentStatus 保持一致。
     // 不清的话，上一曲末尾的 STOPPED 会被新曲的首次读失败沿用成「设备已停」，
     // 而 prevState 是合成的 PLAYING —— 两者矛盾会直接推走新曲。
+    _lastKnownTransportState = 'PLAYING';
+    _lastKnownTransportStateAt = DateTime.now();
+  }
+
+  /// seek 重建后的墙钟重锚:已播时长直接改记为 [seconds],从当前时刻重新起算。
+  /// 与 [_restartPlaybackClock] 的区别:不清传输态记忆为"新曲开播",只改位置锚点。
+  void _reanchorPlaybackClock(double seconds) {
+    _playbackElapsed = seconds;
+    _playSegmentStart = DateTime.now();
     _lastKnownTransportState = 'PLAYING';
     _lastKnownTransportStateAt = DateTime.now();
   }
