@@ -11,27 +11,31 @@ import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
 /// 断言要读落盘结果时（典型：「同根目录重开 manager」用例）一律调
 /// `await m.flushIndexNow()` —— 直接绕过 1 秒 debounce 立即写 index.json，
 /// 结果确定且不用等墙钟。
-/// [settleIndexFlush] **只用于 tearDown**：等可能仍在排队的 debounce 定时器
-/// 触发后再删临时目录，避免异步写盘撞上已删除目录抛 PathNotFound 污染结果。
-Future<void> settleIndexFlush() =>
-    Future.delayed(const Duration(milliseconds: 1300));
 
 void main() {
   late Directory base;
+  // 本文件创建过的所有 manager：tearDown 先 dispose（取消 pending debounce
+  // 落盘）再删目录。不再依赖 1.3s 墙钟等待 —— 满负载下 Timer 会迟到，
+  // 删完目录才落盘即 PathNotFound，异步异常记到无关用例头上随机失败。
+  final managers = <OfflineCacheManager>[];
 
   setUp(() async {
     base = await Directory.systemTemp.createTemp('offline_cache_test');
   });
 
   tearDown(() async {
-    // 先等 debounce 定时器把 index.json 落盘，再删临时目录，避免用例中断时
-    // pending 写盘撞上目录已删除而抛异步 PathNotFound 污染测试结果。
-    await settleIndexFlush();
+    for (final m in managers) {
+      m.dispose();
+    }
+    managers.clear();
     if (await base.exists()) await base.delete(recursive: true);
   });
 
-  OfflineCacheManager newManager() =>
-      OfflineCacheManager(rootForTest: base);
+  OfflineCacheManager newManager() {
+    final m = OfflineCacheManager(rootForTest: base);
+    managers.add(m);
+    return m;
+  }
 
   test('putSong 写入后 hasSong/cachedSongs/count/songFile 均生效', () async {
     final m = newManager();
@@ -246,4 +250,20 @@ void main() {
 
     await m.flushIndexNow();
   });
+
+  test('dispose 后删目录再等过 debounce：pending 落盘不抛异常（回归）', () async {
+    // 回归：debounce 落盘 Timer 若在 tearDown 删目录后才触发，_atomicPromote
+    // 抛 PathNotFound，异步异常记到当时正在跑的用例头上 → 全量满负载下随机失败。
+    // 修法双保险：dispose 取消 Timer；_flushIndex 遇目录消失静默跳过。
+    final dir = await Directory.systemTemp.createTemp('offline_cache_dispose');
+    final m = OfflineCacheManager(rootForTest: dir);
+    await m.init();
+    await m.putSong('s1', Uint8List.fromList(List.filled(8, 1)));
+    m.dispose();
+    await dir.delete(recursive: true);
+    // 等过 debounce 窗口：若修法失效，这里会抛 PathNotFound 使本用例变红。
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    expect(m.hasSong('s1'), isTrue); // 内存态不受影响
+  });
+
 }

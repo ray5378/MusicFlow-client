@@ -131,6 +131,7 @@ class OfflineCacheManager {
   bool _init = false;
   Timer? _flushTimer;
   bool _flushScheduled = false;
+  bool _disposed = false;
   // 测试注入的根目录；为空时回退到真实的应用数据目录。仅供单测脱离
   // path_provider 使用，生产路径不带参行为完全一致。
   final Directory? _rootForTest;
@@ -220,7 +221,7 @@ class OfflineCacheManager {
   }
 
   void _scheduleIndexFlush() {
-    if (_flushScheduled) return;
+    if (_disposed || _flushScheduled) return;
     _flushScheduled = true;
     _flushTimer?.cancel();
     _flushTimer = Timer(_indexDebounce, () {
@@ -231,19 +232,44 @@ class OfflineCacheManager {
 
   Future<void> _flushIndex() async {
     await _synchronized(() async {
-      if (_root == null) return;
-      final payload = {
-        'version': 1,
-        'maxBytes': _maxBytes,
-        'entries': _entries.values.map((e) => e.toJson()).toList(),
-      };
-      final indexFile = File(p.join(_root!.path, _indexName));
-      // 索引本身也走原子写：写一半被杀的 index.json 会触发"清空重建"，
-      // 导致全部缓存变孤儿（下次启动被 _sweepOrphans 清掉）。
-      final tmp = File('${indexFile.path}.part');
-      await tmp.writeAsString(jsonEncode(payload), flush: true);
-      await _atomicPromote(tmp, indexFile);
+      final root = _root;
+      if (root == null) return;
+      // 根目录已消失（测试 tearDown / 用户清除缓存 / 卸载）：静默跳过。
+      // 后台 debounce 落盘抛出的异步异常会被测试框架记到当时正在跑的用例头上，
+      // 表现为毫不相干的用例随机失败；生产上则是退出瞬间的一次无效 IO。
+      try {
+        if (!await Directory(root.path).exists()) return;
+      } catch (_) {
+        return;
+      }
+      try {
+        final payload = {
+          'version': 1,
+          'maxBytes': _maxBytes,
+          'entries': _entries.values.map((e) => e.toJson()).toList(),
+        };
+        final indexFile = File(p.join(root.path, _indexName));
+        // 索引本身也走原子写：写一半被杀的 index.json 会触发"清空重建"，
+        // 导致全部缓存变孤儿（下次启动被 _sweepOrphans 清掉）。
+        final tmp = File('${indexFile.path}.part');
+        await tmp.writeAsString(jsonEncode(payload), flush: true);
+        await _atomicPromote(tmp, indexFile);
+      } catch (_) {
+        // 后台落盘失败只记日志（调用方已无法处理；抛出去只会污染无关调用栈）。
+        // 显式 flushIndexNow 的调用方仍可通过返回值感知吗？不：保持 void，
+        // 下一次 debounce/显式 flush 会重试，索引最终一致。
+      }
     });
+  }
+
+  /// 释放：取消 pending 的 debounce 落盘。测试 tearDown 调它再删目录，
+  /// 不再依赖 1.3s 墙钟等待（满负载下 Timer 会迟到，删完目录才落盘即炸）；
+  /// 生产上 manager 常驻，调不调无影响（幂等）。
+  void dispose() {
+    _disposed = true;
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _flushScheduled = false;
   }
 
   /// 原子写：先落 `.part` 再 rename 到目标（rename 同目录内原子替换，
