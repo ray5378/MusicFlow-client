@@ -652,20 +652,20 @@ class DlnaManager {
       Logger.debugWithTag(
         'DLNA',
         '[seek] 跳过 ${seconds}s:无当前设备或 avTransportUrl 未就绪 '
-            '(device=${_currentDevice?.friendlyName ?? "-"})',
+            '(device=${_currentDevice?.displayName ?? "-"})',
       );
       return;
     }
     final t0 = DateTime.now().millisecondsSinceEpoch;
     Logger.debugWithTag(
       'DLNA',
-      '[seek] ${_currentDevice!.friendlyName} → ${seconds}s 下发 SOAP Seek',
+      '[seek] ${_currentDevice!.displayName} → ${seconds}s 下发 SOAP Seek',
     );
     try {
       await SoapControl.seek(_currentDevice!.avTransportUrl!, seconds);
       Logger.debugWithTag(
         'DLNA',
-        '[seek] ${_currentDevice!.friendlyName} → ${seconds}s 成功 '
+        '[seek] ${_currentDevice!.displayName} → ${seconds}s 成功 '
             '${DateTime.now().millisecondsSinceEpoch - t0}ms',
       );
     } catch (e) {
