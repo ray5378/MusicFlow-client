@@ -651,7 +651,7 @@ class DlnaManager {
     if (_currentDevice?.avTransportUrl == null) {
       Logger.debugWithTag(
         'DLNA',
-        '[seek] 跳过 ${seconds}s:无当前设备或 avTransportUrl 未就绪 '
+        '[seek] skip ${seconds}s: no current device or avTransportUrl not ready '
             '(device=${_currentDevice?.displayName ?? "-"})',
       );
       return;
@@ -659,19 +659,19 @@ class DlnaManager {
     final t0 = DateTime.now().millisecondsSinceEpoch;
     Logger.debugWithTag(
       'DLNA',
-      '[seek] ${_currentDevice!.displayName} → ${seconds}s 下发 SOAP Seek',
+      '[seek] ${_currentDevice!.displayName} -> ${seconds}s sending SOAP Seek',
     );
     try {
       await SoapControl.seek(_currentDevice!.avTransportUrl!, seconds);
       Logger.debugWithTag(
         'DLNA',
-        '[seek] ${_currentDevice!.displayName} → ${seconds}s 成功 '
+        '[seek] ${_currentDevice!.displayName} -> ${seconds}s ok '
             '${DateTime.now().millisecondsSinceEpoch - t0}ms',
       );
     } catch (e) {
       Logger.debugWithTag(
         'DLNA',
-        '[seek] ${seconds}s 失败 ${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
+        '[seek] ${seconds}s failed ${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
       );
     }
   }

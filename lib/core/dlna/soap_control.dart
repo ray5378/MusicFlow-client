@@ -158,7 +158,7 @@ class SoapControl {
     final s = (seconds % 60).toString().padLeft(2, '0');
     final target = '$h:$m:$s';
 
-    Logger.debugWithTag('DLNA-SOAP', 'Seek REL_TIME=$target (入参 ${seconds}s)');
+    Logger.debugWithTag('DLNA-SOAP', 'Seek REL_TIME=$target (arg ${seconds}s)');
     await call(controlUrl, _avTransport, 'Seek', {
       'InstanceID': '0',
       'Unit': 'REL_TIME',

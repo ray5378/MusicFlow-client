@@ -1093,7 +1093,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 无活跃投屏 peer → 本机播放器自己 seek。
       Logger.debugWithTag(
         'CAST-PEER',
-        '[seek] 本机播放器(无投屏) → ${position.inMilliseconds}ms',
+        '[seek] local player (no cast) -> ${position.inMilliseconds}ms',
       );
       await _ref.read(playerProvider.notifier).seek(position);
       return;
@@ -1105,15 +1105,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final t0 = DateTime.now().millisecondsSinceEpoch;
     Logger.debugWithTag(
       'CAST-PEER',
-      '[seek] peer=$peerId 目标=${position.inSeconds}s '
-          '(${position.inMilliseconds}ms, 取整下发丢 ${position.inMilliseconds - position.inSeconds * 1000}ms)',
+      '[seek] peer=$peerId target=${position.inSeconds}s '
+          '(${position.inMilliseconds}ms, truncation drops ${position.inMilliseconds - position.inSeconds * 1000}ms)',
     );
     try {
       await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
     } catch (e) {
       Logger.debugWithTag(
         'CAST-PEER',
-        '[seek] peer=$peerId 目标=${position.inSeconds}s 下发失败 '
+        '[seek] peer=$peerId target=${position.inSeconds}s send failed '
             '${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
       );
       rethrow;
@@ -1125,8 +1125,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     state = state.copyWith(smoothPositionSeconds: position.inSeconds.toDouble());
     Logger.debugWithTag(
       'CAST-PEER',
-      '[seek] peer=$peerId 目标=${position.inSeconds}s 下发返回 '
-          '${DateTime.now().millisecondsSinceEpoch - t0}ms,已置护栏并乐观对齐进度',
+      '[seek] peer=$peerId target=${position.inSeconds}s send returned '
+          '${DateTime.now().millisecondsSinceEpoch - t0}ms, guard set and progress optimistically aligned',
     );
     unawaited(pollOnce());
   }
@@ -1758,10 +1758,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       if (staleAfterSeek) {
         Logger.debugWithTag(
           'CAST-PEER',
-          '[seek-guard] 丢弃陈旧上报 reported=${effectiveStatus.positionSeconds}s'
+          '[seek-guard] dropping stale report reported=${effectiveStatus.positionSeconds}s'
               ' reportedAt=${effectiveStatus.reportedAtMs} seekIssuedAt=$_seekIssuedAtMs'
-              ' 距 seek ${DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs}ms'
-              '(保持乐观值 ${state.smoothPositionSeconds}s)',
+              ' since seek ${DateTime.now().millisecondsSinceEpoch - _seekIssuedAtMs}ms'
+              '(keeping optimistic ${state.smoothPositionSeconds}s)',
         );
       }
       // 音量/静音同样来自远端周期上报,连续拖动会被上一拍的值顶掉(详见
