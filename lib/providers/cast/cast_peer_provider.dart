@@ -115,6 +115,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   int _seekAckAtMs = 0;
   /// 最近一次状态轮询的发起时刻(ms):与 [_seekAckAtMs] 比较判因果。
   int _pollStartedAtMs = 0;
+  /// 乱序令牌(对齐 HA 卡片 vSeq):每次 [_tick] 启动自增,响应落地时序号不匹配
+  /// 即说明已有更新一轮 tick 启动 → 本轮结果作废。命令点频繁 `unawaited(pollOnce)`
+  /// 与 2s 周期轮询并发,无令牌时旧响应后到会把新状态(position/曲目/播放态)
+  /// 整个覆盖回去,表现为「操作后 UI 短暂跳回旧值再恢复」。
+  int _tickSeq = 0;
   /// 最近一次本端下发**音量类命令**(volume / mute)的时刻(ms)。
   /// 与 seek 同因:远端客户端的音量也是周期上报的,连续拖动时(20→50→30)
   /// 上报回来的可能还是上一拍的 50,会把手上的 30 顶掉。
@@ -1113,6 +1118,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       '[seek] peer=$peerId target=${position.inSeconds}s '
           '(${position.inMilliseconds}ms, truncation drops ${position.inMilliseconds - position.inSeconds * 1000}ms)',
     );
+    // 先打点再下发:_seekIssuedAtMs = seek **下发**时刻(对齐 HA 卡片,响应后才置
+    // 会漏掉「下发与响应之间」的采样),供 sampleStale 判「采样早于 seek」。
+    _seekIssuedAtMs = DateTime.now().millisecondsSinceEpoch;
     try {
       await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
       // 因果屏障:seek 响应返回 = 服务端锚点已落位,此后发起的轮询必含 seek 结果。
@@ -1129,16 +1137,16 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       rethrow;
     }
     // 立即用目标位置对齐平滑进度,减少插值滞后。
-    // 注意顺序:先置 _seekIssuedAtMs 再改 smoothPositionSeconds —— 置标记是给
-    // 轮询用的「丢弃 seek 前采样」护栏,漏置会让下一次轮询把进度条拽回去。
-    _seekIssuedAtMs = DateTime.now().millisecondsSinceEpoch;
     state = state.copyWith(smoothPositionSeconds: position.inSeconds.toDouble());
     Logger.debugWithTag(
       'CAST-PEER',
       '[seek] peer=$peerId target=${position.inSeconds}s send returned '
           '${DateTime.now().millisecondsSinceEpoch - t0}ms, guard set and progress optimistically aligned',
     );
-    unawaited(pollOnce());
+    // seek 后**不**立刻拉状态(对齐 HA 卡片):这次拉取在 ack 之后发起,fetchStale
+    // 挡不住;而设备型 peer 此刻仍在重锚,立即查询可能读到瞬态 0,把刚拖好的
+    // 进度条拽回开头 —— v5.0.23 真机仍偶发回退的元凶。交给周期轮询确认,
+    // 确认前平滑进度按乐观值自然推进。
   }
 
   Future<void> setVolume(int volume) async {
@@ -1493,6 +1501,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _failureCount = 0;
     _lastPollPosition = -1;
     _seekIssuedAtMs = 0;
+    _seekAckAtMs = 0;
+    _pollStartedAtMs = 0;
   }
 
   /// 立即刷新一次。
@@ -1608,11 +1618,17 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 若不加此守卫,回本机恢复本地快照后,仍在途的轮询响应会把后端队列/状态再次
     // 镜像到 playerProvider,导致 UI 显示后端播放态而本机实际在播另一首歌。
     if (state.activePeer?.peerId != peerId) return;
+    final seq = ++_tickSeq; // 乱序令牌:只允许最新一轮 tick 回写(见 _tickSeq 注释)
     final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
     try {
       _pollStartedAtMs = DateTime.now().millisecondsSinceEpoch; // 因果判定基准(对齐卡片)
       final st = await client.getRaw('$base/status').timeout(const Duration(seconds: 6));
       final next = PeerStatus.fromJson((st as Map).cast<String, dynamic>());
+      // R1+R2 双保险:await 期间已有更新一轮 tick 启动(乱序),或用户已切换
+      // peer/回本机 → 本轮响应作废,不回写(对齐卡片 await 后的丢弃判定)。
+      if (!mounted || seq != _tickSeq || state.activePeer?.peerId != peerId) {
+        return;
+      }
 
       // 播放状态自愈(对齐前端 startCastPoll):部分 DLNA 设备经「清空→重选→重新播放」
       // 后 GENA 事件缓存的 state 停留在旧值(如 STOPPED)并覆盖 SOAP 实时 PLAYING,
@@ -1754,7 +1770,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 成功:回落基准间隔,清除离线标记。
       _failureCount = 0;
       _pollInterval = const Duration(seconds: 2);
-      if (!mounted) return;
+      // 队列补拉又是数秒 await:落地前再验一次令牌与控制目标,过期作废。
+      if (!mounted || seq != _tickSeq || state.activePeer?.peerId != peerId) {
+        return;
+      }
       // MA 对齐(2026-09-22 去掉固定 6s 窗,与 HA 卡片同款):位置陈旧只用两个精确判据 ——
       // ①因果:seek 响应返回(服务端锚点已落位)**之前发起**的状态拉取,数据可能早于
       //   seek → 丢弃。设备型 peer(无 reportedAt)只靠这一条:精确、无窗口。
