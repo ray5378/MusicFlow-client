@@ -2,6 +2,17 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.27] - 2026-09-22
+
+### 修复 —— 链路 A 换歌清 seek 标记
+
+- 换歌（游标变）清 `_seekIssuedAtMs`／`_seekAckAtMs`／`_seekTargetSeconds`：旧标记属于上一首，新歌开头正常 0 采样被屏蔽会冻住进度（卡片同款清理已同步）
+- 10s 超时只清目标值：issued/ack 靠 reportedAt 自限，超时清会误伤滞后采样判定
+
+### 构建信息
+- Android: `MusicFlow-v5027-android.apk`
+- Windows: `MusicFlow-v5027-windows-setup.exe`（安装版，安装时可勾选开始菜单 / 桌面快捷方式）
+
 ## [5.0.26] - 2026-09-22
 
 ### 调试日志补全（遥控＋本机播放关键链路）
