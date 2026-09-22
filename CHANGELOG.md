@@ -2,6 +2,19 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.26] - 2026-09-22
+
+### 调试日志补全（遥控＋本机播放关键链路）
+
+- 镜像跟随：广播 DIFF 行（total/index/mode＋本机对照）＋三处可听变更留痕（follow/adopt/cursor 目标 songId）
+- seek 路由行：本次 seek 走 linkB 直投／linkA 远端 peer／本机
+- 本机：seek/next/prev/play/pause 五入口留痕（含静默早退分支）
+- 零行为变更；配套服务端 **v4.0.11**
+
+### 构建信息
+- Android: `MusicFlow-v5026-android.apk`
+- Windows: `MusicFlow-v5026-windows-setup.exe`（安装版，安装时可勾选开始菜单 / 桌面快捷方式）
+
 ## [5.0.25] - 2026-09-22
 
 ### 修复 —— 遥控 seek 后本机莫名出声 + 间隙 0 回退
