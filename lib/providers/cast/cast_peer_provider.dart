@@ -113,6 +113,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// seek REST 响应返回时刻(ms)。服务端 seek 同步语义:响应返回 = 位置锚点已落位,
   /// 故「在此之前发起」的状态拉取数据可能早于 seek → 丢弃(MA 因果判定,无固定窗口)。
   int _seekAckAtMs = 0;
+  /// 最近一次 seek 的目标位置(秒):重投间隙设备报 TRANSITIONING-0 是"还没开始播",
+  /// 不是"回到开头" —— ack 后窗口内这类 0 采样一律屏蔽,保持乐观值(见 pollOnce)。
+  /// 落位(采纳到目标附近)/换歌/超时即清除。
+  double? _seekTargetSeconds;
   /// 最近一次状态轮询的发起时刻(ms):与 [_seekAckAtMs] 比较判因果。
   int _pollStartedAtMs = 0;
   /// 乱序令牌(对齐 HA 卡片 vSeq):每次 [_tick] 启动自增,响应落地时序号不匹配
@@ -1125,10 +1129,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
       // 因果屏障:seek 响应返回 = 服务端锚点已落位,此后发起的轮询必含 seek 结果。
       _seekAckAtMs = DateTime.now().millisecondsSinceEpoch;
+      _seekTargetSeconds = position.inSeconds.toDouble();
     } catch (e) {
-      // seek 失败:服务端未落位,旧位置上报依然有效,清掉两个判定标记。
+      // seek 失败:服务端未落位,旧位置上报依然有效,清掉判定标记。
       _seekIssuedAtMs = 0;
       _seekAckAtMs = 0;
+      _seekTargetSeconds = null;
       Logger.debugWithTag(
         'CAST-PEER',
         '[seek] peer=$peerId target=${position.inSeconds}s send failed '
@@ -1787,6 +1793,19 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           (DateTime.now().millisecondsSinceEpoch - effectiveStatus.reportedAtMs!).abs() < 120000 &&
           effectiveStatus.reportedAtMs! < _seekIssuedAtMs;
       final staleAfterSeek = fetchStale || sampleStale;
+      // 重投间隙 TRANSITIONING-0 屏蔽:ack 之后、设备真正起播之前,读数是"还没开始"
+      // 而不是"回到开头"。此时采纳 0 会把进度条/歌词拽回开头(用户观感"从头播放")。
+      // 只挡"非播放态 + 约等于 0"的采样;PLAYING 态的位置一律采纳(设备真在播);
+      // 落位(采纳到目标附近)/换歌(idx 变)/超 10s 即解除,不困住正常播放。
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      var transientZeroAfterSeek = false;
+      if (_seekTargetSeconds != null && _seekAckAtMs > 0) {
+        if (nowMs - _seekAckAtMs > 10000 || idx != state.castIndex) {
+          _seekTargetSeconds = null;
+        } else if (!effectiveStatus.playing && effectiveStatus.positionSeconds <= 1.0) {
+          transientZeroAfterSeek = true;
+        }
+      }
       // debug:进度条「拖完又跳回原位」的现场。这一行有 = 上报确实是 seek 之前
       // 采的样(护栏正常生效,该挡);拖动后仍跳回却**没有**这一行 = 护栏没拦住
       // (reportedAt 缺失 / 窗口过期 / 标记没置上),才是真 bug。
@@ -1802,11 +1821,25 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 音量/静音同样来自远端周期上报,连续拖动会被上一拍的值顶掉(详见
       // _applyVolumeShadow)。设备型 peer 无 reportedAt → 原样,不受影响。
       final mergedStatus = _applyVolumeShadow(effectiveStatus);
+      final keepOptimistic = staleAfterSeek || transientZeroAfterSeek;
+      if (transientZeroAfterSeek) {
+        Logger.debugWithTag(
+          'CAST-PEER',
+          '[seek-guard] masking TRANSITIONING-0 report after seek '
+              '(keeping optimistic ${state.smoothPositionSeconds}s, target=$_seekTargetSeconds)',
+        );
+      }
+      // 落位:采纳到目标附近即解除屏蔽,恢复正常采样。
+      if (_seekTargetSeconds != null &&
+          !transientZeroAfterSeek &&
+          _projectPolledPosition(mergedStatus) >= _seekTargetSeconds! - 2) {
+        _seekTargetSeconds = null;
+      }
       state = state.copyWith(
         status: mergedStatus,
         // 客户端实例的 position 是周期上报的采样,必须按 reportedAt 外推到此刻;
         // 直接写采样值会让进度条/歌词每两轮回退一次(详见 _projectPolledPosition)。
-        smoothPositionSeconds: staleAfterSeek
+        smoothPositionSeconds: keepOptimistic
             ? state.smoothPositionSeconds
             : _projectPolledPosition(mergedStatus),
         castIndex: idx,
