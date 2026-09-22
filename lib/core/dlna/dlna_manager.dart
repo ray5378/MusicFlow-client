@@ -677,7 +677,7 @@ class DlnaManager {
     }
     Logger.debugWithTag(
       'DLNA',
-      '[seek] ${device.displayName} -> ${seconds}s 重建流(timeOffset=$seconds, song=${track.songId})',
+      '[seek] ${device.displayName} -> ${seconds}s rebuild stream (timeOffset=$seconds, song=${track.songId})',
     );
     try {
       String url = await _directStreamUrl(track.songId);
@@ -710,7 +710,7 @@ class DlnaManager {
       _currentStatus = _currentStatus.copyWith(state: 'PLAYING', position: seconds);
       Logger.debugWithTag(
         'DLNA',
-        '[seek] ${device.displayName} -> ${seconds}s 重建完成 '
+        '[seek] ${device.displayName} -> ${seconds}s rebuild done '
             '${DateTime.now().millisecondsSinceEpoch - t0}ms',
       );
     } catch (e) {
