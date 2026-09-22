@@ -393,6 +393,14 @@ mixin PlayerSeekInternals on PlayerNotifier {
         'source=$label load abandoned song=$songId generation=$generation '
         'currentGeneration=$_sourceGeneration',
       );
+      // 意图作废：这次加载没播出来，且之后没有更新的加载启动 —— 期望自动播放
+      // 的意图已死，必须清除。否则 0 秒卡死看门狗 6s 后会复活一个从未起播过的
+      // 会话（实测：镜像跟随播→加载废弃→看门狗 reload→手机莫名从头出声）。
+      // 有更新加载在途时（_sourceGeneration 已超前）不动：新加载自带意图。
+      if (_sourceGeneration == generation) {
+        _expectingAutoplay = false;
+        _seekDbg('autoplay intent voided: latest load abandoned without playback');
+      }
       return false;
     }
 

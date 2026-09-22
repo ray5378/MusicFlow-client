@@ -839,7 +839,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     // 记录「期望自动播放」意图：看门狗据此在源加载挂起(play() 未执行、
-    // playing=false)时也能识别并重载，覆盖 0 秒卡死场景。
+    // playing=false)时也能识别并重载，覆盖 0 秒卡死场景。意图的作废由
+    // _replaceLoadedSource 在"最新加载被废弃"时负责（防意图烂掉导致
+    // 看门狗复活从未起播的会话）。
     _expectingAutoplay = autoPlay;
 
     if (song.isPreview) {
