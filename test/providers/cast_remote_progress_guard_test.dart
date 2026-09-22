@@ -326,4 +326,107 @@ void main() {
       );
     });
   });
+
+  // ==================== seek 目标精度（最小粒度 1 秒） ====================
+  //
+  // 与主仓 / HA 卡片 / HA 集成同一条契约（2026-09-22 240 事故）。
+  //
+  // 服务端 sendspin 流式引擎按 **25ms 帧栅格**取帧（lo = floor(pos/25) * 2400 样点），
+  // 而滑动窗口的基准是「毫秒 → 样本」换算 —— **只有目标为 25ms 整数倍时两者严格相等**。
+  // 非整秒目标会让子进程每轮取帧都判淘汰、游标却不前进 → 纯微任务自旋（不 await I/O）
+  // → 事件循环饿死 → 心跳/poll RPC 全排不上队 → 65s 看门狗 SIGKILL（现象：拖完进度条
+  // 播放静默死掉、进度冻住）。
+  //
+  // 整秒必然满足该条件（1000 / 25 = 40）—— **这正是「客户端一直正常、而 HA 卡片与网页
+  // 一拖就挂」的原因**，也是这条契约的由来。客户端下发的是 `Duration.inSeconds`（截断），
+  // 本组用例把它钉死：谁哪天改成带小数的秒（如 position.inMilliseconds / 1000），
+  // 拖动进度条就会把远端播放打死，且**本机自测完全看不出来**（远端哑掉、UI 毫无异常）。
+  //
+  // 归属：本文件已被 playback-chain-guard.yml（blocking）直接执行，故这里就是真门禁，
+  // 无需新增 workflow。
+  group('seek 目标精度（最小粒度 1 秒）', () {
+    /// 捕获所有 /seek 请求体：断言**真正下发**的值，而不是本地状态。
+    List<Map<String, dynamic>> captureSeekBodies() {
+      final bodies = <Map<String, dynamic>>[];
+      when(
+        () => client.postRaw(
+          any(),
+          queryParameters: any(named: 'queryParameters'),
+          data: any(named: 'data'),
+          receiveTimeout: any(named: 'receiveTimeout'),
+        ),
+      ).thenAnswer((invocation) async {
+        final path = invocation.positionalArguments.first as String;
+        if (path.endsWith('/seek')) {
+          final data = invocation.namedArguments[#data];
+          if (data is Map) bodies.add(Map<String, dynamic>.from(data));
+        }
+        return <String, dynamic>{'success': true};
+      });
+      return bodies;
+    }
+
+    Future<void> prepareRemote() async {
+      stubStatus(statusBody(
+        position: 10,
+        reportedAt: DateTime.now().millisecondsSinceEpoch,
+      ));
+      await switchToRemote();
+    }
+
+    test('毫秒精度的拖动目标一律截断为整秒下发', () async {
+      final bodies = captureSeekBodies();
+      await prepareRemote();
+
+      // 复刻 240 现场：HA 卡片 / 网页把「当前播放位置」原样拖了出去（31.178s）。
+      await controller.seek(const Duration(milliseconds: 31178));
+
+      expect(bodies, hasLength(1),
+          reason: 'seek 必须真的发出去，否则本用例测的是空气');
+      final seconds = bodies.single['seconds'];
+      expect(
+        seconds,
+        isA<int>(),
+        reason: '带小数的秒会让服务端 sendspin 子进程按 25ms 帧栅格取帧时与窗口的'
+            '毫秒基准错位 → 微任务自旋 → 看门狗 SIGKILL（拖动后播放静默死掉）',
+      );
+      expect(seconds, 31, reason: 'Duration.inSeconds 是截断：31178ms → 31s');
+    });
+
+    test('任意落点都落在 25ms 帧栅格上，且代价 <1 秒', () async {
+      final bodies = captureSeekBodies();
+      await prepareRemote();
+
+      const samplesMs = <int>[0, 178, 999, 31178, 62000, 87033, 108999, 3599400];
+      for (final ms in samplesMs) {
+        await controller.seek(Duration(milliseconds: ms));
+      }
+
+      expect(bodies, hasLength(samplesMs.length));
+      for (var i = 0; i < samplesMs.length; i++) {
+        final sent = bodies[i]['seconds'] as int;
+        // 帧栅格不变式：整秒必然是 25ms 的整数倍（1000 / 25 = 40）。
+        expect((sent * 1000) % 25, 0, reason: '$sent s 不在 25ms 帧栅格上');
+        expect(sent, samplesMs[i] ~/ 1000,
+            reason: '必须与 Duration.inSeconds 同语义（截断，不是四舍五入）');
+        expect(samplesMs[i] - sent * 1000, lessThan(1000),
+            reason: '截断代价必须 <1 秒（不可闻），不得放大');
+      }
+    });
+
+    test('乐观位置与下发值同源（否则轮询一回就把进度条拽回）', () async {
+      final bodies = captureSeekBodies();
+      await prepareRemote();
+
+      await controller.seek(const Duration(milliseconds: 31178));
+
+      expect(bodies.single['seconds'], 31);
+      expect(
+        controller.state.smoothPositionSeconds,
+        31.0,
+        reason: '乐观值若仍是 31.178，远端回报 31.0 之后进度条会回跳 0.178s'
+            '（与下发值同源是这条契约的另一半）',
+      );
+    });
+  });
 }
