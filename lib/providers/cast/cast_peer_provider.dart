@@ -1800,9 +1800,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       var transientZeroAfterSeek = false;
       if (_seekTargetSeconds != null && _seekAckAtMs > 0) {
-        if (nowMs - _seekAckAtMs > 10000 || idx != state.castIndex) {
-          _seekTargetSeconds = null;
-        } else if (!effectiveStatus.playing && effectiveStatus.positionSeconds <= 1.0) {
+        // 超时解除见下方换歌/落位统一清理;这里只判"是否屏蔽本次 0 采样"。
+        if (nowMs - _seekAckAtMs <= 10000 &&
+            !effectiveStatus.playing &&
+            effectiveStatus.positionSeconds <= 1.0) {
           transientZeroAfterSeek = true;
         }
       }
@@ -1833,6 +1834,19 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       if (_seekTargetSeconds != null &&
           !transientZeroAfterSeek &&
           _projectPolledPosition(mergedStatus) >= _seekTargetSeconds! - 2) {
+        _seekTargetSeconds = null;
+      }
+      // 换歌:旧 seek 标记(下发时刻/ack/目标)属于上一首,新歌开头的正常 0 采样
+      // 若被旧窗口屏蔽会冻住进度。卡片同款清理(见 _applyStatus 换歌分支)。
+      // 注意只在换歌时清 issued/ack:它们靠 reportedAt 自限,超时不清;
+      // _seekTargetSeconds 额外加 10s 超时(超时不落位就恢复正常采样)。
+      if (idx != state.castIndex) {
+        _seekIssuedAtMs = 0;
+        _seekAckAtMs = 0;
+        _seekTargetSeconds = null;
+      } else if (_seekTargetSeconds != null &&
+          _seekAckAtMs > 0 &&
+          DateTime.now().millisecondsSinceEpoch - _seekAckAtMs > 10000) {
         _seekTargetSeconds = null;
       }
       state = state.copyWith(
