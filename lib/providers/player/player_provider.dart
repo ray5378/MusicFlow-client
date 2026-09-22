@@ -1793,6 +1793,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 暂停（带淡出）
   Future<void> pause() async {
     final playbackSession = _playDebugSession;
+    // 入口留痕(同 play):暂停/播放互顶时先看调用序列。
+    _seekDbg(
+      'pause entry song=${state.currentSong?.id} '
+      'playing=${_audioPlayer?.playing}',
+    );
     final transportRequest = ++_transportRequestGeneration;
     final durationMs = _ref.read(crossfadeDurationMsProvider);
     if (durationMs > 0 && state.isPlaying) {
@@ -1820,6 +1825,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     // 表现为「迷你条写着未在播放，却在放刚才那首歌」。迷你条播放键常驻渲染，
     // 这个入口必须自己把关。
     if (state.currentSong == null) return Future<void>.value();
+    // 入口留痕:"没点就出声"的主诉先看这里(谁调了 play)。
+    _seekDbg(
+      'play entry song=${state.currentSong?.id} '
+      'playing=${_audioPlayer?.playing} state=${_audioPlayer?.processingState.name}',
+    );
     _transportRequestGeneration += 1;
     _cancelFade(); // 取消任何进行中的淡入淡出，恢复音量到 1.0
     _startPlayback(fadeIn: false);
@@ -1861,6 +1871,12 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
   /// 上一首
   Future<void> previous() async {
+    // 入口留痕:切歌是"进度归零/曲目乱跳"类问题的第一嫌疑,先记谁调的、
+    // 从哪到哪(是否用户手势看调用栈,此处只记状态变迁)。
+    _seekDbg(
+      'previous entry from=${state.currentSong?.id}@${state.currentIndex} '
+      'hasPrevious=${state.hasPrevious} shuffle=${state.shuffleEnabled}',
+    );
     if (!state.hasPrevious) return;
 
     _clearForcedNext();
@@ -1902,6 +1918,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
   /// 下一首
   Future<void> next() async {
+    // 入口留痕(同 previous):"没点就切歌"是误触发主诉,先记变迁。
+    _seekDbg(
+      'next entry from=${state.currentSong?.id}@${state.currentIndex} '
+      'hasNext=${state.hasNext} shuffle=${state.shuffleEnabled}',
+    );
     if (!state.hasNext) return;
 
     if (state.shuffleEnabled) {
@@ -2079,6 +2100,12 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> seek(Duration position) async {
     final player = _audioPlayer;
     final currentSongId = state.currentSong?.id;
+    // 入口留痕:本地 seek 是"手指→本机"的最后一公里,静默早退(无源/无曲)时
+    // 调用方只看到"拖了没反应"。打出来才能区分"没调到"和"调了没生效"。
+    _seekDbg(
+      'seek entry target=$position song=$currentSongId '
+      'hasPlayer=${player != null} pos=${player?.position} state=${player?.processingState.name}',
+    );
     if (player == null || currentSongId == null) return;
 
     final seekGeneration = ++_seekRequestGeneration;

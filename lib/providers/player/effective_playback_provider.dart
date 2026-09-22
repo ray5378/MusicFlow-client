@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/peer.dart' show songToQueueItem;
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
@@ -121,10 +122,20 @@ Future<void> pauseEffectivePlayback(WidgetRef ref) async {
 
 /// 跳转进度。
 Future<void> seekEffectivePlayback(WidgetRef ref, Duration position) async {
+  // 路由留痕:三条链路的行为完全不同,排障第一问就是"这次 seek 走的哪条"。
   if (ref.read(_dlnaCastingProvider)) {
+    Logger.debugWithTag(
+      'EFFECTIVE-SEEK',
+      'seek ${position.inMilliseconds}ms → linkB direct-cast',
+    );
     await ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
     return;
   }
+  final peer = ref.read(castPeerControllerProvider).activePeer;
+  Logger.debugWithTag(
+    'EFFECTIVE-SEEK',
+    'seek ${position.inMilliseconds}ms → ${peer == null ? 'local player (no cast peer)' : 'linkA remote peer=${peer.peerId}'}',
+  );
   await ref.read(castPeerControllerProvider.notifier).seek(position);
 }
 

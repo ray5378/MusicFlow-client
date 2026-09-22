@@ -130,9 +130,32 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     if (peerId.isEmpty || mine == null || mine.isEmpty || peerId != mine) return;
 
     final raw = msg['queue'];
-    if (raw is! Map) return;
+    if (raw is! Map) {
+      Logger.debugWithTag(_tag, 'queue broadcast without queue map, ignore');
+      return;
+    }
     final queue = raw.cast<String, dynamic>();
-    if (_sameAsLocal(_ref.read(playerProvider), queue)) return; // 自己上报造成的
+    // 判定留痕:跟随一旦触发就会在本机 playQueue/playSong(出声!),必须能回答
+    // "这次跟随是谁触发的". items/total/index/mode 四件套全打出来。
+    final local = _ref.read(playerProvider);
+    final total = (queue['total'] as num?)?.toInt();
+    final index = (queue['currentIndex'] as num?)?.toInt();
+    final mode = queue['playMode']?.toString();
+    if (_sameAsLocal(local, queue)) {
+      Logger.debugWithTag(
+        _tag,
+        'queue broadcast matches local, skip (self-echo) '
+        'total=$total index=$index mode=$mode localLen=${local.queue.length} '
+        'localIndex=${local.currentIndex}',
+      );
+      return; // 自己上报造成的
+    }
+    Logger.infoWithTag(
+      _tag,
+      'queue broadcast DIFFERS from local, follow '
+      'total=$total index=$index mode=$mode localLen=${local.queue.length} '
+      'localIndex=${local.currentIndex} localMode=${local.playbackMode}',
+    );
     await _follow(queue);
   }
 
@@ -217,7 +240,13 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     }
     final index =
         ((queue['currentIndex'] as num?)?.toInt() ?? 0).clamp(0, songs.length - 1);
-    Logger.infoWithTag(_tag, 'following authoritative queue (${songs.length} items, index=$index)');
+    // 可听变更留痕:这一步会在本机出声(autoPlay 默认 true)。跟随误触发时,
+    // 靠这行 + _handleQueueChanged 的 DIFF 行反推"谁让手机响的"。
+    Logger.infoWithTag(
+      _tag,
+      'following authoritative queue (${songs.length} items, index=$index) '
+      '→ playQueue audible, first=${songs.first.id} target=${songs[index].id}',
+    );
     await player.playQueue(songs, startIndex: index);
     await _applyPlayMode(queue);
     if (mounted) {
@@ -258,9 +287,11 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       if (songs.isEmpty) return;
       final index =
           ((snap['currentIndex'] as num?)?.toInt() ?? 0).clamp(0, songs.length - 1);
+      // 可听变更留痕(同 _follow):整队接管会在本机出声。
       Logger.infoWithTag(
         _tag,
-        'adopting remote queue (${songs.length} items, index=$index, expected=$expectedTotal)',
+        'adopting remote queue (${songs.length} items, index=$index, expected=$expectedTotal) '
+        '→ playQueue audible, target=${songs[index].id}',
       );
       await _ref.read(playerProvider.notifier).playQueue(songs, startIndex: index);
       await _applyPlayMode(snap);
@@ -291,7 +322,14 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     final player = _ref.read(playerProvider);
     if (total != localLength || index < 0 || index >= player.queue.length) return;
     if (index == player.currentIndex) return;
-    Logger.infoWithTag(_tag, 'remote moved cursor to index=$index');
+    // 可听变更留痕:游标跟随会 playSong(autoPlay 默认 true)在本机出声。
+    // 13:34:50 实锤就是这行在回声/过期快照下播了鼓楼。若只想静默对齐游标,
+    // 不要调这里 —— 调 playSong 时显式 autoPlay:false。
+    Logger.infoWithTag(
+      _tag,
+      'remote moved cursor to index=$index '
+      '→ playSong audible, from=${player.currentSong?.id} to=${player.queue[index].id}',
+    );
     // 必须把**整份队列**一起传回去:playSong 的签名是 `queue ?? [song]`,不传 queue
     // 会把这 3000+ 首的队列就地清成一首 —— 而且 `_watchLocalQueue` 会以 full:true 把
     // 这个「一首歌的队列」镜像回服务端,权威队列随之塌成 1 首,连带把别端也带崩。
