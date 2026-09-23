@@ -309,7 +309,18 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
     // 客户端/网页端一起隐藏,表现为「流转播放里看不到 Web 播放器」)。
     final remotePeers = (peers ?? const <PeerInfo>[])
         .where((p) => !p.self && p.available)
-        .toList();
+        .toList()
+        // 展示序与流转页(player_transfer_page)同一口径:**正在播的排前面**;
+        // 同为在播/同为闲置时按 **客户端本机 > 群组 > 独立播放器**,再按名称。
+        ..sort((a, b) {
+          final pa = a.queueActive ? 0 : 1;
+          final pb = b.queueActive ? 0 : 1;
+          if (pa != pb) return pa - pb;
+          final ra = a.isLocal ? 0 : (a.kind == 'group' ? 1 : 2);
+          final rb = b.isLocal ? 0 : (b.kind == 'group' ? 1 : 2);
+          if (ra != rb) return ra - rb;
+          return a.name.compareTo(b.name);
+        });
 
     return MusicFlowBottomSheet(
       title: loc.player_transfer_playback_title,

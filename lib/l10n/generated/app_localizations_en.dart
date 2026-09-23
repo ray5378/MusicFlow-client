@@ -2445,6 +2445,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get player_destroy_zone => 'Drop a player here to stop & clear';
 
   @override
+  String player_group_selected_hint(String name) {
+    return 'Group “$name” selected: tap +/− to join or leave; tap the group again to cancel';
+  }
+
+  @override
+  String player_group_joined(String name) {
+    return 'Joined group “$name”';
+  }
+
+  @override
+  String player_group_left(String name) {
+    return 'Left group “$name”';
+  }
+
+  @override
+  String get player_group_op_failed => 'Group operation failed, please retry';
+
+  @override
   String player_destroy_success(String name) {
     return 'Stopped and cleared “$name”';
   }

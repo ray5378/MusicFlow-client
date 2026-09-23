@@ -2350,6 +2350,34 @@
     }
   },
   "player_destroy_zone": "Drop a player here to stop & clear",
+  "player_group_selected_hint": "Group “{name}” selected: tap +/− to join or leave; tap the group again to cancel",
+  "@player_group_selected_hint": {
+    "description": "player_group_selected_hint",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_group_joined": "Joined group “{name}”",
+  "@player_group_joined": {
+    "description": "player_group_joined",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_group_left": "Left group “{name}”",
+  "@player_group_left": {
+    "description": "player_group_left",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_group_op_failed": "Group operation failed, please retry",
   "player_destroy_success": "Stopped and cleared “{name}”",
   "@player_destroy_success": {
     "description": "player_destroy_success",

@@ -76,6 +76,13 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
   List<PeerInfo>? _peers;
   bool _busy = false;
 
+  /// 被选中的群组(点群组圆 → 选中,再点取消):选中后每个设备圆下方出现
+  /// +/− 按钮(组内 − / 组外 +),点击即加入/退出该组。
+  String? _selectedGroupId;
+  String? _selectedGroupName;
+  Set<String> _selectedMembers = const <String>{};
+  bool _groupBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -106,7 +113,30 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
       }
       if (p.available && p.platform != 'web') others.add(p);
     }
+    others.sort(_peerDisplayCompare);
     setState(() => _peers = <PeerInfo>[if (self != null) self, ...others]);
+  }
+
+  /// 播放端展示序:**正在播的排前面**;同为在播/同为闲置时按
+  /// **客户端本机 > 群组 > 独立播放器**排(用户定稿 2026-09-23)。
+  ///
+  /// 「正在播」取服务端 `queue.isActive`(PeerInfo.queueActive),不再额外请求;
+  /// 群组排在独立播放器之前 —— 多台设备一起响时,组是更上层的控制目标。
+  static int _peerDisplayCompare(PeerInfo a, PeerInfo b) {
+    final pa = a.queueActive ? 0 : 1;
+    final pb = b.queueActive ? 0 : 1;
+    if (pa != pb) return pa - pb;
+    final ka = _peerKindRank(a);
+    final kb = _peerKindRank(b);
+    if (ka != kb) return ka - kb;
+    return a.name.compareTo(b.name);
+  }
+
+  /// 类别权重:客户端本机(含同账号其它端)0 < 群组 1 < 独立播放器 2。
+  static int _peerKindRank(PeerInfo p) {
+    if (p.isLocal) return 0;
+    if (p.kind == 'group') return 1;
+    return 2;
   }
 
   Future<void> _handleDrop(PeerInfo from, PeerInfo to) async {
@@ -137,6 +167,12 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
   /// 成功弹 Toast 并自动关页；失败弹错误提示并留在页面。
   Future<void> _handleTap(PeerInfo peer, bool isSelf) async {
     if (_busy) return;
+    // 点群组 = 选中/取消选中(加减成员模式),不走切遥控;
+    // 遥控组的入口仍在「流转播放」小弹窗(点行即遥控)。
+    if (peer.kind == 'group') {
+      await _toggleGroupSelection(peer);
+      return;
+    }
     final controller = ref.read(castPeerControllerProvider.notifier);
     final cast = ref.read(castPeerControllerProvider);
     final loc = AppLocalizations.of(context);
@@ -178,6 +214,109 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
         kind: MusicFlowMessageKind.error,
       );
     }
+  }
+
+  /// 选中/取消选中一个群组。选中时拉取该组成员列表,供勾选圈判定「组内/组外」。
+  ///
+  /// 选中同时把**遥控目标切到该群组**(MINI 播放器栏跟着变成群组),与 Web 流转
+  /// 列表一致;退出管理模式(再点一次 / 点空白关闭本页)后仍保持遥控该群组 ——
+  /// 用户定稿:「点击空白区域仍然是遥控群组」。
+  Future<void> _toggleGroupSelection(PeerInfo group) async {
+    if (_groupBusy) return;
+    if (_selectedGroupId == group.peerId) {
+      setState(() {
+        _selectedGroupId = null;
+        _selectedGroupName = null;
+        _selectedMembers = const <String>{};
+      });
+      return;
+    }
+    // 先切遥控(静默:不弹 toast、不关页 —— 还要留在本页勾选成员)。
+    final castNow = ref.read(castPeerControllerProvider);
+    if (castNow.activePeer?.peerId != group.peerId) {
+      await ref.read(castPeerControllerProvider.notifier).switchTo(group);
+      if (!mounted) return;
+    }
+    final gid = group.peerId.startsWith('group:')
+        ? group.peerId.substring('group:'.length)
+        : group.peerId;
+    setState(() => _groupBusy = true);
+    final groups = await ref
+        .read(castPeerControllerProvider.notifier)
+        .fetchGroups();
+    if (!mounted) return;
+    setState(() => _groupBusy = false);
+    Map<String, dynamic>? hit;
+    for (final g in groups ?? const <dynamic>[]) {
+      if (g is Map<String, dynamic> &&
+          (g['id']?.toString() ?? '') == gid) {
+        hit = g;
+        break;
+      }
+    }
+    final loc = AppLocalizations.of(context);
+    if (hit == null) {
+      showMusicFlowMessage(
+        context,
+        loc.player_group_op_failed,
+        kind: MusicFlowMessageKind.error,
+      );
+      return;
+    }
+    final ids = (hit['memberIds'] as List?)
+            ?.map((e) => e.toString())
+            .toSet() ??
+        const <String>{};
+    final hitName = hit['name']?.toString() ?? group.name;
+    if (!mounted) return;
+    setState(() {
+      _selectedGroupId = group.peerId;
+      _selectedGroupName = hitName;
+      _selectedMembers = ids;
+    });
+  }
+
+  /// 服务端成员命名空间写法:sendspin = `sendspin:<clientId>`(与 peerId 同形);
+  /// DLNA = 裸设备 id(历史数据约定,去掉 peerId 的 `dlna:` 前缀)。
+  String _memberKeyFor(PeerInfo p) =>
+      p.kind == 'sendspin'
+          ? p.peerId
+          : p.peerId.replaceFirst(RegExp('^dlna:'), '');
+
+  bool _isMember(PeerInfo p) =>
+      _selectedMembers.contains(_memberKeyFor(p)) ||
+      _selectedMembers.contains(p.peerId);
+
+  /// 点 +/−:加入/退出选中的群组。成功用返回的 memberIds 就地刷新,失败提示并保留原状。
+  Future<void> _toggleMembership(PeerInfo peer) async {
+    if (_groupBusy || _selectedGroupId == null) return;
+    final gid = _selectedGroupId!.startsWith('group:')
+        ? _selectedGroupId!.substring('group:'.length)
+        : _selectedGroupId!;
+    final join = !_isMember(peer);
+    setState(() => _groupBusy = true);
+    final ids = await ref
+        .read(castPeerControllerProvider.notifier)
+        .setGroupMembership(gid, _memberKeyFor(peer), join: join);
+    if (!mounted) return;
+    setState(() => _groupBusy = false);
+    final loc = AppLocalizations.of(context);
+    if (ids == null) {
+      showMusicFlowMessage(
+        context,
+        loc.player_group_op_failed,
+        kind: MusicFlowMessageKind.error,
+      );
+      return;
+    }
+    setState(() => _selectedMembers = ids.toSet());
+    showMusicFlowMessage(
+      context,
+      join
+          ? loc.player_group_joined(_selectedGroupName ?? '')
+          : loc.player_group_left(_selectedGroupName ?? ''),
+      kind: MusicFlowMessageKind.success,
+    );
   }
 
   /// 回收站落点：销毁播放端（停止 + 清空其队列；本机 = 内存会话一并抛弃）。
@@ -251,6 +390,21 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (_selectedGroupId != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 24, right: 24),
+                        child: Text(
+                          loc.player_group_selected_hint(
+                            _selectedGroupName ?? '',
+                          ),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color:
+                                    Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                      ),
                     Expanded(
                       child: switch (peers) {
                         null => const Center(
@@ -306,6 +460,17 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
                                                     ? activePeerId == null
                                                     : activePeerId ==
                                                           list[j].peerId,
+                                                selectedGroup:
+                                                    _selectedGroupId,
+                                                isMemberOfSelected:
+                                                    _isMember(list[j]),
+                                                onToggleMembership:
+                                                    _groupBusy
+                                                    ? null
+                                                    : () =>
+                                                          _toggleMembership(
+                                                            list[j],
+                                                          ),
                                                 onTap: () => _handleTap(
                                                   list[j],
                                                   list[j].isLocal &&
@@ -353,9 +518,18 @@ class _RingNode extends ConsumerWidget {
     required this.onTap,
     required this.onDragStateChanged,
     required this.onDropFrom,
+    this.selectedGroup,
+    this.isMemberOfSelected = false,
+    this.onToggleMembership,
   });
 
   final PeerInfo peer;
+
+  /// 选中的群组 peerId(null = 没选中任何群组):非空且本圆是设备型成员时,
+  /// 信息列下方显示 +/− 按钮(组内 − / 组外 +)。
+  final String? selectedGroup;
+  final bool isMemberOfSelected;
+  final VoidCallback? onToggleMembership;
 
   /// 该格宽度：既作 feedback 的有界宽度（见类注释的 Overlay 坑），也保证
   /// 拖起来的影子与原格一样大。
@@ -374,38 +548,56 @@ class _RingNode extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 吸收点击：在圆上按下不该被当成「点空白」而关页；onTap 交给
     // [_handleTap]（切遥控目标），拖拽交给 Draggable（流转队列）。
+    // 落点仍是**整行**(拖到名称区也能接住,手势容错更大);拖拽源只包封面圆。
     return GestureDetector(
       onTap: onTap,
-      child: Draggable<PeerInfo>(
-        data: peer,
-        onDragStarted: () => onDragStateChanged(peer),
-        onDragEnd: (_) => onDragStateChanged(null),
-        onDraggableCanceled: (_, _) => onDragStateChanged(null),
-        // feedback 被插进根 Overlay，那里只给【无界约束】—— 必须先用
-        // SizedBox 给出有界宽度，否则内部 Row+Expanded 布局崩掉
-        //（size: MISSING → hit test 连环异常 → 拖动时整个画面卡死）。
-        feedback: SizedBox(
-          width: cellWidth,
-          child: Material(
-            color: Colors.transparent,
-            child: _RingBubble(peer: peer, isSelf: isSelf, lifted: true),
-          ),
-        ),
-        childWhenDragging: Opacity(
-          opacity: 0.25,
-          child: _RingBubble(peer: peer, isSelf: isSelf),
-        ),
-        child: DragTarget<PeerInfo>(
-          onWillAcceptWithDetails: (details) =>
-              details.data.peerId != peer.peerId,
-          onAcceptWithDetails: (details) => onDropFrom(details.data, peer),
-          builder: (context, candidates, rejected) => _RingBubble(
+      child: DragTarget<PeerInfo>(
+        onWillAcceptWithDetails: (details) =>
+            details.data.peerId != peer.peerId,
+        onAcceptWithDetails: (details) => onDropFrom(details.data, peer),
+        builder: (context, candidates, rejected) {
+          // 群组被选中:accent 常亮(与落点高亮同通道,但无拖拽候选也亮)。
+          final groupSelected =
+              peer.kind == 'group' && selectedGroup == peer.peerId;
+          // 选中群组后,设备型成员(dlna/sendspin)信息列下方出现加入/退出勾选圈;
+          // 本机/群组/airplay 不参与(服务端组成员只有 dlna/sendspin 命名空间)。
+          Widget? action;
+          if (selectedGroup != null &&
+              peer.kind != 'group' &&
+              (peer.kind == 'dlna' || peer.kind == 'sendspin')) {
+            action = _MemberToggleButton(
+              isMember: isMemberOfSelected,
+              onTap: onToggleMembership,
+            );
+          }
+          return _RingBubble(
             peer: peer,
             isSelf: isSelf,
             isActive: isActive,
-            highlighted: candidates.isNotEmpty,
-          ),
-        ),
+            highlighted: candidates.isNotEmpty || groupSelected,
+            actionBelow: action,
+            // 只有封面圆可拖起:从播放器名/歌名位置按下不会起拖,只响应点击。
+            circleWrapper: (circle) => Draggable<PeerInfo>(
+              data: peer,
+              onDragStarted: () => onDragStateChanged(peer),
+              onDragEnd: (_) => onDragStateChanged(null),
+              onDraggableCanceled: (_, _) => onDragStateChanged(null),
+              // feedback 被插进根 Overlay,那里只给【无界约束】—— 必须先用
+              // SizedBox 给出有界宽度,否则内部 Row+Expanded 布局崩掉
+              //(size: MISSING → hit test 连环异常 → 拖动时整个画面卡死)。
+              feedback: SizedBox(
+                width: cellWidth,
+                child: Material(
+                  color: Colors.transparent,
+                  child: _RingBubble(peer: peer, isSelf: isSelf, lifted: true),
+                ),
+              ),
+              // 拖起后只剩封面圆变淡,右侧名称/歌名保持可读。
+              childWhenDragging: Opacity(opacity: 0.25, child: circle),
+              child: circle,
+            ),
+          );
+        },
       ),
     );
   }
@@ -421,9 +613,18 @@ class _RingBubble extends ConsumerWidget {
     this.isActive = false,
     this.highlighted = false,
     this.lifted = false,
+    this.actionBelow,
+    this.circleWrapper,
   });
 
   final PeerInfo peer;
+
+  /// 选中群组后显示在信息列下方的加入/退出勾选圈(null = 不显示)。
+  final Widget? actionBelow;
+
+  /// 只包住**封面圆**的外壳(拖拽源)。拖拽只能从封面起拖 —— 播放器名 / 歌名
+  /// 位置按下不起拖(避免误触把队列拖走),但那两处仍可点(切遥控 / 选组)。
+  final Widget Function(Widget circle)? circleWrapper;
 
   /// 本机圆：封面直接取本地播放态（零延迟），不依赖服务端镜像。
   final bool isSelf;
@@ -479,6 +680,16 @@ class _RingBubble extends ConsumerWidget {
       trackLabel = playing ? (nowPlaying?.trackLabel ?? '') : '';
     }
 
+    // 群组用**虚线圆**与单机播放器(实线圆)一眼区分:虚线 = 「容器 / 多台设备
+    // 的集合」,实线 = 一台真实设备。描边颜色/粗细口径两者完全一致。
+    final bool isGroup = peer.kind == 'group';
+    final Color ringColor = highlighted
+        ? scheme.primary
+        : isActive
+        ? colors.accent
+        : colors.ink.withValues(alpha: 0.28);
+    final double ringWidth = (highlighted || isActive) ? 3 : 1;
+
     final Widget circle = AnimatedContainer(
       duration: const Duration(milliseconds: 140),
       width: _kRingSize,
@@ -494,19 +705,19 @@ class _RingBubble extends ConsumerWidget {
       // 封面被挤小一圈、圆边露出 raised 底色，看起来就是「封面是正方形、
       // 没放大铺满圆」的缺口（高亮态 3px 比常态 1px 更明显）。
       // 前景描边不参与布局，封面得以铺满整个圆，描边只是覆在其上的一圈。
-      foregroundDecoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          // 落点高亮：拖到哪个圆上哪个圆亮起来 —— 「会落到谁那儿」一眼可见。
-          // 遥控目标高亮：accent 常亮描边，与落点高亮(primary)区分开。
-          color: highlighted
-              ? scheme.primary
-              : isActive
-              ? colors.accent
-              : colors.ink.withValues(alpha: 0.28),
-          width: highlighted ? 3 : (isActive ? 3 : 1),
-        ),
-      ),
+      // 群组的描边交给下面的虚线环 CustomPaint(它要画在封面之上,
+      // 且 foregroundDecoration 画不出虚线),故此处置空。
+      foregroundDecoration: isGroup
+          ? null
+          : BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                // 落点高亮：拖到哪个圆上哪个圆亮起来 —— 「会落到谁那儿」一眼可见。
+                // 遥控目标高亮：accent 常亮描边，与落点高亮(primary)区分开。
+                color: ringColor,
+                width: ringWidth,
+              ),
+            ),
       child: (playing && cover != null && cover.isNotEmpty)
           ? CoverArtImage(
               coverArtId: cover,
@@ -519,10 +730,35 @@ class _RingBubble extends ConsumerWidget {
           : _DeviceIcon(peer: peer, dimmed: !playing),
     );
 
+    // 群组:在封面/图标之上叠一圈**虚线圆**(虚线 = 容器,与设备实线圆区分)。
+    final Widget dashedOrNot = isGroup
+        ? SizedBox(
+            width: _kRingSize,
+            height: _kRingSize,
+            child: Stack(
+              children: <Widget>[
+                circle,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _DashedRingPainter(
+                        color: ringColor,
+                        strokeWidth: ringWidth,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        : circle;
+
+    final circleOnly = isActive ? _ActivePulse(child: dashedOrNot) : dashedOrNot;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        if (isActive) _ActivePulse(child: circle) else circle,
+        // 拖拽源只包封面圆(见 circleWrapper 注释):从名称/歌名位置不起拖。
+        circleWrapper != null ? circleWrapper!(circleOnly) : circleOnly,
         const SizedBox(width: 12),
         // 右侧信息列：第一行播放器名（完整名，极端长名兜底两行），
         // 第二行该端此刻在播的「歌名 - 歌手」；没在播留空。
@@ -554,12 +790,56 @@ class _RingBubble extends ConsumerWidget {
                   ),
                 ),
               ],
+              // 选中群组后的 +/− 按钮:放在名称/曲目下方(设计图:「独立播放器
+              // 底下出现 +/- 符号的按钮」)。
+              if (actionBelow != null) ...<Widget>[
+                const SizedBox(height: 6),
+                actionBelow!,
+              ],
             ],
           ),
         ),
       ],
     );
   }
+}
+
+/// 群组圆的**虚线圆环**：沿圆周等分画短弧，间隔留空。
+/// 语义：虚线 = 容器(多台设备的集合)，实线 = 一台真实设备 —— 圆圈形状本身
+/// 就能区分「这是组还是单机」，不依赖文字标签。
+class _DashedRingPainter extends CustomPainter {
+  const _DashedRingPainter({
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double strokeWidth;
+
+  /// 一圈分成多少段(越少段 = 虚线感越强;20 段在 78px 圆上疏密适中)。
+  static const int dashCount = 20;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final radius = (size.width - strokeWidth) / 2;
+    final center = Offset(size.width / 2, size.height / 2);
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final step = math.pi * 2 / dashCount;
+    // 每段画 60%、空 40% —— 明显成虚线但不出「断点过密」的噪点感。
+    const sweepRatio = 0.6;
+    for (int i = 0; i < dashCount; i++) {
+      canvas.drawArc(rect, i * step, step * sweepRatio, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRingPainter old) =>
+      old.color != color || old.strokeWidth != strokeWidth;
 }
 
 /// 遥控目标的「呼吸光环」：外圈 accent 圆环周期性放大 + 渐隐 + 辉光，
@@ -626,6 +906,62 @@ class _ActivePulseState extends State<_ActivePulse>
           ],
         );
       },
+    );
+  }
+}
+
+/// 加减成员小按钮:选中群组后出现在设备圆的信息列下方。
+/// 组内显示 −(点击退出),组外显示 +(点击加入);30px 圆形,不挤占圆本体。
+/// 加入/退出群组的**可勾选小圆圈**(与 Web 流转列表行尾同一套视觉):
+/// 未加入 = 空心圈(边框 + 透明底);已加入 = accent 实心圈 + 白色 ✓。
+/// 不再用 +/− —— 勾选态比「加减」更贴近「在不在组里」的是/否语义。
+class _MemberToggleButton extends StatelessWidget {
+  const _MemberToggleButton({required this.isMember, required this.onTap});
+
+  final bool isMember;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.musicFlowColors;
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      // 触控热区放到 30px,视觉圈仍是 20px(Web 同款尺寸)。
+      child: SizedBox(
+        width: 30,
+        height: 30,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isMember
+                  ? scheme.primary
+                  : colors.ink.withValues(alpha: 0.02),
+              border: Border.all(
+                color: isMember
+                    ? scheme.primary
+                    : colors.ink.withValues(alpha: 0.45),
+                width: 1.5,
+              ),
+            ),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: isMember ? 1 : 0,
+              child: Icon(
+                Icons.check,
+                size: 13,
+                color: scheme.onPrimary,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -2314,6 +2314,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get player_destroy_zone => '拖播放器到这里销毁';
 
   @override
+  String player_group_selected_hint(String name) {
+    return '已选中群组「$name」：点 +/− 让播放器加入或退出；再点群组取消';
+  }
+
+  @override
+  String player_group_joined(String name) {
+    return '已加入群组「$name」';
+  }
+
+  @override
+  String player_group_left(String name) {
+    return '已退出群组「$name」';
+  }
+
+  @override
+  String get player_group_op_failed => '群组操作失败，请重试';
+
+  @override
   String player_destroy_success(String name) {
     return '已停止并清空「$name」';
   }

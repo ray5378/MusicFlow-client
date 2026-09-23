@@ -2350,6 +2350,34 @@
     }
   },
   "player_destroy_zone": "拖播放器到这里销毁",
+  "player_group_selected_hint": "已选中群组「{name}」：点 +/− 让播放器加入或退出；再点群组取消",
+  "@player_group_selected_hint": {
+    "description": "player_group_selected_hint",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_group_joined": "已加入群组「{name}」",
+  "@player_group_joined": {
+    "description": "player_group_joined",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_group_left": "已退出群组「{name}」",
+  "@player_group_left": {
+    "description": "player_group_left",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "player_group_op_failed": "群组操作失败，请重试",
   "player_destroy_success": "已停止并清空「{name}」",
   "@player_destroy_success": {
     "description": "player_destroy_success",

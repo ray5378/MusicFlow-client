@@ -4242,6 +4242,30 @@ abstract class AppLocalizations {
   /// **'拖播放器到这里销毁'**
   String get player_destroy_zone;
 
+  /// player_group_selected_hint
+  ///
+  /// In zh, this message translates to:
+  /// **'已选中群组「{name}」：点 +/− 让播放器加入或退出；再点群组取消'**
+  String player_group_selected_hint(String name);
+
+  /// player_group_joined
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入群组「{name}」'**
+  String player_group_joined(String name);
+
+  /// player_group_left
+  ///
+  /// In zh, this message translates to:
+  /// **'已退出群组「{name}」'**
+  String player_group_left(String name);
+
+  /// No description provided for @player_group_op_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'群组操作失败，请重试'**
+  String get player_group_op_failed;
+
   /// player_destroy_success
   ///
   /// In zh, this message translates to:

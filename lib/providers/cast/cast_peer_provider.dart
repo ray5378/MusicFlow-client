@@ -864,6 +864,48 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     return ok;
   }
 
+  /// 拉取全部播放器群组(供流转页「点群组 → 加减成员」用)。
+  /// 失败返回 null(调用方据此提示);成功返回原始 JSON 列表,
+  /// 每项含 id / name / memberIds(成员为命名空间写法:sendspin:`clientId` / 裸 id ≡ DLNA)。
+  Future<List<dynamic>?> fetchGroups() async {
+    final client = _ref.read(subsonicApiClientProvider);
+    try {
+      final res = await client.getRaw('/rest/api/v1/groups');
+      final groups = res is Map ? res['groups'] : null;
+      return groups is List ? groups : null;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'fetchGroups failed: $e');
+      return null;
+    }
+  }
+
+  /// 把设备加入/移出群组。[memberKey] 必须用服务端成员命名空间写法:
+  /// sendspin = `sendspin:<clientId>`;DLNA = 裸设备 id(历史数据约定,见 splitMemberId)。
+  /// 成功返回更新后的完整 memberIds;失败返回 null。
+  Future<List<String>?> setGroupMembership(
+    String groupId,
+    String memberKey, {
+    required bool join,
+  }) async {
+    final client = _ref.read(subsonicApiClientProvider);
+    final body = join
+        ? <String, dynamic>{'add': <String>[memberKey]}
+        : <String, dynamic>{'remove': <String>[memberKey]};
+    try {
+      final res = await client.postRaw(
+        '/rest/api/v1/groups/${Uri.encodeComponent(groupId)}/members',
+        data: body,
+      );
+      final group = res is Map ? res['group'] : null;
+      final ids = group is Map ? group['memberIds'] : null;
+      if (ids is List) return ids.map((e) => e.toString()).toList();
+      return null;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'setGroupMembership failed: $e');
+      return null;
+    }
+  }
+
   Future<bool> transferQueue(PeerInfo from, PeerInfo to) async {    if (from.peerId == to.peerId) return false;
     final fromIsSelf = from.isLocal && from.self;
     final toIsSelf = to.isLocal && to.self;
