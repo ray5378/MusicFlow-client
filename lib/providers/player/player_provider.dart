@@ -385,9 +385,17 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     final type = lib?.serverType?.trim().toLowerCase();
     final version = lib?.serverVersion;
     // 明确识别出非 MusicFlow(Navidrome 等)→ false,沿用旧格式/码率判定。
-    if (type != null && type.isNotEmpty && type != 'musicflow') return false;
-    // MusicFlow 且版本已知 → 原 semver 判定(>= 3.0.47 走 timeOffset 重拉)。
-    if (type == 'musicflow' && version != null && version.trim().isNotEmpty) {
+    // 用前缀判定而非等值:服务端自报 'MusicFlow'/'musicflow'/'musicflow-web'
+    // 都算本服务端 —— 等值一旦不匹配就会把管道化判死(拖动退化成源内 seek)。
+    if (type != null &&
+        type.isNotEmpty &&
+        !type.startsWith(kMusicFlowServerTypePrefix)) {
+      return false;
+    }
+    if (type != null &&
+        type.startsWith(kMusicFlowServerTypePrefix) &&
+        version != null &&
+        version.trim().isNotEmpty) {
       return serverPipesAllHttpStreams(
         serverType: type,
         serverVersion: version,
@@ -1661,7 +1669,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         songId: resolvedSong.id,
         format: null,
         maxBitRate: null,
-        seekByReloadStream: false,
+        // 试听流同样是**本服务端**的实时管道流(`/rest/stream-remote`,后端与
+        // `/rest/stream` 一样吃 timeOffset):原先这里硬编码 false,等于宣告
+        // 「这条流只能靠源内 seek」—— 而实时管道流根本不可字节 seek,于是拖
+        // 进度条必然从头播。按地址事实判定,而不是写死。
+        seekByReloadStream: isServerStreamUrl(streamUrl),
       );
       await _syncPlaybackAfterSourceReady(autoPlay: autoPlay);
       if (!isCurrentSession()) return;

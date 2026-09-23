@@ -2,6 +2,50 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.30] - 2026-09-23
+
+### 修复 —— 本机点击/拖动进度条一律「从头播放」（seek 路由改按音源事实判定）
+
+- **现场**（Android 本机播放，任意音源均复现）：点击/拖动进度条后进度条显示正确停在目标位置，但**声音始终
+  从头播放同一首歌**。服务端已排除：240 实测同一首曲（webdav 源 flac 244s）`timeOffset=0` 交付流解码
+  244.1s、`timeOffset=90` 解码 **154.1s**（正好少 90s），且服务端从未收到"无偏移的二次拉流"；客户端
+  `[SEEKDBG]` 显示 seek 实际走的是裸 `player.seek()`（`seek execute`），根本没进重拉分支。
+- **根因**：走「重拉服务端流」还是「源内 seek」原先只看可变字段 `_seekByReloadStream`（由服务端能力判定
+  写入）。它会在若干路径上被清成 `false` —— 例如起流时先 `_clearStreamContext()`，随后本次加载被判作废
+  而提前 `return`（`setUrl` 已执行、播放器确实在放新源，但 `_currentStreamUrl` 保持 null、标记保持
+  false）；preview 起流更是显式写 `false`。一旦它为假，seek 静默退化成「把同一个无效动作重复一遍」，
+  而且**不会自我纠正**：just_audio 在 seek 之后会**立刻**把 position 报成目标值（实测 driftMs 稳定
+  200~230ms），于是「漂移 > 2s 才升级重拉」的兜底永远不触发 —— position 在这个场景里会撒谎，不能当作
+  「seek 成功」的证据。
+- **修法（换判定依据，不加时间窗）**：新增纯函数 `resolveSeekReloadPlan()`，按**音源地址事实**判定，三种
+  来源按可信度排序：
+  1. `context`：流上下文完整且标记可重拉（原路径，行为不劣化）；
+  2. `context_lost`：上下文丢失/不可信时，改用**播放器当前真实加载的地址**（`player.audioSource`
+     → `UriAudioSource.uri`）—— 事故主因的兜底，地址是事实而非记账；
+  3. `context_plain`：上下文在但标记不可重拉（历史 preview 路径）而地址仍是本服务端流
+     （`/rest/stream-remote` 与 `/rest/stream` 一样吃 `timeOffset`）→ 顺手修掉试听链路的拖动。
+
+  归属判定 `isServerStreamUrl()`：http(s) + 路径落在 `/rest/stream`(或 `-remote`) + 带 Subsonic 签名
+  三件套（`u`/`t`/`s`）。外部 CDN 直链与离线缓存 `file://` 都不满足 → 仍走源内 seek（它们无法靠改写
+  URL 让服务端重新出流）。重拉地址由 `buildTimeOffsetStreamUrl()` 在基准地址上**改写 `timeOffset`**，
+  其余参数（含签名、`format`/`maxBitRate`）原样保留。
+- **顺带修掉的两个隐患**：
+  - preview 起流不再硬编码 `seekByReloadStream: false`，改为按地址事实判定；
+  - 服务端能力判定放宽为**前缀匹配**（`MusicFlow` / `musicflow` / `musicflow-web` 都算本服务端）并容错
+    `v4.0.14`、`MusicFlow 4.0.14` 这类自报版本串 —— 等值判定一旦不匹配就会把「全管道化」判死，进而把
+    拖动退化成源内 seek。
+- **明确不做的事**：不再用 `drift` 漂移判断 seek 是否成功（实测不可信）；对**非管道化**服务端（明确识别出
+  的 Navidrome / 老版本）保持既有 `format`/`maxBitRate` 判定与源内 seek，避免把本可字节 seek 的直传流
+  退化成重拉。
+- **守卫测试**：新增 `test/providers/player/seek_reload_routing_test.dart` 共 15 例，含事故回归
+  「上下文丢失 + 标记为 false 时仍必须重拉」、preview 链路、外部直链 / 离线文件不重拉、其他服务端不重拉、
+  归零 seek 不带 `timeOffset`、type 与版本串容错等。
+- **验证**：`flutter analyze` 0 error；`flutter test` **765 全绿**。**服务端无改动**。
+
+### 构建信息
+- Android: `MusicFlow-v5030-android.apk`
+- Windows: `MusicFlow-v5030-windows-setup.exe`（安装版，安装时可勾选开始菜单 / 桌面快捷方式）
+
 ## [5.0.29] - 2026-09-23
 
 ### 修复 —— 本机播放「总时长被实时流拽回 0 再爬升」+ 拖动/点击都从头播放

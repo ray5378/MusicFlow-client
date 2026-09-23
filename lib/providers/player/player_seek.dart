@@ -94,6 +94,21 @@ mixin PlayerSeekInternals on PlayerNotifier {
     );
   }
 
+  /// 播放器**当前真实加载**的音源地址(http/https 才算,离线缓存的 file:// 不算)。
+  ///
+  /// 这是 seek 路由的事实依据:它不经过任何簿记字段,起流路径无论从哪来
+  /// (direct_stream / 转码重试 / preview / 会话恢复)都能反映出来。原先只看
+  /// `_seekByReloadStream` 那个可被清空/写错的字段,一旦它错了,seek 就静默退化成
+  /// 「重复一遍无效的源内 seek」,而 just_audio 还会立刻把 position 报成目标值,
+  /// 让漂移兜底也失效 —— 现场就是「拖了从头播」。
+  String? _loadedSourceUrl(AudioPlayer player) {
+    final source = player.audioSource;
+    if (source is! UriAudioSource) return null;
+    final uri = source.uri;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    return uri.toString();
+  }
+
   Future<void> _seekWithFallback(
     Duration target, {
     required String songId,
@@ -103,47 +118,55 @@ mixin PlayerSeekInternals on PlayerNotifier {
     final player = _audioPlayer;
     if (player == null || !isCurrentSeek()) return;
 
-    if (_seekByReloadStream &&
-        _currentStreamSongId == songId &&
-        _currentStreamUrl != null) {
+    final loadedSourceUrl = _loadedSourceUrl(player);
+    final plan = resolveSeekReloadPlan(
+      songId: songId,
+      target: target,
+      contextSongId: _currentStreamSongId,
+      contextUrl: _currentStreamUrl,
+      contextAllowsReload: _seekByReloadStream,
+      loadedSourceUrl: loadedSourceUrl,
+      serverPipelinedHttp: _serverPipelinedHttp(),
+    );
+    _seekDbg(
+      'seek route reload=${plan != null} origin=${plan?.origin ?? "-"} '
+      'flag=$_seekByReloadStream ctxSong=${_currentStreamSongId ?? "-"} '
+      'ctx=${_summarizeStreamUrl(_currentStreamUrl)} '
+      'loaded=${_summarizeStreamUrl(loadedSourceUrl)}',
+    );
+
+    if (plan != null) {
       final shouldResume = player.playing;
       final seekTarget = TranscodedStreamSeekTarget.fromLogical(target);
-      if (seekTarget.serverOffset != _sourcePositionOffset) {
-        await _reloadStreamForSeek(
-          player: player,
-          songId: songId,
-          target: target,
-          seekTarget: seekTarget,
-          streamFormat: _currentStreamFormat,
-          streamMaxBitRate: _currentStreamMaxBitRate,
-          shouldResume: shouldResume,
-          isCurrentSeek: isCurrentSeek,
-          ownsSource: ownsSource,
-        );
-        return;
+      if (plan.origin == 'context' &&
+          seekTarget.serverOffset == _sourcePositionOffset) {
+        // 同段微调(目标与当前流同一逻辑段,常发生在拖动连续触发时):源内 seek
+        // 足够,不必每次重拉(省 setUrl + 服务端转码首包等待);源拒收(实时管道
+        // 流不可字节 seek)则升级全量重拉。
+        try {
+          await player.seek(seekTarget.sourcePosition);
+          return;
+        } catch (_) {
+          if (!isCurrentSeek()) return;
+          _seekDbg('same-segment seek rejected, upgrading to reload');
+        }
       }
-      // 同段微调(目标与当前流同一逻辑段,常发生在拖动连续触发时):源内 seek
-      // 足够,不必每次重拉(省 setUrl + 服务端转码首包等待);源拒收(转码流不
-      // 可字节 seek)则升级全量重拉。
-      try {
-        await player.seek(seekTarget.sourcePosition);
-      } catch (_) {
-        if (!isCurrentSeek()) return;
-        _seekDbg('same-segment seek rejected, upgrading to reload');
-        await _reloadStreamForSeek(
-          player: player,
-          songId: songId,
-          target: target,
-          seekTarget: seekTarget,
-          streamFormat: _currentStreamFormat,
-          streamMaxBitRate: _currentStreamMaxBitRate,
-          shouldResume: shouldResume,
-          isCurrentSeek: isCurrentSeek,
-          ownsSource: ownsSource,
-        );
-        return;
-      }
+      await _reloadStreamForSeek(
+        player: player,
+        songId: songId,
+        target: target,
+        seekTarget: seekTarget,
+        reloadUrl: plan.url,
+        origin: plan.origin,
+        streamFormat: plan.format,
+        streamMaxBitRate: plan.maxBitRate,
+        shouldResume: shouldResume,
+        isCurrentSeek: isCurrentSeek,
+        ownsSource: ownsSource,
+      );
+      return;
     }
+
     final sourceTarget = _sourceSeekPosition(target);
     _seekDbg(
       'seek execute target=$target sourceTarget=$sourceTarget '
@@ -165,32 +188,10 @@ mixin PlayerSeekInternals on PlayerNotifier {
     );
     if (drift <= 2000) return;
 
-    // ★ 服务端实时管道流不可字节 seek —— 再执行一次 player.seek() 永远无效。
-    // 现场:本机播放拖到任何位置都回到开头(服务端 0 次 seek、0 次重拉请求),
-    // 就死在这条兜底上:它只是把同一个无效动作重复一遍。
-    // 只要当前源是能重建 URL 的服务端流,一律升级为 timeOffset 重拉;
-    // 这样即使能力判定(依赖 library.serverType/serverVersion,仅在密码登录时
-    // 写入,升级库/老库可能为 null → 判 false)失效,拖动依然可用。
-    if (_currentStreamSongId == songId && _currentStreamUrl != null) {
-      _seekDbg(
-        'seek drift on non-seekable source (driftMs=$drift), '
-        'upgrading to reload-stream',
-      );
-      await _reloadStreamForSeek(
-        player: player,
-        songId: songId,
-        target: target,
-        seekTarget: TranscodedStreamSeekTarget.fromLogical(target),
-        streamFormat: _currentStreamFormat,
-        streamMaxBitRate: _currentStreamMaxBitRate,
-        shouldResume: player.playing,
-        isCurrentSeek: isCurrentSeek,
-        ownsSource: ownsSource,
-      );
-      return;
-    }
-
-    // 直连流/本地文件也做一次强制重试，规避解码器刚起播时的 seek 抖动。
+    // 走到这里只剩「本服务端流之外」的源(离线缓存文件 / 外部直链 / 明确判定的
+    // 非管道化老服务端):position 漂移在这类源上同样会撒谎(见上),所以这里只做
+    // 一次温和的原地重试 —— 规避解码器刚起播时的 seek 抖动,不再假装能靠漂移
+    // 判断"重拉与否"。服务端流的拖动一律在上面的 plan 分支里重拉。
     final shouldResume = player.playing;
     Logger.warn(
       'Seek drift detected on non-lock source (target=$target, actual=$actual), '
@@ -210,30 +211,27 @@ mixin PlayerSeekInternals on PlayerNotifier {
     _seekDbg('seek retry completed now=${player.position}');
   }
 
-  /// 全量重拉(C5 分发目标):按 serverOffset 重建流 URL 并 setUrl,offset 同步更新。
-  /// 调用方保证:跨逻辑段(或同段微调被拒)才进这里;全部路径 return,无 fallthrough。
+  /// 全量重拉(C5 分发目标):用 [reloadUrl](通常已带 timeOffset)重建流并 setUrl,
+  /// offset 同步更新。调用方保证:判定为服务端流才进这里;全部路径 return,无 fallthrough。
   Future<void> _reloadStreamForSeek({
     required AudioPlayer player,
     required String songId,
     required Duration target,
     required TranscodedStreamSeekTarget seekTarget,
+    required String reloadUrl,
+    required String origin,
     required String? streamFormat,
     required int? streamMaxBitRate,
     required bool shouldResume,
     required bool Function() isCurrentSeek,
     required bool Function() ownsSource,
   }) async {
-    final reloadUrl = _apiClient.getStreamUrl(
-      songId,
-      maxBitRate: streamMaxBitRate,
-      format: streamFormat,
-      timeOffset: seekTarget.serverOffset.inSeconds,
-    );
     _seekDbg(
-      'seek reload-stream song=$songId '
+      'seek reload-stream song=$songId origin=$origin '
       'target=$target serverOffset=${seekTarget.serverOffset} '
       'sourcePosition=${seekTarget.sourcePosition} format=$streamFormat '
-      'maxBitRate=$streamMaxBitRate wasPlaying=$shouldResume',
+      'maxBitRate=$streamMaxBitRate wasPlaying=$shouldResume '
+      'url=${_summarizeStreamUrl(reloadUrl)}',
     );
     try {
       final sourceReady = await _replaceLoadedSource(
