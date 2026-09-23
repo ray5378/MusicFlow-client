@@ -2350,7 +2350,15 @@
     }
   },
   "player_destroy_zone": "Drop a player here to stop & clear",
-  "player_group_selected_hint": "Group “{name}” selected: tap +/− to join or leave; tap the group again to cancel",
+  "player_group_selected_hint": "Group “{name}” selected: tap the circle under a player to join or leave; tap the group again to cancel",
+  "player_group_add_member": "Join this group",
+  "@player_group_add_member": {
+    "description": "player_group_add_member"
+  },
+  "player_group_remove_member": "Leave this group",
+  "@player_group_remove_member": {
+    "description": "player_group_remove_member"
+  },
   "@player_group_selected_hint": {
     "description": "player_group_selected_hint",
     "placeholders": {

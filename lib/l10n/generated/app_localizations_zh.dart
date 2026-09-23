@@ -2315,8 +2315,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String player_group_selected_hint(String name) {
-    return '已选中群组「$name」：点 +/− 让播放器加入或退出；再点群组取消';
+    return '已选中群组「$name」：点播放器下方的圆圈让它加入或退出；再点群组取消';
   }
+
+  @override
+  String get player_group_add_member => '加入该群组';
+
+  @override
+  String get player_group_remove_member => '退出该群组';
 
   @override
   String player_group_joined(String name) {

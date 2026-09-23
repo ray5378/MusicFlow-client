@@ -2446,8 +2446,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String player_group_selected_hint(String name) {
-    return 'Group “$name” selected: tap +/− to join or leave; tap the group again to cancel';
+    return 'Group “$name” selected: tap the circle under a player to join or leave; tap the group again to cancel';
   }
+
+  @override
+  String get player_group_add_member => 'Join this group';
+
+  @override
+  String get player_group_remove_member => 'Leave this group';
 
   @override
   String player_group_joined(String name) {

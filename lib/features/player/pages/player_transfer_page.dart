@@ -915,6 +915,7 @@ class _ActivePulseState extends State<_ActivePulse>
 /// 加入/退出群组的**可勾选小圆圈**(与 Web 流转列表行尾同一套视觉):
 /// 未加入 = 空心圈(边框 + 透明底);已加入 = accent 实心圈 + 白色 ✓。
 /// 不再用 +/− —— 勾选态比「加减」更贴近「在不在组里」的是/否语义。
+/// 按压反馈走统一组件 MusicFlowPressable(自带按压缩放 + 无障碍语义)。
 class _MemberToggleButton extends StatelessWidget {
   const _MemberToggleButton({required this.isMember, required this.onTap});
 
@@ -925,9 +926,17 @@ class _MemberToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
+    final loc = AppLocalizations.of(context);
+    // 统一按压反馈:功能代码不得裸用 Material 原生交互控件
+    // (CI 门禁 tool/check_interaction_feedback.dart 会判红)。
+    return MusicFlowPressable(
+      onPressed: onTap,
+      selected: isMember,
+      minimumSize: const Size.square(30),
+      borderRadius: BorderRadius.circular(15),
+      semanticLabel: isMember
+          ? loc.player_group_remove_member
+          : loc.player_group_add_member,
       // 触控热区放到 30px,视觉圈仍是 20px(Web 同款尺寸)。
       child: SizedBox(
         width: 30,

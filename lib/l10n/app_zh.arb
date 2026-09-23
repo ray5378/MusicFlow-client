@@ -2350,7 +2350,15 @@
     }
   },
   "player_destroy_zone": "拖播放器到这里销毁",
-  "player_group_selected_hint": "已选中群组「{name}」：点 +/− 让播放器加入或退出；再点群组取消",
+  "player_group_selected_hint": "已选中群组「{name}」：点播放器下方的圆圈让它加入或退出；再点群组取消",
+  "player_group_add_member": "加入该群组",
+  "@player_group_add_member": {
+    "description": "player_group_add_member"
+  },
+  "player_group_remove_member": "退出该群组",
+  "@player_group_remove_member": {
+    "description": "player_group_remove_member"
+  },
   "@player_group_selected_hint": {
     "description": "player_group_selected_hint",
     "placeholders": {

@@ -4245,8 +4245,20 @@ abstract class AppLocalizations {
   /// player_group_selected_hint
   ///
   /// In zh, this message translates to:
-  /// **'已选中群组「{name}」：点 +/− 让播放器加入或退出；再点群组取消'**
+  /// **'已选中群组「{name}」：点播放器下方的圆圈让它加入或退出；再点群组取消'**
   String player_group_selected_hint(String name);
+
+  /// player_group_add_member
+  ///
+  /// In zh, this message translates to:
+  /// **'加入该群组'**
+  String get player_group_add_member;
+
+  /// player_group_remove_member
+  ///
+  /// In zh, this message translates to:
+  /// **'退出该群组'**
+  String get player_group_remove_member;
 
   /// player_group_joined
   ///
