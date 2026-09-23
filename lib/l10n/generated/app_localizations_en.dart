@@ -1489,6 +1489,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Edit the library name and other details.';
 
   @override
+  String get library_edit_auth_info => 'Authentication';
+
+  @override
+  String get library_edit_auth_info_desc =>
+      'Edit the account, password, or API Key used to connect to this library. If an API Key is provided, it takes priority.';
+
+  @override
   String get library_edit_danger_zone => 'Danger zone';
 
   @override

@@ -106,6 +106,10 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
                         SizedBox(height: context.musicFlowSpacing.xl),
                         const MusicFlowDivider(),
                         SizedBox(height: context.musicFlowSpacing.xl),
+                        _buildAuthSection(),
+                        SizedBox(height: context.musicFlowSpacing.xl),
+                        const MusicFlowDivider(),
+                        SizedBox(height: context.musicFlowSpacing.xl),
                         _buildAddressesSection(library),
                         SizedBox(height: context.musicFlowSpacing.xl),
                         const MusicFlowDivider(),
@@ -161,6 +165,55 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
           textInputAction: TextInputAction.done,
           validator: (value) {
             if (value == null || value.trim().isEmpty) return loc.library_edit_name_required;
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuthSection() {
+    final loc = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        MusicFlowSectionHeader(
+          title: loc.library_edit_auth_info,
+          description: loc.library_edit_auth_info_desc,
+        ),
+        SizedBox(height: context.musicFlowSpacing.md),
+        MusicFlowTextField(
+          controller: _usernameController,
+          label: loc.settings_username,
+          leadingIcon: AppIcons.profile,
+          textInputAction: TextInputAction.next,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return loc.login_username_required;
+            }
+            return null;
+          },
+        ),
+        SizedBox(height: context.musicFlowSpacing.md),
+        MusicFlowTextField(
+          controller: _apiKeyController,
+          label: loc.settings_api_key,
+          helperText: loc.login_api_key_helper,
+          leadingIcon: AppIcons.key,
+          obscureText: true,
+          textInputAction: TextInputAction.next,
+        ),
+        SizedBox(height: context.musicFlowSpacing.md),
+        MusicFlowTextField(
+          controller: _passwordController,
+          label: loc.settings_auth_password,
+          leadingIcon: AppIcons.shield,
+          obscureText: true,
+          textInputAction: TextInputAction.done,
+          validator: (value) {
+            // 填写 API Key 时优先用 API Key 认证，密码可留空。
+            if (_apiKeyController.text.trim().isNotEmpty) return null;
+            if (value == null || value.isEmpty) return loc.login_password_required;
             return null;
           },
         ),
@@ -378,17 +431,34 @@ class _EditLibraryPageState extends ConsumerState<EditLibraryPage> {
     final loc = AppLocalizations.of(context);
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    final username = _usernameController.text.trim();
+    final apiKey = _apiKeyController.text.trim();
+    final password = _passwordController.text;
+    // 认证方式按填写自动判定：填了 API Key 就用 API Key，否则用 用户名+密码。
+    final authType = apiKey.isNotEmpty
+        ? MusicLibraryAuthType.apiKey
+        : MusicLibraryAuthType.token;
+
     final repository = ref.read(libraryRepositoryProvider);
     final extensions = Map<String, dynamic>.from(original.extensions);
     extensions.remove('aria2');
     extensions.remove('embedService');
     final updated = original.copyWith(
       name: _nameController.text,
+      username: username,
+      password: password,
+      apiKey: apiKey,
+      authType: authType,
       extensions: extensions,
       updatedAt: DateTime.now(),
     );
     await repository.updateLibrary(updated);
     if (!mounted) return;
+
+    // 立即让当前会话切换到新凭据：API client 实时读取库，刷新 provider 即生效。
+    ref.invalidate(librariesProvider);
+    ref.invalidate(activeLibraryProvider);
+
     showMusicFlowMessage(context, loc.library_edit_save_success, kind: MusicFlowMessageKind.success);
     context.pop();
   }

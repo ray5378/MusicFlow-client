@@ -1401,6 +1401,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get library_edit_basic_info_desc => '编辑音乐库的名称等信息。';
 
   @override
+  String get library_edit_auth_info => '认证信息';
+
+  @override
+  String get library_edit_auth_info_desc =>
+      '修改连接该音乐库的账号、密码或 API Key。填写 API Key 后将优先使用 API Key 认证。';
+
+  @override
   String get library_edit_danger_zone => '危险操作';
 
   @override

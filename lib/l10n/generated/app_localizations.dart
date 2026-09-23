@@ -2615,6 +2615,18 @@ abstract class AppLocalizations {
   /// **'编辑音乐库的名称等信息。'**
   String get library_edit_basic_info_desc;
 
+  /// library_edit_auth_info
+  ///
+  /// In zh, this message translates to:
+  /// **'认证信息'**
+  String get library_edit_auth_info;
+
+  /// library_edit_auth_info_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'修改连接该音乐库的账号、密码或 API Key。填写 API Key 后将优先使用 API Key 认证。'**
+  String get library_edit_auth_info_desc;
+
   /// library_edit_danger_zone
   ///
   /// In zh, this message translates to:
