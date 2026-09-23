@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/peer.dart';
+import 'package:musicflow_client/features/player/peer_display_order.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -312,15 +313,8 @@ class _PlayerSwitcherSheetState extends ConsumerState<PlayerSwitcherSheet> {
         .toList()
         // 展示序与流转页(player_transfer_page)同一口径:**正在播的排前面**;
         // 同为在播/同为闲置时按 **客户端本机 > 群组 > 独立播放器**,再按名称。
-        ..sort((a, b) {
-          final pa = a.queueActive ? 0 : 1;
-          final pb = b.queueActive ? 0 : 1;
-          if (pa != pb) return pa - pb;
-          final ra = a.isLocal ? 0 : (a.kind == 'group' ? 1 : 2);
-          final rb = b.isLocal ? 0 : (b.kind == 'group' ? 1 : 2);
-          if (ra != rb) return ra - rb;
-          return a.name.compareTo(b.name);
-        });
+        // 排序实现收敛到 peer_display_order.dart(**唯一实现**),别在此内联副本。
+        ..sort(comparePeerDisplayOrder);
 
     return MusicFlowBottomSheet(
       title: loc.player_transfer_playback_title,

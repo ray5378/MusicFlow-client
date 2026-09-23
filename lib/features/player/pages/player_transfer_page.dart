@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/data/models/peer.dart';
+import 'package:musicflow_client/features/player/peer_display_order.dart';
 import 'package:musicflow_client/features/player/widgets/player_backdrop.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
@@ -113,31 +114,14 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
       }
       if (p.available && p.platform != 'web') others.add(p);
     }
-    others.sort(_peerDisplayCompare);
+    others.sort(comparePeerDisplayOrder);
     setState(() => _peers = <PeerInfo>[if (self != null) self, ...others]);
   }
 
-  /// 播放端展示序:**正在播的排前面**;同为在播/同为闲置时按
-  /// **客户端本机 > 群组 > 独立播放器**排(用户定稿 2026-09-23)。
-  ///
-  /// 「正在播」取服务端 `queue.isActive`(PeerInfo.queueActive),不再额外请求;
-  /// 群组排在独立播放器之前 —— 多台设备一起响时,组是更上层的控制目标。
-  static int _peerDisplayCompare(PeerInfo a, PeerInfo b) {
-    final pa = a.queueActive ? 0 : 1;
-    final pb = b.queueActive ? 0 : 1;
-    if (pa != pb) return pa - pb;
-    final ka = _peerKindRank(a);
-    final kb = _peerKindRank(b);
-    if (ka != kb) return ka - kb;
-    return a.name.compareTo(b.name);
-  }
-
-  /// 类别权重:客户端本机(含同账号其它端)0 < 群组 1 < 独立播放器 2。
-  static int _peerKindRank(PeerInfo p) {
-    if (p.isLocal) return 0;
-    if (p.kind == 'group') return 1;
-    return 2;
-  }
+  // 展示序口径见 lib/features/player/peer_display_order.dart(**唯一实现**):
+  //   在播优先 → 类别(本机 > 群组 > 独立播放器) → 名称。
+  // ⚠️ 别在本文件内联比较器 —— 流转页与切换器曾各写一份,改一处就漂移;
+  //    口径由 peer_order 单测 + tool/check-peer-order.mjs 双锁。
 
   Future<void> _handleDrop(PeerInfo from, PeerInfo to) async {
     if (_busy || from.peerId == to.peerId) return;

@@ -1,0 +1,48 @@
+name: Peer Order Guard
+
+# 播放端展示序的**阻塞**守卫（与发版链解耦，但失败会标红）：
+#   口径 = 在播优先 → 类别（本机 > 群组 > 独立播放器） → 名称（用户定稿 2026-09-24）。
+#
+# 为什么单开一道而不塞进 Test Suite / UI Guard：
+#   · `Test Suite` 与 `UI Guard` 都是 `continue-on-error` 的**观察**流水线，
+#     失败只显示黄字，锁不住东西；
+#   · 这两条静默漂移（① 两份实现各写一份、② 键序被换成「类别优先」）都编译得过、
+#     单看某端也说得通，只有「静态查唯一实现 + 行为单测」两道一起才拦得住。
+#
+# 两道检查：
+#   1) node tool/check-peer-order.mjs      —— 唯一实现 / 键序 / 禁止内联副本 / 调用点
+#   2) flutter test test/features/player/peer_display_order_test.dart —— 行为锁
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  peer-order-guard:
+    name: peer display order guard (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: 唯一实现 / 键序 / 禁止内联副本
+        run: node tool/check-peer-order.mjs
+
+      - name: 展示序行为锁（在播优先 → 类别 → 名称）
+        run: flutter test test/features/player/peer_display_order_test.dart
