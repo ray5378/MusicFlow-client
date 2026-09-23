@@ -264,4 +264,69 @@ void main() {
       expect(readSessionQueueOrigin(written), isNotNull);
     });
   });
+
+  group('authoritativeDuration（实时流渐进上报不得污染时长）', () {
+    // 现场：服务端实时管道流起播时 durationStream 会先报 1s、2s…再爬到真值。
+    // 一旦拿它当权威：①总时长被拽回 0 再爬升（Windows 观感抖动）；
+    // ②normalizeSeekPosition 按偏小时长截断 seek 目标 → 拖动后从头开始播放。
+    const metadata = Duration(seconds: 276);
+
+    test('元数据已知 → 一律取元数据，忽略流的渐进上报', () {
+      for (final reported in <Duration>[
+        Duration.zero,
+        const Duration(seconds: 1),
+        const Duration(seconds: 2),
+        const Duration(seconds: 47),
+        const Duration(seconds: 275),
+        const Duration(seconds: 276),
+        const Duration(seconds: 300),
+      ]) {
+        expect(
+          authoritativeDuration(
+            streamDuration: reported,
+            metadataDuration: metadata,
+          ),
+          metadata,
+          reason: 'reported=$reported 不得覆盖元数据时长',
+        );
+      }
+    });
+
+    test('元数据缺失 → 退回流上报值（保持流时长更准确）', () {
+      expect(
+        authoritativeDuration(
+          streamDuration: const Duration(seconds: 186),
+          metadataDuration: Duration.zero,
+        ),
+        const Duration(seconds: 186),
+      );
+    });
+
+    test('★ seek 目标不被渐进上报的小时长截断（拖到 3 分钟就是 3 分钟）', () {
+      const target = Duration(seconds: 180);
+      // 修复前：流刚报 2s → normalizeSeekPosition(180s, 2s) = 2s（=从头播）
+      final broken = normalizeSeekPosition(target, const Duration(seconds: 2));
+      expect(broken, const Duration(seconds: 2));
+
+      final fixed = normalizeSeekPosition(
+        target,
+        authoritativeDuration(
+          streamDuration: const Duration(seconds: 2),
+          metadataDuration: metadata,
+        ),
+      );
+      expect(fixed, target);
+    });
+
+    test('拖动到超过元数据时长的极端值仍被裁到元数据时长', () {
+      final clamped = normalizeSeekPosition(
+        const Duration(seconds: 9999),
+        authoritativeDuration(
+          streamDuration: const Duration(seconds: 2),
+          metadataDuration: metadata,
+        ),
+      );
+      expect(clamped, metadata);
+    });
+  });
 }

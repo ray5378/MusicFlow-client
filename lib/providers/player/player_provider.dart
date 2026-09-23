@@ -169,6 +169,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _syntheticPositionFallbackActive = false;
   int _playDebugSession = 0;
   bool _loggedDurationUnavailableForSong = false;
+  /// 元数据时长与实时流上报时长明显不符的留痕标记（每首只打一次，避免刷屏）。
+  bool _loggedDurationMismatchForSong = false;
   Timer? _fadeTimer;
   Completer<void>? _fadeCompleter;
   // 播放会话落盘节流：仅当序列本质上变化时才重新序列化整张队列，避免每次
@@ -588,7 +590,37 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
             );
             return;
           }
-          // 如果流能提供时长，优先使用流的时长（更准确）
+          // ★ 元数据时长已知 → 它是权威值，实时流的渐进上报一律不覆盖。
+          //   现场(Windows/Android)：管道流刚起播时 durationStream 会从 1s、2s…
+          //   一路爬到真实时长，直接采纳会把「总时长」先显示成正确值、再被拽回
+          //   0→…→真值抖动；更糟的是 seek 目标会被 normalizeSeekPosition 按这
+          //   个偏小的 duration 截断 —— 用户拖到 3 分钟却被裁成几秒，观感就是
+          //   「点了/拖了都是从开头播放同一首」。
+          final metaDuration = Duration(
+            seconds: state.currentSong?.duration ?? 0,
+          );
+          if (metaDuration > Duration.zero) {
+            final authoritative = authoritativeDuration(
+              streamDuration: duration,
+              metadataDuration: metaDuration,
+            );
+            if (state.duration != authoritative) {
+              state = state.copyWith(duration: authoritative);
+            }
+            if ((duration - metaDuration).abs() > const Duration(seconds: 3) &&
+                !_loggedDurationMismatchForSong) {
+              _loggedDurationMismatchForSong = true;
+              _playDbg(
+                'durationStream mismatch metadata=$metaDuration '
+                'sourceDuration=$duration song=${state.currentSong?.id} '
+                '(keeping metadata duration)',
+              );
+            }
+            _loggedDurationUnavailableForSong = false;
+            return;
+          }
+
+          // 元数据缺失时才用流的时长（更准确）
           state = state.copyWith(
             duration: _sourcePositionOffset > Duration.zero
                 ? duration + _sourcePositionOffset
@@ -905,6 +937,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       _lastIgnoredSyntheticPositionLogTick = -1;
       _syntheticPositionFallbackActive = false;
       _loggedDurationUnavailableForSong = false;
+      _loggedDurationMismatchForSong = false;
 
       // 如果歌曲有时长信息，先预设 duration（转码流可能无法获取时长）
       final initialDuration = song.duration != null
@@ -1587,6 +1620,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     _lastIgnoredSyntheticPositionLogTick = -1;
     _syntheticPositionFallbackActive = false;
     _loggedDurationUnavailableForSong = false;
+    _loggedDurationMismatchForSong = false;
 
     final initialDuration = resolvedSong.duration != null
         ? Duration(seconds: resolvedSong.duration!)

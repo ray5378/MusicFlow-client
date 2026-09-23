@@ -2,6 +2,24 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.29] - 2026-09-23
+
+### 修复 —— 本机播放「总时长被实时流拽回 0 再爬升」+ 拖动/点击都从头播放
+
+- **根因（一个 bug，两副面孔）**：服务端实时管道流起播时，`durationStream` 会先把时长报成 1s、2s…再一路爬到真实时长；原逻辑「流能提供时长就优先用流的时长」直接采纳了这个渐进值：
+  - **Windows**：总时长先显示正确值 → 被拽回 0 → 逐秒爬回真值（观感抖动）；
+  - **Android**：更严重 —— `normalizeSeekPosition` 按这个偏小的时长**截断 seek 目标**，拖到 3 分钟被裁成几秒，听感就是「点击/拖拽都从头开始播放同一首歌」。
+- **修法**：新增纯函数 `authoritativeDuration()` —— 歌曲元数据时长已知时以**元数据为权威**，实时流上报值一律让位（元数据缺失才退回流时长，保留「流时长更准确」的原意）。三处落地：
+  1. `durationStream` 监听：元数据已知时不再覆盖 `state.duration`；与元数据偏差 >3s 时留一条诊断日志（每首一次，不刷屏）；
+  2. `_normalizeSeekPosition`：一律按权威时长 clamp（第二道保险 —— 即使 `state.duration` 被别的路径污染，也不会把拖动目标误裁成几秒）；
+  3. `_logicalPlayerPosition`：进度映射的 `maximum` 同样取权威时长。
+- **守卫测试**：`test/core/player/playback_payload_test.dart` 新增 `group('authoritativeDuration…')` 共 4 例；其中「seek 目标不被渐进上报的小时长截断」先断言修复前的错误行为（180s → 2s），再断言修复后保持 180s，把契约钉死。
+- **验证**：`flutter analyze` 0 error；`flutter test` **750 全绿**。服务端 `timeOffset` 已实测有效（`maxBitRate=128&format=mp3`：275.98s → 185.99s；原音质 flac 管道：54.2MB → 37.7MB），本次**无服务端改动**。
+
+### 构建信息
+- Android: `MusicFlow-v5029-android.apk`
+- Windows: `MusicFlow-v5029-windows-setup.exe`（安装版，安装时可勾选开始菜单 / 桌面快捷方式）
+
 ## [5.0.28] - 2026-09-22
 
 ### 测试 —— 拖拽 seek 目标整秒契约守卫（**无功能变更**）

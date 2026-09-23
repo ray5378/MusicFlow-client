@@ -8,10 +8,18 @@ part of 'player_provider.dart';
 const _kLoadThrottleOnFailStreak = Duration(milliseconds: 300);
 
 mixin PlayerSeekInternals on PlayerNotifier {
+  /// 权威时长：元数据已知时以元数据为准，避免实时流渐进上报把 seek 目标截断。
+  Duration _authoritativeDuration() => authoritativeDuration(
+        streamDuration: state.duration,
+        metadataDuration: Duration(
+          seconds: state.currentSong?.duration ?? 0,
+        ),
+      );
+
   Duration _normalizeSeekPosition(Duration position) => normalizeSeekPosition(
-      position,
-      state.duration,
-    );
+        position,
+        _authoritativeDuration(),
+      );
 
   Future<void> _applyPendingSeekIfNeeded() async {
     if (_isApplyingPendingSeek) return;
@@ -327,10 +335,11 @@ mixin PlayerSeekInternals on PlayerNotifier {
   }
 
   Duration _logicalPlayerPosition(Duration sourcePosition) {
+    final maximum = _authoritativeDuration();
     return addPlaybackPositionOffset(
       sourcePosition,
       _sourcePositionOffset,
-      maximum: state.duration > Duration.zero ? state.duration : null,
+      maximum: maximum > Duration.zero ? maximum : null,
     );
   }
 

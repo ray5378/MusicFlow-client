@@ -77,6 +77,22 @@ Duration normalizeSeekPosition(Duration position, Duration duration) {
   return position;
 }
 
+/// 权威播放时长：歌曲元数据已知时**以元数据为准**，实时流上报值一律让位。
+///
+/// 现场（Windows / Android 实测）：服务端实时管道流起播时，`durationStream`
+/// 会先把时长报成 1s、2s…再一路爬到真实时长。若直接拿它当权威值：
+/// - 进度条「总时长」先显示正确值、再被拽回 0 并逐秒爬升（观感抖动）；
+/// - 更严重的是 [normalizeSeekPosition] 会按这个偏小的时长截断 seek 目标 ——
+///   用户拖到 3 分钟却被裁成几秒，听感就是「点击/拖拽都从开头播放同一首」。
+///
+/// 元数据缺失（老库/导入歌曲）时才退回流上报值，保持原有「流时长更准确」。
+Duration authoritativeDuration({
+  required Duration streamDuration,
+  required Duration metadataDuration,
+}) {
+  return metadataDuration > Duration.zero ? metadataDuration : streamDuration;
+}
+
 /// 播放会话 payload 中「队列来源」的键名。
 ///
 /// 写入与读取共用同一常量：两侧任何一边拼错都会被守卫测试立刻抓住，
