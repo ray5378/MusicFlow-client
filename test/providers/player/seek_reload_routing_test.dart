@@ -75,15 +75,15 @@ void main() {
       expect(isServerStreamUrl(_serverStreamUrl(timeOffset: '90')), isTrue);
     });
 
-    test('rejects external CDN links, files and unsigned URLs', () {
+    test('rejects external CDN links, files and bare URLs', () {
       expect(
         isServerStreamUrl('https://m701.music.126.net/20260923/abc.mp3'),
         isFalse,
       );
       expect(isServerStreamUrl('file:///data/cache/267a07ce.flac'), isFalse);
-      // 少了签名三件套 → 不是本服务端的流,无法靠改写 URL 重拉。
+      // 路径对但既无歌曲标识也无鉴权痕迹 → 不认,避免把陌生地址当重拉目标。
       expect(
-        isServerStreamUrl('https://music.example.com:35378/rest/stream?id=x'),
+        isServerStreamUrl('https://music.example.com:35378/rest/stream'),
         isFalse,
       );
       expect(
@@ -94,6 +94,28 @@ void main() {
       );
       expect(isServerStreamUrl(null), isFalse);
       expect(isServerStreamUrl(''), isFalse);
+    });
+
+    test('accepts API-key authed streams without u/t/s', () {
+      // ★ 2026-09-23 事故回归:旧判据硬性要求 u/t/s,只覆盖密码登录。
+      //   API Key 鉴权的流地址(apiKey/v/c/f,无 u/t/s)会被判 false →
+      //   重拉分支整个跳过 → 「拖到哪都从头播」。现在按歌曲标识/鉴权痕迹认。
+      final apiKeyUrl =
+          'https://music.example.com:35378/rest/stream'
+          '?apiKey=mf_abc123&v=1.16.1&c=MusicFlow&f=json&id=$_songId';
+      expect(isServerStreamUrl(apiKeyUrl), isTrue);
+      // 连鉴权参数都没有、但带歌曲标识的形态同样认(库记录缺 password 的老库)。
+      final noAuth =
+          'https://music.example.com:35378/rest/stream?id=$_songId';
+      expect(isServerStreamUrl(noAuth), isTrue);
+      // 远程流以 provider 作标识。
+      expect(
+        isServerStreamUrl(
+          'https://music.example.com:35378/rest/stream-remote'
+          '?provider=netease&source=x&id=$_songId',
+        ),
+        isTrue,
+      );
     });
   });
 
@@ -247,12 +269,28 @@ void main() {
         isFalse,
       );
       expect(
-        serverPipesAllHttpStreams(
-          serverType: 'MusicFlow',
-          serverVersion: '3.0.46',
-        ),
+        serverPipesAllHttpStreams(serverType: null, serverVersion: '4.0.14'),
         isFalse,
       );
+    });
+
+    test('keeps piping for this server even when the stored version is stale',
+        () {
+      // ★★ 2026-09-23 事故回归(本轮真凶):门控原先要求 serverVersion ≥
+      //   3.0.47,而该值来自**登录时写一次**的静态快照。服务端升级到管道化
+      //   版本后,老库里仍是登录当年的旧号 → 判定恒 false → `_seekByReload`
+      //   `Stream` 永远为假 → 拖动重拉永久关闭 → Android 上「拖/点进度条一律
+      //   从头播放」(Windows 靠 libmpv 自扛而不显形)。版本快照不再参与判定。
+      for (final stale in <String?>['3.0.46', '3.0.35', '0.1.0', null, 'dev']) {
+        expect(
+          serverPipesAllHttpStreams(
+            serverType: 'MusicFlow',
+            serverVersion: stale,
+          ),
+          isTrue,
+          reason: 'serverVersion=$stale',
+        );
+      }
     });
   });
 }

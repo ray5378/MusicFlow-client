@@ -119,6 +119,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
     if (player == null || !isCurrentSeek()) return;
 
     final loadedSourceUrl = _loadedSourceUrl(player);
+    final pipelined = _serverPipelinedHttp();
     final plan = resolveSeekReloadPlan(
       songId: songId,
       target: target,
@@ -126,11 +127,13 @@ mixin PlayerSeekInternals on PlayerNotifier {
       contextUrl: _currentStreamUrl,
       contextAllowsReload: _seekByReloadStream,
       loadedSourceUrl: loadedSourceUrl,
-      serverPipelinedHttp: _serverPipelinedHttp(),
+      serverPipelinedHttp: pipelined,
     );
     _seekDbg(
       'seek route reload=${plan != null} origin=${plan?.origin ?? "-"} '
-      'flag=$_seekByReloadStream ctxSong=${_currentStreamSongId ?? "-"} '
+      'pipe=$pipelined flag=$_seekByReloadStream '
+      '${_serverCapabilitySummary()} '
+      'ctxSong=${_currentStreamSongId ?? "-"} '
       'ctx=${_summarizeStreamUrl(_currentStreamUrl)} '
       'loaded=${_summarizeStreamUrl(loadedSourceUrl)}',
     );

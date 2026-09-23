@@ -151,39 +151,37 @@ void main() {
       );
     });
 
-    test('serverPipesAllHttpStreams 版本门控', () {
-      // 非 MusicFlow 服务端(Navidrome):一律 false。
+    test('serverPipesAllHttpStreams 只认服务端类型,不再看版本快照', () {
+      // 非 MusicFlow 服务端(Navidrome)、类型未知:false。
       expect(
         serverPipesAllHttpStreams(
             serverType: 'navidrome', serverVersion: '0.60.0'),
         isFalse,
       );
-      // MusicFlow 老版本:直传仍在,false。
       expect(
-        serverPipesAllHttpStreams(
-            serverType: 'MusicFlow', serverVersion: '3.0.46'),
+        serverPipesAllHttpStreams(serverType: null, serverVersion: '4.0.14'),
         isFalse,
       );
-      expect(
-        serverPipesAllHttpStreams(
-            serverType: 'musicflow', serverVersion: '3.0.35'),
-        isFalse,
-      );
-      // 管道首版及之后:true(含跳号 3.1.0)。
-      expect(
-        serverPipesAllHttpStreams(
-            serverType: 'MusicFlow', serverVersion: '3.0.47'),
-        isTrue,
-      );
-      expect(
-        serverPipesAllHttpStreams(
-            serverType: 'musicflow', serverVersion: '3.1.0'),
-        isTrue,
-      );
-      // 未知/非法版本:保守 false。
-      expect(serverPipesAllHttpStreams(serverType: 'MusicFlow', serverVersion: null), isFalse);
-      expect(serverPipesAllHttpStreams(serverType: 'MusicFlow', serverVersion: 'dev'), isFalse);
-      expect(serverPipesAllHttpStreams(serverType: null, serverVersion: '3.0.47'), isFalse);
+      // MusicFlow:一律 true —— 含 type 自报名带后缀、版本未知、**版本快照落后**。
+      // 2026-09-23 事故:版本门控依赖登录时写一次的静态快照,服务端升级到管道化
+      // 版本后老库永久判死 → 拖动重拉关闭 → Android「拖到哪都从头播」。
+      for (final type in <String>['MusicFlow', 'musicflow', 'MusicFlow-web']) {
+        for (final version in <String?>[
+          '3.0.35',
+          '3.0.46',
+          '3.0.47',
+          '3.1.0',
+          '4.0.14',
+          null,
+          'dev',
+        ]) {
+          expect(
+            serverPipesAllHttpStreams(serverType: type, serverVersion: version),
+            isTrue,
+            reason: 'type=$type version=$version',
+          );
+        }
+      }
     });
   });
 

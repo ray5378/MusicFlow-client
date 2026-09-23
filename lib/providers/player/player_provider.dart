@@ -392,21 +392,27 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         !type.startsWith(kMusicFlowServerTypePrefix)) {
       return false;
     }
-    if (type != null &&
-        type.startsWith(kMusicFlowServerTypePrefix) &&
-        version != null &&
-        version.trim().isNotEmpty) {
-      return serverPipesAllHttpStreams(
-        serverType: type,
-        serverVersion: version,
-      );
-    }
-    // ★ 字段缺失(老库/升级库:serverType、serverVersion 仅在密码登录时写入
-    //   一次,升级上来的库或复用旧会话进入时为 null):fail-open 按全管道化
-    //   处理。误判为 true 的代价只是一次重拉(服务端若忽略 timeOffset,
-    //   由 _seekWithFallback 的 drift 兜底接住);而误判为 false 会让拖动
-    //   彻底失效 —— 现场「拖到任何位置都从头开始」正是后者。
-    return true;
+    // ★★ 2026-09-23 真机事故:这里原来还串了一道 `serverVersion` 版本门控
+    //   (≥3.0.47 才算管道化)。但 serverType/serverVersion 是**登录时写一次**
+    //   的静态快照,服务端升级到管道化版本之后,老库记的仍是登录当年的旧号
+    //   → 判定恒 false → `_seekByReloadStream` 永远为假 → Android 上
+    //   「拖/点进度条一律从头播放」(Windows 因 libmpv 自身能处理 HTTP 流
+    //   seek 而不显形)。现场:服务端 `/rest/ping` 实报 4.0.14,手机侧仍走裸
+    //   seek。版本门控已整体退役(见 serverPipesAllHttpStreams):只要不是
+    //   明确的他家服务端,一律按管道化处理,不再看那个不可信的版本快照。
+    return serverPipesAllHttpStreams(
+      serverType: type,
+      serverVersion: version,
+    );
+  }
+
+  /// 服务端能力摘要(纯日志):seek 为何这么判定,一条日志即可定位。
+  /// 打印的是**库里的登录快照** —— 若它比服务端 `/rest/ping` 实报的版本落后,
+  /// 说明该库记录需要刷新(这正是 2026-09-23 事故的形态)。
+  String _serverCapabilitySummary() {
+    final lib = _ref.read(activeLibraryProvider);
+    return 'libType=${lib?.serverType ?? "-"} '
+        'libVer=${lib?.serverVersion ?? "-"}';
   }
 
   @override

@@ -88,20 +88,28 @@ int _normalizeBitRateKbps(int? bitRate) {
   return bitRate >= 10000 ? bitRate ~/ 1000 : bitRate;
 }
 
-/// 服务端全管道化的最低版本(P2-3):`/rest/stream` 在此版本起无直传旁路,
-/// 全部返回实时流(带 `X-MusicFlow-Transcoded: 1` 响应头)。
-/// 取值依据:管道化(P2-1)合入 main 时后端 package.json 为 3.0.46,
-/// 故首个含管道的发版号 ≥ 3.0.47。若发版跳号(如直接 3.1.0),semver 比较
-/// 依然成立;只有「发版号回退」会误判,发版时顺手核对本常量即可。
-const String kPipelineMinServerVersion = '3.0.47';
-
-/// 服务端能力判定(P2-3):当前连接的服务端是否全通道管道化。
+/// 服务端能力判定:当前连接的服务端是否全通道管道化。
 /// - 非 MusicFlow 服务端(Navidrome 等):false,沿用旧格式/码率判定;
-/// - MusicFlow 老版本(< 3.0.47):false,直传仍在,字节 seek 有效;
-/// - 版本未知/解析失败:false(保守,保持旧行为,不劣化);
-/// - MusicFlow ≥ 3.0.47:true,一切流走 timeOffset 重拉。
+/// - MusicFlow(type 自报名带后缀、版本未知、版本快照落后都算):true,一切流
+///   走 timeOffset 重拉。
+///
+/// ★★ 2026-09-23 真机事故:此处**退役了版本门控**(原门槛 `3.0.47`,即管道化
+/// P2-1 上线版本)。原因:判定所依据的 [serverVersion] 是**登录时写一次**的
+/// 静态快照(客户端只存 DB、此后从不刷新)。服务端升级到管道化版本之后,老库
+/// 里记的仍是登录当年的旧号 → `_versionGte` 恒 false → 管道化被判死 →
+/// `_seekByReloadStream` 永远为假 → 「拖/点进度条一律从头播放」在 Android 上
+/// 永久复现。现场证据:服务端 `/rest/ping` 实报
+/// `serverVersion=4.0.14 / type=MusicFlow`,手机端 `[SEEKDBG]` 却是
+/// `reload=false origin=- flag=false`(裸 seek);Windows 因 libmpv 自身能处理
+/// HTTP 流的 seek 而不显形,只有 Android(ExoPlayer)暴露。
+///
+/// 误判代价极不对称,故一律按管道化处理:
+/// - 把真·管道化服务端判成「非管道化」= 拖动彻底失效(本次事故);
+/// - 把老服务端(直传可字节 seek)判成「管道化」= 多一次带 `timeOffset` 的重拉,
+///   而 `timeOffset` 是标准 Subsonic/OpenSubsonic 参数,老服务端同样接受。
 bool serverPipesAllHttpStreams({
   required String? serverType,
+  // 入参保留:仍参与调用方日志与排查,但**不再作为门控**(见上)。
   required String? serverVersion,
 }) {
   final type = serverType?.trim().toLowerCase();
@@ -111,29 +119,11 @@ bool serverPipesAllHttpStreams({
   if (type == null || !type.startsWith(kMusicFlowServerTypePrefix)) {
     return false;
   }
-  return _versionGte(serverVersion, kPipelineMinServerVersion);
+  return true;
 }
 
 /// MusicFlow 服务端 type 的识别前缀(见 [serverPipesAllHttpStreams])。
 const String kMusicFlowServerTypePrefix = 'musicflow';
-
-/// 容错 semver 比较:取**首个** `x.y.z` 数字段(允许 `v4.0.14`、`MusicFlow 4.0.14`
-/// 这类带前缀的自报名),缺段按 0,后缀(-rc1/+build)忽略;解析失败返回 false
-/// (未知 → 保守按老服务端处理)。
-bool _versionGte(String? version, String min) {
-  List<int> parse(String v) {
-    final m = RegExp(r'(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(v.trim());
-    if (m == null) return const [];
-    return [m[1]!, m[2], m[3]].map((s) => s == null ? 0 : int.parse(s)).toList();
-  }
-  final v = parse(version ?? '');
-  final threshold = parse(min);
-  if (v.isEmpty || threshold.isEmpty) return false;
-  for (var i = 0; i < 3; i++) {
-    if (v[i] != threshold[i]) return v[i] > threshold[i];
-  }
-  return true;
-}
 
 String? _normalizeFormat(String? format) {
   final normalized = format?.trim().toLowerCase();
@@ -183,10 +173,17 @@ class SeekReloadPlan {
 }
 
 /// 该地址是否是**本服务端**的流地址:http(s) + 路径落在 `/rest/stream`
-/// (或 `/rest/stream-remote`) + 带 Subsonic 签名三件套(`u`/`t`/`s`)。
+/// (或 `/rest/stream-remote`) + 带「这是本服务端流」的参数痕迹。
 ///
 /// 外部源直链(在线源的 CDN 地址)与本地文件(离线缓存 `file://`)都不满足 —— 它们
-/// 没有 `u`/`t`/`s`,也无法通过改写 URL 让服务端从指定位置重新出流。
+/// 既不在 `/rest/stream` 路径下,也无法通过改写 URL 让服务端从指定位置重新出流。
+///
+/// ★ 2026-09-23 真机事故:原先硬性要求 Subsonic 签名三件套(`u`/`t`/`s`),只覆盖
+/// 「用户名+密码登录」一条鉴权路径。客户端还有另外两种形态会让该判据恒 false:
+/// - **API Key 鉴权**:参数是 `apiKey`/`v`/`c`/`f`,**没有** `u`/`t`/`s`;
+/// - 密码登录但库记录里 `password` 缺失(老库/复用旧会话):只带 `v`/`c`/`f`。
+/// 判据一 false,重拉分支被整个跳过 → 又回到「拖到哪都从头播」。
+/// 现改为认「歌曲标识 **或** 任一鉴权痕迹」,两种鉴权都能命中。
 bool isServerStreamUrl(String? url) {
   if (url == null || url.isEmpty) return false;
   final uri = Uri.tryParse(url);
@@ -197,7 +194,14 @@ bool isServerStreamUrl(String? url) {
     return false;
   }
   final q = uri.queryParameters;
-  return q.containsKey('u') && q.containsKey('t') && q.containsKey('s');
+  // 歌曲标识:`/rest/stream` 必带 `id`,`/rest/stream-remote` 必带 `provider`。
+  final hasIdentity = q.containsKey('id') || q.containsKey('provider');
+  // 鉴权痕迹:token(`u`/`t`/`s`)或 API Key(`apiKey`)任一即可。
+  final hasAuth = q.containsKey('u') ||
+      q.containsKey('t') ||
+      q.containsKey('s') ||
+      q.containsKey('apiKey');
+  return hasIdentity || hasAuth;
 }
 
 /// 在 [baseUrl] 上改写 `timeOffset`:[offset] 为 0 时**移除**该参数(等价"从头"),

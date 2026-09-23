@@ -2,6 +2,48 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.31] - 2026-09-23
+
+### 修复 —— Android 本机拖动/点击进度条仍「从头播放」（服务端能力判定被登录快照判死）
+
+- **现场**（v5.0.30 已装，Android 真机）：拖动/点击进度条后进度条停在目标位置，**声音依旧从头播放**。
+  手机端 `[SEEKDBG]` 是铁证 —— 修复代码**跑到了**，却判「不重拉」：
+
+  ```
+  [EFFECTIVE-SEEK] seek 52614ms → local player (no cast peer)   ← 确实走的本机通道
+  [SEEKDBG] seek route reload=false origin=- flag=false         ← 却判定「不重拉」→ 裸 player.seek()
+            ctx=https://…:35378/rest/stream id=08e9b652… format=- maxBitRate=- timeOffset=-
+  ```
+
+- **根因（本轮真凶）**：`shouldUseServerTimeOffsetSeek()` 第一句就是
+  `if (serverPipelinedHttp) return true;`，所以 `flag=false` **只能**来自
+  `_serverPipelinedHttp()` 返回了 false（日志里 `ctxSong`/`ctx` 都有值，已排除被
+  `_clearStreamContext()` 清掉）。而该函数末尾串了一道**版本门控**
+  ——`serverPipesAllHttpStreams()` 要求 `serverVersion ≥ 3.0.47`（管道化 P2-1 上线版本）。
+  致命点在于：**`serverType`/`serverVersion` 是登录时写一次、此后从不刷新的静态快照**。
+  服务端升级到管道化版本之后，老库里记的仍是登录当年的旧号 → 判定恒 false →
+  `_seekByReloadStream` 永远为假 → **拖动重拉永久关闭**。服务端侧实测
+  `/rest/ping` 实报 `serverVersion=4.0.14 / type=MusicFlow`，完全正常。
+
+- **为什么只有 Android 暴露**：这是一条**两端同为 FALSE** 的判定。Windows 之所以「正常」，
+  是因为它跑 media_kit/libmpv，libmpv 自身能处理 HTTP 流的 seek；Android（just_audio →
+  ExoPlayer）对实时管道流只能回到第 0 字节 —— 这就是「进度条对、声音从头」的来源。
+
+- **修法**：
+  1. **退役版本门控**（`serverPipesAllHttpStreams`）：只看服务端类型前缀，不再看版本快照。
+     误判代价极不对称 —— 把真·管道化服务端判成「非管道化」= 拖动彻底失效；把老服务端判成
+     「管道化」= 多一次带 `timeOffset` 的重拉（标准 Subsonic 参数，老服务端同样接受）。
+  2. **放宽 `isServerStreamUrl`**：原先硬性要求签名三件套 `u`/`t`/`s`，只覆盖「用户名+密码
+     登录」一条鉴权路径。改为认「歌曲标识（`id`/`provider`）**或** 任一鉴权痕迹
+     （`u`/`t`/`s`/`apiKey`）」，同时覆盖 API Key 鉴权与老库缺 `password` 两种形态。
+  3. **诊断日志**：`[SEEKDBG] seek route` 增加 `pipe=` 与 `libType=/libVer=`，把判定依据连同
+     **库里的登录快照**一起打出 —— 一旦它落后于 `/rest/ping` 实报版本，一眼可辨。
+
+- **回归守卫**：改写 `test/providers/player/seek_reload_routing_test.dart` 与
+  `test/providers/transcoded_stream_seek_test.dart`，把两处事故形态钉死 ——
+  「版本快照落后（3.0.46 / null / dev）仍必须按管道化处理」、「API Key 鉴权的流地址
+  必须被认作本服务端流」。
+
 ## [5.0.30] - 2026-09-23
 
 ### 修复 —— 本机点击/拖动进度条一律「从头播放」（seek 路由改按音源事实判定）
