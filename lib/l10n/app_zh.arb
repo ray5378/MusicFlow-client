@@ -823,6 +823,15 @@
     }
   },
   "library_added_to_queue": "已添加 {count} 首到播放队列",
+  "@playlist_matched_appended": {
+    "description": "歌单自动匹配补齐后追加的曲目数",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "playlist_matched_appended": "已补齐 {count} 首匹配歌曲",
   "@library_added_to_queue": {
     "placeholders": {
       "count": {

@@ -823,6 +823,15 @@
     }
   },
   "library_added_to_queue": "Added {count} songs to the queue",
+  "@playlist_matched_appended": {
+    "description": "Number of songs appended after playlist auto-match",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "playlist_matched_appended": "Appended {count} matched songs",
   "@library_added_to_queue": {
     "placeholders": {
       "count": {

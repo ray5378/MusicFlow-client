@@ -1557,6 +1557,17 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       index: effectiveIndex,
     );
   }
+  /// 把歌曲追加到当前播放队列**尾部**,不打断正在播放的那一首。
+  ///
+  /// 用于「歌单自动补齐」:起播时库里还匹配不上的条目,服务端在后台重新搜到并
+  /// 入库之后,再把它们接在当前队列尾,接上就能按现有播放模式继续往下听。
+  /// 只增长队尾、不动 [PlayerState.currentIndex],当前这一首以及它之前的顺序
+  /// 完全不受影响 —— 已经听到的部分不会因为补齐而错位。
+  Future<void> appendToQueue(List<Song> songs) async {
+    if (songs.isEmpty) return;
+    state = state.copyWith(queue: <Song>[...state.queue, ...songs]);
+  }
+
   /// 播放试听歌曲。
   Future<void> playPreviewSong(Song song) async {
     await playSong(song);

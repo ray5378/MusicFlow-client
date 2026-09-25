@@ -1234,6 +1234,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String playlist_matched_appended(String count) {
+    return '已补齐 $count 首匹配歌曲';
+  }
+
+  @override
   String get library_address_subtitle => '服务器地址';
 
   @override

@@ -2321,6 +2321,12 @@ abstract class AppLocalizations {
   /// **'已添加 {count} 首到播放队列'**
   String library_added_to_queue(String count);
 
+  /// 歌单自动匹配补齐后追加的曲目数
+  ///
+  /// In zh, this message translates to:
+  /// **'已补齐 {count} 首匹配歌曲'**
+  String playlist_matched_appended(String count);
+
   /// library_address_subtitle
   ///
   /// In zh, this message translates to:

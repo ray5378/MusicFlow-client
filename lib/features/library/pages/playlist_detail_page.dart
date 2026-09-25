@@ -17,6 +17,7 @@ import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/player/playlist_auto_match_provider.dart';
 import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 import 'package:musicflow_client/widgets/song_list_item.dart';
@@ -553,8 +554,31 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         shuffleRandomStart: true,
         origin: QueueOrigin(QueueOriginKind.playlist, widget.playlistId),
       );
+      // 起播之后再补「后台自动匹配 + 队尾补齐」:不在此处等待,接上就继续听。
+      if (mounted) unawaited(_autoMatchAndAppend(all));
     } catch (_) {
       if (mounted) NetworkErrorNotifier.show(loc.library_play_failed_network);
+    }
+  }
+
+  /// 起播后 fire-and-forget 的「自动匹配 + 队尾补齐」。
+  ///
+  /// 服务端在后台把库里匹配不上的条目重新搜一遍,命中的追加到队尾(当前这首与
+  /// 之前的顺序完全不动);结果只发一条 Toast,不起任何对话框。
+  Future<void> _autoMatchAndAppend(List<Song> startedSongs) async {
+    try {
+      final added = await autoMatchAndAppendPlaylist(
+        ref,
+        playlistId: widget.playlistId,
+        startedSongs: startedSongs,
+      );
+      if (added <= 0 || !mounted) return;
+      ToastNotifier.show(
+        AppLocalizations.of(context).playlist_matched_appended(added.toString()),
+        kind: MusicFlowMessageKind.success,
+      );
+    } catch (_) {
+      // 后台补齐失败不该打扰正在听的人。
     }
   }
 
@@ -570,6 +594,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         startIndex: index.clamp(0, all.length - 1),
         origin: QueueOrigin(QueueOriginKind.playlist, widget.playlistId),
       );
+      if (mounted) unawaited(_autoMatchAndAppend(all));
     } catch (_) {
       final song = _songList[index];
       if (song == null || !mounted) return;

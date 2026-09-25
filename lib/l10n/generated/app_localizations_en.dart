@@ -1313,6 +1313,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String playlist_matched_appended(String count) {
+    return 'Appended $count matched songs';
+  }
+
+  @override
   String get library_address_subtitle => 'Server address';
 
   @override

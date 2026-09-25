@@ -97,6 +97,24 @@ class PlaylistRepository {
     return songs;
   }
 
+  /// 触发歌单自动匹配(播放器 / 客户端「起播即补」的显式入口)。
+  ///
+  /// 服务端会自己挑当次启用了匹配能力的在线源,调用方**无需**指定 provider:
+  /// 本地歌单没有 providerId,走 /v1/online/:providerId/match-playlist 无从入手。
+  /// 只登记任务即返回(服务端 fire-and-forget,还要去抢全局批量闸),
+  /// 进度由调用方重新拉歌单观察 —— 因此这里绝不 await 匹配本身。
+  Future<bool> triggerPlaylistAutoMatch(String playlistId) async {
+    try {
+      final data = await _apiClient.postRaw(
+        '/rest/api/v1/playlist/$playlistId/auto-match',
+      ) as Map<String, dynamic>;
+      return data['started'] == true || data['success'] == true;
+    } catch (e) {
+      Logger.warnWithTag('AUTO-MATCH', '歌单 $playlistId 触发自动匹配失败: $e');
+      return false;
+    }
+  }
+
   /// 获取所有歌单
   Future<List<Playlist>> getPlaylists() async {
     try {
