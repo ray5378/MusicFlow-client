@@ -110,7 +110,7 @@ class PlaylistRepository {
       ) as Map<String, dynamic>;
       return data['started'] == true || data['success'] == true;
     } catch (e) {
-      Logger.warnWithTag('AUTO-MATCH', '歌单 $playlistId 触发自动匹配失败: $e');
+      Logger.warnWithTag('AUTO-MATCH', 'auto-match trigger failed for playlist $playlistId: $e');
       return false;
     }
   }

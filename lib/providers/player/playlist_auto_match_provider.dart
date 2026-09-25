@@ -53,7 +53,7 @@ Future<int> autoMatchAndAppendPlaylist(
   try {
     await repository.triggerPlaylistAutoMatch(playlistId);
   } catch (e) {
-    Logger.warnWithTag('AUTO-MATCH', '歌单 $playlistId 触发失败: $e');
+    Logger.warnWithTag('AUTO-MATCH', 'auto-match trigger failed: $playlistId - $e');
     return 0;
   }
 
@@ -64,7 +64,7 @@ Future<int> autoMatchAndAppendPlaylist(
     try {
       fresh = await repository.getAllPlaylistSongs(playlistId);
     } catch (e) {
-      Logger.warnWithTag('AUTO-MATCH', '歌单 $playlistId 轮询失败: $e');
+      Logger.warnWithTag('AUTO-MATCH', 'auto-match poll failed: $playlistId - $e');
       break;
     }
     latest = fresh;
@@ -75,7 +75,7 @@ Future<int> autoMatchAndAppendPlaylist(
   if (added.isEmpty) return 0;
   // 只动队尾:正在播的那一首与它之前的顺序一动不动。
   await ref.read(playerProvider.notifier).appendToQueue(added);
-  Logger.infoWithTag('AUTO-MATCH', '歌单 $playlistId 补齐 ${added.length} 首');
+  Logger.infoWithTag('AUTO-MATCH', 'auto-match appended ${added.length} songs for playlist $playlistId');
   return added.length;
 }
 
