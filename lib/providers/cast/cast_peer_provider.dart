@@ -952,6 +952,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     if (ps.queue.isEmpty) return false;
     final items = ps.queue.map(songToQueueItem).toList(growable: false);
     final start = ps.currentIndex.clamp(0, items.length - 1);
+    // 本机进度在 switchTo **之前**取:switchTo 会把本机暂停(接续搬移语义),
+    // 之后读到的进度就冻住了 —— 越早取越贴近「用户按下流转那一刻」的位置。
+    final localPosSeconds = ps.position.inMilliseconds / 1000.0;
     // 本机队列的来源（播放该队列时写入；discover/search/other 的
     // serverContentType 为 null）。必须在 switchTo 之前读——切换只动控制目标，
     // 但提前取值语义更清晰，也不受后续状态变化影响。
@@ -972,6 +975,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         songId: startSongId,
         localItems: items,
         localStartIndex: start,
+        positionSeconds: localPosSeconds,
       );
       if (ok) {
         await _resetPeer(_localPeerId ?? '');
@@ -985,7 +989,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       );
     }
     // 兜底：整队推送（来源服务端无从解析时必须走这条）。
-    final pushed = await _pushQueueAndPlay(peer.peerId, items, start);
+    final pushed = await _pushQueueAndPlay(
+      peer.peerId,
+      items,
+      start,
+      positionSeconds: localPosSeconds,
+    );
     if (pushed) {
       await _resetPeer(_localPeerId ?? '');
       await _abandonLocalSession();
@@ -993,8 +1002,33 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     return pushed;
   }
 
-  /// 接回本机：把 [peer] 的播放队列搬回本机，从当前曲开头自动接续播放，
-  /// 设备停止（接续搬移语义：搬完原边停止）。不搬进度。
+  /// 读某个播放端**此刻**的实时进度(秒)。读不到(离线 / 旧服务端无该读数)→ null。
+  ///
+  /// 服务端 `/status` 是唯一统一口径:dlna 走 SOAP 实时值、group / airplay / sendspin
+  /// 由各自引擎给、local 取对端客户端的上报。流转必须在**停源端之前**取值(停完读数
+  /// 就归零/掉线),所以独立成方法,而不是复用轮询里的镜像值(那是上次轮询的旧值)。
+  Future<double?> _readPeerPositionSeconds(String peerId) async {
+    if (peerId.isEmpty) return null;
+    final client = _ref.read(subsonicApiClientProvider);
+    try {
+      final res = await client
+          .getRaw(
+            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/status',
+            receiveTimeout: const Duration(seconds: 8),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res is! Map) return null;
+      final pos = (res['position'] as num?)?.toDouble();
+      if (pos == null || !pos.isFinite || pos < 0) return null;
+      return pos;
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'readPeerPositionSeconds failed: $e');
+      return null;
+    }
+  }
+
+  /// 接回本机：把 [peer] 的播放队列搬回本机，并**落到源端此刻的进度**上，
+  /// 设备停止（接续搬移语义：搬完原边停止）。
   ///
   /// 链路：GET queue(队列+游标) → 停设备 → 本机 playSong(同队同曲自动播)。
   Future<bool> pullPeerToLocal(PeerInfo peer) async {
@@ -1018,6 +1052,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     var index = (queueData['currentIndex'] as num?)?.toInt() ?? 0;
     if (index < 0 || index >= songs.length) index = 0;
 
+    // 源端此刻的进度:必须在下面停设备**之前**读(停完就归零/掉线)。
+    // 读不到 → null,退化为「从这首开头接续」(与改动前的行为一致,不会更差)。
+    final srcPos = await _readPeerPositionSeconds(peer.peerId);
+
     // 先停设备(数据已到手):active 时走完整 stopCasting(停+失活+切回本机),
     // 非 active 设备只尽力 stop,不影响当前投屏会话。
     if (state.activePeer?.peerId == peer.peerId) {
@@ -1029,13 +1067,17 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       } catch (_) {}
     }
 
-    // 本机从当前曲开头自动接续(不搬进度)。
+    // 本机从当前曲**同一进度**接续:initialPosition 走 playSong 既有的
+    // pendingSeek 管线,音源就绪后自动落位(不用等加载再补一次 seek)。
     try {
       await _ref.read(playerProvider.notifier).playSong(
             songs[index],
             queue: songs,
             index: index,
             autoPlay: true,
+            initialPosition: srcPos == null
+                ? null
+                : Duration(milliseconds: (srcPos * 1000).round()),
           );
       // 本机接续成功才算搬完:彻底重置源端 —— 停止 + 清队列 + 清服务端运行态
       // (设备端媒体缓存 / 定时暂停 / 预探测 / 本机状态上报)。
@@ -1267,6 +1309,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     int? startIndex,
     List<Map<String, dynamic>>? localItems,
     int? localStartIndex,
+    /// 流转场景:目标端应落的**起始位置**(秒)。服务端起播后自行 seek,回执里
+    /// 用 `position` 回报实际落点。0 / null = 从头播(既有行为)。
+    double? positionSeconds,
   }) async {
     final peerId = state.activePeer?.peerId;
     if (peerId == null || type.isEmpty || id.isEmpty) return false;
@@ -1287,6 +1332,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
               if (songId != null && songId.isNotEmpty) 'songId': songId,
               if (songId == null || songId.isEmpty)
                 'startIndex': startIndex ?? 0,
+              if (positionSeconds != null && positionSeconds > 0)
+                'position': positionSeconds,
             },
             receiveTimeout: budget,
           )
@@ -1306,26 +1353,28 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         final start = idx >= 0 ? idx : queueStart.clamp(0, items.length - 1);
         _ref.read(playerProvider.notifier).syncQueueForCast(items, start);
         _lastPollPosition = -1;
+        // 乐观进度也要落在带过来的起点上:否则按钮已显示播放、进度条却从 0
+        // 爬起来,直到下一次轮询才被拉回(观感就是「跳了一下」)。
         state = state.copyWith(
           castQueue: items,
           castIndex: start,
-          smoothPositionSeconds: 0,
+          smoothPositionSeconds: positionSeconds ?? 0,
           offline: false,
           status: state.status.copyWith(
             state: 'PLAYING',
             active: true,
-            positionSeconds: 0,
+            positionSeconds: positionSeconds ?? 0,
           ),
         );
       } else {
         _lastPollPosition = -1;
         state = state.copyWith(
-          smoothPositionSeconds: 0,
+          smoothPositionSeconds: positionSeconds ?? 0,
           offline: false,
           status: state.status.copyWith(
             state: 'PLAYING',
             active: true,
-            positionSeconds: 0,
+            positionSeconds: positionSeconds ?? 0,
           ),
         );
       }
@@ -1392,8 +1441,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<bool> _pushQueueAndPlay(
     String peerId,
     List<Map<String, dynamic>> items,
-    int startIndex,
-  ) async {
+    int startIndex, {
+    /// 流转场景:目标端应落的起始位置(秒)。cast 目标由服务端起播后 seek;
+    /// local 目标由服务端把起点塞进当次队列快照(startPosition),客户端自行落位。
+    double? positionSeconds,
+  }) async {
     final client = _ref.read(subsonicApiClientProvider);
     _markUserCommand();
     // 超时随队列规模缩放(见 queueTransferBudget):800 首 ≈ 39s、5000 首 ≈ 165s。
@@ -1404,7 +1456,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       final resp = await client
           .postRaw(
             '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue/play',
-            data: <String, dynamic>{'items': items, 'startIndex': startIndex},
+            data: <String, dynamic>{
+              'items': items,
+              'startIndex': startIndex,
+              if (positionSeconds != null && positionSeconds > 0)
+                'position': positionSeconds,
+            },
             receiveTimeout: budget,
           )
           .timeout(budget);
@@ -1430,12 +1487,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       state = state.copyWith(
         castQueue: items,
         castIndex: startIndex,
-        smoothPositionSeconds: 0,
+        smoothPositionSeconds: positionSeconds ?? 0,
         offline: false,
         status: state.status.copyWith(
           state: 'PLAYING',
           active: true,
-          positionSeconds: 0,
+          positionSeconds: positionSeconds ?? 0,
         ),
       );
       unawaited(pollOnce());

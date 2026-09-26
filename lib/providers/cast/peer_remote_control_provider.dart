@@ -161,6 +161,11 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
 
   /// 与服务端权威快照逐项比对:歌曲 id 序列 + 当前游标 + 播放模式。
   bool _sameAsLocal(PlayerState local, Map<String, dynamic> queue) {
+    // 带「起播起点」的快照一律当差异:即便歌曲序列 / 游标 / 播放模式全一致,
+    // 本机此刻也还没落到那个进度上。按自回声跳过会把流转过来的起点丢掉,
+    // 表现就是「流转完从头播」——正是本次要修的现象。
+    final startPos = _startPositionOf(queue);
+    if (startPos != null) return false;
     final items = queue['items'];
     if (items is! List) return true; // 拿不到内容 → 保守不动作
     if (items.isEmpty) {
@@ -247,7 +252,11 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       'following authoritative queue (${songs.length} items, index=$index) '
       '→ playQueue audible, first=${songs.first.id} target=${songs[index].id}',
     );
-    await player.playQueue(songs, startIndex: index);
+    await player.playQueue(
+      songs,
+      startIndex: index,
+      initialPosition: _startPositionOf(queue),
+    );
     await _applyPlayMode(queue);
     if (mounted) {
       state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
@@ -293,7 +302,11 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
         'adopting remote queue (${songs.length} items, index=$index, expected=$expectedTotal) '
         '→ playQueue audible, target=${songs[index].id}',
       );
-      await _ref.read(playerProvider.notifier).playQueue(songs, startIndex: index);
+      await _ref.read(playerProvider.notifier).playQueue(
+        songs,
+        startIndex: index,
+        initialPosition: _startPositionOf(snap),
+      );
       await _applyPlayMode(snap);
       if (mounted) {
         state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
@@ -317,9 +330,28 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     required int localLength,
   }) async {
     await _applyPlayMode(queue);
+    final startPos = _startPositionOf(queue);
     final total = (queue['total'] as num?)?.toInt() ?? -1;
     final index = (queue['currentIndex'] as num?)?.toInt() ?? -1;
     final player = _ref.read(playerProvider);
+    // 流转带过来的起点:游标不变(同一首)时不能走「index == currentIndex 就返回」——
+    // 那正好是「同队同曲、只是进度不同」的场景,必须本机 seek 落位。
+    if (startPos != null &&
+        total == localLength &&
+        index >= 0 &&
+        index < player.queue.length &&
+        index == player.currentIndex) {
+      Logger.infoWithTag(
+        _tag,
+        'apply transferred start position '
+        '${startPos.inMilliseconds}ms on index=$index (cursor unchanged)',
+      );
+      await _ref.read(playerProvider.notifier).seek(startPos);
+      if (mounted) {
+        state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
+      }
+      return;
+    }
     if (total != localLength || index < 0 || index >= player.queue.length) return;
     if (index == player.currentIndex) return;
     // 可听变更留痕:游标跟随会 playSong(autoPlay 默认 true)在本机出声。
@@ -338,6 +370,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
           player.queue[index],
           queue: player.queue,
           index: index,
+          initialPosition: startPos,
         );
     if (mounted) {
       state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
@@ -352,6 +385,14 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     if (_ref.read(playerProvider).playbackMode == mode) return;
     Logger.infoWithTag(_tag, 'apply authoritative play mode: ${queue['playMode']}');
     await _ref.read(playerProvider.notifier).setPlaybackMode(mode);
+  }
+
+  /// 服务端快照里的「本次起播起点」(秒)。只在流转 / 带进度起播时**一次性**下发
+  /// (见后端 QueueSnapshot.startPosition);缺省或非正数 → null(按从头播处理)。
+  static Duration? _startPositionOf(Map<String, dynamic> queue) {
+    final s = (queue['startPosition'] as num?)?.toDouble();
+    if (s == null || !s.isFinite || s <= 0) return null;
+    return Duration(milliseconds: (s * 1000).round());
   }
 
   static PlaybackMode? _parsePlayMode(String? raw) => switch (raw) {

@@ -1542,6 +1542,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     List<Song> songs, {
     int startIndex = 0,
     bool shuffleRandomStart = false,
+    /// 流转/恢复场景:起播后应落到的进度。经 playSong 的 pendingSeek 管线在
+    /// 音源就绪后自动 seek 到位(见 playSong.initialPosition 注释)。
+    Duration? initialPosition,
   }) async {
     if (songs.isEmpty) return;
     var effectiveIndex = startIndex;
@@ -1555,6 +1558,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       songs[effectiveIndex],
       queue: songs,
       index: effectiveIndex,
+      initialPosition: initialPosition,
     );
   }
   /// 把歌曲追加到当前播放队列**尾部**,不打断正在播放的那一首。
