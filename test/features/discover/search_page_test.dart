@@ -386,6 +386,10 @@ class _RecordingPlayerNotifier extends TestPlayerNotifier {
     List<Song> songs, {
     bool shuffleRandomStart = false,
     int startIndex = 0,
+    // 与 PlayerNotifier.playQueue 同步:流转/恢复场景新增的可选起播进度。
+    // 覆写签名漏了它 → dart analyze invalid_override(CI 的 offline-cache /
+    // cover-display guard 是 errors-only 门禁,会直接红)。
+    Duration? initialPosition,
   }) async {
     playedQueues.add(List<Song>.unmodifiable(songs));
     startIndices.add(startIndex);
