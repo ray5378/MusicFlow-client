@@ -56,8 +56,8 @@ void main() {
       );
     }
     // 每行一个显隐开关 + 一个拖拽把手。
-    expect(find.byType(Switch), findsNWidgets(5));
-    expect(find.byType(ReorderableDragStartListener), findsNWidgets(5));
+    expect(find.byType(Switch), findsNWidgets(6));
+    expect(find.byType(ReorderableDragStartListener), findsNWidgets(6));
     expect(find.text('完成'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -67,8 +67,9 @@ void main() {
   ) async {
     await pumpEditPage(tester);
 
-    // 默认顺序第 3 行是「为你推荐」(home-recommend),关闭其开关。
-    await tester.tap(find.byType(Switch).at(2));
+    // 默认顺序第 4 行是「为你推荐」(home-recommend),关闭其开关。
+    // 首位是客户端自治的「播放控制」块(remote-control),故索引整体后移一位。
+    await tester.tap(find.byType(Switch).at(3));
     await tester.pumpAndSettle();
     await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
@@ -99,7 +100,7 @@ void main() {
     final layout = container!.read(homeSectionLayoutProvider).value;
     expect(layout, isNotNull);
     final order = layout!.order;
-    expect(order, hasLength(5), reason: '拖拽只改顺序,不应丢失分区');
+    expect(order, hasLength(6), reason: '拖拽只改顺序,不应丢失分区');
     expect(order.first, isNot('random-songs'), reason: '「随机歌曲」被向下拖动后不应仍在首位');
   });
 }

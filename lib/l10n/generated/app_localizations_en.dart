@@ -1155,6 +1155,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Refresh recently updated playlists';
 
   @override
+  String get discover_remote_control => 'Playback control';
+
+  @override
   String get discover_search => 'Search';
 
   @override

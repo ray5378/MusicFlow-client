@@ -1082,6 +1082,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discover_refresh_recent_playlists => '刷新最近更新歌单';
 
   @override
+  String get discover_remote_control => '播放控制';
+
+  @override
   String get discover_search => '搜索';
 
   @override

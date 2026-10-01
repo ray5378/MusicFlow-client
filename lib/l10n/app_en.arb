@@ -678,6 +678,10 @@
   "discover_recommend_load_failed": "Failed to load recommendations",
   "discover_recommend_service_unavailable": "Recommendation service is temporarily unavailable; check whether the recommendation plugin is enabled",
   "discover_refresh_recent_playlists": "Refresh recently updated playlists",
+  "discover_remote_control": "Playback control",
+  "@discover_remote_control": {
+    "description": "Section name of the home playback-control block (shown on the edit page and as the section title)"
+  },
   "discover_search": "Search",
   "discover_section_unavailable_playlist": "Playlists are temporarily unavailable",
   "discover_shuffle_song_label": "Load another batch of random songs",

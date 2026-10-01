@@ -678,6 +678,10 @@
   "discover_recommend_load_failed": "为你推荐加载失败",
   "discover_recommend_service_unavailable": "推荐服务暂不可用，请检查推荐插件是否已启用",
   "discover_refresh_recent_playlists": "刷新最近更新歌单",
+  "discover_remote_control": "播放控制",
+  "@discover_remote_control": {
+    "description": "首页「播放控制」整体块的分区名(编辑页与分区标题展示)"
+  },
   "discover_search": "搜索",
   "discover_section_unavailable_playlist": "歌单暂时不可用",
   "discover_shuffle_song_label": "换一批随机歌曲",

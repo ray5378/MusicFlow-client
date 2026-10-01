@@ -2057,6 +2057,12 @@ abstract class AppLocalizations {
   /// **'刷新最近更新歌单'**
   String get discover_refresh_recent_playlists;
 
+  /// 首页「播放控制」整体块的分区名(编辑页与分区标题展示)
+  ///
+  /// In zh, this message translates to:
+  /// **'播放控制'**
+  String get discover_remote_control;
+
   /// No description provided for @discover_search.
   ///
   /// In zh, this message translates to:

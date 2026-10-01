@@ -34,6 +34,7 @@ import 'package:musicflow_client/features/discover/widgets/discover_media_widget
 import 'package:musicflow_client/features/discover/widgets/section_shift.dart';
 import 'package:musicflow_client/features/discover/widgets/category_nav_bar.dart';
 import 'package:musicflow_client/features/discover/widgets/random_songs_section.dart';
+import 'package:musicflow_client/features/discover/widgets/remote_control_section.dart';
 import 'package:musicflow_client/features/discover/widgets/hoverable_horizontal_scroll.dart';
 import 'package:musicflow_client/features/discover/pages/search_page.dart';
 
@@ -69,6 +70,8 @@ String resolveMusicFlowHomeTitle(AppLocalizations loc) {
 /// 保证客户端向前兼容(服务端新增分区而客户端未认识时直接跳过)。
 Widget? _homeSectionWidget(String key) {
   switch (key) {
+    case kRemoteControlSectionKey:
+      return const RemoteControlSection();
     case 'random-songs':
       return const RandomSongsSection();
     case 'recent-playlists':
@@ -312,15 +315,26 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             .map((s) => s.key)
             .toSet(),
     ];
-    final baseSectionKeys = normalizeRecommendSectionOrder(
-      orderedKeys.isEmpty ? kDefaultHomeSectionKeys : orderedKeys,
+    // 客户端自治分区:无论服务端清单含不含「播放控制」块都注入并置顶。
+    // 该块是纯客户端能力,后端没有对应数据源,等后端下发会让存量用户永远
+    // 拿不到它。用户的隐藏与排序仍由下面的 applyHomeSectionLayout 兜住。
+    final baseSectionKeys = injectClientOwnedSection(
+      normalizeRecommendSectionOrder(
+        orderedKeys.isEmpty ? kDefaultHomeSectionKeys : orderedKeys,
+      ),
     );
     // 客户端自治:用户本地布局覆盖服务端清单 —— 顺序以用户排序优先
     // (服务端新增分区追加尾部),用户隐藏的分区不渲染(分区 widget 不构建,
     // 其数据 provider 无人 watch,自然不会向服务端拉取)。
     final userLayout = ref.watch(homeSectionLayoutProvider).valueOrNull ??
         HomeSectionLayout.empty;
-    final sectionKeys = applyHomeSectionLayout(baseSectionKeys, userLayout);
+    // 存量用户保护:applyHomeSectionLayout 的语义是「未排过 → 追加尾部」,
+    // 老用户升级后「播放控制」属于未排过 → 会被沉到尾部。hoist 覆盖该语义
+    // (仅在该 key 未被用户排过时生效;用户排过则尊重用户位置)。
+    final sectionKeys = hoistClientOwnedSection(
+      applyHomeSectionLayout(baseSectionKeys, userLayout),
+      userLayout,
+    );
     final sectionWidgets = <String, Widget>{};
     for (final key in sectionKeys) {
       final sectionWidget = _homeSectionWidget(key);

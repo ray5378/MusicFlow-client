@@ -4,10 +4,24 @@ import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 /// 首页分区注册表：客户端认识的分区 key、默认顺序、用户布局合并规则、
 /// 分区显示名与编辑模式顺序构建。首页（discover_page）与编辑页共用。
 
+/// 首页「播放控制」整体块 —— **客户端自治**分区 key。
+///
+/// 该块是纯客户端能力(遥控器视图),后端没有对应数据源,因此不依赖服务端
+/// 清单下发:由客户端无条件注入并置顶(见 [injectClientOwnedSection] /
+/// [hoistClientOwnedSection])。
+/// key 落库即持久化数据,改名要做迁移,一次定死;全仓唯一定义,任何地方
+/// 不许写字面量 'remote-control'。
+const String kRemoteControlSectionKey = 'remote-control';
+
 /// 分区清单加载失败/未就绪时的回落顺序(与历史首页一致,仅推荐两模块按
 /// 新定位排序:「平台推荐」(本地库,local-recommend)在「插件推荐」
 /// (platform-recommend)之前)。
+///
+/// 首位的 [kRemoteControlSectionKey] 是客户端自治分区:它同时是编辑页
+/// 的顺序源(见 [buildHomeSectionEditOrder])与清单未就绪时的回落顺序,
+/// 清空 layout 后冷启动该块在最前。
 const List<String> kDefaultHomeSectionKeys = <String>[
+  kRemoteControlSectionKey,
   'random-songs',
   'recent-playlists',
   'home-recommend',
@@ -29,6 +43,33 @@ List<String> normalizeRecommendSectionOrder(List<String> keys) {
   ];
   reordered.insert(reordered.indexOf('platform-recommend'), 'local-recommend');
   return reordered;
+}
+
+/// 注入客户端自治分区到 base 列表最前。**幂等**(已存在则返回原 list)。
+///
+/// 服务端清单无论含不含该 key,它都会出现 —— 否则「服务端清单非空且不含
+/// 该 key」时本块永不渲染(该块是纯客户端能力,后端不会下发它)。
+List<String> injectClientOwnedSection(List<String> baseKeys) {
+  if (baseKeys.contains(kRemoteControlSectionKey)) return baseKeys;
+  return <String>[kRemoteControlSectionKey, ...baseKeys];
+}
+
+/// 用户**从未排过**该 key 时强制提到最前,覆盖 [applyHomeSectionLayout] 的
+/// 「未排过 → 追加尾部」语义;用户排过则原样返回,尊重用户位置。
+///
+/// 存量用户保护:老用户已存过一份只含旧 5 项的 order,升级后本 key 属于
+/// 「未排过」→ 会被追加到**尾部**,默认置顶对存量用户静默失效。本函数
+/// 专门兜这个([applyHomeSectionLayout] 本身零改动)。
+List<String> hoistClientOwnedSection(
+  List<String> keys,
+  HomeSectionLayout layout,
+) {
+  if (!keys.contains(kRemoteControlSectionKey)) return keys; // 被用户隐藏
+  if (layout.order.contains(kRemoteControlSectionKey)) return keys; // 用户排过
+  return <String>[
+    kRemoteControlSectionKey,
+    ...keys.where((k) => k != kRemoteControlSectionKey),
+  ];
 }
 
 /// 合并用户布局与服务端清单（客户端自治核心）：
@@ -66,6 +107,8 @@ List<String> applyHomeSectionLayout(
 /// 分区显示名（编辑页用；客户端固定认识的分区均有本地化文案）。
 String homeSectionDisplayName(AppLocalizations loc, String key) {
   switch (key) {
+    case kRemoteControlSectionKey:
+      return loc.discover_remote_control;
     case 'random-songs':
       return loc.discover_random_songs;
     case 'recent-playlists':
@@ -83,8 +126,8 @@ String homeSectionDisplayName(AppLocalizations loc, String key) {
 
 /// 编辑模式的分区顺序（含用户隐藏的分区）：用户排过序的按用户顺序在前，
 /// 用户未排过的（服务端新增/首次编辑）按客户端默认清单顺序追加。
-/// 不依赖服务端清单——5 个分区是客户端固定认识的，服务端清单加载失败
-/// 时编辑页依然可用。
+/// 不依赖服务端清单——6 个分区是客户端固定认识的（含客户端自治的
+/// 「播放控制」块），服务端清单加载失败时编辑页依然可用。
 List<String> buildHomeSectionEditOrder(HomeSectionLayout layout) {
   // 不能在 list literal 的集合 if 内引用自身变量,用循环 append。
   final known = <String>[];
