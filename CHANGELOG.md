@@ -2,6 +2,46 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.0.38] - 2026-10-02
+
+### 性能：启动「打开到能用」去掉 6.9 秒串行空转（三处等待全部改事件驱动）
+
+- **现象**：用户口径「每次启动客户端到实际可用要几秒」。网络侧实测并不慢 ——
+  公网 HTTPS 首次建连 186ms、连接复用后每请求仅 ~3ms；内网 HTTP 首连 2ms。
+  也就是说耗时**不在服务器，在客户端自己的启动编排**。
+- **根因**：启动链上有三段「先睡一觉再问一次」的串行空转，最坏叠加 ≈6.9s：
+  1. `fetchLocalQueueForRestore` 以 100ms 为步长轮询等本地 peerId 就绪，**上限 4 秒**；
+  2. `_registerSelf` 在凭证尚未注入时必然 401，随后**固定盲等 900ms** 再重试一次；
+  3. `ensureActiveAddressProvider` 空转等活跃地址**上限 2 秒**，且**每个首屏请求都要先过它**。
+- **修法**（三处统一改为「事情办完立刻喊醒」，而不是定时去问）：
+  1. `cast_peer_provider.dart` 新增 `_localPeerIdReady` Completer：`_registerSelf` 拿到 peerId 落地时
+     即刻 complete，恢复流程挂在上面等（已注册则零等待同步返回），超时预算 1.5s 后放弃恢复、
+     回退本地会话，不再死等。Completer 按需创建 + 已完成即重建，兼容 hot restart / 重注册周期。
+  2. `api_provider.dart` 新增 `apiCredentialsReadyProvider`：活跃库已就绪返回已完成的 Future（零等待），
+     未就绪返回挂起 Future、活跃库一发射即经 `onDispose` 放行旧等待方。`_registerSelf` 的 900ms
+     盲等删除，改为凭证就绪**立即**重试（重试时重新取已注入凭证的 client），保留 2s 预算与单次重试上限。
+  3. `address_pool.dart` 新增 `_activeAddressReady` 信号与 `waitForActiveAddress([timeout=300ms])`：
+     `setAddresses` 恢复 / 探测选中任一路径激活地址即刻唤醒等待方。正常路径（活跃地址已恢复）**零等待**，
+     异常路径最坏 300ms 后回退 best-effort 地址，由 FallbackInterceptor 兜底。
+- **收益**：正常路径合计 **≈6.9s → ≈0ms**；异常路径有硬上限（1.5 + 2 + 0.3s），不会再无限等。
+  注意这与「连接复用」是两件事：复用解决的是**每请求 190ms**，本次解决的是**启动期空转秒数**。
+
+### 测试：覆盖率 batch17 / batch18（新增 63 例，全量 1289 例全绿）
+
+- **batch17** `test/providers/player/player_provider_cov_test.dart`（新，35 例）：覆盖播放器**公开状态迁移**
+  那一半 —— 投屏队列同步 / 四态播放模式与落盘 / 队列增删 / 外部收藏推送 / 收藏切换 / 元数据刷新。
+  `player_provider.dart` 单文件 17.46% → **29.49%**。
+- **batch18** `test/features/library/pages/edit_library_page_coverage_test.dart`（修通 28 例）：
+  库编辑页 —— 加载态 / 目标库缺失占位 / 表单回填 / 地址增删改 / 三种地址状态文案 /
+  地址重排语义 / 删除库后的退栈与活跃库切换。单文件 **9.27% → 96.34%**。
+- 总覆盖率 **60.38% → 60.96%**（`lib/providers` 45.95% → 48.65%）；全量回归 **1289 例 All tests passed**。
+
+### 文档：启动延迟实测数据与优化优先级固化
+
+- `docs/startup-connect-latency.md` 新增 keep-alive 复用实测章节：内网首连 2ms / 复用 ~1ms，
+  公网首连 186ms / 复用 **~3ms（60 倍）**；并给出优化优先级（连接复用 > 串行步并行化 >
+  缓存兜底 > DNS 抖动用多地址竞速）。DNS 偶发抖动实测最高 5.18s，属运营商侧，不在客户端修复范围。
+
 ## [5.0.37] - 2026-09-26
 
 ### 对齐发布：本轮无客户端代码变更
