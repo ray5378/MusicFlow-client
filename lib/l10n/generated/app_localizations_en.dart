@@ -1094,6 +1094,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discover_platform_recommend => 'Plugin recommendations';
 
   @override
+  String get home_remote_no_device => 'No controllable device';
+
+  @override
+  String get home_remote_refresh => 'Refresh';
+
+  @override
+  String get home_remote_not_playing => 'Not playing';
+
+  @override
+  String get home_remote_no_lyrics => 'No lyrics';
+
+  @override
+  String get home_remote_offline => 'Target offline';
+
+  @override
+  String get home_remote_unreachable => 'Cannot reach server';
+
+  @override
+  String home_remote_queue_count(String count) {
+    return 'Queue ($count)';
+  }
+
+  @override
+  String get home_remote_queue_clear => 'Clear';
+
+  @override
+  String get home_remote_queue_clear_confirm_title => 'Clear queue?';
+
+  @override
+  String get home_remote_queue_clear_confirm_body =>
+      'This clears the whole playback queue on the current device. This cannot be undone.';
+
+  @override
+  String home_remote_volume_percent(String percent) {
+    return 'Volume $percent%';
+  }
+
+  @override
+  String get home_remote_open_full_player => 'Open now playing';
+
+  @override
+  String get home_remote_target_current => 'Current target';
+
+  @override
   String get home_section_customize => 'Customize home';
 
   @override

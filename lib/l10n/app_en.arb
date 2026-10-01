@@ -637,6 +637,68 @@
   "discover_open_app_menu": "Open app menu",
   "discover_platform_load_failed": "Failed to load plugin recommendations",
   "discover_platform_recommend": "Plugin recommendations",
+  "home_remote_no_device": "No controllable device",
+  "@home_remote_no_device": {
+    "description": "Playback-control block: empty state when no controllable device exists"
+  },
+  "home_remote_refresh": "Refresh",
+  "@home_remote_refresh": {
+    "description": "Playback-control block: refresh the device list"
+  },
+  "home_remote_not_playing": "Not playing",
+  "@home_remote_not_playing": {
+    "description": "Playback-control block: empty state when the current target is not playing"
+  },
+  "home_remote_no_lyrics": "No lyrics",
+  "@home_remote_no_lyrics": {
+    "description": "Playback-control block: placeholder when the lyrics viewport has no lyrics"
+  },
+  "home_remote_offline": "Target offline",
+  "@home_remote_offline": {
+    "description": "Playback-control block: alert text when the controlled device is offline"
+  },
+  "home_remote_unreachable": "Cannot reach server",
+  "@home_remote_unreachable": {
+    "description": "Playback-control block: alert text when the server is unreachable"
+  },
+  "home_remote_queue_count": "Queue ({count})",
+  "@home_remote_queue_count": {
+    "description": "Playback-control block: queue panel title (with the queue size)",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "home_remote_queue_clear": "Clear",
+  "@home_remote_queue_clear": {
+    "description": "Playback-control block: clear-queue button"
+  },
+  "home_remote_queue_clear_confirm_title": "Clear queue?",
+  "@home_remote_queue_clear_confirm_title": {
+    "description": "Playback-control block: title of the clear-queue confirmation"
+  },
+  "home_remote_queue_clear_confirm_body": "This clears the whole playback queue on the current device. This cannot be undone.",
+  "@home_remote_queue_clear_confirm_body": {
+    "description": "Playback-control block: body of the clear-queue confirmation"
+  },
+  "home_remote_volume_percent": "Volume {percent}%",
+  "@home_remote_volume_percent": {
+    "description": "Playback-control block: percentage text on the volume panel",
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "home_remote_open_full_player": "Open now playing",
+  "@home_remote_open_full_player": {
+    "description": "Playback-control block: open the full-screen now-playing page"
+  },
+  "home_remote_target_current": "Current target",
+  "@home_remote_target_current": {
+    "description": "Playback-control block: semantic label of the target switcher row"
+  },
   "home_section_customize": "Customize home",
   "home_section_customize_entry": "Edit home sections",
   "home_section_customize_hint": "Drag to reorder, toggle off to hide",

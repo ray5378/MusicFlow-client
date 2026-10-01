@@ -1025,6 +1025,49 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discover_platform_recommend => '插件推荐';
 
   @override
+  String get home_remote_no_device => '暂无可控制设备';
+
+  @override
+  String get home_remote_refresh => '刷新';
+
+  @override
+  String get home_remote_not_playing => '未在播放';
+
+  @override
+  String get home_remote_no_lyrics => '暂无歌词';
+
+  @override
+  String get home_remote_offline => '控制目标离线';
+
+  @override
+  String get home_remote_unreachable => '无法连接到服务端';
+
+  @override
+  String home_remote_queue_count(String count) {
+    return '队列 ($count)';
+  }
+
+  @override
+  String get home_remote_queue_clear => '清空';
+
+  @override
+  String get home_remote_queue_clear_confirm_title => '清空队列？';
+
+  @override
+  String get home_remote_queue_clear_confirm_body => '将清空当前设备上的整条播放队列，此操作不可撤销。';
+
+  @override
+  String home_remote_volume_percent(String percent) {
+    return '音量 $percent%';
+  }
+
+  @override
+  String get home_remote_open_full_player => '打开播放页';
+
+  @override
+  String get home_remote_target_current => '当前控制目标';
+
+  @override
   String get home_section_customize => '自定义首页';
 
   @override

@@ -1955,6 +1955,84 @@ abstract class AppLocalizations {
   /// **'插件推荐'**
   String get discover_platform_recommend;
 
+  /// 播放控制块:一个可控制的播放端都没有时的空态标题
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可控制设备'**
+  String get home_remote_no_device;
+
+  /// 播放控制块:刷新播放端列表
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新'**
+  String get home_remote_refresh;
+
+  /// 播放控制块:当前控制目标没有在播放时的空态文案
+  ///
+  /// In zh, this message translates to:
+  /// **'未在播放'**
+  String get home_remote_not_playing;
+
+  /// 播放控制块:歌词视口内没有歌词时的占位文案
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无歌词'**
+  String get home_remote_no_lyrics;
+
+  /// 播放控制块:当前控制的播放端离线时的告警条文案
+  ///
+  /// In zh, this message translates to:
+  /// **'控制目标离线'**
+  String get home_remote_offline;
+
+  /// 播放控制块:整体离线、服务端不可达时的告警条文案
+  ///
+  /// In zh, this message translates to:
+  /// **'无法连接到服务端'**
+  String get home_remote_unreachable;
+
+  /// 播放控制块:队列面板标题(含队列条数)
+  ///
+  /// In zh, this message translates to:
+  /// **'队列 ({count})'**
+  String home_remote_queue_count(String count);
+
+  /// 播放控制块:清空队列按钮
+  ///
+  /// In zh, this message translates to:
+  /// **'清空'**
+  String get home_remote_queue_clear;
+
+  /// 播放控制块:清空队列二次确认的标题
+  ///
+  /// In zh, this message translates to:
+  /// **'清空队列？'**
+  String get home_remote_queue_clear_confirm_title;
+
+  /// 播放控制块:清空队列二次确认的正文
+  ///
+  /// In zh, this message translates to:
+  /// **'将清空当前设备上的整条播放队列，此操作不可撤销。'**
+  String get home_remote_queue_clear_confirm_body;
+
+  /// 播放控制块:音量面板的百分比文案
+  ///
+  /// In zh, this message translates to:
+  /// **'音量 {percent}%'**
+  String home_remote_volume_percent(String percent);
+
+  /// 播放控制块:打开全屏播放页
+  ///
+  /// In zh, this message translates to:
+  /// **'打开播放页'**
+  String get home_remote_open_full_player;
+
+  /// 播放控制块:切换器行的语义标签
+  ///
+  /// In zh, this message translates to:
+  /// **'当前控制目标'**
+  String get home_remote_target_current;
+
   /// No description provided for @home_section_customize.
   ///
   /// In zh, this message translates to:

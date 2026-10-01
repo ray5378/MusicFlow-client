@@ -637,6 +637,68 @@
   "discover_open_app_menu": "打开应用菜单",
   "discover_platform_load_failed": "插件推荐加载失败",
   "discover_platform_recommend": "插件推荐",
+  "home_remote_no_device": "暂无可控制设备",
+  "@home_remote_no_device": {
+    "description": "播放控制块:一个可控制的播放端都没有时的空态标题"
+  },
+  "home_remote_refresh": "刷新",
+  "@home_remote_refresh": {
+    "description": "播放控制块:刷新播放端列表"
+  },
+  "home_remote_not_playing": "未在播放",
+  "@home_remote_not_playing": {
+    "description": "播放控制块:当前控制目标没有在播放时的空态文案"
+  },
+  "home_remote_no_lyrics": "暂无歌词",
+  "@home_remote_no_lyrics": {
+    "description": "播放控制块:歌词视口内没有歌词时的占位文案"
+  },
+  "home_remote_offline": "控制目标离线",
+  "@home_remote_offline": {
+    "description": "播放控制块:当前控制的播放端离线时的告警条文案"
+  },
+  "home_remote_unreachable": "无法连接到服务端",
+  "@home_remote_unreachable": {
+    "description": "播放控制块:整体离线、服务端不可达时的告警条文案"
+  },
+  "home_remote_queue_count": "队列 ({count})",
+  "@home_remote_queue_count": {
+    "description": "播放控制块:队列面板标题(含队列条数)",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "home_remote_queue_clear": "清空",
+  "@home_remote_queue_clear": {
+    "description": "播放控制块:清空队列按钮"
+  },
+  "home_remote_queue_clear_confirm_title": "清空队列？",
+  "@home_remote_queue_clear_confirm_title": {
+    "description": "播放控制块:清空队列二次确认的标题"
+  },
+  "home_remote_queue_clear_confirm_body": "将清空当前设备上的整条播放队列，此操作不可撤销。",
+  "@home_remote_queue_clear_confirm_body": {
+    "description": "播放控制块:清空队列二次确认的正文"
+  },
+  "home_remote_volume_percent": "音量 {percent}%",
+  "@home_remote_volume_percent": {
+    "description": "播放控制块:音量面板的百分比文案",
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "home_remote_open_full_player": "打开播放页",
+  "@home_remote_open_full_player": {
+    "description": "播放控制块:打开全屏播放页"
+  },
+  "home_remote_target_current": "当前控制目标",
+  "@home_remote_target_current": {
+    "description": "播放控制块:切换器行的语义标签"
+  },
   "home_section_customize": "自定义首页",
   "home_section_customize_entry": "编辑首页模块",
   "home_section_customize_hint": "长按拖动调整顺序，关闭开关可隐藏模块",
