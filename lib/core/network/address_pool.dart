@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
@@ -11,6 +13,10 @@ class AddressPool {
   List<ServerAddress> _addresses = [];
   ServerAddress? _activeAddress;
   Future<ServerAddress?>? _probeAllFuture;
+
+  /// 「活跃地址就绪」信号:首次激活地址时 complete(值为该地址),见
+  /// [waitForActiveAddress]。已消费过(或地址曾失活)则由等待方按需重建。
+  Completer<ServerAddress>? _activeAddressReady;
 
   /// 把某个地址判定为「不可用」所需的连续健康检查失败次数。
   ///
@@ -34,6 +40,32 @@ class AddressPool {
 
   List<ServerAddress> get addresses => List.unmodifiable(_addresses);
   ServerAddress? get activeAddress => _activeAddress;
+
+  /// 事件驱动等待活跃地址就绪(启动首屏请求的前置条件,见
+  /// ensureActiveAddressProvider)。
+  ///
+  /// - 已有活跃地址(setAddresses 恢复成功)→ 同步快路径立即返回,零等待;
+  /// - 未就绪(首次启动 / 上次保存态无可恢复地址)→ 挂在内部信号上,
+  ///   [_setActiveAddress] 一旦激活地址(恢复或探测选中)即刻唤醒;
+  /// - 超过 [timeout] 仍未就绪 → 返回当前值(可能为 null),调用方自行
+  ///   走 best-effort 兜底(如 FallbackInterceptor),不再长时间空转。
+  Future<ServerAddress?> waitForActiveAddress([
+    Duration timeout = const Duration(milliseconds: 300),
+  ]) async {
+    final active = _activeAddress;
+    if (active != null) return active;
+    var completer = _activeAddressReady;
+    if (completer == null || completer.isCompleted) {
+      // 信号已被消费过(或地址曾失活重建):建新信号,等下一次激活。
+      completer = Completer<ServerAddress>();
+      _activeAddressReady = completer;
+    }
+    try {
+      return await completer.future.timeout(timeout);
+    } on TimeoutException {
+      return _activeAddress;
+    }
+  }
 
   /// 当前是否处于手动模式（有锁定的地址）
   bool get isManualMode => _activeAddress?.isLocked == true;
@@ -317,6 +349,11 @@ class AddressPool {
     if (!changed) return;
 
     onActiveAddressChanged?.call(_activeAddress);
+    // 唤醒等待「活跃地址就绪」的调用方(见 waitForActiveAddress)。
+    final ready = _activeAddressReady;
+    if (newActive != null && ready != null && !ready.isCompleted) {
+      ready.complete(newActive);
+    }
     if (newActive?.id != oldActive?.id) {
       final oldLabel = oldActive?.label ?? 'none';
       final newLabel = newActive?.label ?? 'none';

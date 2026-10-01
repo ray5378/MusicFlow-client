@@ -36,7 +36,8 @@ final activeAddressProvider = StateProvider<ServerAddress?>((ref) => null);
 
 /// Ensure an active address is ready before making network requests.
 /// 冷启动加速:活跃地址在 AddressPool.setAddresses 时已从持久化状态立即恢复,
-/// 这里只做极短兜底(≤2s)等待探测结果。
+/// 正常路径本 provider **零等待**;仅在恢复失败/尚未就绪时做**事件驱动**等待
+/// (AddressPool 激活地址即刻唤醒),只保留极短兜底预算(≤300ms)。
 ///
 /// 修复「Windows 一直提示网络异常 / 随机歌曲不显示」:
 /// 1) 用 `ref.watch(activeAddressProvider)` 而不是 `ref.read` —— 若本 provider 曾在
@@ -56,19 +57,13 @@ final ensureActiveAddressProvider = FutureProvider<ServerAddress>((ref) async {
   final pool = ref.read(addressPoolProvider);
   unawaited(pool.probeAll());
 
-  final start = DateTime.now();
-  var ticks = 0;
-  while (DateTime.now().difference(start) < const Duration(seconds: 2)) {
-    final current = ref.read(activeAddressProvider);
-    if (current != null) return current;
-
-    if (ticks % 5 == 0 && pool.addresses.isNotEmpty) {
-      unawaited(pool.probeAll());
-    }
-    ticks++;
-
-    await Future.delayed(const Duration(milliseconds: 200));
-  }
+  // 事件驱动等待:活跃地址一旦就绪(setAddresses 恢复成功 / 探测选中任一
+  // 地址)即刻唤醒返回;历史实现为 200ms 一跳的 2s 空转轮询,且首屏每个
+  // 请求都要先过这里 —— 空转预算从 2s 压到 300ms 级,异常路径快速失败后
+  // 交给 FallbackInterceptor 兜底。
+  const budget = Duration(milliseconds: 300);
+  final ready = await pool.waitForActiveAddress(budget);
+  if (ready != null) return ready;
 
   // 预算内仍未拿到活跃地址:只要配置了服务器就回退「当前最优地址」尽力请求,
   // 实际连通性交给 FallbackInterceptor 兜底;仅当完全没有配置服务器才视为
