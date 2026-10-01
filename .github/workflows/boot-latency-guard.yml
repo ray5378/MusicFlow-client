@@ -1,0 +1,56 @@
+name: Boot Latency Guard
+
+# 启动编排的**阻塞**守卫（与发版链解耦，但失败会标红）：
+#   钉住 v5.0.38 的三处「定时空转 → 事件驱动」修复（最坏叠加 ≈ 6.9s 的启动空转）：
+#     ① fetchLocalQueueForRestore 的 100ms 轮询等 peerId（上限 4s）
+#     ② _registerSelf 凭证未注入后固定 900ms 盲等重试
+#     ③ ensureActiveAddressProvider 空转等活跃地址（上限 2s，首屏每请求都过）
+#
+# 为什么单开一道而不塞进 Test Suite / UI Guard：
+#   · `Test Suite` 与 `UI Guard` 都是 `continue-on-error` 的**观察**流水线，
+#     失败只显示黄字，锁不住东西 —— 本工作流**刻意不设** continue-on-error；
+#   · 这三处回退**全都编译得过、功能结果完全一样（只是慢）**，任何单测都不会红，
+#     唯一能拦住它的是源码级静态断言（直接在指定函数体里判「有没有轮询 /
+#     有没有接信号」）+ 事件驱动行为锁；
+#   · 与 `Peer Order Guard` 同理：静态查结构 + 动态查行为，两道一起才拦得住。
+#
+# 两道检查：
+#   1) node tool/check-boot-latency.mjs                    —— 源码级静态守卫（R1~R7）
+#   2) flutter test test/providers/boot_latency_guard_test.dart —— 启动编排行为锁
+#      （hashFiles 保护：与 QA 并行编写时该文件可能尚未落盘，缺文件不应误红）
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boot-latency-guard:
+    name: boot latency guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: 源码级静态守卫（禁止空转回退 / 信号接线未断 / 反向探针）
+        run: node tool/check-boot-latency.mjs
+
+      - name: 启动编排行为锁（事件驱动等待）
+        if: ${{ hashFiles('test/providers/boot_latency_guard_test.dart') != '' }}
+        run: flutter test test/providers/boot_latency_guard_test.dart
