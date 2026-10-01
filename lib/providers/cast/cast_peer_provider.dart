@@ -197,8 +197,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ///
   /// [attempt] 为就近重试计数：冷启动时注册是由 auth 状态翻转**立刻**触发的，
   /// 而那一刻 API client 的 token 可能还没注入 → 必然 401。原先只能等 30s 后的
-  /// 下一次心跳补注册，期间本端在服务端是个「离线端」（别的端看不到这台机器、
-  /// 本机也不出现在播放器列表里）。故这里短延迟重试一次，把空窗从 30s 压到 ~1s。
+  /// 下一次心跳补注册；后来改为固定 900ms 盲等后重试一次。现改为**事件驱动**:
+  /// 等「API client 凭证就绪」信号(见 apiCredentialsReadyProvider)一到立即重试,
+  /// 不再固定盲等,把冷启动的必然 900ms 延迟压到凭证注入所需的最短时间。
   Future<void> _registerSelf({int attempt = 0}) async {
     final client = _ref.read(subsonicApiClientProvider);
     try {
@@ -229,14 +230,35 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         }
       }
     } catch (e) {
-      // 冷启动的 token 竞态：就近重试一次，仍失败就交给 30s 心跳周期补注册。
+      // 冷启动的 token 竞态：等「凭证就绪」信号一到立即重试一次(凭证早已
+      // 就绪则零等待),仍失败就交给 30s 心跳周期补注册。
       if (attempt < 1) {
-        await Future<void>.delayed(const Duration(milliseconds: 900));
+        await _waitForApiCredentialsReady();
         if (mounted) return _registerSelf(attempt: attempt + 1);
         return;
       }
       // 注册失败不阻塞登录;下个心跳周期自动补注册(见 startHeartbeat)。
       Logger.debugWithTag('CAST-PEER', 'register self peer failed: $e');
+    }
+  }
+
+  /// 等待 API client 凭证就绪(带预算上限),替代历史固定 900ms 盲等重试。
+  ///
+  /// - 凭证已就绪(活跃库已注入 client)→ 立即返回,零等待;
+  /// - 未就绪 → 挂在 [apiCredentialsReadyProvider] 上,活跃库一发射即唤醒;
+  /// - 预算内仍未就绪(无库 / 极端时序)→ 到点放行,保留仅此一次的重试,
+  ///   不会死等;
+  /// - 测试环境客户端被整体 override、凭证链不装配 → 直接零等待重试。
+  Future<void> _waitForApiCredentialsReady() async {
+    if (Platform.environment['FLUTTER_TEST'] != null) return;
+    const budget = Duration(seconds: 2);
+    try {
+      await _ref
+          .read(apiCredentialsReadyProvider)
+          .timeout(budget, onTimeout: () {});
+    } catch (e) {
+      // 信号源在当前环境不可用(链路异常):不阻塞重试路径。
+      Logger.debugWithTag('CAST-PEER', 'wait for api credentials failed: $e');
     }
   }
 

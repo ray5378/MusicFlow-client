@@ -40,7 +40,7 @@ final activeAddressProvider = StateProvider<ServerAddress?>((ref) => null);
 ///
 /// 修复「Windows 一直提示网络异常 / 随机歌曲不显示」:
 /// 1) 用 `ref.watch(activeAddressProvider)` 而不是 `ref.read` —— 若本 provider 曾在
-///    2s 预算内超时抛错,错误会被 FutureProvider 缓存;后端探测完成后活跃地址其实
+///    预算内超时,错误会被 FutureProvider 缓存;后端探测完成后活跃地址其实
 ///    已经可用,但后续所有 `read(ensureActiveAddressProvider.future)` 仍命中旧错误,
 ///    导致整个首页请求持续失败。改为 watch 后,活跃地址一旦出现/变化,本 provider
 ///    会重新计算并立即返回真实可用地址,让下游请求自愈。
@@ -244,4 +244,30 @@ final subsonicApiClientProvider = Provider<SubsonicApiClient>((ref) {
   );
 
   return client;
+});
+
+/// API client 凭证就绪信号(Future)。
+///
+/// 背景:冷启动时注册(如 cast peer register)由 auth 状态翻转**立刻**触发,
+/// 而那一刻 [subsonicApiClientProvider] 可能还没随活跃库重建 → client 凭证
+/// 尚未注入(`setLibrary`) → 请求必然 401。历史上只能靠固定 900ms 盲等重试,
+/// 每次冷启动都白付一次延迟。
+///
+/// 语义:
+/// - 活跃库已就绪 → 返回已完成的 Future,等待方**零等待**放行;
+/// - 活跃库尚未发射 → 返回挂起的 Future,活跃库发射(→ client 凭证注入)
+///   时本 provider 重建,`onDispose` 放行旧等待方,重试方重新读取
+///   [subsonicApiClientProvider] 即拿到已注入凭证的 client;
+/// - 活跃库发射但仍为空(无库/未登录)→ 不会触发重建,等待方自行以预算
+///   上限超时放行(由调用方 `timeout` 兜底,本 provider 不做延时)。
+final apiCredentialsReadyProvider = Provider<Future<void>>((ref) {
+  if (ref.watch(activeLibraryProvider) != null) {
+    return Future<void>.value();
+  }
+  final completer = Completer<void>();
+  ref.onDispose(() {
+    // 活跃库发射触发重建 → 放行旧等待方(已完成则幂等)。
+    if (!completer.isCompleted) completer.complete();
+  });
+  return completer.future;
 });
