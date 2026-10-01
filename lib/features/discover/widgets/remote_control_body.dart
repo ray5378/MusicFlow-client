@@ -233,6 +233,8 @@ class RemoteControlNowArea extends ConsumerWidget {
         CoverArtImage(
           coverArtId: song?.artworkReference,
           size: metrics.coverSize,
+          // R23:无障碍 —— 封面语义标签跟曲名走。
+          semanticLabel: song?.title ?? loc.home_remote_not_playing,
         ),
         const SizedBox(width: 12),
         Expanded(
