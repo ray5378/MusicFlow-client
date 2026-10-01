@@ -20,20 +20,18 @@
 // MockSubsonicApiClient 桩网络 + TestPlayerNotifier 桩播放器 + ProviderContainer
 // 直接读 castPeerControllerProvider.notifier。
 //
-// ⚠️ Fix-1 的可测性说明（如实记录）：
+// Fix-1 的可测性：
 //   `_waitForLocalPeerId` 是**库私有**成员；唯一调用方 `fetchLocalQueueForRestore`
 //   的第一句就是 `if (Platform.environment['FLUTTER_TEST'] != null) return null;`
 //   而 flutter 工具会给每个 `flutter test` 进程注入 FLUTTER_TEST。已实测两条路都堵死：
 //     1) `Platform.environment` 是**不可修改**的 Map（remove 抛
 //        Unsupported operation: Cannot modify unmodifiable map）；
 //     2) 以 dynamic 调用私有成员抛 NoSuchMethodError（私有名按库隔离）。
-//   因此 Fix-1 无法在测试进程里做真·运行时计时，只能用「公开预算常量契约 +
-//   恢复/等待路径的源码不变量」锁定；一旦有人把轮询写法改回来，该组会立刻转红
-//   （已用变异验证：把 _waitForLocalPeerId 换回 100ms/4s 轮询 → 该组转红）。
-//   本文件**不为测试改动 lib/ 源码**。
+//   因此 lib 侧开了一个**零逻辑转发**入口 `waitForLocalPeerIdForTest()`
+//   （@visibleForTesting，不改任何现有行为），本组据此做**运行时**行为锁：
+//   注册落地即刻唤醒 / 1.5s 预算后放弃，都由 fake_async 虚拟时钟判定。
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
@@ -56,29 +54,6 @@ import '../helpers/mocks.dart';
 class _MockDio extends Mock implements Dio {
   @override
   BaseOptions get options => BaseOptions();
-}
-
-/// 从仓库根读取 lib 源码（供不变量锁用）。flutter test 的 cwd 是包根，
-/// 这里仍逐级向上找，避免换 runner 时定位失败。
-String _readLib(String relPath) {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final file = File('${dir.path}/$relPath');
-    if (file.existsSync()) return file.readAsStringSync();
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  throw StateError('无法定位 $relPath（cwd=${Directory.current.path}）');
-}
-
-/// 截取一个方法体（从签名到该方法的收尾 `  }`），把「缺失性」断言限定在方法内，
-/// 避免误伤同文件里其它用途的定时器（例如状态轮询的 Timer.periodic(4s)）。
-String _methodRegion(String src, String signature) {
-  final start = src.indexOf(signature);
-  if (start < 0) return '';
-  final end = src.indexOf('\n  }\n', start);
-  return end < 0 ? src.substring(start) : src.substring(start, end);
 }
 
 void main() {
@@ -178,56 +153,93 @@ void main() {
       );
     });
 
-    test('恢复路径走事件驱动等待（等待区内不得再有轮询 / deadline）', () {
-      final src =
-          _readLib('lib/providers/cast/cast_peer_provider.dart');
+    test('已注册 → 同步快路径：不推进任何时间即返回 peerId（零轮询）', () {
+      // 先让注册落地（localPeerId 在位）。
+      fakeAsync((async) {
+        unawaited(ctrl.registerAndHeartbeat());
+        async.flushMicrotasks();
+        expect(ctrl.localPeerId, 'local-7');
 
-      // 存在性：Completer 信号 + 带预算的事件驱动等待 + 恢复流程改走该入口。
-      expect(src, contains('Completer<String>? _localPeerIdReady;'));
-      expect(src, contains('_ensurePeerIdReady'));
-      expect(
-        src,
-        contains('_ensurePeerIdReady().future.timeout(kPeerIdWaitBudget)'),
-      );
-      expect(src, contains('final pid = await _waitForLocalPeerId();'));
+        String? got;
+        var done = false;
+        unawaited(
+          ctrl.waitForLocalPeerIdForTest().then((v) {
+            done = true;
+            got = v;
+          }),
+        );
 
-      // 注册落地处必须唤醒等待方（否则等待方只能等预算耗尽）。
-      final registerRegion = _methodRegion(
-        src,
-        'Future<void> _registerSelf({int attempt = 0}) async {',
-      );
-      expect(registerRegion, isNotEmpty);
-      expect(registerRegion, contains('_localPeerIdReady'));
-      expect(registerRegion, contains('ready.complete('));
+        // 虚拟时钟一格都不推进：快路径必须当场返回。
+        async.flushMicrotasks();
 
-      // 反「假事件驱动」：complete 不能被塞进永假分支 —— 符号都在、文本守卫判绿，
-      // 但等待方永远不会被唤醒（只能等预算耗尽）。
-      expect(registerRegion, isNot(contains('if (false)')));
-      expect(registerRegion, isNot(contains('&& false')));
-
-      // 缺失性：等待方法体内不得再出现「100ms 一跳 + 4s deadline」的空转轮询。
-      final waitRegion = _methodRegion(
-        src,
-        'Future<String?> _waitForLocalPeerId() async {',
-      );
-      expect(waitRegion, isNotEmpty);
-      expect(waitRegion, isNot(contains('while (')));
-      expect(waitRegion, isNot(contains('Duration(milliseconds: 100)')));
-      expect(waitRegion, isNot(contains('DateTime.now()')));
-      expect(waitRegion, isNot(contains('Duration(seconds: 4)')));
+        expect(done, isTrue, reason: '已注册时必须同步返回，不得进入任何等待');
+        expect(got, 'local-7');
+      });
     });
 
-    test('已注册时 localPeerId 立即可用（等待方的同步快路径前提）', () async {
-      final sw = Stopwatch()..start();
-      await ctrl.registerAndHeartbeat();
-      final elapsed = sw.elapsedMilliseconds;
+    test('未注册 → 挂起；注册一落地即刻唤醒（不等 100ms 轮询 tick）', () {
+      fakeAsync((async) {
+        String? got;
+        var done = false;
+        unawaited(
+          ctrl.waitForLocalPeerIdForTest().then((v) {
+            done = true;
+            got = v;
+          }),
+        );
 
-      expect(ctrl.localPeerId, 'local-7');
-      expect(
-        elapsed,
-        lessThan(1000),
-        reason: '注册落地后 localPeerId 必须在位，等待方走同步快路径、零轮询',
-      );
+        async.elapse(const Duration(milliseconds: 50));
+        async.flushMicrotasks();
+        expect(done, isFalse, reason: '还没注册 → 等待方应挂起');
+
+        // 注册落地（_registerSelf 拿到 peerId → complete 唤醒等待方）。
+        unawaited(ctrl.registerAndHeartbeat());
+        async.flushMicrotasks();
+
+        expect(
+          done,
+          isTrue,
+          reason: '注册落地必须即刻唤醒等待方（历史写法要等下一个 100ms 轮询 tick）',
+        );
+        expect(got, 'local-7');
+      });
+    });
+
+    test('注册始终不来 → 1.5s 预算后放弃返回 null（不抛异常、不死等）', () {
+      fakeAsync((async) {
+        String? got;
+        Object? err;
+        var done = false;
+        unawaited(
+          ctrl.waitForLocalPeerIdForTest().then(
+            (v) {
+              done = true;
+              got = v;
+            },
+            onError: (Object e) {
+              done = true;
+              err = e;
+            },
+          ),
+        );
+
+        async.elapse(const Duration(seconds: 1));
+        async.flushMicrotasks();
+        expect(done, isFalse, reason: '1s < 1.5s 预算 → 仍应挂起等待注册');
+
+        // 累计 1.7s > kPeerIdWaitBudget：必须已放弃等待。
+        async.elapse(const Duration(milliseconds: 700));
+        async.flushMicrotasks();
+
+        expect(done, isTrue, reason: '超过 1.5s 预算必须放弃等待，不得死等');
+        expect(err, isNull, reason: '预算耗尽回退 null，绝不抛异常');
+        expect(got, isNull);
+        expect(
+          ctrl.localPeerId,
+          isNull,
+          reason: '本例全程没有注册 → localPeerId 应保持 null',
+        );
+      });
     });
   });
 

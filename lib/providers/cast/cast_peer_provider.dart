@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/utils/logger.dart';
@@ -512,6 +512,17 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
     return _localPeerId;
   }
+
+  /// 仅供测试的行为锁入口:纯转发 [_waitForLocalPeerId],**不改任何行为**。
+  ///
+  /// 为什么需要它:该等待路径在 `flutter test` 下无法从公开 API 驱动 ——
+  /// 唯一调用方 [fetchLocalQueueForRestore] 在 `FLUTTER_TEST` 存在时直接短路,
+  /// 而该变量由 flutter 工具注入、`Platform.environment` 只读;私有方法又不能
+  /// 跨库访问(dynamic 调用抛 NoSuchMethodError)。为了让「注册落地即刻唤醒 /
+  /// 1.5s 预算后放弃」这两条不变量有**运行时**回归保护(而不是只靠源码文本
+  /// 守卫),这里开一个零逻辑转发入口给 test/ 使用。生产代码请勿调用。
+  @visibleForTesting
+  Future<String?> waitForLocalPeerIdForTest() => _waitForLocalPeerId();
 
   /// 把本机队列/游标/模式镜像到服务端。失败静默(下个变化点再试)。
   Future<void> _syncLocalQueue(
