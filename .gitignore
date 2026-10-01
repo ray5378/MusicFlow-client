@@ -71,3 +71,6 @@ unlinked_spec.ds
 #   git clone https://github.com/music-assistant/server && git checkout <sha>
 # 文档里写取证位置时给 repo + commit sha，别写本地快照路径(会失效的悬空指向)。
 /refs/
+
+# 覆盖率产物（flutter test --coverage）
+coverage/
