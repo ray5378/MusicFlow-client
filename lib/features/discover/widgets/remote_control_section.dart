@@ -7,6 +7,7 @@ import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_body.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
+import 'package:musicflow_client/features/discover/widgets/remote_control_panels.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/ui/home_remote_control_provider.dart';
 
@@ -103,6 +104,25 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
                     Positioned.fill(child: content),
                     if (alert != RemoteControlAlert.none)
                       _alertBar(context, metrics, loc, alert, horizontal),
+                    // L1 覆盖面板:互斥(单一枚举),同一时刻最多一个。
+                    // 挂载/不挂载切换,块高恒定。
+                    if (panel == RemoteControlPanelKind.queue)
+                      Positioned.fill(
+                        child: RemoteControlQueuePanel(
+                          onClose: () => ref
+                              .read(remoteControlPanelProvider.notifier)
+                              .state = RemoteControlPanelKind.none,
+                        ),
+                      ),
+                    if (panel == RemoteControlPanelKind.volume)
+                      Positioned.fill(
+                        child: RemoteControlVolumePanel(
+                          metrics: metrics,
+                          onClose: () => ref
+                              .read(remoteControlPanelProvider.notifier)
+                              .state = RemoteControlPanelKind.none,
+                        ),
+                      ),
                   ],
                 ),
               ),
