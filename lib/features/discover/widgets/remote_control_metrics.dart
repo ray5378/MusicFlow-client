@@ -20,6 +20,8 @@ class RemoteControlMetrics {
     required this.lyricLineHeight,
     required this.coverSize,
     required this.controlIconSize,
+    required this.titleRowHeight,
+    required this.titleGap,
     required this.padding,
     required this.gap,
   });
@@ -35,6 +37,8 @@ class RemoteControlMetrics {
     lyricLineHeight: 20,
     coverSize: 92,
     controlIconSize: 24,
+    titleRowHeight: 22,
+    titleGap: 2,
     padding: EdgeInsets.symmetric(vertical: 16),
     gap: 10,
   );
@@ -50,6 +54,8 @@ class RemoteControlMetrics {
     lyricLineHeight: 20,
     coverSize: 160,
     controlIconSize: 30,
+    titleRowHeight: 28,
+    titleGap: 8,
     padding: EdgeInsets.symmetric(vertical: 8),
     gap: 3,
   );
@@ -63,6 +69,11 @@ class RemoteControlMetrics {
   final double lyricLineHeight;
   final double coverSize;
   final double controlIconSize;
+
+  /// Now 区内:曲名行高与「曲名 ⇄ 歌词视口」间隔。
+  /// 不变量:nowHeight == titleRowHeight + titleGap + lyricViewportHeight。
+  final double titleRowHeight;
+  final double titleGap;
   final EdgeInsets padding;
   final double gap;
 
@@ -72,6 +83,11 @@ class RemoteControlMetrics {
   /// 三行主体 + 进度条的总高(不含块内边距)。
   double get bodyHeight =>
       switcherHeight + gap + nowHeight + gap + controlsHeight + progressHeight;
+
+  /// Now 区不变量:曲名行 + 间隔 + 歌词视口 == nowHeight(±0.5)。
+  bool get isNowConsistent =>
+      (titleRowHeight + titleGap + lyricViewportHeight - nowHeight).abs() <
+      0.5;
 
   /// 不变量:四段高度 + 间隔 + 内边距 == totalHeight(±0.5 容差)。
   /// 单测锁死 —— 任何调错都会让「固定高度」变成「布局溢出/留白」。

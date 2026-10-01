@@ -5,9 +5,9 @@ import 'package:musicflow_client/core/design/components/music_flow_empty_state.d
 import 'package:musicflow_client/core/design/components/music_flow_skeleton.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
+import 'package:musicflow_client/features/discover/widgets/remote_control_body.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
-import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/ui/home_remote_control_provider.dart';
 
 /// 首页「播放控制」整体块 —— **唯一被 discover_page 引用的入口**。
@@ -70,7 +70,7 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
     } else {
       content = Padding(
         padding: _contentPadding(metrics, horizontal),
-        child: _l0Body(context, ref, metrics, loc),
+        child: RemoteControlBody(metrics: metrics),
       );
     }
 
@@ -122,47 +122,6 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
         horizontal,
         metrics.padding.bottom,
       );
-
-  /// L0 三行 + 进度条。四段高度 + 间隔恒等于内容区高度(由
-  /// [RemoteControlMetrics.isConsistent] 锁死)。
-  Widget _l0Body(
-    BuildContext context,
-    WidgetRef ref,
-    RemoteControlMetrics metrics,
-    AppLocalizations loc,
-  ) {
-    final hasSong =
-        ref.watch(playerProvider.select((s) => s.currentSong != null));
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        // ① 切换器(T03 填 RemoteControlPeerBar)。
-        SizedBox(height: metrics.switcherHeight, child: const SizedBox.expand()),
-        SizedBox(height: metrics.gap),
-        // ② Now 区:未在播放时空态 ②,有曲目时 T03 填封面/曲名/歌词。
-        SizedBox(
-          height: metrics.nowHeight,
-          child: Center(
-            child: Text(
-              hasSong ? '' : loc.home_remote_not_playing,
-              style: TextStyle(color: context.musicFlowColors.muted),
-            ),
-          ),
-        ),
-        SizedBox(height: metrics.gap),
-        // ③ 控制条(T03 填 7 键)。
-        SizedBox(
-          height: metrics.controlsHeight,
-          child: const SizedBox.expand(),
-        ),
-        // 进度条 / 时间(T03 填 MusicFlowProgressBar)。
-        SizedBox(
-          height: metrics.progressHeight,
-          child: const SizedBox.expand(),
-        ),
-      ],
-    );
-  }
 
   /// 告警条:**覆盖在进度条那一槽**,不是新增一行 —— 出现/消失都不改变块高。
   /// 不可达/离线时进度本来就没有意义,让告警占掉它是最省事且零位移的做法。

@@ -1068,6 +1068,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get home_remote_target_current => '当前控制目标';
 
   @override
+  String get home_remote_queue => '队列';
+
+  @override
+  String get home_remote_volume => '音量';
+
+  @override
+  String get home_remote_seek => '播放进度';
+
+  @override
   String get home_section_customize => '自定义首页';
 
   @override

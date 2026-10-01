@@ -699,6 +699,18 @@
   "@home_remote_target_current": {
     "description": "Playback-control block: semantic label of the target switcher row"
   },
+  "home_remote_queue": "Queue",
+  "@home_remote_queue": {
+    "description": "Playback-control block: semantic label of the queue-panel toggle button"
+  },
+  "home_remote_volume": "Volume",
+  "@home_remote_volume": {
+    "description": "Playback-control block: semantic label of the volume-panel toggle button"
+  },
+  "home_remote_seek": "Playback position",
+  "@home_remote_seek": {
+    "description": "Playback-control block: semantic label of the seek slider"
+  },
   "home_section_customize": "Customize home",
   "home_section_customize_entry": "Edit home sections",
   "home_section_customize_hint": "Drag to reorder, toggle off to hide",
