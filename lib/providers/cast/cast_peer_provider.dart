@@ -101,6 +101,27 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 播放器据此拉取服务端权威洗牌序列(SEE SPEC:洗牌序列唯一权威在服务端)。
   String? get localPeerId => _localPeerId;
 
+  /// 等待注册落地的预算:超过即放弃等待(恢复流程回退本地会话)。
+  /// 正常情况注册在几十 ms 内完成,该预算只是异常路径(服务端不可达 / 未登录)
+  /// 的兜底上限 —— 把历史 4s 空转轮询的「最坏等待」压到事件驱动的最短必要等待。
+  static const Duration kPeerIdWaitBudget = Duration(milliseconds: 1500);
+
+  /// 注册完成信号:[_registerSelf] 拿到 peerId 落地时 complete(值为 peerId)。
+  /// [fetchLocalQueueForRestore] 用它替换历史上的 100ms 空转轮询 —— 注册一落地
+  /// 等待方立即被唤醒,不再逐 100ms 醒来查表。Completer 由等待方按需创建
+  /// ([_ensurePeerIdReady]),已完成则重建,天然兼容 hot restart / 重注册周期。
+  Completer<String>? _localPeerIdReady;
+
+  /// 取「下一次注册完成」信号;不存在或已消费过则新建一个。
+  Completer<String> _ensurePeerIdReady() {
+    var completer = _localPeerIdReady;
+    if (completer == null || completer.isCompleted) {
+      completer = Completer<String>();
+      _localPeerIdReady = completer;
+    }
+    return completer;
+  }
+
   /// 连续轮询失败计数(离线判定)。
   int _failureCount = 0;
 
@@ -195,6 +216,13 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         final pid = peer['peerId'];
         if (pid is String && pid.isNotEmpty) {
           _localPeerId = pid;
+          // 唤醒等待注册落地的恢复流程(见 fetchLocalQueueForRestore):
+          // 已有等待方在等就 complete;没人等则保持静默,等待方以后到来时
+          // 会走「_localPeerId 已就绪」的同步快路径,不会漏掉本次结果。
+          final ready = _localPeerIdReady;
+          if (ready != null && !ready.isCompleted) {
+            ready.complete(pid);
+          }
           // 同一个 peerId 也是 WS 广播里 peer_id 的形式(maskLocalPeerId 的输出),
           // 本端据此识别「这条队列变更广播是发给我的」,见 peer_remote_control_provider。
           _ref.read(peerRemoteControlProvider.notifier).noteSelfPeerId(pid);
@@ -413,18 +441,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// _restorePlaybackSession)。
   ///
   /// 返回原始快照(items/currentIndex/playMode/updatedAt),失败或空队列
-  /// 返回 null,绝不抛出 —— 恢复流程不能被它卡死。未注册时短暂等待注册
-  /// 完成(本方法跑在启动恢复路径上,注册通常同时在跑);测试环境直接
-  /// 短路(避免 delay/timeout 的 Timer 撞 flutter_test 不变量)。
+  /// 返回 null,绝不抛出 —— 恢复流程不能被它卡死。未注册时**事件驱动**等待
+  /// 注册完成(本方法跑在启动恢复路径上,注册通常同时在跑;注册一落地
+  /// Completer 即刻唤醒本等待,不再逐 100ms 空转轮询),最多等
+  /// [kPeerIdWaitBudget],超时即放弃快照回退本地会话;测试环境直接
+  /// 短路(避免 timeout 的 Timer 撞 flutter_test 不变量)。
   Future<Map<String, dynamic>?> fetchLocalQueueForRestore() async {
     if (state.activePeer != null) return null; // 投屏中:队列归设备
     if (Platform.environment['FLUTTER_TEST'] != null) return null;
-    final deadline = DateTime.now().add(const Duration(seconds: 4));
-    var pid = _localPeerId;
-    while ((pid == null || pid.isEmpty) && DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      pid = _localPeerId;
-    }
+    final pid = await _waitForLocalPeerId();
     if (pid == null || pid.isEmpty) return null;
     // 恢复窗口预算必须短:快照拉不到就回退本地会话,不能拖住启动。
     const budget = Duration(seconds: 5);
@@ -443,6 +468,27 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       Logger.debugWithTag('CAST-PEER', 'restore snapshot fetch failed: $e');
       return null;
     }
+  }
+
+  /// 事件驱动等待本端 peerId 落地(见 [fetchLocalQueueForRestore])。
+  ///
+  /// - 已注册 → 同步快路径直接返回,零等待;
+  /// - 未注册 → 挂在注册完成信号上,[_registerSelf] 一落地即刻唤醒;
+  /// - 超过 [kPeerIdWaitBudget] 注册仍未完成(服务端不可达 / 未登录)→
+  ///   放弃等待返回当前值(可能为 null),调用方回退本地会话恢复。
+  Future<String?> _waitForLocalPeerId() async {
+    final pid = _localPeerId;
+    if (pid != null && pid.isNotEmpty) return pid;
+    try {
+      final ready = await _ensurePeerIdReady().future.timeout(kPeerIdWaitBudget);
+      if (ready.isNotEmpty) return ready;
+    } on TimeoutException {
+      // 预算内注册未落地:恢复流程不等了,回退本地会话。
+    } catch (e) {
+      // 等待被打断(极小概率的 completer 异常):按当前值兜底,不阻塞启动。
+      Logger.debugWithTag('CAST-PEER', 'wait for local peer id failed: $e');
+    }
+    return _localPeerId;
   }
 
   /// 把本机队列/游标/模式镜像到服务端。失败静默(下个变化点再试)。
