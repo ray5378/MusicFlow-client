@@ -97,8 +97,8 @@ Future<void> _pump(
   );
   // 页面 initState 等 ready → _refresh()，给一帧把 setState 放出来。
   await tester.pumpAndSettle(const Duration(milliseconds: 50));
-  // [D-011] enabled=false 时「关闭」行 onPressed 为空（已是关闭态），
-  // 测试直接把 stub 状态摆成 enabled 与否来覆盖两条分支。
+  // notifier 状态由用例决定（enabled=false 时「关闭」行 onPressed 为 null，
+  // 本身就是已关闭态的守卫），这里显式摆一次再泵一帧。
   lastSettings!.state = OfflineCacheSettings(enabled: enabled, size: size);
   await tester.pump();
 }
