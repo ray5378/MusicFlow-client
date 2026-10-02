@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/data/models/peer.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/features/player/peer_display_order.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
@@ -30,6 +31,14 @@ final remoteControlPanelProvider =
 final remoteControlPeersProvider =
     FutureProvider.autoDispose<List<PeerInfo>>((ref) async {
   final notifier = ref.watch(castPeerControllerProvider.notifier);
+  // 连接就绪自动刷新:冷启动时本 provider 可能先于「地址探测完成/凭证注入」
+  // 跑第一遍,loadPeers 空手而归后若无重试信号,切换器会一直空到用户手动刷新。
+  // watch 活跃地址 status(探测完成置 ok)与凭证就绪信号(活跃库发射时该
+  // provider 重建、Future 换新),二者任一落定 → 本 autoDispose provider 重建
+  // → 自动重跑 loadPeers()。套路对齐 cover_art_image 的就绪兜底(30da0e7 回归);
+  // 禁止 Timer 轮询;手动刷新按钮(invalidate 本 provider)保留。
+  ref.watch(activeAddressProvider.select((a) => a?.status));
+  ref.watch(apiCredentialsReadyProvider);
   // ⚠️ `loadPeers()` 内部会**同步写** CastPeerState(offline/peers 等)。若在
   // provider 的 build 阶段直接调用,riverpod 会抛「Providers are not allowed
   // to modify other providers during their initialization」断言(实测挂掉
