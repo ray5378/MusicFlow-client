@@ -15,7 +15,6 @@ class RemoteControlMetrics {
     required this.switcherHeight,
     required this.nowHeight,
     required this.controlsHeight,
-    required this.progressHeight,
     required this.lyricLineCount,
     required this.lyricLineHeight,
     required this.coverSize,
@@ -26,13 +25,12 @@ class RemoteControlMetrics {
     required this.gap,
   });
 
-  /// Android / compact / medium(Q5 / U-5:采纳 U-1 后 Android 维持 280)。
+  /// Android / compact / medium(⑥ 去进度条后 280-28=252)。
   static const RemoteControlMetrics standard = RemoteControlMetrics(
-    totalHeight: 280,
+    totalHeight: 252,
     switcherHeight: 40,
     nowHeight: 104, // 曲名 22 + gap 2 + 歌词 4×20
     controlsHeight: 56,
-    progressHeight: 28,
     lyricLineCount: 4,
     lyricLineHeight: 20,
     coverSize: 92,
@@ -45,11 +43,10 @@ class RemoteControlMetrics {
 
   /// Windows / expanded(Q3,宽 ≥ 840)。单列加高,不做半栏、不做歌词与队列并排。
   static const RemoteControlMetrics expanded = RemoteControlMetrics(
-    totalHeight: 360,
+    totalHeight: 330, // ⑥ 去进度条后 360-30=330
     switcherHeight: 48,
     nowHeight: 196, // 曲名 28 + gap 8 + 歌词 8×20
     controlsHeight: 64,
-    progressHeight: 30,
     lyricLineCount: 8,
     lyricLineHeight: 20,
     coverSize: 160,
@@ -64,7 +61,6 @@ class RemoteControlMetrics {
   final double switcherHeight;
   final double nowHeight;
   final double controlsHeight;
-  final double progressHeight;
   final int lyricLineCount;
   final double lyricLineHeight;
   final double coverSize;
@@ -80,16 +76,16 @@ class RemoteControlMetrics {
   /// 歌词视口高度(Now 区内部滚动区)。
   double get lyricViewportHeight => lyricLineCount * lyricLineHeight;
 
-  /// 三行主体 + 进度条的总高(不含块内边距)。
+  /// 三行主体的总高(不含块内边距)。
   double get bodyHeight =>
-      switcherHeight + gap + nowHeight + gap + controlsHeight + progressHeight;
+      switcherHeight + gap + nowHeight + gap + controlsHeight;
 
   /// Now 区不变量:曲名行 + 间隔 + 歌词视口 == nowHeight(±0.5)。
   bool get isNowConsistent =>
       (titleRowHeight + titleGap + lyricViewportHeight - nowHeight).abs() <
       0.5;
 
-  /// 不变量:四段高度 + 间隔 + 内边距 == totalHeight(±0.5 容差)。
+  /// 不变量:三行主体高度 + 间隔 + 内边距 == totalHeight(±0.5 容差)。
   /// 单测锁死 —— 任何调错都会让「固定高度」变成「布局溢出/留白」。
   bool get isConsistent =>
       (padding.vertical + bodyHeight - totalHeight).abs() < 0.5;

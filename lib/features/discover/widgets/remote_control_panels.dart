@@ -21,7 +21,7 @@ import 'package:musicflow_client/providers/player/effective_volume.dart';
 /// volume_button.dart:112-126)。
 
 /// 音量面板:**实底覆盖底部控制区**的面板(surfaceContainerHighest 铺满
-/// 「控制条 + 进度条」槽,不遮歌词/封面区),排版为一行式
+/// 控制条槽,不遮歌词/封面区),排版为一行式
 /// [静音键 | 滑条 | 百分比],关闭按钮右上角。
 ///
 /// 静音按 G-1 **分路径**实现,不一刀切降级:
@@ -91,8 +91,8 @@ class _RemoteControlVolumePanelState
     final colors = context.musicFlowColors;
     final typography = context.musicFlowTypography;
 
-    // 实底面板:section 已把本面板限位在「控制条 + 进度条」底部槽
-    // (height = controlsHeight + progressHeight ≈ 84/94dp),ColoredBox
+    // 实底面板:section 已把本面板限位在控制条底部槽
+    // (height = controlsHeight ≈ 56/64dp),ColoredBox
     // 铺满该槽,opaque GestureDetector 抢占命中不变;不改变块高(R14)。
     // 一行式 [静音键 | 滑条 | 百分比]:面板变矮后放不下旧版
     // 「大百分比 + 一行」两段式;字号走 typography 令牌,不硬编码。

@@ -16,8 +16,8 @@ import 'package:musicflow_client/providers/ui/home_remote_control_provider.dart'
 /// ```
 /// SizedBox(height: metrics.totalHeight)   ← 恒定,任何状态都不变
 ///   └ Stack(无外框/无底色盒,页级 padding 由 discover_page 统一提供)
-///       ├ L0: ① 切换器 / ② Now 区 / ③ 控制条 + 进度条   (T03 填真实内容)
-///       ├ 告警条:覆盖在进度条那一槽(不改变块高)
+///       ├ L0: ① 切换器 / ② Now 区 / ③ 控制条            (T03 填真实内容)
+///       ├ 告警条:覆盖在控制条那一槽(不改变块高)
 ///       └ L1: 队列 / 音量覆盖面板                        (T04 接)
 /// ```
 /// 加载骨架 / 空态同样是「替换 L0 内容」,盒子高度恒定 → 首页后续分区零位移。
@@ -96,13 +96,14 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
             // L1 覆盖面板:互斥(单一枚举),同一时刻最多一个。
             // 挂载/不挂载切换,块高恒定。
             if (panel == RemoteControlPanelKind.volume)
-              // 只盖底部「控制条 + 进度条」槽,不遮歌词/封面区;点外关闭
-              // (外层 opaque GestureDetector)语义不变 —— 点歌词区即关面板。
+              // 只盖底部控制条槽(⑥ 去进度条后不再有进度槽),不遮歌词/
+              // 封面区;点外关闭(外层 opaque GestureDetector)语义不变 ——
+              // 点歌词区即关面板。
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
-                height: metrics.controlsHeight + metrics.progressHeight,
+                height: metrics.controlsHeight,
                 child: RemoteControlVolumePanel(
                   metrics: metrics,
                   onClose: () => ref
@@ -127,8 +128,9 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
         metrics.padding.bottom,
       );
 
-  /// 告警条:**覆盖在进度条那一槽**,不是新增一行 —— 出现/消失都不改变块高。
-  /// 不可达/离线时进度本来就没有意义,让告警占掉它是最省事且零位移的做法。
+  /// 告警条:**覆盖在控制条那一槽**(⑥ 去进度条后收编整条控制行),不是
+  /// 新增一行 —— 出现/消失都不改变块高。不可达/离线时播放控制本来就没
+  /// 有意义,让告警占掉它是最省事且零位移的做法。
   Widget _alertBar(
     BuildContext context,
     RemoteControlMetrics metrics,
@@ -143,7 +145,7 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
       left: 0,
       right: 0,
       bottom: 0,
-      height: metrics.progressHeight,
+      height: metrics.controlsHeight,
       child: ColoredBox(
         color: scheme.errorContainer,
         child: Padding(

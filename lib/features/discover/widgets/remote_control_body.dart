@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
 import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 import 'package:musicflow_client/core/design/components/music_flow_message.dart';
-import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/data/models/peer.dart';
@@ -23,7 +22,7 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/ui/home_remote_control_provider.dart';
 import 'package:musicflow_client/widgets/cover_art_image.dart';
 
-/// L0 三行主体:① 切换器 / ② Now 区 / ③ 控制条 + 进度条。
+/// L0 三行主体:① 切换器 / ② Now 区 / ③ 控制条。
 ///
 /// **所有操控都走 `effective_*` 门面**(effective_playback_provider /
 /// effective_volume),禁止直调 playerProvider —— 直调在「用户正在控制远端
@@ -51,10 +50,6 @@ class RemoteControlBody extends ConsumerWidget {
         SizedBox(
           height: metrics.controlsHeight,
           child: RemoteControlControls(metrics: metrics),
-        ),
-        SizedBox(
-          height: metrics.progressHeight,
-          child: RemoteControlProgressRow(metrics: metrics),
         ),
       ],
     );
@@ -577,72 +572,6 @@ class RemoteControlControls extends ConsumerWidget {
     if (cast.active) return cast.mode;
     return ref.watch(
       playerProvider.select((s) => s.playbackMode.name),
-    );
-  }
-}
-
-/// 进度行:时间 + 可拖进度 + 总时长。拖动用本地值,松手才 seek(C4)。
-class RemoteControlProgressRow extends ConsumerStatefulWidget {
-  const RemoteControlProgressRow({super.key, required this.metrics});
-
-  final RemoteControlMetrics metrics;
-
-  @override
-  ConsumerState<RemoteControlProgressRow> createState() =>
-      _RemoteControlProgressRowState();
-}
-
-class _RemoteControlProgressRowState
-    extends ConsumerState<RemoteControlProgressRow> {
-  double? _dragValueMs;
-
-  static String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final position = ref.watch(effectivePositionProvider);
-    final duration = ref.watch(effectiveDurationProvider);
-    final maxMs = duration.inMilliseconds <= 0 ? 1.0 : duration.inMilliseconds.toDouble();
-    final valueMs = _dragValueMs ?? position.inMilliseconds.clamp(0, maxMs).toDouble();
-
-    return Row(
-      children: <Widget>[
-        SizedBox(
-          width: 38,
-          child: Text(
-            _fmt(_dragValueMs != null
-                ? Duration(milliseconds: _dragValueMs!.round())
-                : position),
-            style: context.musicFlowTypography.metadata,
-          ),
-        ),
-        Expanded(
-          child: MusicFlowSlider(
-            value: valueMs,
-            min: 0,
-            max: maxMs,
-            semanticLabel: loc.home_remote_seek,
-            onChanged: (v) => setState(() => _dragValueMs = v),
-            onChangeEnd: (v) {
-              setState(() => _dragValueMs = null);
-              seekEffectivePlayback(ref, Duration(milliseconds: v.round()));
-            },
-          ),
-        ),
-        SizedBox(
-          width: 38,
-          child: Text(
-            _fmt(duration),
-            textAlign: TextAlign.right,
-            style: context.musicFlowTypography.metadata,
-          ),
-        ),
-      ],
     );
   }
 }
