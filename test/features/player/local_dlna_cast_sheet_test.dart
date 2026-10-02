@@ -289,9 +289,9 @@ void main() {
       );
       await tester.pump();
 
-      // 独立图标（电视）存在，且与「流转播放」的信号塔图标共存不冲突。
+      // 独立图标（电视）存在，且与「流转播放」的 ∞ 图标共存不冲突。
       expect(find.byIcon(AppIcons.dlnaLocal), findsOneWidget);
-      expect(find.byIcon(AppIcons.signalTower), findsOneWidget);
+      expect(find.byIcon(AppIcons.transferInfinity), findsOneWidget);
 
       // 投屏态入口高亮（selected）。
       final pressable = find.ancestor(

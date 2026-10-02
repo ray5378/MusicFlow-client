@@ -1407,10 +1407,10 @@ class _PlayerUtilityBar extends ConsumerWidget {
               selected: sleepActive,
               onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
             ),
-            // 「流转播放」：使用 base_station(信号) 图标，与流转播放弹窗中
-            // DLNA 设备行(信号/三角) 保持一致；置于最右，与最左的 DLNA 直投拉开距离。
+            // 「流转播放」：使用 infinity(∞) 图标（2026-10-02 由信号塔换为 ∞），
+            // 置于最右，与最左的 DLNA 直投拉开距离。
             _PlayerIconButton(
-              icon: AppIcons.signalTower,
+              icon: AppIcons.transferInfinity,
               label: loc.player_transfer_playback_current(currentPlayerName(cast)),
               selected: cast.isCasting,
               onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),

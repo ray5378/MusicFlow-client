@@ -2,6 +2,13 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.1.5] - 2026-10-02
+
+### 变更
+- 流转播放按钮图标换为无限 ∞（AppIcons.transferInfinity = Remix.infinity_line），
+  覆盖首页播放控制块 / MINI 播放器（横排+竖排）/ 全屏播放页 / Windows 桌面歌词浮窗；
+  桌面歌词原生层新增 kRemixInfinity 字形轮廓（gen_lyric_glyphs.py 重新提取），
+  base_station 图标保留给设备弹窗的 DLNA 设备行
 ## [5.1.4] - 2026-10-02
 
 ### 修复

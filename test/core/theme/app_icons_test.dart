@@ -32,7 +32,8 @@ void main() {
       reason: 'Every AppIcons call must resolve through the semantic map.',
     );
     // v4.3.30 新增 AppIcons.drag(首页分区编辑页拖拽把手):104 → 105。
-    expect(declarations, hasLength(105));
+    // v5.1.5 新增 AppIcons.transferInfinity(流转播放 ∞ 图标):105 → 106。
+    expect(declarations, hasLength(106));
   });
 
   test('product symbols use Remix and platform actions use Cupertino', () {

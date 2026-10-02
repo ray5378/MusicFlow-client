@@ -182,7 +182,7 @@ void main() {
     );
     expect(
       find.descendant(
-          of: utility, matching: find.byIcon(AppIcons.signalTower)),
+          of: utility, matching: find.byIcon(AppIcons.transferInfinity)),
       findsOneWidget,
     );
     expect(

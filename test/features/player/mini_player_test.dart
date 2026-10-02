@@ -145,8 +145,8 @@ void main() {
 
     // 非投屏时 MiniPlayer 默认名称为「本机」,这里传入设备名验证透传:
     // 语义标签携带当前播放器名称,作为流转播放的状态反馈。
-    // 流转播放图标统一使用 signalTower(信号塔,流转播放语义)。
-    expect(find.byIcon(AppIcons.signalTower), findsOneWidget);
+    // 流转播放图标统一使用 transferInfinity(∞,流转播放语义)。
+    expect(find.byIcon(AppIcons.transferInfinity), findsOneWidget);
     final labeled = find.bySemanticsLabel(RegExp('流转播放，当前：客厅音箱'));
     expect(labeled, findsOneWidget);
 

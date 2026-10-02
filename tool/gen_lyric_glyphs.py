@@ -35,9 +35,11 @@ FONT_DEFAULT = ("C:/Users/ray5378/AppData/Local/Pub/Cache/hosted/pub.dev/"
 GLYPHS = [
     (0xF00D, "Queue", "play_list_2_line"),
     (0xF399, "Order", "list_ordered_2"),
-    # 流转播放:与 Flutter 侧 AppIcons.signalTower 同款字形
-    # (Remix.base_station_line = 0xEAA6)。
+    # 设备行图标(DLNA 基站型设备):Remix.base_station_line = 0xEAA6。
     (0xEAA6, "SwitchPlayer", "base_station_line"),
+    # 流转播放按钮(2026-10-02 起):与 Flutter 侧 AppIcons.transferInfinity
+    # 同款字形(Remix.infinity_line = 0xF3B8)。
+    (0xF3B8, "Infinity", "infinity_line"),
     # 设备行图标(2026-09-10 对标 MINI 弹窗 PeerCastRow):
     # 本机=headphone_fill;DLNA 设备复用上面的 SwitchPlayer(同一字形);
     # 群组=group_3_line;刷新行=restart_line。

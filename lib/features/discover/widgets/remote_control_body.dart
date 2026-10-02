@@ -113,7 +113,7 @@ class RemoteControlPeerBar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               alignment: Alignment.center,
               child: Icon(
-                AppIcons.signalTower,
+                AppIcons.transferInfinity,
                 size: 20,
                 color: context.musicFlowColors.muted,
               ),

@@ -338,7 +338,7 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
       Tooltip(
         message: loc.player_transfer_playback_current(widget.currentPlayerName),
         child: MusicFlowIconButton(
-          icon: AppIcons.signalTower,
+          icon: AppIcons.transferInfinity,
           label: loc.player_transfer_playback_current(widget.currentPlayerName),
           iconSize: 20,
           foregroundColor: widget.isCasting
@@ -412,7 +412,7 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
         onPressed: _togglePlayPause,
       ),
       MusicFlowIconButton(
-        icon: AppIcons.signalTower,
+        icon: AppIcons.transferInfinity,
         label: loc.player_transfer_playback_current(widget.currentPlayerName),
         iconSize: 20,
         foregroundColor: widget.isCasting
