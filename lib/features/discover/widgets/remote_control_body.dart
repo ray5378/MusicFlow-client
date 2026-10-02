@@ -227,8 +227,13 @@ class RemoteControlNowArea extends ConsumerWidget {
       ),
     );
 
+    // crossAxisAlignment 必须是 center 而非 stretch:stretch 会把正方形封面
+    // (CoverArtImage 内部 SizedBox 92/160)拉到 Now 区高度 104/196,图片再按
+    // BoxFit 裁切 → 封面缺一块;center 让封面保持正方形并垂直居中。内层歌词
+    // Column(mainAxisSize.max)在有界高约束下仍占满 104/196,行为不变
+    // (RemoteControlMetrics 不变量不受影响)。
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
         CoverArtImage(
           coverArtId: song?.artworkReference,
