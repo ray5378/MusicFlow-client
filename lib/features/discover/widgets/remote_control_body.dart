@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,12 +7,15 @@ import 'package:musicflow_client/core/design/components/music_flow_icon_button.d
 import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 import 'package:musicflow_client/core/design/components/music_flow_message.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
+import 'package:musicflow_client/core/design/tokens/music_flow_breakpoints.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
 import 'package:musicflow_client/features/player/pages/full_player_page.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart'
     show showPlayerSwitcher;
+import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart'
+    show showPlayQueueSheet, toggleRightQueuePanel;
 import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart'
     show lyricLineParts, syncedLyricIndexFor;
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -452,6 +457,16 @@ class _RemoteControlLyricsViewportState
 
 /// ③ 控制条:6 键(模式 / 上曲 / 播放暂停 / 下曲 / 收藏 / 音量)。
 /// 「未在播放」时除 播放 / 切端 / 音量 外置灰不可用。
+/// 与全屏播放页 `_openQueue` 完全同口径:compact 走底部弹窗,桌面走右侧
+/// 非模态面板 —— 复用全屏播放的队列窗口,不造块内第二套队列 UI。
+void _openRemoteControlQueue(BuildContext context) {
+  if (context.musicFlowWindowClass == MusicFlowWindowClass.compact) {
+    unawaited(showPlayQueueSheet(context: context));
+  } else {
+    toggleRightQueuePanel(context: context);
+  }
+}
+
 class RemoteControlControls extends ConsumerWidget {
   const RemoteControlControls({super.key, required this.metrics});
 
@@ -467,7 +482,13 @@ class RemoteControlControls extends ConsumerWidget {
     final hasSong = ref.watch(playerProvider.select((s) => s.currentSong != null)) &&
         !targetIdle;
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
-    final song = ref.watch(playerProvider.select((s) => s.currentSong));
+    // ⚠️ 不能 select(currentSong):Song 重写了 ==(只比 id),收藏态变化
+    // (copyWith(starred))产生的新实例会被判「相等」→ 本 widget 不重建 →
+    // 红心永远空心(全屏页 select 的是 bool 记录值,所以那边实时回填正常)。
+    // 收藏态必须 select 原始 bool;曲名/封面等仍由 Now 区按对象变化重建。
+    final starred = ref.watch(
+      playerProvider.select((s) => s.currentSong?.starred ?? false),
+    );
     final panel = ref.watch(remoteControlPanelProvider);
     final mode = _effectiveMode(ref);
 
@@ -483,7 +504,7 @@ class RemoteControlControls extends ConsumerWidget {
     // _PlayerIconButton 的口径:「一旦带底色就跟旁边的按钮不一致」)。
     // MusicFlowIconButton 的 selected 默认渲染 accent 14% 背景,统一显式传
     // 透明背景压掉;不得改组件本身(mini 播放器等处依赖现行为)。
-    // 横向可滚兜底:6 键 × 48dp 触控目标 = 288dp,极端字号/窄屏仍可能溢出
+    // 横向可滚兜底:7 键 × 48dp 触控目标 = 336dp,极端字号/窄屏仍可能溢出
     // (RenderFlex overflow);兜底「本机」chip 后 targets 恒非空,完整块在
     // 窄屏也会渲染,该潜在溢出必须收掉。与切换器同款 SingleChildScrollView
     // (ClampingScrollPhysics 不外泄滚动);宽度够用时 minWidth 撑满行宽,
@@ -497,6 +518,13 @@ class RemoteControlControls extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[
+              MusicFlowIconButton(
+                icon: AppIcons.queue,
+                label: loc.player_queue,
+                iconSize: iconSize,
+                backgroundColor: Colors.transparent,
+                onPressed: () => _openRemoteControlQueue(context),
+              ),
               MusicFlowIconButton(
                 icon: modeIcon,
                 label: loc.player_mode_list,
@@ -527,10 +555,10 @@ class RemoteControlControls extends ConsumerWidget {
                 onPressed: hasSong ? () => nextEffectivePlayback(ref) : null,
               ),
               MusicFlowIconButton(
-                icon: song?.starred == true ? AppIcons.heart : AppIcons.heartOutline,
+                icon: starred ? AppIcons.heart : AppIcons.heartOutline,
                 label: loc.player_favorite,
                 iconSize: iconSize,
-                selected: song?.starred == true,
+                selected: starred,
                 backgroundColor: Colors.transparent,
                 onPressed: hasSong
                     ? () => ref.read(playerProvider.notifier).toggleFavorite()
