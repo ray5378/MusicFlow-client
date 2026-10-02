@@ -633,8 +633,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       offline: false,
     );
     _startPolling(peer.peerId);
-    // 不等第一个周期 tick:立即拉一次全量,让新目标的真实状态尽快上屏。
-    unawaited(pollOnce(fullQueue: true));
+    // 不等周期 tick:_startPolling 首拍立即 _tick,且此时 castQueue 已被
+    // 上面清空 → 首拍必然走 needFull 全量拉取,新目标的真实状态即刻上屏
+    // (不要再显式 pollOnce,会重复拉状态破坏「status called(1)」契约)。
     return true;
   }
 
