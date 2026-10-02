@@ -2099,12 +2099,34 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     // 红心,避免 toggleFavorite 的乐观 copyWith 被 ≤2s 的轮询镜像冲掉
     // (表现为「点红心秒变空心」);跨端同步仍由 WS song_starred 推送
     // (applyExternalStarred)负责。
-    // 初始收藏态在投屏态显示为空心是全屏播放页同款已知限制,不在本次范围。
     final prevSong = state.currentSong;
     if (prevSong != null &&
         prevSong.id == current.id &&
         prevSong.starred != current.starred) {
       current = current.copyWith(starred: prevSong.starred);
+    }
+    // 权威收藏态 enrichment:继承值只是「同 id 不被轮询冲掉」的兜底,投屏
+    // 初进时镜像项 starred 恒 false,而服务端可能早已收藏 —— 以收藏列表
+    // (starredProvider)为准校正 current。否则 toggleSongFavorite 的方向
+    // 判定会把「已收藏」误判为「未收藏」,重复收藏请求被服务端拒绝后乐观
+    // 更新被 catch 吞掉,红心永远点不亮(也取消不掉)。这同时修正初始显示
+    // (服务端已收藏的歌进投屏态立即亮红心,不再「先空心」)。
+    // FutureProvider.autoDispose 的 value 可能尚未就绪(为 null)—— 此时先
+    // 不 enrich 并顺手预热 .future,下一拍轮询自然带上真实值(2s 窗口)。
+    final starredResult = _ref.read(starredProvider).valueOrNull;
+    if (starredResult != null) {
+      var authoritative = false;
+      for (final s in starredResult.songs) {
+        if (s.id == current.id) {
+          authoritative = true;
+          break;
+        }
+      }
+      if (current.starred != authoritative) {
+        current = current.copyWith(starred: authoritative);
+      }
+    } else {
+      _ref.read(starredProvider.future).ignore();
     }
     final queueChanged = state.queue.length != songs.length ||
         (state.queue.isNotEmpty &&
@@ -2112,6 +2134,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
                 state.queue.last.id != songs.last.id));
     if (!queueChanged &&
         current.id == state.currentSong?.id &&
+        current.starred == state.currentSong?.starred &&
         safeIndex == state.currentIndex) {
       return;
     }

@@ -102,9 +102,14 @@ class FavoriteScrobbleHandler {
           break;
         }
       }
-      final currentStarred =
-          queueSong?.starred ??
-          (currentSong?.id == song.id ? currentSong!.starred : song.starred);
+      // 方向判定:当前歌以 currentSong 为准(投屏镜像经 syncQueueForCast
+      // 的权威收藏 enrichment 校正过),队列快照只作非当前歌的兜底 ——
+      // 旧逻辑队列快照优先,而服务端队列项不带 starred,投屏态镜像恒
+      // false,会把「已收藏」误判成「未收藏」,重复收藏请求被服务端拒绝后
+      // 乐观更新被 catch 吞掉,红心点不亮也取消不掉。
+      final currentStarred = currentSong?.id == song.id
+          ? currentSong!.starred
+          : (queueSong?.starred ?? song.starred);
       final newStarred = !currentStarred;
       await _musicRepository.setSongStarred(song.id, newStarred);
       Logger.info('Toggled favorite for ${song.title}: $newStarred');
