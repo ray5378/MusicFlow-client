@@ -394,6 +394,10 @@ class RemoteControlControls extends ConsumerWidget {
     };
 
     final iconSize = metrics.controlIconSize;
+    // 选中态只走 accent 前景色,不加 14% 底色块(对齐全屏播放页
+    // _PlayerIconButton 的口径:「一旦带底色就跟旁边的按钮不一致」)。
+    // MusicFlowIconButton 的 selected 默认渲染 accent 14% 背景,统一显式传
+    // 透明背景压掉;不得改组件本身(mini 播放器等处依赖现行为)。
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
@@ -402,6 +406,7 @@ class RemoteControlControls extends ConsumerWidget {
           label: loc.home_remote_queue,
           iconSize: iconSize,
           selected: panel == RemoteControlPanelKind.queue,
+          backgroundColor: Colors.transparent,
           onPressed: () => _togglePanel(ref, RemoteControlPanelKind.queue),
         ),
         MusicFlowIconButton(
@@ -409,24 +414,28 @@ class RemoteControlControls extends ConsumerWidget {
           label: loc.player_mode_list,
           iconSize: iconSize,
           selected: mode == 'one' || mode == 'shuffle',
+          backgroundColor: Colors.transparent,
           onPressed: hasSong ? () => cycleEffectivePlayMode(ref) : null,
         ),
         MusicFlowIconButton(
           icon: AppIcons.previous,
           label: loc.player_previous,
           iconSize: iconSize,
+          backgroundColor: Colors.transparent,
           onPressed: hasSong ? () => previousEffectivePlayback(ref) : null,
         ),
         MusicFlowIconButton(
           icon: isPlaying ? AppIcons.pause : AppIcons.play,
           label: isPlaying ? loc.player_pause : loc.widgets_play,
           iconSize: iconSize * 1.15,
+          backgroundColor: Colors.transparent,
           onPressed: () => toggleEffectivePlayback(ref),
         ),
         MusicFlowIconButton(
           icon: AppIcons.next,
           label: loc.player_next,
           iconSize: iconSize,
+          backgroundColor: Colors.transparent,
           onPressed: hasSong ? () => nextEffectivePlayback(ref) : null,
         ),
         MusicFlowIconButton(
@@ -434,6 +443,7 @@ class RemoteControlControls extends ConsumerWidget {
           label: loc.player_favorite,
           iconSize: iconSize,
           selected: song?.starred == true,
+          backgroundColor: Colors.transparent,
           onPressed: hasSong
               ? () => ref.read(playerProvider.notifier).toggleFavorite()
               : null,
@@ -443,6 +453,7 @@ class RemoteControlControls extends ConsumerWidget {
           label: loc.home_remote_volume,
           iconSize: iconSize,
           selected: panel == RemoteControlPanelKind.volume,
+          backgroundColor: Colors.transparent,
           onPressed: () => _togglePanel(ref, RemoteControlPanelKind.volume),
         ),
       ],

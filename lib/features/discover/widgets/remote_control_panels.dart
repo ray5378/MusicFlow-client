@@ -144,6 +144,7 @@ class _RemoteControlVolumePanelState
                     label: loc.home_remote_volume,
                     iconSize: widget.metrics.controlIconSize,
                     selected: volume <= 0,
+                    backgroundColor: Colors.transparent,
                     onPressed: _toggleMute,
                   ),
                   const SizedBox(width: 8),
