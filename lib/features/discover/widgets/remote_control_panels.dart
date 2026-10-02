@@ -119,7 +119,6 @@ class _RemoteControlVolumePanelState
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = context.musicFlowColors;
     final volume = ref.watch(effectiveVolumeProvider);
     final percent = (volume * 100).round();
 
@@ -160,11 +159,9 @@ class _RemoteControlVolumePanelState
                     Text(
                       loc.home_remote_volume_percent('$percent'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: context.musicFlowTypography.display.copyWith(
                         fontSize: 22,
                         height: 1,
-                        fontWeight: FontWeight.w700,
-                        color: colors.ink,
                       ),
                     ),
                     const SizedBox(height: 16),

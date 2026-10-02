@@ -161,11 +161,12 @@ class _PeerChip extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
+                style: context.musicFlowTypography.body.copyWith(
+                  // 单行定高 chip,行盒压平;选中态用 SC 真实字重 w500
+                  // (HarmonyOS Sans SC 无 600,统一渲染口径)。
                   height: 1,
                   color: selected ? colors.ink : colors.muted,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
                 ),
               ),
             ],
@@ -199,26 +200,45 @@ class RemoteControlNowArea extends ConsumerWidget {
 
     // 曲名与歌手**同行**,以「 - 」相连(对齐 mini 播放器『曲名 - 歌手』观感):
     // 不再拆 Expanded/Flexible 两端对齐 —— 那会把歌手名推到行最右缘,孤零零一块。
-    // 有歌手时整行一个 Text『曲名 - 歌手』,无歌手时仅曲名/「未在播放」空态;
-    // 超长 ellipsis,样式沿用曲名行口径(fontSize 按 titleRowHeight 比例)。
-    final titleText = displaySong == null
-        ? loc.home_remote_not_playing
-        : (displaySong.artist == null || displaySong.artist!.isEmpty
-              ? displaySong.title
-              : '${displaySong.title} - ${displaySong.artist}');
+    // 排版走全局 typography 令牌(⑨:曲名 title 15/w500、歌手 metadata 11/muted,
+    // 与首页 hot 分区/迷你条同源),不再按 titleRowHeight 手写比例字号 ——
+    // 设计令牌明令禁止 UI 硬编码字号,且 HarmonyOS Sans SC 无 600 字重。
+    // 行高约束:title 15×1.3=19.5 ≤ titleRowHeight 22/28,定高行内放得下。
+    final typography = context.musicFlowTypography;
     final titleRow = SizedBox(
       height: metrics.titleRowHeight,
-      child: Text(
-        titleText,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: metrics.titleRowHeight * 0.62,
-          height: 1,
-          fontWeight: FontWeight.w600,
-          color: colors.ink,
-        ),
-      ),
+      child: displaySong == null
+          ? Text(
+              loc.home_remote_not_playing,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.title,
+            )
+          : (displaySong.artist == null || displaySong.artist!.isEmpty)
+              ? Text(
+                  displaySong.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.title,
+                )
+              : Text.rich(
+                  TextSpan(
+                    children: <TextSpan>[
+                      TextSpan(
+                        text: displaySong.title,
+                        style: typography.title,
+                      ),
+                      TextSpan(
+                        text: ' - ${displaySong.artist}',
+                        style: typography.metadata.copyWith(
+                          color: colors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
     );
 
     // crossAxisAlignment 必须是 center 而非 stretch:stretch 会把正方形封面
@@ -312,7 +332,10 @@ class _RemoteControlLyricsViewportState
       return Center(
         child: Text(
           loc.home_remote_no_lyrics,
-          style: TextStyle(fontSize: 13, color: colors.muted),
+          style: context.musicFlowTypography.body.copyWith(
+            height: 1,
+            color: colors.muted,
+          ),
         ),
       );
     }
@@ -339,11 +362,10 @@ class _RemoteControlLyricsViewportState
             parts.$1,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
+            style: context.musicFlowTypography.body.copyWith(
               height: 1,
               color: current ? colors.ink : colors.muted,
-              fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: current ? FontWeight.w500 : FontWeight.w400,
             ),
           ),
         );
@@ -510,7 +532,6 @@ class _RemoteControlProgressRowState
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = context.musicFlowColors;
     final position = ref.watch(effectivePositionProvider);
     final duration = ref.watch(effectiveDurationProvider);
     final maxMs = duration.inMilliseconds <= 0 ? 1.0 : duration.inMilliseconds.toDouble();
@@ -524,7 +545,7 @@ class _RemoteControlProgressRowState
             _fmt(_dragValueMs != null
                 ? Duration(milliseconds: _dragValueMs!.round())
                 : position),
-            style: TextStyle(fontSize: 11, color: colors.muted),
+            style: context.musicFlowTypography.metadata,
           ),
         ),
         Expanded(
@@ -545,7 +566,7 @@ class _RemoteControlProgressRowState
           child: Text(
             _fmt(duration),
             textAlign: TextAlign.right,
-            style: TextStyle(fontSize: 11, color: colors.muted),
+            style: context.musicFlowTypography.metadata,
           ),
         ),
       ],
