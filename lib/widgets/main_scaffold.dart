@@ -23,6 +23,7 @@ import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/player/effective_volume.dart';
+import 'package:musicflow_client/providers/ui/home_section_layout_provider.dart';
 import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/random_songs_push_provider.dart';
@@ -429,7 +430,16 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     _scheduleVisibleBranchSync();
     // 迷你播放器常驻显示(对齐主项目前端 player-bar 始终渲染):
     // 无歌曲时展示「未在播放」占位,而不是隐藏播放控件。
-    final bool hasMiniPlayer = widget.showMiniPlayerOverride ?? true;
+    // mini 播放器可见性:编辑页「迷你播放器」开关(全局固定模块,非
+    // discover 分区,默认显示)。关掉后 shell 的 showMiniPlayer=false 不留
+    // 空洞;遥控块的播放控制与 mini 相互独立、不受影响。
+    final bool miniPlayerVisible = ref.watch(
+      homeSectionLayoutProvider.select(
+        (s) => s.valueOrNull?.miniPlayerVisible ?? true,
+      ),
+    );
+    final bool hasMiniPlayer =
+        (widget.showMiniPlayerOverride ?? true) && miniPlayerVisible;
     final activeAddressIsHealthy = ref.watch(
       activeAddressProvider.select((address) {
         return address?.status == ServerAddressStatus.ok;

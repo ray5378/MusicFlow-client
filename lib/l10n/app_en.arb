@@ -711,6 +711,10 @@
   "home_section_customize_entry": "Edit home sections",
   "home_section_customize_hint": "Drag to reorder, toggle off to hide",
   "home_section_customize_done": "Done",
+  "home_section_mini_player": "Mini player",
+  "@home_section_mini_player": {
+    "description": "Edit home sections: fixed toggle row for the global mini player module"
+  },
   "discover_play_playlist": "Play playlist",
   "discover_play_playlist_failed": "Failed to play playlist: {msg}",
   "@discover_play_playlist_failed": {

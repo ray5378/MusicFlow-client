@@ -1086,6 +1086,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get home_section_customize_done => '完成';
 
   @override
+  String get home_section_mini_player => '迷你播放器';
+
+  @override
   String get discover_play_playlist => '播放歌单';
 
   @override

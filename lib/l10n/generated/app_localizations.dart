@@ -2069,6 +2069,12 @@ abstract class AppLocalizations {
   /// **'完成'**
   String get home_section_customize_done;
 
+  /// 编辑首页模块:全局 mini 播放器固定模块的开关行
+  ///
+  /// In zh, this message translates to:
+  /// **'迷你播放器'**
+  String get home_section_mini_player;
+
   /// No description provided for @discover_play_playlist.
   ///
   /// In zh, this message translates to:

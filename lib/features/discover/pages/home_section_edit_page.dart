@@ -31,6 +31,9 @@ class _HomeSectionEditPageState extends ConsumerState<HomeSectionEditPage> {
   /// 编辑中被隐藏的分区 key。
   late Set<String> _hidden;
 
+  /// mini 播放器（全局固定模块）是否显示；不是分区，不参与拖拽排序。
+  late bool _miniPlayerVisible;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +41,7 @@ class _HomeSectionEditPageState extends ConsumerState<HomeSectionEditPage> {
         HomeSectionLayout.empty;
     _order = buildHomeSectionEditOrder(layout);
     _hidden = Set<String>.of(layout.hidden);
+    _miniPlayerVisible = layout.miniPlayerVisible;
   }
 
   void _handleReorder(int oldIndex, int newIndex) {
@@ -61,6 +65,7 @@ class _HomeSectionEditPageState extends ConsumerState<HomeSectionEditPage> {
     final layout = HomeSectionLayout(
       order: List<String>.of(_order),
       hidden: _hidden.toList(growable: false),
+      miniPlayerVisible: _miniPlayerVisible,
     );
     await ref.read(homeSectionLayoutProvider.notifier).save(layout);
     if (mounted) {
@@ -109,6 +114,17 @@ class _HomeSectionEditPageState extends ConsumerState<HomeSectionEditPage> {
                 style: typography.metadata.copyWith(color: colors.muted),
               ),
             ),
+            // mini 播放器固定行:不可拖动、无拖柄,只有开关,恒在分区
+            // 列表顶部(mini 播放器挂在全局脚手架顶部,位置不变,只改可见性)。
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                context.musicFlowPageHorizontalPadding - 5,
+                0,
+                context.musicFlowPageHorizontalPadding - 5,
+                spacing.xs,
+              ),
+              child: _buildMiniPlayerRow(context),
+            ),
             Expanded(
               child: ReorderableListView.builder(
                 // 自定义把手(buildDefaultDragHandles=false):拖拽仅经行尾把手
@@ -152,6 +168,45 @@ class _HomeSectionEditPageState extends ConsumerState<HomeSectionEditPage> {
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// mini 播放器固定行:样式与分区行同源,但没有拖柄(不可拖动)。
+  Widget _buildMiniPlayerRow(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = context.musicFlowColors;
+    final typography = context.musicFlowTypography;
+    final spacing = context.musicFlowSpacing;
+    return Material(
+      color: colors.surface,
+      borderRadius: context.musicFlowRadii.surface,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          spacing.md,
+          spacing.xs,
+          spacing.xs,
+          spacing.xs,
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                loc.home_section_mini_player,
+                style: typography.body,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Switch(
+              value: _miniPlayerVisible,
+              onChanged: (value) =>
+                  setState(() => _miniPlayerVisible = value),
+            ),
+            // 占位:与分区行的拖柄等宽,开关列对齐。
+            SizedBox(width: 20 + spacing.sm * 2),
           ],
         ),
       ),

@@ -711,6 +711,10 @@
   "home_section_customize_entry": "编辑首页模块",
   "home_section_customize_hint": "长按拖动调整顺序，关闭开关可隐藏模块",
   "home_section_customize_done": "完成",
+  "home_section_mini_player": "迷你播放器",
+  "@home_section_mini_player": {
+    "description": "编辑首页模块:全局 mini 播放器固定模块的开关行"
+  },
   "discover_play_playlist": "播放歌单",
   "discover_play_playlist_failed": "播放歌单失败：{msg}",
   "@discover_play_playlist_failed": {

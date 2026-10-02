@@ -14,20 +14,32 @@ class HomeSectionLayout {
   final List<String> order;
   final List<String> hidden;
 
+  /// mini 播放器（全局固定模块，非 discover 分区）是否显示，默认 true。
+  /// 复用分区布局同一份持久化通道（`home_section_layout_v1`），不新开
+  /// prefs key；旧数据缺该字段时回落 true（向后兼容）。
+  final bool miniPlayerVisible;
+
   const HomeSectionLayout({
     this.order = const <String>[],
     this.hidden = const <String>[],
+    this.miniPlayerVisible = true,
   });
 
   /// 无用户自定义（首次使用/清除后）：完全遵循服务端清单。
   static const HomeSectionLayout empty = HomeSectionLayout();
 
-  bool get isEmpty => order.isEmpty && hidden.isEmpty;
+  bool get isEmpty =>
+      order.isEmpty && hidden.isEmpty && miniPlayerVisible;
 
-  HomeSectionLayout copyWith({List<String>? order, List<String>? hidden}) {
+  HomeSectionLayout copyWith({
+    List<String>? order,
+    List<String>? hidden,
+    bool? miniPlayerVisible,
+  }) {
     return HomeSectionLayout(
       order: order ?? this.order,
       hidden: hidden ?? this.hidden,
+      miniPlayerVisible: miniPlayerVisible ?? this.miniPlayerVisible,
     );
   }
 
@@ -43,6 +55,7 @@ class HomeSectionLayout {
     return HomeSectionLayout(
       order: readList(json['order']),
       hidden: readList(json['hidden']),
+      miniPlayerVisible: json['miniPlayerVisible'] as bool? ?? true,
     );
   }
 
@@ -50,6 +63,7 @@ class HomeSectionLayout {
     return <String, dynamic>{
       'order': order,
       'hidden': hidden,
+      'miniPlayerVisible': miniPlayerVisible,
     };
   }
 }

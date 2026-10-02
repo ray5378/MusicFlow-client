@@ -1157,6 +1157,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get home_section_customize_done => 'Done';
 
   @override
+  String get home_section_mini_player => 'Mini player';
+
+  @override
   String get discover_play_playlist => 'Play playlist';
 
   @override

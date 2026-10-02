@@ -13,6 +13,11 @@ import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 /// 不许写字面量 'remote-control'。
 const String kRemoteControlSectionKey = 'remote-control';
 
+/// mini 播放器固定模块 key:**不进** [kDefaultHomeSectionKeys] 的可拖动
+/// 列表 —— 它挂在全局脚手架(main_scaffold),不是 discover 分区,不参与
+/// 注入/排序体系;编辑页只在列表顶部渲染一个固定开关行控制其可见性。
+const String kMiniPlayerSectionKey = 'mini-player';
+
 /// 分区清单加载失败/未就绪时的回落顺序(与历史首页一致,仅推荐两模块按
 /// 新定位排序:「平台推荐」(本地库,local-recommend)在「插件推荐」
 /// (platform-recommend)之前)。
