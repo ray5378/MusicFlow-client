@@ -96,7 +96,13 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
             // L1 覆盖面板:互斥(单一枚举),同一时刻最多一个。
             // 挂载/不挂载切换,块高恒定。
             if (panel == RemoteControlPanelKind.volume)
-              Positioned.fill(
+              // 只盖底部「控制条 + 进度条」槽,不遮歌词/封面区;点外关闭
+              // (外层 opaque GestureDetector)语义不变 —— 点歌词区即关面板。
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: metrics.controlsHeight + metrics.progressHeight,
                 child: RemoteControlVolumePanel(
                   metrics: metrics,
                   onClose: () => ref
