@@ -301,8 +301,72 @@ void main() {
     });
   });
 
+  group('UpdateChecker.parseAtomLatest', () {
+    const xml = '<feed xmlns="http://www.w3.org/2005/Atom">'
+        '<entry>'
+        '<id>tag:github.com,2008:Repository/1/v5.2.0</id>'
+        '<link href="https://github.com/ray5378/MusicFlow-client/releases/tag/v5.2.0"/>'
+        '<title>v5.2.0</title>'
+        '</entry>'
+        '<entry>'
+        '<id>tag:github.com,2008:Repository/1/v5.1.7</id>'
+        '<link href="https://github.com/ray5378/MusicFlow-client/releases/tag/v5.1.7"/>'
+        '<title>v5.1.7</title>'
+        '</entry>'
+        '</feed>';
+    test('parses first entry, strips v prefix, keeps release url', () {
+      final (version, url) = UpdateChecker.parseAtomLatest(xml);
+      expect(version, '5.2.0');
+      expect(
+        url,
+        'https://github.com/ray5378/MusicFlow-client/releases/tag/v5.2.0',
+      );
+    });
+    test('throws when no release tag found', () {
+      expect(
+        () => UpdateChecker.parseAtomLatest('<feed></feed>'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
+
   group('StartupUpdateCheckScope', () {
     tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    // 回归(v5.1.8):防重复守卫曾用「_timer 是否在跑」,Timer 触发后置 null,
+    // 之后任何 didChangeDependencies(视窗/主题/语言变化)都会再次发起检查、
+    // 重复弹窗。改为 _ran 一次性标志后,依赖变化不得再触发。
+    testWidgets('didChangeDependencies refires never re-check', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      var checks = 0;
+      await tester.pumpWidget(
+        app(
+          StartupUpdateCheckScope(
+            delay: Duration.zero,
+            checker: () async {
+              checks++;
+              return updateResult();
+            },
+            launcher: (_) async {},
+            child: const Text('home'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(checks, 1);
+
+      // 视窗尺寸变化 → MediaQuery 变 → didChangeDependencies 再次回调。
+      tester.view.physicalSize = const Size(1200, 800);
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(checks, 1);
       debugDefaultTargetPlatformOverride = null;
     });
 

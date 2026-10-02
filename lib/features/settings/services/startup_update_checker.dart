@@ -158,10 +158,16 @@ class StartupUpdateCheckScope extends StatefulWidget {
 class _StartupUpdateCheckScopeState extends State<StartupUpdateCheckScope> {
   Timer? _timer;
 
+  /// 一次性守卫(v5.1.8):didChangeDependencies 在 Timer 触发后以及此后任何
+  /// 主题/语言/MediaQuery 变化时都会再次回调,不能拿「_timer 是否在跑」当守卫
+  /// —— 触发后 _timer 已置 null,会再次发起检查并可能重复弹窗。
+  bool _ran = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_timer != null) return;
+    if (_ran) return;
+    _ran = true;
     // 延迟由本 scope 持有 Timer：组件销毁（页面/应用退出、测试 dispose）
     // 时立即取消，不留下悬挂的定时器。
     _timer = Timer(widget.delay, () {

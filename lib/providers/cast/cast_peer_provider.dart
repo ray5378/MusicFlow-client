@@ -538,6 +538,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     String mode, {
     required bool full,
   }) async {
+    // 遥控远端期间不写本机队列(与 _watchLocalQueue / syncLocalQueueNow 同口径)。
+    // 防抖定时器可能在 switchTo 落地后才触发,此处兜底拦截 —— 否则会把恢复中的
+    // 中间态推给服务端,回环广播被本端误采纳后在本机强制起播(见
+    // peer_remote_control_provider._handleQueueChanged,v5.1.8 启动竞态实测)。
+    if (state.activePeer != null) return;
     // 还没注册成功(服务端重启 / 断线) → 先补注册拿到本端 peerId。
     if (_localPeerId == null || _localPeerId!.isEmpty) {
       await _registerSelf();
@@ -656,7 +661,24 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     );
     final idx = playing.indexWhere((v) => v);
     if (idx < 0) return;
+    // 等本机会话恢复落定再切(v5.1.8):恢复中途切走,快照会拍到空队列,且队列
+    // 镜像被抑制 → 服务端留陈旧队列,回环广播有误采纳风险。轮询最多等 10s
+    // (恢复租约 20s,正常恢复远小于此),超时放弃,保守保持本机。
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (_ref.read(playerProvider.notifier).isRestoringPlaybackSession) {
+      if (!mounted || state.activePeer != null) return;
+      if (DateTime.now().isAfter(deadline)) {
+        Logger.debugWithTag(
+          'CAST-PEER',
+          'auto-select: restore settle timeout, give up',
+        );
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
     if (!mounted || state.activePeer != null) return;
+    // 等待期间目标可能已停播,复验一次;不再在播则整轮放弃(保守)。
+    if (!await _readPeerRealtimePlaying(candidates[idx].peerId)) return;
     await switchTo(candidates[idx]);
   }
 
@@ -713,6 +735,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       castIndex: -1,
       offline: false,
     );
+    // 通知被遥控方(WS 广播采纳仲裁用):本端进入遥控模式,期间本机队列镜像
+    // 已停写,服务端那份本机队列必然陈旧,不带起播起点的广播一律不采纳。
+    _ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(true);
     _startPolling(peer.peerId);
     // 不等周期 tick:_startPolling 首拍立即 _tick,且此时 castQueue 已被
     // 上面清空 → 首拍必然走 needFull 全量拉取,新目标的真实状态即刻上屏
@@ -742,6 +767,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       castIndex: -1,
       offline: false,
     );
+    _ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(false);
   }
 
   /// 保存当前本机播放状态为快照(供回本机恢复)。

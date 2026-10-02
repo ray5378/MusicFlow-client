@@ -97,6 +97,8 @@ class UpdateChecker {
   static const _repo = 'MusicFlow-client';
   static const _apiUrl =
       'https://api.github.com/repos/$_owner/$_repo/releases/latest';
+  static const _releasesAtomUrl =
+      'https://github.com/$_owner/$_repo/releases.atom';
 
   static final _dio = Dio(
     BaseOptions(
@@ -153,13 +155,60 @@ class UpdateChecker {
       );
     } catch (e, st) {
       Logger.errorWithTag(_logTag, 'update check failed', e, st);
-      // Return a result indicating no update with current version info.
-      return UpdateCheckResult(
-        hasUpdate: false,
-        currentVersion: currentVersion,
-        latestVersion: currentVersion,
-      );
+      // api.github.com 匿名限流(60 次/时/IP)在共享出口 IP 下高频触发;
+      // 兜底改抓 releases.atom(不受 API 限流)。两条路都失败才向上抛 ——
+      // 设置页如实报错(v5.1.7 及之前会把失败吞成 hasUpdate=false,被设置页
+      // 谎报成「已是最新」);启动检查侧有自己的 catch 静默兜底,行为不变。
+      try {
+        return await _checkViaAtom(currentVersion);
+      } catch (atomError) {
+        Logger.errorWithTag(
+          _logTag,
+          'update check via atom also failed',
+          atomError,
+        );
+        throw e;
+      }
     }
+  }
+
+  /// releases.atom 兜底检查:解析第一条 entry 的 tag(订阅流最新在前)。
+  /// atom 拿不到资源列表 → assets 为空,弹窗自动回退发布页链接;notes 置空
+  /// 避免 atom 里的 HTML 富文本进 UI。atom 不区分 prerelease,兜底路径可接受。
+  static Future<UpdateCheckResult> _checkViaAtom(
+    String currentVersion,
+  ) async {
+    final res = await _dio.get(
+      _releasesAtomUrl,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: {'Accept': 'application/atom+xml'},
+      ),
+    );
+    final latest = parseAtomLatest(res.data?.toString() ?? '');
+    return UpdateCheckResult(
+      hasUpdate: _compareVersions(currentVersion, latest.$1) < 0,
+      currentVersion: currentVersion,
+      latestVersion: latest.$1,
+      releaseUrl: latest.$2,
+    );
+  }
+
+  /// 从 releases.atom 内容解析最新 release 的 (version, releaseUrl)。
+  /// 独立成纯函数供测试;解析不到 tag 抛 [FormatException]。
+  static (String, String?) parseAtomLatest(String xml) {
+    final entry =
+        RegExp(r'<entry>[\s\S]*?</entry>').firstMatch(xml)?.group(0) ?? '';
+    final tagMatch = RegExp(r'releases/tag/([^"<?\s]+)').firstMatch(entry);
+    var latest = tagMatch?.group(1) ?? '';
+    if (latest.startsWith('v')) latest = latest.substring(1);
+    if (latest.isEmpty) {
+      throw const FormatException('releases.atom: no release tag found');
+    }
+    final releaseUrl =
+        RegExp(r'href="([^"]+)"').firstMatch(entry)?.group(1) ??
+            'https://github.com/$_owner/$_repo/releases/latest';
+    return (latest, releaseUrl);
   }
 
   /// Compare two semver-like version strings.

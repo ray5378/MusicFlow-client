@@ -61,6 +61,18 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     Logger.debugWithTag(_tag, 'bound to self peer: $peerId');
   }
 
+  /// 本端是否正作为遥控端遥控别的设备(cast_peer_controller 在
+  /// switchTo/backToLocal 时注入 —— 避免反向 import 造成循环)。
+  /// true 期间本机队列镜像已停写,服务端那份本机队列必然陈旧。
+  bool _selfRemoteControlling = false;
+
+  /// 见 [_selfRemoteControlling]。
+  void noteSelfRemoteControlling(bool value) {
+    if (value == _selfRemoteControlling) return;
+    _selfRemoteControlling = value;
+    Logger.debugWithTag(_tag, 'self remote controlling: $value');
+  }
+
   /// 服务端推送消息入口(由 WS 客户端转发,见 random_songs_push_provider)。
   Future<void> handleServerMessage(Map<String, dynamic> msg) async {
     switch (msg['type']) {
@@ -135,6 +147,19 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       return;
     }
     final queue = raw.cast<String, dynamic>();
+    // 遥控远端期间:本机队列镜像已停写,服务端那份本机队列必然陈旧;此刻到达
+    // 的广播与本地比对必然「有差异」,照常 _follow 会在本机 playQueue 强制起播
+    // (v5.1.7 启动自动选中与会话恢复竞态实测:关着「打开时自动播放」仍出声,
+    // 且 UI 在遥控模式、播放/暂停按钮控制的是远端 → 本机声音失控)。只有带
+    // 「起播起点」的广播才是其它端主动流转/推送给本机的,照常采纳。
+    if (_selfRemoteControlling && _startPositionOf(queue) == null) {
+      Logger.debugWithTag(
+        _tag,
+        'queue broadcast while remote-controlling without start position '
+        '(stale echo), skip',
+      );
+      return;
+    }
     // 判定留痕:跟随一旦触发就会在本机 playQueue/playSong(出声!),必须能回答
     // "这次跟随是谁触发的". items/total/index/mode 四件套全打出来。
     final local = _ref.read(playerProvider);

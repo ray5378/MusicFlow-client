@@ -284,6 +284,10 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   @visibleForTesting
   bool get debugIsRestoringPlaybackSession => _isRestoringPlaybackSession;
 
+  /// 恢复是否进行中(生产消费方:启动自动选中等待恢复落定后再切控制目标,
+  /// 见 cast_peer_provider._autoSelectFirstPlaying)。
+  bool get isRestoringPlaybackSession => _isRestoringPlaybackSession;
+
   // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
   // 队列序列化缓存移入 _payloadEncoder(PlaybackPayloadEncoder)。
   NetworkType _lastObservedNetworkType = NetworkType.none;
