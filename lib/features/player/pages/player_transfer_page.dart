@@ -58,7 +58,10 @@ class PlayerTransferPage extends ConsumerStatefulWidget {
     BuildContext context, {
     required Future<bool> Function(PeerInfo from, PeerInfo to) onTransfer,
   }) {
-    return Navigator.of(context).push<void>(
+    // 必须走根导航器:调用方既可能在 shell 分支导航器内(首页播放控制块),
+    // 也可能在外(mini 播放器槽位)。就近解析时前者只盖内容区,shell 底部的
+    // mini 槽仍露在流转页外面;根导航器统一盖住整个 shell,行为一致。
+    return Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
         builder: (_) => PlayerTransferPage(onTransfer: onTransfer),
