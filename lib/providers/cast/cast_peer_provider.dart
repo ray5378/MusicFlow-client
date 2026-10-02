@@ -626,9 +626,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       status: const PeerStatus(state: 'BUFFERING'),
       playMode: state.playMode,
       smoothPositionSeconds: 0,
+      // 清掉上一目标的队列镜像:控制目标已切换,残留会让 Now 区在第一拍
+      // 轮询落地前显示上一目标的歌(targetIdle 派生为 true → 显示「未在播放」)。
+      castQueue: const <Map<String, dynamic>>[],
+      castIndex: -1,
       offline: false,
     );
     _startPolling(peer.peerId);
+    // 不等第一个周期 tick:立即拉一次全量,让新目标的真实状态尽快上屏。
+    unawaited(pollOnce(fullQueue: true));
     return true;
   }
 
@@ -1948,6 +1954,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           // 后端权威:镜像队列 + 游标到本地,迷你条/歌词/相邻关系跟随设备。
           // 投屏期间本地保持暂停,不触发本地播放。
           _ref.read(playerProvider.notifier).syncQueueForCast(items, si);
+        } else {
+          // 目标空闲(无活跃队列):游标置 -1 → targetIdle 派生为 true,
+          // Now 区显示「未在播放」,不残留上一首歌/上一目标的镜像。
+          idx = -1;
         }
       }
 

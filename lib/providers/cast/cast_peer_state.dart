@@ -77,6 +77,15 @@ class CastPeerState {
   /// 设备是否真的在播(后端 state 判定)。
   bool get devicePlaying => status.active;
 
+  /// 投屏目标**空闲**:目标无活跃队列(镜像为空或游标无效)。
+  /// - [switchTo] 切目标时先清掉上一目标的镜像(castQueue/castIndex)→ 立即
+  ///   true,不残留上一首歌;
+  /// - `_tick` 确认目标无活跃队列(total<=0 或 currentIndex<0,镜像守卫不落)
+  ///   时会把 castIndex 置 -1 → true。
+  /// Now 区/控制条据此显示「未在播放」空态;正常播放时 castQueue 非空且
+  /// castIndex>=0 → false。纯派生,不加状态字段。
+  bool get targetIdle => isCasting && (castQueue.isEmpty || castIndex < 0);
+
   String get targetName => activePeer?.name ?? l10nNowCurrent().peer_self;
 
   CastPeerState copyWith({

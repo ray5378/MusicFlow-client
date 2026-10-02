@@ -189,6 +189,12 @@ class RemoteControlNowArea extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context);
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
+    // 投屏目标空闲时曲名/封面走「未在播放」空态,不残留上一首歌
+    // (cast 态下 currentSong 可能是上一目标或本机切换前的残留镜像)。
+    final targetIdle = ref.watch(
+      castPeerControllerProvider.select((s) => s.targetIdle),
+    );
+    final displaySong = targetIdle ? null : song;
     final colors = context.musicFlowColors;
 
     final titleRow = SizedBox(
@@ -197,7 +203,7 @@ class RemoteControlNowArea extends ConsumerWidget {
         children: <Widget>[
           Expanded(
             child: Text(
-              song?.title ?? loc.home_remote_not_playing,
+              displaySong?.title ?? loc.home_remote_not_playing,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -208,11 +214,12 @@ class RemoteControlNowArea extends ConsumerWidget {
               ),
             ),
           ),
-          if (song?.artist != null && song!.artist!.isNotEmpty) ...<Widget>[
+          if (displaySong?.artist != null &&
+              displaySong!.artist!.isNotEmpty) ...<Widget>[
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                song.artist!,
+                displaySong.artist!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -236,10 +243,10 @@ class RemoteControlNowArea extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
         CoverArtImage(
-          coverArtId: song?.artworkReference,
+          coverArtId: displaySong?.artworkReference,
           size: metrics.coverSize,
           // R23:无障碍 —— 封面语义标签跟曲名走。
-          semanticLabel: song?.title ?? loc.home_remote_not_playing,
+          semanticLabel: displaySong?.title ?? loc.home_remote_not_playing,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -249,7 +256,10 @@ class RemoteControlNowArea extends ConsumerWidget {
               titleRow,
               SizedBox(height: metrics.titleGap),
               Expanded(
-                child: RemoteControlLyricsViewport(metrics: metrics),
+                child: RemoteControlLyricsViewport(
+                  metrics: metrics,
+                  targetIdle: targetIdle,
+                ),
               ),
             ],
           ),
@@ -263,9 +273,16 @@ class RemoteControlNowArea extends ConsumerWidget {
 /// 在 104dp 区里几乎看不到字),只复用它的两个 public 纯函数
 /// `syncedLyricIndexFor` / `lyricLineParts`。滚动对齐 = 当前行固定第 2 槽。
 class RemoteControlLyricsViewport extends ConsumerStatefulWidget {
-  const RemoteControlLyricsViewport({super.key, required this.metrics});
+  const RemoteControlLyricsViewport({
+    super.key,
+    required this.metrics,
+    this.targetIdle = false,
+  });
 
   final RemoteControlMetrics metrics;
+
+  /// 投屏目标空闲:清空歌词视口(复用「暂无歌词」空态,不改变块高)。
+  final bool targetIdle;
 
   @override
   ConsumerState<RemoteControlLyricsViewport> createState() =>
@@ -302,7 +319,8 @@ class _RemoteControlLyricsViewportState
     final position = ref.watch(effectivePositionProvider);
     final best = lyricsAsync.valueOrNull?.getBest();
 
-    if (best == null || best.lines.isEmpty) {
+    // 投屏目标空闲:清空歌词,与曲名/封面的「未在播放」空态保持一致。
+    if (widget.targetIdle || best == null || best.lines.isEmpty) {
       // 无歌词:占满视口,不改变块高(Q4)。
       return Center(
         child: Text(
@@ -357,7 +375,12 @@ class RemoteControlControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context);
-    final hasSong = ref.watch(playerProvider.select((s) => s.currentSong != null));
+    // 投屏目标空闲 → 视同无歌(上曲/下曲/模式/收藏置灰),不基于残留镜像启用。
+    final targetIdle = ref.watch(
+      castPeerControllerProvider.select((s) => s.targetIdle),
+    );
+    final hasSong = ref.watch(playerProvider.select((s) => s.currentSong != null)) &&
+        !targetIdle;
     final isPlaying = ref.watch(effectiveIsPlayingProvider);
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
     final panel = ref.watch(remoteControlPanelProvider);
@@ -411,9 +434,9 @@ class RemoteControlControls extends ConsumerWidget {
           label: loc.player_favorite,
           iconSize: iconSize,
           selected: song?.starred == true,
-          onPressed: song == null
-              ? null
-              : () => ref.read(playerProvider.notifier).toggleFavorite(),
+          onPressed: hasSong
+              ? () => ref.read(playerProvider.notifier).toggleFavorite()
+              : null,
         ),
         MusicFlowIconButton(
           icon: AppIcons.volumeHigh,
