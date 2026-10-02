@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
+import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
@@ -129,14 +130,14 @@ class _PeerChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
     final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
+    return MusicFlowPressable(
+      onPressed: onTap,
+      borderRadius: BorderRadius.circular(999),
+      semanticLabel: label,
       selected: selected,
-      label: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
+      // chip 在 40dp 定高横滚行内,不吃 48x48 最小尺寸约束。
+      minimumSize: Size.zero,
+      child: Container(
           height: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
@@ -170,8 +171,7 @@ class _PeerChip extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 

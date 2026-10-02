@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
+import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
@@ -178,9 +179,16 @@ class _RemoteControlVolumePanelState
               ),
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
+                child: MusicFlowPressable(
                   onPressed: widget.onClose,
-                  child: Text(loc.player_close),
+                  minimumSize: Size.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      loc.player_close,
+                      style: TextStyle(fontSize: 14, color: colors.accent),
+                    ),
+                  ),
                 ),
               ),
             ],
