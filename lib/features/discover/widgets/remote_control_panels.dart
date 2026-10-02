@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
-import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
@@ -88,7 +87,6 @@ class _RemoteControlVolumePanelState
     final loc = AppLocalizations.of(context);
     final volume = ref.watch(effectiveVolumeProvider);
     final percent = (volume * 100).round();
-    final colors = context.musicFlowColors;
     final typography = context.musicFlowTypography;
 
     // 实底面板:section 已把本面板限位在控制条底部槽
@@ -104,25 +102,8 @@ class _RemoteControlVolumePanelState
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Stack(
           children: <Widget>[
-            // 关闭按钮:右上角,不占主行空间。48×48 最小触控目标在 84dp
-            // 定高槽内会与主行重叠,用 MusicFlowPressable + Size.zero
-            // 缩到图标自适应尺寸(交互守卫允许定高行内显式降级)。
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: MusicFlowPressable(
-                  semanticLabel: loc.player_close,
-                  onPressed: widget.onClose,
-                  minimumSize: Size.zero,
-                  borderRadius: context.musicFlowRadii.control,
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Icon(AppIcons.close, size: 18, color: colors.ink),
-                  ),
-                ),
-              ),
-            ),
+            // 关闭叉号已移除(2026-10-02 反馈 #1):音量键本身是 toggle,
+            // 再按一次即收起面板,右上角不再放关闭按钮。
             Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(

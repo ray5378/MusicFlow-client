@@ -453,7 +453,9 @@ class PlayQueueSheetView extends StatelessWidget {
       child: panel
           ? surface(null)
           : DraggableScrollableSheet(
-              initialChildSize: 0.72,
+              // 打开即最高高度(2026-10-02 反馈 #3):此前默认 0.72 在深色主题下
+              // 观感只有半屏、还要手动上滑才展开;深浅主题统一为与 max 一致。
+              initialChildSize: 0.95,
               minChildSize: 0.5,
               maxChildSize: 0.95,
               expand: false,

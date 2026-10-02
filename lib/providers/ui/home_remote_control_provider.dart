@@ -39,6 +39,9 @@ final remoteControlPeersProvider =
   // 禁止 Timer 轮询;手动刷新按钮(invalidate 本 provider)保留。
   ref.watch(activeAddressProvider.select((a) => a?.status));
   ref.watch(apiCredentialsReadyProvider);
+  // 周期刷新(#2):控制器每 10s 递增 peersRev,本 provider 随之 rebuild 重新
+  // loadPeers —— 播放端上线/下线无需重进页面即自动反映到块与切换器。
+  ref.watch(castPeerControllerProvider.select((s) => s.peersRev));
   // ⚠️ `loadPeers()` 内部会**同步写** CastPeerState(offline/peers 等)。若在
   // provider 的 build 阶段直接调用,riverpod 会抛「Providers are not allowed
   // to modify other providers during their initialization」断言(实测挂掉

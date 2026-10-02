@@ -38,6 +38,7 @@ class CastPeerState {
     this.endOfQueueCount = 0,
     this.shuffleOrder = const <int>[],
     this.shufflePos = -1,
+    this.peersRev = 0,
   });
 
   /// null = 本机播放。
@@ -72,6 +73,10 @@ class CastPeerState {
   /// 服务端在当前洗牌序列中的位置(对应 [shuffleOrder] 的下标),-1 = 无。
   final int shufflePos;
 
+  /// 播放端列表刷新版本号(#2):控制器每 10s 递增一次,home_remote_control 的
+  /// targets 链 watch 该值触发重新 loadPeers —— 播放端上线/下线自动反映。
+  final int peersRev;
+
   bool get isCasting => activePeer != null;
 
   /// 设备是否真的在播(后端 state 判定)。
@@ -101,6 +106,7 @@ class CastPeerState {
     int? endOfQueueCount,
     List<int>? shuffleOrder,
     int? shufflePos,
+    int? peersRev,
   }) {
     return CastPeerState(
       activePeer: clearActivePeer ? null : (activePeer ?? this.activePeer),
@@ -114,6 +120,7 @@ class CastPeerState {
       endOfQueueCount: endOfQueueCount ?? this.endOfQueueCount,
       shuffleOrder: shuffleOrder ?? this.shuffleOrder,
       shufflePos: shufflePos ?? this.shufflePos,
+      peersRev: peersRev ?? this.peersRev,
     );
   }
 }

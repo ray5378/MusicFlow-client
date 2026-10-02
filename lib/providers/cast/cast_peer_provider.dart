@@ -11,6 +11,8 @@ export 'package:musicflow_client/providers/cast/cast_peer_state.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_state.dart';
 import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dart';
 import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/features/player/peer_display_order.dart'
+    show peerKindRank;
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
@@ -95,6 +97,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Timer? _pollTimer;
   Timer? _tickTimer;
   Timer? _heartbeatTimer;
+  Timer? _peersTimer;
+
+  /// 启动自动选中(#5)只评估一次:首次拉到非空播放端列表后置位,
+  /// 避免会话中途擅自改控制目标。
+  bool _autoTargetDone = false;
   String? _localPeerId;
 
   /// 本机 peer 的对外 ID(`local:<uid>`,打码视图;真实实例 ID 只在服务端)。
@@ -589,6 +596,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           .whereType<Map<String, dynamic>>()
           .map(PeerInfo.fromJson)
           .toList();
+      // 成功路径才起周期刷新/做启动自动选中(失败路径的 [] 不算数)。
+      _ensurePeersTimer();
+      _maybeAutoSelectPlayingTarget(list);
       return list;
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'loadPeers failed: $e');
@@ -596,6 +606,40 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     } finally {
       if (mounted) state = state.copyWith(loadingPeers: false);
     }
+  }
+
+  /// 播放端列表周期刷新(#2):块/切换器 watch 的是 remoteControlPeersProvider
+  /// (一次性 Future),播放端上线/下线不会自动反映。这里每 10s 只递增
+  /// peersRev,让该 provider rebuild 重新 loadPeers。Timer 生命周期归控制器,
+  /// 仅在 dispose 取消(不进 _stopTimers —— 那是轮询周期的重置路径)。
+  void _ensurePeersTimer() {
+    _peersTimer ??= Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      state = state.copyWith(peersRev: state.peersRev + 1);
+    });
+  }
+
+  /// 启动自动选中(#5):首次成功拉到播放端列表时,若有「正在播放中」的目标,
+  /// 自动把控制目标切过去;多台同播按 类别序 本机 > 群组 > 独立播放器
+  /// (复用 peer_display_order.peerKindRank 唯一实现)。本机在播或无在播目标
+  /// 时不动作;首次拿到非空列表即置位,之后不再自动切。
+  void _maybeAutoSelectPlayingTarget(List<PeerInfo> peers) {
+    if (_autoTargetDone) return;
+    final visible = peers.where((p) => p.available || p.self).toList();
+    if (visible.isEmpty) return; // 服务端还没报上来任何端,等下一轮再评估
+    _autoTargetDone = true;
+    if (state.activePeer != null) return; // 用户已手动选过目标
+    if (_ref.read(playerProvider).isPlaying) return; // 本机在播 = 最高优先
+    final playing = visible.where((p) => p.queueActive && p.available).toList()
+      ..sort((a, b) {
+        final k = peerKindRank(a) - peerKindRank(b);
+        if (k != 0) return k;
+        return a.name.compareTo(b.name);
+      });
+    if (playing.isEmpty) return;
+    final target = playing.first;
+    if (target.self) return; // 在播的就是本机,无需切换
+    unawaited(switchTo(target));
   }
 
   // ==================== 流转播放 ====================
@@ -2099,6 +2143,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   @override
   void dispose() {
     _stopTimers();
+    _peersTimer?.cancel();
     stopHeartbeat();
     super.dispose();
   }
