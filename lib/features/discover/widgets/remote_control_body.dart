@@ -197,40 +197,27 @@ class RemoteControlNowArea extends ConsumerWidget {
     final displaySong = targetIdle ? null : song;
     final colors = context.musicFlowColors;
 
+    // 曲名与歌手**同行**,以「 - 」相连(对齐 mini 播放器『曲名 - 歌手』观感):
+    // 不再拆 Expanded/Flexible 两端对齐 —— 那会把歌手名推到行最右缘,孤零零一块。
+    // 有歌手时整行一个 Text『曲名 - 歌手』,无歌手时仅曲名/「未在播放」空态;
+    // 超长 ellipsis,样式沿用曲名行口径(fontSize 按 titleRowHeight 比例)。
+    final titleText = displaySong == null
+        ? loc.home_remote_not_playing
+        : (displaySong.artist == null || displaySong.artist!.isEmpty
+              ? displaySong.title
+              : '${displaySong.title} - ${displaySong.artist}');
     final titleRow = SizedBox(
       height: metrics.titleRowHeight,
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              displaySong?.title ?? loc.home_remote_not_playing,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: metrics.titleRowHeight * 0.62,
-                height: 1,
-                fontWeight: FontWeight.w600,
-                color: colors.ink,
-              ),
-            ),
-          ),
-          if (displaySong?.artist != null &&
-              displaySong!.artist!.isNotEmpty) ...<Widget>[
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                displaySong.artist!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: metrics.titleRowHeight * 0.5,
-                  height: 1,
-                  color: colors.muted,
-                ),
-              ),
-            ),
-          ],
-        ],
+      child: Text(
+        titleText,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: metrics.titleRowHeight * 0.62,
+          height: 1,
+          fontWeight: FontWeight.w600,
+          color: colors.ink,
+        ),
       ),
     );
 
