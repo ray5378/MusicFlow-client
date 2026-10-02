@@ -40,15 +40,34 @@ final remoteControlPeersProvider =
   return notifier.loadPeers();
 });
 
-/// 切换器候选项:仅 `available`(离线不参与选择,对齐 HA 的
-/// `available !== false`);**本机由 `p.self` 识别**(不能用 `kind=='local'`
-/// 一刀切);排序复用 `peer_display_order.dart` 的唯一实现,不内联副本。
+/// 切换器候选项:`available` 参与(离线不参与选择,对齐 HA 的
+/// `available !== false`),但 **self 条目例外**(unavailable 也保留,否则
+/// Windows 等场景服务端不返回 self 行或 available=false 时「本机」chip 消失,
+/// 用户从此无法控制本机 —— 旧切换器的口径是「remote 列表排除 self + 本机行
+/// 由 UI 恒定保证」,从不出现该问题);**本机由 `p.self` 识别**(不能用
+/// `kind=='local'` 一刀切);排序复用 `peer_display_order.dart` 的唯一实现,
+/// 不内联副本;列表完全没有 self 条目时兜底合成一条(local-self)。
 final remoteControlTargetsProvider = Provider.autoDispose<List<PeerInfo>>(
   (ref) {
     final peers = ref.watch(remoteControlPeersProvider).valueOrNull;
     if (peers == null) return const <PeerInfo>[];
-    return peers.where((p) => p.available).toList()
+    final targets = peers.where((p) => p.available || p.self).toList()
       ..sort(comparePeerDisplayOrder);
+    // 二层兜底:过滤后完全没有 self 条目 → 合成一条「本机」插到最前
+    // (排序只作用于真实条目;合成条目按 self 语义跟随,插最前)。
+    // _switchTarget 对 `peer.self` 走 backToLocal(),合成条目天然兼容;
+    // chip 标签 `isSelf ? loc.peer_self : peer.name` 也天然显示「本机」。
+    if (targets.any((p) => p.self)) return targets;
+    return <PeerInfo>[
+      const PeerInfo(
+        peerId: 'local-self',
+        name: '',
+        kind: 'local',
+        available: true,
+        self: true,
+      ),
+      ...targets,
+    ];
   },
 );
 
