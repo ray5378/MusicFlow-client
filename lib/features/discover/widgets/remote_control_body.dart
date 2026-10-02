@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
 import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
+import 'package:musicflow_client/core/design/components/music_flow_message.dart';
 import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
 import 'package:musicflow_client/features/player/pages/full_player_page.dart';
+import 'package:musicflow_client/features/player/widgets/mini_player.dart'
+    show showPlayerSwitcher;
 import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart'
     show lyricLineParts, syncedLyricIndexFor;
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -96,6 +99,27 @@ class RemoteControlPeerBar extends ConsumerWidget {
       physics: const ClampingScrollPhysics(),
       child: Row(
         children: <Widget>[
+          // 流转播放入口(= mini 播放器同款):打开完整切换器面板,与行内
+          // chips(快速切换)并存,作为列表首项参与横滚。MusicFlowIconButton
+          // 恒为 48×48 最小触控目标,会撑破 switcherHeight 40/48 定高行,
+          // 与 chip 同款用 MusicFlowPressable(Size.zero)。
+          MusicFlowPressable(
+            onPressed: () => _openPlayerSwitcher(context, ref),
+            semanticLabel: loc.player_transfer_playback_title,
+            minimumSize: Size.zero,
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              alignment: Alignment.center,
+              child: Icon(
+                AppIcons.signalTower,
+                size: 20,
+                color: context.musicFlowColors.muted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           for (var i = 0; i < chips.length; i++) ...<Widget>[
             if (i > 0) const SizedBox(width: 8),
             chips[i],
@@ -111,6 +135,33 @@ class RemoteControlPeerBar extends ConsumerWidget {
       return;
     }
     await ref.read(castPeerControllerProvider.notifier).switchTo(peer);
+  }
+
+  /// 打开「流转播放」专用页面 —— 接线照抄 mini_player 的 onSwitchPlayer。
+  Future<void> _openPlayerSwitcher(BuildContext context, WidgetRef ref) {
+    return showPlayerSwitcher(
+      context: context,
+      ref: ref,
+      onTransfer: (from, to) async {
+        final controller = ref.read(castPeerControllerProvider.notifier);
+        final loc = AppLocalizations.of(context);
+        final ok = await controller.transferQueue(from, to);
+        if (context.mounted) {
+          ref.invalidate(peerNowPlayingProvider(from.peerId));
+          ref.invalidate(peerNowPlayingProvider(to.peerId));
+          showMusicFlowMessage(
+            context,
+            ok
+                ? loc.player_handoff_push_success(to.name)
+                : loc.player_handoff_failed,
+            kind: ok
+                ? MusicFlowMessageKind.success
+                : MusicFlowMessageKind.error,
+          );
+        }
+        return ok;
+      },
+    );
   }
 }
 
