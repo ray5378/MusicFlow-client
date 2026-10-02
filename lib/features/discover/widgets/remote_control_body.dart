@@ -398,65 +398,79 @@ class RemoteControlControls extends ConsumerWidget {
     // _PlayerIconButton 的口径:「一旦带底色就跟旁边的按钮不一致」)。
     // MusicFlowIconButton 的 selected 默认渲染 accent 14% 背景,统一显式传
     // 透明背景压掉;不得改组件本身(mini 播放器等处依赖现行为)。
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        MusicFlowIconButton(
-          icon: AppIcons.queue,
-          label: loc.home_remote_queue,
-          iconSize: iconSize,
-          selected: panel == RemoteControlPanelKind.queue,
-          backgroundColor: Colors.transparent,
-          onPressed: () => _togglePanel(ref, RemoteControlPanelKind.queue),
+    // 横向可滚兜底:7 键 × 48dp 触控目标 = 336dp,320dp 级窄屏必然溢出
+    // (RenderFlex overflow);兜底「本机」chip 后 targets 恒非空,完整块在
+    // 窄屏也会渲染,该潜在溢出必须收掉。与切换器同款 SingleChildScrollView
+    // (ClampingScrollPhysics 不外泄滚动);宽度够用时 minWidth 撑满行宽,
+    // spaceEvenly 布局与原先完全一致。块高不变。
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const ClampingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              MusicFlowIconButton(
+                icon: AppIcons.queue,
+                label: loc.home_remote_queue,
+                iconSize: iconSize,
+                selected: panel == RemoteControlPanelKind.queue,
+                backgroundColor: Colors.transparent,
+                onPressed: () => _togglePanel(ref, RemoteControlPanelKind.queue),
+              ),
+              MusicFlowIconButton(
+                icon: modeIcon,
+                label: loc.player_mode_list,
+                iconSize: iconSize,
+                selected: mode == 'one' || mode == 'shuffle',
+                backgroundColor: Colors.transparent,
+                onPressed: hasSong ? () => cycleEffectivePlayMode(ref) : null,
+              ),
+              MusicFlowIconButton(
+                icon: AppIcons.previous,
+                label: loc.player_previous,
+                iconSize: iconSize,
+                backgroundColor: Colors.transparent,
+                onPressed: hasSong ? () => previousEffectivePlayback(ref) : null,
+              ),
+              MusicFlowIconButton(
+                icon: isPlaying ? AppIcons.pause : AppIcons.play,
+                label: isPlaying ? loc.player_pause : loc.widgets_play,
+                iconSize: iconSize * 1.15,
+                backgroundColor: Colors.transparent,
+                onPressed: () => toggleEffectivePlayback(ref),
+              ),
+              MusicFlowIconButton(
+                icon: AppIcons.next,
+                label: loc.player_next,
+                iconSize: iconSize,
+                backgroundColor: Colors.transparent,
+                onPressed: hasSong ? () => nextEffectivePlayback(ref) : null,
+              ),
+              MusicFlowIconButton(
+                icon: song?.starred == true ? AppIcons.heart : AppIcons.heartOutline,
+                label: loc.player_favorite,
+                iconSize: iconSize,
+                selected: song?.starred == true,
+                backgroundColor: Colors.transparent,
+                onPressed: hasSong
+                    ? () => ref.read(playerProvider.notifier).toggleFavorite()
+                    : null,
+              ),
+              MusicFlowIconButton(
+                icon: AppIcons.volumeHigh,
+                label: loc.home_remote_volume,
+                iconSize: iconSize,
+                selected: panel == RemoteControlPanelKind.volume,
+                backgroundColor: Colors.transparent,
+                onPressed: () => _togglePanel(ref, RemoteControlPanelKind.volume),
+              ),
+            ],
+          ),
         ),
-        MusicFlowIconButton(
-          icon: modeIcon,
-          label: loc.player_mode_list,
-          iconSize: iconSize,
-          selected: mode == 'one' || mode == 'shuffle',
-          backgroundColor: Colors.transparent,
-          onPressed: hasSong ? () => cycleEffectivePlayMode(ref) : null,
-        ),
-        MusicFlowIconButton(
-          icon: AppIcons.previous,
-          label: loc.player_previous,
-          iconSize: iconSize,
-          backgroundColor: Colors.transparent,
-          onPressed: hasSong ? () => previousEffectivePlayback(ref) : null,
-        ),
-        MusicFlowIconButton(
-          icon: isPlaying ? AppIcons.pause : AppIcons.play,
-          label: isPlaying ? loc.player_pause : loc.widgets_play,
-          iconSize: iconSize * 1.15,
-          backgroundColor: Colors.transparent,
-          onPressed: () => toggleEffectivePlayback(ref),
-        ),
-        MusicFlowIconButton(
-          icon: AppIcons.next,
-          label: loc.player_next,
-          iconSize: iconSize,
-          backgroundColor: Colors.transparent,
-          onPressed: hasSong ? () => nextEffectivePlayback(ref) : null,
-        ),
-        MusicFlowIconButton(
-          icon: song?.starred == true ? AppIcons.heart : AppIcons.heartOutline,
-          label: loc.player_favorite,
-          iconSize: iconSize,
-          selected: song?.starred == true,
-          backgroundColor: Colors.transparent,
-          onPressed: hasSong
-              ? () => ref.read(playerProvider.notifier).toggleFavorite()
-              : null,
-        ),
-        MusicFlowIconButton(
-          icon: AppIcons.volumeHigh,
-          label: loc.home_remote_volume,
-          iconSize: iconSize,
-          selected: panel == RemoteControlPanelKind.volume,
-          backgroundColor: Colors.transparent,
-          onPressed: () => _togglePanel(ref, RemoteControlPanelKind.volume),
-        ),
-      ],
+      ),
     );
   }
 
