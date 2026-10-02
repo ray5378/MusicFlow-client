@@ -699,10 +699,6 @@
   "@home_remote_target_current": {
     "description": "播放控制块:切换器行的语义标签"
   },
-  "home_remote_queue": "队列",
-  "@home_remote_queue": {
-    "description": "播放控制块:打开/关闭队列面板的按钮语义标签"
-  },
   "home_remote_volume": "音量",
   "@home_remote_volume": {
     "description": "播放控制块:打开/关闭音量面板的按钮语义标签"

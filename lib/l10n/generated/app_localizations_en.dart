@@ -1138,9 +1138,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get home_remote_target_current => 'Current target';
 
   @override
-  String get home_remote_queue => 'Queue';
-
-  @override
   String get home_remote_volume => 'Volume';
 
   @override

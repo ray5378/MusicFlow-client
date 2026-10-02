@@ -374,7 +374,7 @@ class _RemoteControlLyricsViewportState
   }
 }
 
-/// ③ 控制条:7 键(队列 / 模式 / 上曲 / 播放暂停 / 下曲 / 收藏 / 音量)。
+/// ③ 控制条:6 键(模式 / 上曲 / 播放暂停 / 下曲 / 收藏 / 音量)。
 /// 「未在播放」时除 播放 / 切端 / 音量 外置灰不可用。
 class RemoteControlControls extends ConsumerWidget {
   const RemoteControlControls({super.key, required this.metrics});
@@ -407,7 +407,7 @@ class RemoteControlControls extends ConsumerWidget {
     // _PlayerIconButton 的口径:「一旦带底色就跟旁边的按钮不一致」)。
     // MusicFlowIconButton 的 selected 默认渲染 accent 14% 背景,统一显式传
     // 透明背景压掉;不得改组件本身(mini 播放器等处依赖现行为)。
-    // 横向可滚兜底:7 键 × 48dp 触控目标 = 336dp,320dp 级窄屏必然溢出
+    // 横向可滚兜底:6 键 × 48dp 触控目标 = 288dp,极端字号/窄屏仍可能溢出
     // (RenderFlex overflow);兜底「本机」chip 后 targets 恒非空,完整块在
     // 窄屏也会渲染,该潜在溢出必须收掉。与切换器同款 SingleChildScrollView
     // (ClampingScrollPhysics 不外泄滚动);宽度够用时 minWidth 撑满行宽,
@@ -421,14 +421,6 @@ class RemoteControlControls extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[
-              MusicFlowIconButton(
-                icon: AppIcons.queue,
-                label: loc.home_remote_queue,
-                iconSize: iconSize,
-                selected: panel == RemoteControlPanelKind.queue,
-                backgroundColor: Colors.transparent,
-                onPressed: () => _togglePanel(ref, RemoteControlPanelKind.queue),
-              ),
               MusicFlowIconButton(
                 icon: modeIcon,
                 label: loc.player_mode_list,

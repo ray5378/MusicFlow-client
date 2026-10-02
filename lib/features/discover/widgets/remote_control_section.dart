@@ -95,14 +95,6 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
               _alertBar(context, metrics, loc, alert),
             // L1 覆盖面板:互斥(单一枚举),同一时刻最多一个。
             // 挂载/不挂载切换,块高恒定。
-            if (panel == RemoteControlPanelKind.queue)
-              Positioned.fill(
-                child: RemoteControlQueuePanel(
-                  onClose: () => ref
-                      .read(remoteControlPanelProvider.notifier)
-                      .state = RemoteControlPanelKind.none,
-                ),
-              ),
             if (panel == RemoteControlPanelKind.volume)
               Positioned.fill(
                 child: RemoteControlVolumePanel(

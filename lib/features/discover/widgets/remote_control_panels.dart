@@ -6,52 +6,18 @@ import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
-import 'package:musicflow_client/features/player/widgets/play_queue_sheet.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
 import 'package:musicflow_client/providers/player/effective_volume.dart';
 
-/// L1 覆盖面板:队列 / 音量。互斥由 `remoteControlPanelProvider`(单一枚举)
+/// L1 覆盖面板:音量。互斥由 `remoteControlPanelProvider`(单一枚举)
 /// 保证,同一时刻最多挂载一个;显隐只走「挂载 / 不挂载」,**不许**用
 /// AnimatedContainer 改高度(会破坏固定高度,§8.4)。
 ///
 /// 两个面板都必须自己包一层 `GestureDetector(behavior: opaque, onTap: (){})`
 /// 抢占命中,否则点面板内部会触发外层「点面板外空白关闭」(套路同
 /// volume_button.dart:112-126)。
-
-/// 队列面板(U-1:覆盖**整块**,不是只盖 ②+③ —— 188dp 减 header/footer 只剩
-/// 1 行可见,没有实用价值)。
-///
-/// 直接复用 `PlayQueueSheet(panel: true)`:它已内建「直投 > 投屏 > 本机」
-/// 三态路由(链路 A 走 CastQueueSheetView、链路 B 走直投快照、本机走
-/// PlayQueueSheetView),**不重写**。U-2:它的「选中即关闭面板」是客户端
-/// 既有行为,保留,不照 HA 的「保持打开」。
-///
-/// `PlayQueueSheetView` 自带 `SafeArea(top: false)` —— 嵌进块内会吃进系统
-/// 底部 inset 破坏固定高度,用 `MediaQuery.removePadding` 抵消 + `ClipRect` 卡死。
-class RemoteControlQueuePanel extends ConsumerWidget {
-  const RemoteControlQueuePanel({super.key, this.onClose});
-
-  final VoidCallback? onClose;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // 抢占命中:点击面板内部不触发「点面板外关闭」。
-      onTap: () {},
-      child: ClipRect(
-        child: MediaQuery.removePadding(
-          context: context,
-          removeTop: true,
-          removeBottom: true,
-          child: PlayQueueSheet(panel: true, onClose: onClose),
-        ),
-      ),
-    );
-  }
-}
 
 /// 音量面板:**实底覆盖整块**的面板(surfaceContainerHighest 铺满,
 /// 视觉上是「一块面板盖住整块」,而不是一条横滑条飘在歌词封面上),

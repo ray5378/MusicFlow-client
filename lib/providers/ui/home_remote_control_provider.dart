@@ -11,7 +11,7 @@ import 'package:musicflow_client/providers/offline/offline_provider.dart';
 /// 为什么不用两个 bool:`showQueue` / `showVolume` 会出现「两个都 true」的
 /// 脏态(L1 同时挂两个覆盖面板)。枚举在类型上就排除了这种状态。
 /// autoDispose:块被用户隐藏 → provider 释放 → 状态不残留。
-enum RemoteControlPanelKind { none, queue, volume }
+enum RemoteControlPanelKind { none, volume }
 
 /// 告警分级(对应缺口 G-4:v1 只做两级,中间态「连接恢复中」不实现,
 /// 因为客户端只有二元的 isOfflineProvider,不 new 信号源)。

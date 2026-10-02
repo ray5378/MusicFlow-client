@@ -2033,12 +2033,6 @@ abstract class AppLocalizations {
   /// **'当前控制目标'**
   String get home_remote_target_current;
 
-  /// 播放控制块:打开/关闭队列面板的按钮语义标签
-  ///
-  /// In zh, this message translates to:
-  /// **'队列'**
-  String get home_remote_queue;
-
   /// 播放控制块:打开/关闭音量面板的按钮语义标签
   ///
   /// In zh, this message translates to:
