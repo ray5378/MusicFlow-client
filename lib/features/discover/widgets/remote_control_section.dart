@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_empty_state.dart';
 import 'package:musicflow_client/core/design/components/music_flow_skeleton.dart';
-import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_body.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
@@ -16,7 +15,7 @@ import 'package:musicflow_client/providers/ui/home_remote_control_provider.dart'
 /// 结构(固定高度 + Stack 分层,对应架构 §2.2):
 /// ```
 /// SizedBox(height: metrics.totalHeight)   ← 恒定,任何状态都不变
-///   └ ClipRRect → Stack
+///   └ Stack(无外框/无底色盒,页级 padding 由 discover_page 统一提供)
 ///       ├ L0: ① 切换器 / ② Now 区 / ③ 控制条 + 进度条   (T03 填真实内容)
 ///       ├ 告警条:覆盖在进度条那一槽(不改变块高)
 ///       └ L1: 队列 / 音量覆盖面板                        (T04 接)
@@ -38,8 +37,6 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
   Widget build(BuildContext context) {
     final metrics = remoteControlMetricsFor(context);
     final loc = AppLocalizations.of(context);
-    final horizontal = context.musicFlowPageHorizontalPadding - 5;
-
     final peersAsync = ref.watch(remoteControlPeersProvider);
     final targets = ref.watch(remoteControlTargetsProvider);
     final alert = ref.watch(remoteControlAlertProvider);
@@ -51,14 +48,14 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
     final Widget content;
     if (loading) {
       content = Padding(
-        padding: _contentPadding(metrics, horizontal),
+        padding: _contentPadding(metrics),
         child: MusicFlowSkeleton(height: metrics.bodyHeight),
       );
     } else if (targets.isEmpty) {
       // 空态 ①:一个可控制端都没有(未登录 / 服务端无 peer)。
       // 注意 Q7:只有「本机」一个端时 targets 非空,不会落到这里。
       content = Padding(
-        padding: _contentPadding(metrics, horizontal),
+        padding: _contentPadding(metrics),
         child: MusicFlowEmptyState(
           title: loc.home_remote_no_device,
           description: '',
@@ -70,76 +67,65 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
       );
     } else {
       content = Padding(
-        padding: _contentPadding(metrics, horizontal),
+        padding: _contentPadding(metrics),
         child: RemoteControlBody(metrics: metrics),
       );
     }
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: horizontal),
-      child: SizedBox(
-        height: metrics.totalHeight,
-        child: GestureDetector(
-          // 「点面板外空白关闭面板」的外层命中面(T04 接上真实面板后生效:
-          // 面板内部会再包一层 opaque GestureDetector 抢占命中)。
-          behavior: panel == RemoteControlPanelKind.none
-              ? HitTestBehavior.deferToChild
-              : HitTestBehavior.opaque,
-          onTap: panel == RemoteControlPanelKind.none
-              ? null
-              : () => ref.read(remoteControlPanelProvider.notifier).state =
-                  RemoteControlPanelKind.none,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.45),
-              ),
-              child: ClipRect(
-                child: Stack(
-                  children: <Widget>[
-                    Positioned.fill(child: content),
-                    if (alert != RemoteControlAlert.none)
-                      _alertBar(context, metrics, loc, alert, horizontal),
-                    // L1 覆盖面板:互斥(单一枚举),同一时刻最多一个。
-                    // 挂载/不挂载切换,块高恒定。
-                    if (panel == RemoteControlPanelKind.queue)
-                      Positioned.fill(
-                        child: RemoteControlQueuePanel(
-                          onClose: () => ref
-                              .read(remoteControlPanelProvider.notifier)
-                              .state = RemoteControlPanelKind.none,
-                        ),
-                      ),
-                    if (panel == RemoteControlPanelKind.volume)
-                      Positioned.fill(
-                        child: RemoteControlVolumePanel(
-                          metrics: metrics,
-                          onClose: () => ref
-                              .read(remoteControlPanelProvider.notifier)
-                              .state = RemoteControlPanelKind.none,
-                        ),
-                      ),
-                  ],
+    return SizedBox(
+      height: metrics.totalHeight,
+      child: GestureDetector(
+        // 「点面板外空白关闭面板」的外层命中面(T04 接上真实面板后生效:
+        // 面板内部会再包一层 opaque GestureDetector 抢占命中)。
+        behavior: panel == RemoteControlPanelKind.none
+            ? HitTestBehavior.deferToChild
+            : HitTestBehavior.opaque,
+        onTap: panel == RemoteControlPanelKind.none
+            ? null
+            : () => ref.read(remoteControlPanelProvider.notifier).state =
+                RemoteControlPanelKind.none,
+        // 无外框(无自加水平 Padding / 圆角底色盒):首页其他分区
+        // (random_songs_section 等)都不自带水平缩进与底色盒,页级
+        // pageHorizPadding 由 discover_page 统一提供 —— 块内再包一层会
+        // 双重缩进,与其他模块左缘不齐(R19)。
+        child: Stack(
+          children: <Widget>[
+            Positioned.fill(child: content),
+            if (alert != RemoteControlAlert.none)
+              _alertBar(context, metrics, loc, alert),
+            // L1 覆盖面板:互斥(单一枚举),同一时刻最多一个。
+            // 挂载/不挂载切换,块高恒定。
+            if (panel == RemoteControlPanelKind.queue)
+              Positioned.fill(
+                child: RemoteControlQueuePanel(
+                  onClose: () => ref
+                      .read(remoteControlPanelProvider.notifier)
+                      .state = RemoteControlPanelKind.none,
                 ),
               ),
-            ),
-          ),
+            if (panel == RemoteControlPanelKind.volume)
+              Positioned.fill(
+                child: RemoteControlVolumePanel(
+                  metrics: metrics,
+                  onClose: () => ref
+                      .read(remoteControlPanelProvider.notifier)
+                      .state = RemoteControlPanelKind.none,
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  /// 内容区内边距:垂直方向照 [RemoteControlMetrics.padding],
-  /// 水平方向用与 discover_page 完全同一个表达式(→ R19 左缘对齐)。
-  EdgeInsets _contentPadding(RemoteControlMetrics metrics, double horizontal) =>
+  /// 内容区内边距:仅垂直方向照 [RemoteControlMetrics.padding]。
+  /// 水平方向零缩进:页级 pageHorizPadding 由 discover_page 统一提供,
+  /// 块内再叠加会双重缩进(→ 与首页其他分区左缘对齐,R19)。
+  EdgeInsets _contentPadding(RemoteControlMetrics metrics) =>
       EdgeInsets.fromLTRB(
-        horizontal,
+        0,
         metrics.padding.top,
-        horizontal,
+        0,
         metrics.padding.bottom,
       );
 
@@ -150,7 +136,6 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
     RemoteControlMetrics metrics,
     AppLocalizations loc,
     RemoteControlAlert alert,
-    double horizontal,
   ) {
     final scheme = Theme.of(context).colorScheme;
     final text = alert == RemoteControlAlert.unreachable
@@ -164,7 +149,8 @@ class _RemoteControlSectionState extends ConsumerState<RemoteControlSection> {
       child: ColoredBox(
         color: scheme.errorContainer,
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontal),
+          // 条内只留小呼吸位;页级缩进已由 discover_page 提供。
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             children: <Widget>[
               Icon(
