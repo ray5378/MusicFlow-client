@@ -8,6 +8,7 @@ import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/features/discover/widgets/remote_control_metrics.dart';
+import 'package:musicflow_client/features/player/pages/full_player_page.dart';
 import 'package:musicflow_client/features/player/widgets/synced_lyrics_view.dart'
     show lyricLineParts, syncedLyricIndexFor;
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -249,11 +250,18 @@ class RemoteControlNowArea extends ConsumerWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        CoverArtImage(
-          coverArtId: displaySong?.artworkReference,
-          size: metrics.coverSize,
-          // R23:无障碍 —— 封面语义标签跟曲名走。
-          semanticLabel: displaySong?.title ?? loc.home_remote_not_playing,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // 与 mini 播放器封面同款:点击打开全屏播放页(封面为空时占位
+          // 区域同样可点;全屏页由 playerProvider 驱动,投屏态显示镜像
+          // 队列 —— 正是现有全屏页行为,无需额外处理)。
+          onTap: () => _openFullPlayer(context),
+          child: CoverArtImage(
+            coverArtId: displaySong?.artworkReference,
+            size: metrics.coverSize,
+            // R23:无障碍 —— 封面语义标签跟曲名走。
+            semanticLabel: displaySong?.title ?? loc.home_remote_not_playing,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -272,6 +280,28 @@ class RemoteControlNowArea extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// 与 mini 播放器 `_openFullPlayer` 完全同款:根导航器 + PageRouteBuilder
+  /// (transitionsBuilder 原样返回 child,motion 时长由 musicFlowMotion 解析),
+  /// 保证观感一致(无 hero 差异、无转场动画)。
+  void _openFullPlayer(BuildContext context) {
+    final duration = context.musicFlowMotion.resolve(
+      context,
+      context.musicFlowMotion.scene,
+    );
+    Navigator.of(context, rootNavigator: true).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return const FullPlayerPage();
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return child;
+        },
+        transitionDuration: duration,
+        reverseTransitionDuration: duration,
+      ),
     );
   }
 }
