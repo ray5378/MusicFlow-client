@@ -420,8 +420,10 @@ void main() {
         reason: '编辑页应展示分区行「$name」',
       );
     }
-    // 客户端自治的「播放控制」块让编辑页多一行(5 → 6)。
-    expect(find.byType(Switch), findsNWidgets(6));
+    // 客户端自治的「播放控制」块让编辑页多一行(5 → 6),顶部另有
+    // mini 播放器固定行(仅开关,无拖柄)→ 开关 6+1=7。
+    expect(find.text('迷你播放器'), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(7));
     expect(find.text('完成'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -55,8 +55,10 @@ void main() {
         reason: '编辑页应展示分区行「$name」',
       );
     }
-    // 每行一个显隐开关 + 一个拖拽把手。
-    expect(find.byType(Switch), findsNWidgets(6));
+    // 每行一个显隐开关 + 一个拖拽把手;顶部另有 mini 播放器固定行
+    // (仅开关,无拖柄,不可拖动)→ 开关 6+1=7,把手仍 6。
+    expect(find.text('迷你播放器'), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(7));
     expect(find.byType(ReorderableDragStartListener), findsNWidgets(6));
     expect(find.text('完成'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -67,9 +69,10 @@ void main() {
   ) async {
     await pumpEditPage(tester);
 
-    // 默认顺序第 4 行是「为你推荐」(home-recommend),关闭其开关。
-    // 首位是客户端自治的「播放控制」块(remote-control),故索引整体后移一位。
-    await tester.tap(find.byType(Switch).at(3));
+    // 默认顺序第 5 个开关是「为你推荐」(home-recommend),关闭其开关。
+    // 开关顺序:0=mini 播放器固定行,1=播放控制(remote-control),其后是
+    // 各分区,故 home-recommend 索引为 4。
+    await tester.tap(find.byType(Switch).at(4));
     await tester.pumpAndSettle();
     await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
