@@ -2093,7 +2093,19 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     }
     if (songs.isEmpty) return;
     final safeIndex = index.clamp(0, songs.length - 1);
-    final current = songs[safeIndex];
+    var current = songs[safeIndex];
+    // 服务端队列项不带 starred(见 applyExternalStarred 注释:光靠队列轮询
+    // 永远刷不到)。镜像重建 currentSong 时若 id 未变,继承原 currentSong 的
+    // 红心,避免 toggleFavorite 的乐观 copyWith 被 ≤2s 的轮询镜像冲掉
+    // (表现为「点红心秒变空心」);跨端同步仍由 WS song_starred 推送
+    // (applyExternalStarred)负责。
+    // 初始收藏态在投屏态显示为空心是全屏播放页同款已知限制,不在本次范围。
+    final prevSong = state.currentSong;
+    if (prevSong != null &&
+        prevSong.id == current.id &&
+        prevSong.starred != current.starred) {
+      current = current.copyWith(starred: prevSong.starred);
+    }
     final queueChanged = state.queue.length != songs.length ||
         (state.queue.isNotEmpty &&
             (state.queue.first.id != songs.first.id ||
