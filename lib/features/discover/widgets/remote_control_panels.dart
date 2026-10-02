@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/components/music_flow_icon_button.dart';
-import 'package:musicflow_client/core/design/components/music_flow_pressable.dart';
 import 'package:musicflow_client/core/design/components/music_flow_slider.dart';
 import 'package:musicflow_client/core/design/music_flow_context.dart';
 import 'package:musicflow_client/core/theme/app_icons.dart';
@@ -54,7 +53,9 @@ class RemoteControlQueuePanel extends ConsumerWidget {
   }
 }
 
-/// 音量面板:横向滑条 + 百分比 + 静音键。
+/// 音量面板:**实底覆盖整块**的面板(surfaceContainerHighest 铺满,
+/// 视觉上是「一块面板盖住整块」,而不是一条横滑条飘在歌词封面上),
+/// 排版为 大百分比 + 静音键/滑条一行,关闭按钮右上角。
 ///
 /// 静音按 G-1 **分路径**实现,不一刀切降级:
 /// - 直投(dlnaCast)/ 投屏(castPeer)→ **真静音**(`setMuted`,两处已存在);
@@ -122,78 +123,86 @@ class _RemoteControlVolumePanelState
     final volume = ref.watch(effectiveVolumeProvider);
     final percent = (volume * 100).round();
 
+    // 实底面板:外层 ColoredBox 铺满整块(section 的 Positioned.fill 已给定
+    // 口),保持 opaque GestureDetector 抢占命中不变;不改变块高(R14)。
+    // 选中/静音态与控制条同口径:只走 accent 前景色,不加底色块。
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: context.musicFlowSpacing.lg,
-            vertical: context.musicFlowSpacing.md,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  MusicFlowIconButton(
-                    icon: volume <= 0
-                        ? AppIcons.volumeMute
-                        : AppIcons.volumeHigh,
-                    label: loc.home_remote_volume,
-                    iconSize: widget.metrics.controlIconSize,
-                    selected: volume <= 0,
-                    backgroundColor: Colors.transparent,
-                    onPressed: _toggleMute,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MusicFlowSlider(
-                      value: volume.clamp(0.0, 1.0).toDouble(),
-                      min: 0,
-                      max: 1,
-                      semanticLabel: loc.home_remote_volume,
-                      semanticValue: '$percent%',
-                      onChanged: (v) => _sender.send(v),
-                      onChangeEnd: (v) {
-                        // 松手:复位节流并提交最终值(落盘,不再走节流)。
-                        _sender.reset();
-                        setEffectiveVolume(ref, v);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 46,
-                    child: Text(
-                      loc.home_remote_volume_percent('$percent'),
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.ink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: MusicFlowPressable(
+      child: ColoredBox(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Stack(
+          children: <Widget>[
+            // 关闭按钮:右上角,不占主行空间。
+            Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: MusicFlowIconButton(
+                  icon: AppIcons.close,
+                  label: loc.player_close,
+                  iconSize: 18,
+                  backgroundColor: Colors.transparent,
                   onPressed: widget.onClose,
-                  minimumSize: Size.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Text(
-                      loc.player_close,
-                      style: TextStyle(fontSize: 14, color: colors.accent),
-                    ),
-                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+            Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.musicFlowSpacing.lg,
+                  vertical: context.musicFlowSpacing.md,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      loc.home_remote_volume_percent('$percent'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 22,
+                        height: 1,
+                        fontWeight: FontWeight.w700,
+                        color: colors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: <Widget>[
+                        MusicFlowIconButton(
+                          icon: volume <= 0
+                              ? AppIcons.volumeMute
+                              : AppIcons.volumeHigh,
+                          label: loc.home_remote_volume,
+                          iconSize: widget.metrics.controlIconSize,
+                          selected: volume <= 0,
+                          backgroundColor: Colors.transparent,
+                          onPressed: _toggleMute,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: MusicFlowSlider(
+                            value: volume.clamp(0.0, 1.0).toDouble(),
+                            min: 0,
+                            max: 1,
+                            semanticLabel: loc.home_remote_volume,
+                            semanticValue: '$percent%',
+                            onChanged: (v) => _sender.send(v),
+                            onChangeEnd: (v) {
+                              // 松手:复位节流并提交最终值(落盘,不再走节流)。
+                              _sender.reset();
+                              setEffectiveVolume(ref, v);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
