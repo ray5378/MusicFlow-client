@@ -62,12 +62,33 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
 ) {
   // 不固定 apiClient/musicRepository 引用，PlayerNotifier 内部通过 ref.read 动态获取
   // 这样既不建立 watch 依赖（不会被重建），又能始终拿到最新的实例
-  return _PlayerNotifierImpl(ref);
+  final notifier = _PlayerNotifierImpl(ref);
+  // 持久监听权威收藏列表并缓存到 notifier：starredProvider 是 autoDispose，
+  // 用 ref.read 一次性取值（无监听者）读完即被回收，valueOrNull 永远为 null，
+  // 投屏镜像的红心 enrichment 因此永远落空（v5.1.2 遗留）。由这里养住它，
+  // 库切换时 provider 重建也会自动带上新数据。
+  ref.listen<AsyncValue<StarredResult>>(
+    starredProvider,
+    (prev, next) => notifier.cacheAuthoritativeStarred(next.valueOrNull),
+    fireImmediately: true,
+  );
+  return notifier;
 });
 
 /// 播放器状态管理器
 abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
+
+  /// 权威收藏列表缓存。由 playerProvider 主体对 starredProvider 的持久
+  /// ref.listen 持续刷新（fireImmediately + 库切换自动跟随）。autoDispose
+  /// provider 不能靠 ref.read 取值——无监听者时读完即回收，值永远拿不到。
+  StarredResult? _authoritativeStarred;
+
+  /// 供 playerProvider 主体回调缓存最新收藏列表（见 playerProvider 定义处）。
+  void cacheAuthoritativeStarred(StarredResult? result) {
+    _authoritativeStarred = result;
+  }
+
   AudioPlayer? _audioPlayer;
   MusicFlowAudioHandler? _audioHandler;
 
@@ -2111,9 +2132,11 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     // 判定会把「已收藏」误判为「未收藏」,重复收藏请求被服务端拒绝后乐观
     // 更新被 catch 吞掉,红心永远点不亮(也取消不掉)。这同时修正初始显示
     // (服务端已收藏的歌进投屏态立即亮红心,不再「先空心」)。
-    // FutureProvider.autoDispose 的 value 可能尚未就绪(为 null)—— 此时先
-    // 不 enrich 并顺手预热 .future,下一拍轮询自然带上真实值(2s 窗口)。
-    final starredResult = _ref.read(starredProvider).valueOrNull;
+    // 收藏列表由 playerProvider 主体的持久 ref.listen 养住并缓存
+    // (cacheAuthoritativeStarred)——autoDispose 的 starredProvider 用
+    // ref.read 取值读完即被回收,值永远为 null,故不能在这里现读。
+    // 首次拉取未就绪(缓存为 null)时先不 enrich,列表到位后下一拍生效。
+    final starredResult = _authoritativeStarred;
     if (starredResult != null) {
       var authoritative = false;
       for (final s in starredResult.songs) {
@@ -2125,8 +2148,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       if (current.starred != authoritative) {
         current = current.copyWith(starred: authoritative);
       }
-    } else {
-      _ref.read(starredProvider.future).ignore();
     }
     final queueChanged = state.queue.length != songs.length ||
         (state.queue.isNotEmpty &&
