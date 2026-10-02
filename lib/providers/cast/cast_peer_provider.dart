@@ -620,9 +620,14 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   }
 
   /// 启动自动选中(#5):首次成功拉到播放端列表时,若有「正在播放中」的目标,
-  /// 自动把控制目标切过去;多台同播按 类别序 本机 > 群组 > 独立播放器
-  /// (复用 peer_display_order.peerKindRank 唯一实现)。本机在播或无在播目标
-  /// 时不动作;首次拿到非空列表即置位,之后不再自动切。
+  /// 自动把控制目标切过去。优先级(v5.1.7 用户定稿):
+  ///   ① 本机正在播 → 保持本机(最高优先,不切);
+  ///   ② 正在播放中的其它端 → 按类别序 本机类别 > 群组 > 独立播放器
+  ///      (复用 peer_display_order.peerKindRank 唯一实现);
+  ///   ③ 本机有队列但不在播 → 排在所有在播端**之后**(即不切,保持本机)。
+  /// 「正在播放中」以各端实时 /status(state==PLAYING)为准 —— PeerInfo.queueActive
+  /// 只是「队列激活」,暂停时也为 true,区分不了在播/暂停。
+  /// 首次拿到非空列表即置位,之后不再自动切。
   void _maybeAutoSelectPlayingTarget(List<PeerInfo> peers) {
     if (_autoTargetDone) return;
     final visible = peers.where((p) => p.available || p.self).toList();
@@ -630,16 +635,48 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     _autoTargetDone = true;
     if (state.activePeer != null) return; // 用户已手动选过目标
     if (_ref.read(playerProvider).isPlaying) return; // 本机在播 = 最高优先
-    final playing = visible.where((p) => p.queueActive && p.available).toList()
-      ..sort((a, b) {
-        final k = peerKindRank(a) - peerKindRank(b);
-        if (k != 0) return k;
-        return a.name.compareTo(b.name);
-      });
-    if (playing.isEmpty) return;
-    final target = playing.first;
-    if (target.self) return; // 在播的就是本机,无需切换
-    unawaited(switchTo(target));
+    // 本机自身(self)不进候选:有队列但不在播时它天然排在所有在播端之后,
+    // 即「无在播端则保持本机」;真在播早已被上面 isPlaying 早退兜住。
+    final candidates =
+        visible.where((p) => p.queueActive && p.available && !p.self).toList()
+          ..sort((a, b) {
+            final k = peerKindRank(a) - peerKindRank(b);
+            if (k != 0) return k;
+            return a.name.compareTo(b.name);
+          });
+    if (candidates.isEmpty) return;
+    unawaited(_autoSelectFirstPlaying(candidates));
+  }
+
+  /// 并行读候选端实时状态,取类别序第一个真正 PLAYING 的端切过去;
+  /// 全都不在播(各端都只有暂停队列)则不动,保持本机。
+  Future<void> _autoSelectFirstPlaying(List<PeerInfo> candidates) async {
+    final playing = await Future.wait(
+      candidates.map((p) => _readPeerRealtimePlaying(p.peerId)),
+    );
+    final idx = playing.indexWhere((v) => v);
+    if (idx < 0) return;
+    if (!mounted || state.activePeer != null) return;
+    await switchTo(candidates[idx]);
+  }
+
+  /// 读某播放端此刻是否正在播放(/status 的 state==PLAYING)。读不到 → false。
+  Future<bool> _readPeerRealtimePlaying(String peerId) async {
+    if (peerId.isEmpty) return false;
+    final client = _ref.read(subsonicApiClientProvider);
+    try {
+      final res = await client
+          .getRaw(
+            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/status',
+            receiveTimeout: const Duration(seconds: 4),
+          )
+          .timeout(const Duration(seconds: 4));
+      if (res is! Map) return false;
+      return (res['state'] ?? '').toString() == 'PLAYING';
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'readPeerRealtimePlaying failed: $e');
+      return false;
+    }
   }
 
   // ==================== 流转播放 ====================
