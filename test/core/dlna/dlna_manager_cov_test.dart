@@ -494,11 +494,7 @@ void main() {
     /// 发 alive 并等 description.xml 解析出设备，返回该设备。
     Future<DlnaDevice> _announceAndWait() async {
       await _ensureNotifySockets();
-      // [QA 严过关 flaky 加固] 原为 8 次 x150ms(~1.2s)。生产端 SsdpDiscovery 逐接口
-      // bind + joinMulticast 是异步的, 且 NOTIFY 走物理网卡多播, 沙箱/CI 里多播偶发
-      // 丢包或监听端晚于首包 bind 时会直接 fail() 打红。放宽到 60 次 x150ms(~9s)：
-      // 仍然断言"alive 最终必须解析出设备", 只是不再被单轮丢包卡死。
-      for (var i = 0; i < 60; i++) {
+      for (var i = 0; i < 8; i++) {
         _fireNotify(server.descriptionUrl, alive: true);
         await Future<void>.delayed(const Duration(milliseconds: 150));
         final found = manager.devices
@@ -1047,6 +1043,50 @@ void main() {
       expect(server.seekTargets, isEmpty, reason: '不应走 SOAP REL_TIME Seek');
       expect(server.stoppedUris, isNotEmpty, reason: '重建前应先 Stop 当前流');
       expect(manager.castQueueIndex, 0, reason: 'seek 不应改动队列游标');
+    });
+
+    test('[D-015 钉住现状] seek 重建时 setUri 失败：只打日志、不回滚，客户端以为仍在播',
+        () async {
+      server.faults.add('SetAVTransportURI');
+      final st = <DlnaDeviceStatus>[];
+      manager.onStatusChanged = (s) => st.add(s);
+      await manager.startCast(_controlled(), _tracks(duration: 6));
+
+      final stopSoFar = server.stoppedUris.length;
+      final callsSoFar = st.length;
+
+      // 重建是「先 Stop、再 Set、再 Play」三段各自 catch：中间一段失败时设备已经
+      // 被 Stop 掉、新流没建起来，但 seek 照旧把内部状态回写成 PLAYING / 目标秒，
+      // 既不回滚也不重投 —— 用户侧看到的就是「拖了之后静音卡死」（D-015）。
+      await manager.seek(42);
+
+      expect(
+        server.faults.contains('SetAVTransportURI'),
+        isTrue,
+        reason: '注入的故障应确实落在下发链路上',
+      );
+      expect(
+        server.stoppedUris.length,
+        greaterThan(stopSoFar),
+        reason: 'D-015：重建前确实先 Stop 了设备，失败后设备是「停了、却没新流」',
+      );
+      // seek 成功与失败都不推 onStatusChanged（写的是私有 _currentStatus），
+      // 外部连「失败了」这三个字都收不到，只能等下次切歌/下一轮轮询才发现。
+      expect(
+        st.length,
+        callsSoFar,
+        reason: 'D-015：seek 全程不推 onStatusChanged，失败信号完全不外泄',
+      );
+      expect(
+        manager.isCasting,
+        isTrue,
+        reason: 'D-015：投屏态未被回滚，客户端仍以为在投屏播放',
+      );
+      expect(
+        manager.castQueueIndex,
+        0,
+        reason: 'D-015：游标未被回滚，客户端仍以为停在第 0 首',
+      );
     });
 
     test('seek 秒数为 0 时同样拼 timeOffset=0（不做裁剪）', () async {
