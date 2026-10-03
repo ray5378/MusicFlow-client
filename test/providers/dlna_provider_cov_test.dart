@@ -440,11 +440,16 @@ void main() {
       await ensureDlnaManagerReady(ref);
 
       final url = await manager.streamUrlBuilder!('s1');
-      // [D-027] 现状断言：桩返回的 old.example.test 会被 rewriteUrlToBase
-      // 换成 castBase 的 host/port，但**路径与 query 原样保留** ——
-      // 若将来改成整串替换（连 query 一起丢），这条会红。
+      // [D-027] 现状钉子（batch18 QA 复核订正）：rewriteUrlToBase 只换 origin，
+      // **路径与 query 原样保留** —— 老的带 u/t/s 鉴权 /rest/stream 地址重写后
+      // 仍有效，属有意为之。
+      // 注：只断言 `contains(castBase)` 是**无效钉子**（QA 指出：将来真改成整串
+      // 替换、path/query 一起丢，这两条照样绿）。所以这里连 path 与 query 一起断言：
+      // 桩固定回 `old.example.test/rest/stream?id=x`，重写后必须仍是 /rest/stream?id=x。
       expect(url, contains(_castBase));
       expect(url, isNot(contains('old.example.test')));
+      expect(url, contains('rest/stream'), reason: '[D-027] 路径不能被整串替换吃掉');
+      expect(url, contains('id=x'), reason: '[D-027] query 不能被整串替换吃掉');
       expect(manager.calls, contains('init'));
     });
 
@@ -747,7 +752,9 @@ void main() {
     test('设备暂停后 tick 不再推进进度（进度以设备回写为准）', () async {
       await startCastOk();
       pushStatus(const DlnaDeviceStatus(state: 'PLAYING', position: 10, duration: 300));
-      await Future<void>.delayed(const Duration(milliseconds: 700));
+      // 等 1100ms 而不是 700ms：tick 周期 500ms，只等 700ms 的话「至少跳 1 格」的
+      // 余量只有 200ms，墙钟一抖就红（batch18 QA 复核建议把余量拉到 600ms）。
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
 
       final playing = container.read(dlnaCastProvider).smoothPositionSeconds;
       expect(playing, greaterThan(10), reason: '在播时 tick 按 0.5s 步进');
@@ -931,6 +938,44 @@ void main() {
       expect(container.read(dlnaCastProvider).queue, isEmpty);
     });
 
+    test('reorderQueue 投屏态下重排队列并镜像回本机', () async {
+      // 补 QA(N-02)：原先只测了早退分支，重排主体（from != to 判定 / 队列双写 /
+      // _mirrorCastToLocal）一行都没跑到 —— 全量 100% 是靠旧测试撑的。
+      await startCastOk();
+      player.syncCastCalls = 0;
+
+      await notifier.reorderQueue(0, 2);
+
+      final st = container.read(dlnaCastProvider);
+      // [D-030] 现状钉子（batch18 QA 复核期间新发现）：产品侧用的是
+      // `queue.insert(to > from ? to - 1 : to, item)`，向下拖(from < to)时少挪一格 ——
+      // 把队首 0 拖到下标 2，正确结果应是 [s2,s3,s1]，实际得到 [s2,s1,s3]；
+      // 向上拖(from > to)走 `to` 分支不受影响（下面那条对照）。
+      // 修正方向：remove 之后再 insert(to)（remove 后长度已 -1，不必再 -1）。
+      expect(
+        st.queue.map((t) => t.songId).toList(),
+        <String>['s2', 's1', 's3'],
+        reason: '[D-030] 向下拖 off-by-one（现状钉子，改实现即红）',
+      );
+      expect(manager.calls, contains('reorderQueue'));
+      expect(player.syncCastCalls, greaterThan(0), reason: '重排后要镜像回本机');
+    });
+
+    test('reorderQueue 向上拖（from > to）下标不偏（D-030 对照）', () async {
+      await startCastOk();
+      player.syncCastCalls = 0;
+
+      await notifier.reorderQueue(2, 0);
+
+      final st = container.read(dlnaCastProvider);
+      expect(
+        st.queue.map((t) => t.songId).toList(),
+        <String>['s3', 's1', 's2'],
+        reason: '队尾 2 移到下标 0 —— 这条分支不偏，缺陷只发生在向下拖',
+      );
+      expect(player.syncCastCalls, greaterThan(0));
+    });
+
     test('setMuted 只在两端状态不一致时才 toggleMute', () async {
       await notifier.setMuted(true);
       expect(manager.muteToggles, 1);
@@ -1076,17 +1121,37 @@ void main() {
       expect(rec.taskRemovedCallback, isNotNull);
     });
 
-    test('设备已播到曲末时曲末提醒只取消、不再预约', () async {
+    test('设备已播到曲末时状态回写为曲末、进度不再上顶（arm-skip 分支）', () async {
       await startCastOk();
       pushStatus(const DlnaDeviceStatus(state: 'PLAYING', position: 300, duration: 300));
 
-      // 剩余 <= 0 的分支：走「arm skip」+ _cancelHeartbeat，不建 Timer。
-      // 判定依据是平滑值被回写为 300 且 tick 不再往上顶（duration 封顶 300）：
-      // 只要这句 log+cancel 分支跑过，之后等 700ms 也不会越界到 300.5。
-      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
       final st = container.read(dlnaCastProvider);
       expect(st.smoothPositionSeconds, lessThanOrEqualTo(300));
       expect(st.status.position, 300);
+    });
+
+    test('[D-026] 命中行既无 verdict 也无 ok 时按「无源」处理（误杀方向）', () async {
+      // QA（batch18 复核）发现：probeSong 命中一行但两个字段都没有 →
+      // `hit['ok'] == true` 得到 **false** → 判无源、静默拦截投屏；
+      // 而「结果集里压根没这首 id」反而走 hit.isEmpty 返回 **true** 放行 ——
+      // 两个边界方向相反，且误杀方向没有任何提示。现状钉子，改实现即红。
+      container = buildContainer();
+      final ref = container.read(_refHolderProvider);
+      await ensureDlnaManagerReady(ref);
+      api.probeResults = <dynamic>[const <String, dynamic>{'songId': 's1'}];
+
+      expect(await manager.probeSongFn!('s1'), isFalse);
+    });
+
+    test('[D-026 对照] 结果集里没有这首时不误杀', () async {
+      // 与上一条对照：同一个接口，没这条就放行、有这条但字段空就拦。
+      container = buildContainer();
+      final ref = container.read(_refHolderProvider);
+      await ensureDlnaManagerReady(ref);
+      api.probeResults = <dynamic>[const <String, dynamic>{'songId': 'other'}];
+
+      expect(await manager.probeSongFn!('s1'), isTrue);
     });
 
     test('next 在设备没推 trackChanged 时靠 castQueueIndex 兜底同步', () async {
