@@ -50,6 +50,10 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
     streamUrlBuilder: (songId) async {
       final client = ref.read(subsonicApiClientProvider);
       final quality = ref.read(effectiveQualityProvider);
+      // [D-028] 缺陷钉子(批处理补测 2026-10-05)：这里只是「闭包里读 castBase」，
+      // 真正的 throw 发生在 streamUrlBuilder 被调用那一刻 —— ensureDlnaManagerReady
+      // 本身不会抛 DlnaCastHttpUnavailableException。调用方若只 await ensure 而不 await builder，
+      // 拿到的异常会晚到（DLNA 起播时才炸）。将来若改成 ensure 阶段就地校验，补测用例会红。
       final castBase = ref.read(dlnaCastHttpBaseProvider);
       if (castBase == null) {
         throw const DlnaCastHttpUnavailableException();
@@ -61,6 +65,9 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
       if (url.isEmpty) return '';
       // 回退路径（getStreamUrl 带 u/t/s）同样被 origin 重写覆盖：鉴权参数
       // 与主机无关，重写后仍有效。
+      // [D-027] 缺陷钉子(批处理补测 2026-10-05)：rewriteUrlToBase 只替换 origin，
+      // 路径与 query 原样保留（老带 u/t/s 鉴权的 /rest/stream 地址重写后仍有效，属有意为之）。
+      // 但若将来改成整串替换（连 path/query 一起丢），投屏直连会拿不到流。
       return rewriteUrlToBase(url, castBase);
     },
     // 投前预检钩子：POST /rest/api/v1/stream/probe 单曲探测（批量接口传单个）。
@@ -84,6 +91,9 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
         // transient(网络抖动)/unknown(未探过) 不误杀,交设备实测兜底。
         final verdict = hit['verdict'] as String?;
         if (verdict != null) return verdict != 'unplayable';
+        // [D-026] 缺陷钉子(批处理补测 2026-10-05)：探测只认 verdict / 旧 ok 两个字段，
+        // 没校验 songId 与本次请求的对应关系来自「响应行 songId」；若服务端回的
+        // 结果集顺序与入参不同（future-proof 场景）仍按 verdict 判定，属可接受。
         return hit['ok'] == true; // 旧服务端兼容
       } on DlnaSongUnplayableException {
         return false;
@@ -120,6 +130,9 @@ class DlnaDevicesState {
     List<DlnaDevice>? devices,
     bool? isScanning,
   }) {
+    // [D-025] 缺陷钉子(批处理补测 2026-10-05)：这里用 `x ?? this.x`，与
+    // DlnaCastState 的 `clearDevice` 语义不一致 —— 想「清空设备列表 / 结束扫描」没有真正的 clear 口，
+    // 只能传一个假值再绕；补测用例已把现状钉住，改实现时记得翻断言。
     return DlnaDevicesState(
       devices: devices ?? this.devices,
       isScanning: isScanning ?? this.isScanning,
@@ -731,6 +744,9 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   }
 
   /// 暂停
+  // [D-029] 缺陷钉子(批处理补测 2026-10-05)：pause/resume/toggle 只往设备发命令，
+  // 不乐观回写本地 state.status —— 本地状态要等设备轮询回调(2s 一帧)才更新。
+  // 后果：刚点暂停立刻再点播放/暂停，会读到陈旧 status 重复下发同一条命令。补测用例已钉住该行为。
   Future<void> pause() async {
     await _ref.read(dlnaManagerProvider).pause();
   }
