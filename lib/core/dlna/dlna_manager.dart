@@ -179,6 +179,9 @@ class DlnaManager {
   /// 设置投屏播放模式(对齐链路 A cast.playMode):列表循环 all/顺序 order/单曲 one/随机 shuffle。
   void setPlayMode(String mode) {
     if (!const <String>['order', 'one', 'all', 'shuffle'].contains(mode)) {
+      // [D-017 钉住现状] 非法模式(含空串)被静默忽略，_playMode 保持原值，UI 分不清
+      // 是「设置失败」还是「本来就该这个值」。建议补一条 warn 日志；修完记得翻
+      // test/core/dlna/dlna_manager_cov_test.dart 里 D-017 那条守卫断言。
       return;
     }
     _playMode = mode;
@@ -219,6 +222,10 @@ class DlnaManager {
 
   /// 扫描 DLNA 设备
   Future<List<DlnaDevice>> scanDevices() async {
+    // [D-024 钉住现状] 走真局域网 M-SEARCH + 逐个拉 description.xml，无法密闭复现；
+    // 会把真实 renderer 混进 _devices，也容易被慢设备拖死。建议给 SsdpDiscovery.search
+    // 加总超时 + 单台 fetch 超时；修完记得翻 dlna_manager_cov_test.dart 里 D-024 那条
+    // 「只钉住不抛错」的守卫用例（它本来就没做内容断言，改动不该让它红）。
     final locations = await _discovery.search();
 
     // 解析每个设备的 description.xml
@@ -361,6 +368,10 @@ class DlnaManager {
 
   /// 播放/切换到队列中下标 [index] 的曲目（当前曲则跳过）
   Future<void> playAt(int index) async {
+    // [D-021 钉住现状] _queueIndex 在 _playSwitch() 这条串行化链**之外**就先改了，
+    // 快速连点 playAt 会把同一曲目重复 Set 给设备多次(实测 3 连点 >= 2 次 Set + 多次 Play)。
+    // 建议把目标下标排进串行队列、真正下发前只保留最后一个；修完记得翻
+    // test/core/dlna/dlna_manager_cov_test.dart 里「快速连点切歌」那条守卫断言。
     if (_currentDevice == null || index < 0 || index >= _queue.length) return;
     if (index == _queueIndex) return;
     _queueIndex = index;
@@ -428,6 +439,11 @@ class DlnaManager {
         } catch (_) {
           playable = true;
         }
+        // [D-018/D-020 钉住现状] 判无源后的两条显式 return 落点对上层是隐式约定：
+        // order 模式一路跳到队尾(_advanceIndexForSkip 到尾返回 false)，all 模式
+        // 绕满一圈回起点；两种落点语义不一致。建议显式返回「无源」状态，由上层
+        // toast / 队列标灰接手。修完记得翻 test/core/dlna/dlna_manager_cov_test.dart
+        // 里 pre-cast order / all 两条守卫用例。
         if (!playable) {
           debugPrint('DLNA pre-cast probe: no playable source for '
               '${track.title} (${track.songId}), skipping');
@@ -666,6 +682,10 @@ class DlnaManager {
     final device = _currentDevice!;
     // 无队列信息(异常态)拿不到 songId → 退回 SOAP seek,尽力而为。
     final track = (_queueIndex >= 0 && _queueIndex < _queue.length) ? _queue[_queueIndex] : null;
+    // [D-016 钉住现状] 这段 SOAP Seek 兜底不可达：走到这里的前提是 _currentDevice
+    // 非空(上面已早退)，而 track==null 意味着队列里也拿不到下标 —— 两条 if 互斥，
+    // SoapControl.seek 永远执行不到。建议合成一条早退路径 + 一条带 track 的重建路径。
+    // 修完记得翻 dlna_manager_cov_test.dart 里「stopCast 之后 seek 依旧早退」那条守卫。
     if (track == null) {
       Logger.debugWithTag('DLNA', '[seek] no current track, fallback SOAP Seek ${seconds}s');
       try {
@@ -692,6 +712,11 @@ class DlnaManager {
       );
       // rebuild 期间设备短暂非播态:互斥防误判曲末(与切歌同款守卫)。
       _lastCompletionAdvance = DateTime.now();
+      // [D-015 钉住现状] 重建是「先 Stop、再 Set、再 Play」三段各自 catch：
+      // 中间任何一段失败(设备已被 Stop 掉、新流没建起来)都只打日志，既不回滚也不重投，
+      // 表现是「拖了之后设备静音卡死」，只能等下次切歌才恢复。建议失败时置内部失败态、
+      // 下一轮轮询自动重投一次，或直接回滚不投屏。改这段时注意它和 D-016 那条早退路径
+      // 是互斥的，别把兜底改成可达后又撞上早退。
       try {
         await SoapControl.stop(device.avTransportUrl!);
       } catch (_) {}
@@ -759,6 +784,10 @@ class DlnaManager {
   Future<void> enqueueSongs(List<DlnaCastTrack> tracks) async {
     if (tracks.isEmpty || _currentDevice == null) return;
     _queue = [..._queue, ...tracks];
+    // [D-019 钉住现状] 追加会无条件重算并下发 SetNext：若追加的新曲正好是最后一首，
+    // 设备会缓存一支永远播不到的预置。建议「追加到队尾且 _provisionedIndex 指向它」
+    // 时不预置，等真正切歌时再下发。修完记得翻 dlna_manager_cov_test.dart 里
+    // enqueueSongs 相关用例（当前只断言「不重投当前曲 / 游标不动」，不会挡住这条）。
     // 追加当前位置后的新曲:若当前已预置的是某首后续曲,顺延重算下一首,
     // 保证「自动续播」能覆盖到末尾追加的曲目。
     await _provisionNextTrack();
@@ -1046,6 +1075,12 @@ class DlnaManager {
             state != 'PLAYING' &&
             state != 'PAUSED') {
           // 曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
+          // [D-023 钉住现状] 这条兜底**当前不可达**：prevState 取的是上一帧刚写回的
+          // _currentStatus.state，而那个 ERROR 帧自己就把 state 改成了 ERROR，
+          // 下一帧的 prevState 便不再是 PLAYING —— _stallCount 最多加 1 就被 PLAYING
+          // 帧清零，永远凑不满 2。建议改拿已在维护的 _lastKnownTransportState 比较，
+          // 或把「连击」改成 4s 窗口内的两次非播态。修完记得翻
+          // dlna_manager_cov_test.dart 里 [D-023] 那条守卫用例(它断言「游标不动」)。
           _stallCount++;
           if (_stallCount >= 2) {
             _stallCount = 0;

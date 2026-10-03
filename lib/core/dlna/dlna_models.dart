@@ -99,6 +99,11 @@ class DlnaDevice {
       manufacturer: manufacturer ?? this.manufacturer,
       model: model ?? this.model,
       avTransportUrl: avTransportUrl ?? this.avTransportUrl,
+      // [D-022 钉住现状] `x ?? this.x` 兜底是全局的：**显式传 null 清不掉**这些可空字段
+      // (alias / renderingControlUrl 都被吃掉)。调用方以为「已抹掉 RenderingControl 地址」，
+      // 实际设备仍带音量控制 → 「设备无 RenderingControl → setVolume/toggleMute 早退」
+      // 那条分支永远走不到。建议可空字段改成显式 clear 语义(或加 clearX())；
+      // 修完记得翻 test/core/dlna/dlna_manager_cov_test.dart 里 [D-022] 那条守卫用例。
       renderingControlUrl: renderingControlUrl ?? this.renderingControlUrl,
       lastSeen: lastSeen ?? this.lastSeen,
       available: available ?? this.available,
