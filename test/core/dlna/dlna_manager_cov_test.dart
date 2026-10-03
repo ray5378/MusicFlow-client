@@ -494,7 +494,11 @@ void main() {
     /// 发 alive 并等 description.xml 解析出设备，返回该设备。
     Future<DlnaDevice> _announceAndWait() async {
       await _ensureNotifySockets();
-      for (var i = 0; i < 8; i++) {
+      // [QA 严过关 flaky 加固] 原为 8 次 x150ms(~1.2s)。生产端 SsdpDiscovery 逐接口
+      // bind + joinMulticast 是异步的, 且 NOTIFY 走物理网卡多播, 沙箱/CI 里多播偶发
+      // 丢包或监听端晚于首包 bind 时会直接 fail() 打红。放宽到 60 次 x150ms(~9s)：
+      // 仍然断言"alive 最终必须解析出设备", 只是不再被单轮丢包卡死。
+      for (var i = 0; i < 60; i++) {
         _fireNotify(server.descriptionUrl, alive: true);
         await Future<void>.delayed(const Duration(milliseconds: 150));
         final found = manager.devices
