@@ -116,6 +116,12 @@ final addressPoolProvider = Provider<AddressPool>((ref) {
 
   final pool = AddressPool(
     probeDio,
+    // [D-038] 缺陷：onAddressUpdated 回调里 ref.read(libraryRepositoryProvider) 无生命周期保护。
+    //   AddressPool.setAddresses() 会 unawaited(probeAll())，探测结果在 container/provider 已销毁后
+    //   仍回调进来 ⇒ 「Bad state: Tried to read a provider from a ProviderContainer that was
+    //   already disposed」，表现为「test failed after it had already completed」型异步泄漏。
+    //   建议：addressPoolProvider 的 ref.onDispose 里取消/停止 pool，或回调入口先 ref.exists 判活。
+    //   守卫用例：test/providers/api/b30p_api_provider_cov_test.dart onAddressUpdated 相关用例。
     onAddressUpdated: (addr) {
       unawaited(
         ref.read(libraryRepositoryProvider).updateAddress(addr).catchError((e) {

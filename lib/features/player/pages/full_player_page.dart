@@ -684,6 +684,11 @@ class _WideDragBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      // [D-045] 缺陷：注释写「单击吞掉（不触发外层 onTap=_closeToMini）」，但这里用的是
+      //   HitTestBehavior.translucent + SizedBox.expand（自身 hitTestSelf 为 false）⇒ 事件继续穿透到
+      //   外层背景 GestureDetector ⇒ 单击 Windows 标题栏区域会关闭全屏播放器（实测点 (700,6) 复现）。
+      //   建议：改 HitTestBehavior.opaque，或在外层按 Positioned 区域屏蔽。
+      //   守卫用例：test/features/player/b30c_full_player_page_cov_test.dart 标题栏单击用例（钉住现状）。
       behavior: HitTestBehavior.translucent,
       // 单击吞掉(不触发外层 onTap=_closeToMini),仅拖拽/双击交给窗口。
       onTap: () {},
@@ -1375,6 +1380,10 @@ class _PlayerUtilityBar extends ConsumerWidget {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
+        // [D-046] 缺陷：宽 > 高但宽度 < 600 时仍进大屏分栏，左栏算出 186px，
+        //   这个 Row（5 个 48dp 按钮）右侧溢出 54px（594x400 下实测红框）。
+        //   建议：给 utility bar 加 Flexible/FittedBox，或在窄左栏下退化成 icon-only。
+        //   守卫用例：test/features/player/b30c_full_player_page_cov_test.dart 窄宽布局用例。
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[

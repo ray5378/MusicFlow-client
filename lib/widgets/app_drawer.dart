@@ -30,6 +30,9 @@ import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_drawer.
 class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key, this.onReturnFocus, this.onOpenPage});
 
+  // [D-042] 缺陷：onReturnFocus 只声明、从未调用（MainScaffold 侧见 lib/widgets/main_scaffold.dart），
+  //   导致抽屉关闭后焦点不回原点、对端整段恢复逻辑为死代码。
+  //   建议：抽屉关闭 / 返回时回调 onReturnFocus。
   final VoidCallback? onReturnFocus;
 
   /// 打开页面的回调：由 MainScaffold 提供，统一落到内容区分支导航器。

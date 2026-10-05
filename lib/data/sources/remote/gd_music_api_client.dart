@@ -426,6 +426,10 @@ class GdMusicApiClient {
     return int.tryParse(value.toString());
   }
 
+  // [D-034] 缺陷：data is String 分支里 jsonDecode 解出非 Map（如内容是数组）时返回 null，
+  //   调用方只看到「空结果」，无法区分「服务端给了坏数据」与「确实无数据」。
+  //   建议：解出非 Map 时记录警告或抛可识别异常。
+  //   守卫用例：test/data/sources/remote/b30a_gd_music_api_client_cov_test.dart _asMap 相关用例。
   Map<String, dynamic>? _asMap(dynamic data) {
     if (data is Map<String, dynamic>) return data;
     if (data is Map) {
@@ -448,6 +452,9 @@ class GdMusicApiClient {
         .trim();
   }
 
+  // [D-035] 缺陷（低危边界）：dot <= 0 判定使 ".mp3" 这类隐藏文件名解析不出后缀。
+  //   建议：允许 dot == 0，或按「最后一个点后非空」取后缀。
+  //   守卫用例：b30a_gd_music_api_client_cov_test.dart _extractSuffix 相关用例。
   String? _extractSuffix(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return null;

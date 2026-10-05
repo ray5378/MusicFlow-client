@@ -179,6 +179,10 @@ class RecommendChannel {
     return RecommendChannel(
       source: json['source'] as String? ?? '',
       name: json['name'] as String? ?? json['source'] as String? ?? '',
+      // [D-040] 缺陷：count 用 as int?，服务端返回浮点时会 CastError；
+      //   同文件 LocalRecommendChannel.fromJson 用的是 (json['count'] as num?)?.toInt()，两处写法不一致。
+      //   建议：统一为 as num? 再 toInt()。
+      //   守卫用例：test/data/repositories/b30p_recommend_repository_cov_test.dart 模型解析用例。
       count: (json['count'] as int?) ?? 0,
       playlists: list
           .map((e) => RecommendPlaylist.fromJson(e as Map<String, dynamic>))

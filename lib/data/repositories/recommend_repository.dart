@@ -42,6 +42,10 @@ class RecommendRepository {
       final data = await _apiClient.getRaw(
         '/rest/api/v1/recommend/home-cards',
       );
+      // [D-039] 缺陷：未做 Map 形态判断，getRaw 返回 null / List 时这里会抛。
+      //   同文件 getHomeSections 已做 data is Map<String,dynamic> 兼容，写法不一致。
+      //   建议：与 getHomeSections 对齐，先判形态再取键。
+      //   守卫用例：test/data/repositories/b30p_recommend_repository_cov_test.dart 异常形态用例。
       final cards = data['cards'] as List? ?? [];
       return cards
           .map((e) => HomeCard.fromJson(e as Map<String, dynamic>))

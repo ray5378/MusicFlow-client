@@ -55,6 +55,11 @@ class SubsonicApiClient {
     }
   }
 
+  // [D-031] 缺陷：缺 subsonic-response 键时静默 return（此处注释自问自答「Or throw?」），
+  //   服务端返回裸 JSON 时不报错，只在上层炸出无语义的 TypeError（见 D-032）。
+  //   建议：明确契约 —— 缺键抛 SubsonicException，或把 get/post 返回类型改为可空。
+  //   守卫用例：test/data/sources/remote/b30b_subsonic_api_client_cov_test.dart
+  //   「get 缺 subsonic-response 键 → 抛 TypeError（钉住现状）」（修完需翻断言）。
   /// Check response status (Subsonic specific)
   void _checkResponse(Map<String, dynamic> data) {
     if (!data.containsKey('subsonic-response')) {
@@ -119,6 +124,11 @@ class SubsonicApiClient {
     }
   }
 
+  // [D-032] 缺陷：返回类型非空 Map<String,dynamic>，但 _checkResponse 静默放行后
+  //   return data['subsonic-response'] 会实际返回 null ⇒ async 非空校验触发 TypeError，
+  //   调用方拿到 TypeError 而非 SubsonicException，无法区分「坏响应」与「业务异常」。
+  //   建议：缺键抛 SubsonicException，或返回类型改 Map<String,dynamic>?。
+  //   守卫用例：b30b_subsonic_api_client_cov_test.dart 同名用例（钉住 TypeError 现状）。
   /// Generic GET
   Future<Map<String, dynamic>> get(
     String path, {
@@ -389,6 +399,10 @@ class SubsonicApiClient {
     return uri.replace(queryParameters: params).toString();
   }
 
+  // [D-033] 缺陷：方法体被 try{}catch{ return []; } 全包，鉴权失败 / status 非 ok / 解析异常
+  //   全部被吞成空列表，调用方无法区分「无目录」与「请求失败」。
+  //   建议：区分失败与空结果（返回可空或抛错），至少在 catch 里区分异常类型再降级。
+  //   守卫用例：b30b_subsonic_api_client_cov_test.dart「getMusicFolders …」两条（含 status 非 ok）。
   /// Get Music Folders
   Future<List<Map<String, dynamic>>> getMusicFolders() async {
     try {

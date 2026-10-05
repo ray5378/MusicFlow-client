@@ -267,6 +267,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           // 完成后再调 native quit 真正结束进程 —— 直接退出时 Dart 的
           // dispose flush 不执行,最近一次状态会丢。
           await ref.read(playerProvider.notifier).persistPlaybackStateNow();
+          // [D-047] 缺陷：托盘 quit 的 invokeMethod 没有 try/catch，与同文件 _moveAppToBackground、
+          //   _WideDragBanner._invoke 的处理不一致；非 Windows 平台会抛 MissingPluginException 直接回给
+          //   message handler。建议统一静默处理。
+          //   守卫用例：test/widgets/b30c_main_scaffold_cov_test.dart 托盘 quit 用例。
           await kWindowsWindowChannel.invokeMethod<void>('quit');
           break;
       }
@@ -297,6 +301,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   void _startNetworkObservation() {
     _stopNetworkObservation();
     final monitor = ref.read(connectivityMonitorProvider);
+    // [D-043] 可测性缺陷：该监听体要读到第二次事件才执行，而 ConnectivityMonitor 的
+    //   _networkTypeController 是库私有 StreamController，外部（含测试）无法注入 NetworkType 事件
+    //   ⇒ 301-304 行在任何测试里都打不到，真实设备上也只能等 connectivity_plus。
+    //   建议：给 ConnectivityMonitor 加受控广播/单测注入口，或把该分支提取成纯函数。
+    //   守卫用例：test/widgets/b30c_main_scaffold_cov_test.dart（当前无法覆盖，修完可补断言）。
     _networkTypeSubscription = monitor.networkTypeStream.listen((networkType) {
       _initialNetworkStateTimer?.cancel();
       if (!mounted || _observedNetworkType == networkType) return;
@@ -386,6 +395,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       currentBranchIndex: index,
     );
 
+    // [D-044] 疑似冗余分支（需产品确认）：抽屉打开时返回事件会被 DrawerController 的
+    //   ChildBackButtonDispatcher 先吃掉，BackButtonListener 收不到 ⇒ closeDrawer 分支（390-392）
+    //   实际不会被 _handleBackPressed 走到（行为上抽屉仍会关，是 Scaffold 自己处理的）。
+    //   同理 popRootNavigator（393-395）在当前单分支路由布局下也进不去。
+    //   建议：确认后删除或加断言。
+    //   守卫用例：test/widgets/b30c_main_scaffold_cov_test.dart 返回键相关用例。
     switch (action) {
       case MusicFlowBackAction.closeDrawer:
         Logger.infoWithTag(_logTag, 'drawer is open, closing drawer');
@@ -472,6 +487,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             drawer:
                 widget.drawerOverride ??
                 AppDrawer(
+                  // [D-042] 缺陷：这里把 _restoreMusicFlowAppDrawerFocus 作为 onReturnFocus 传给 AppDrawer，
+                  //   但 AppDrawer 从头到尾没有调用过 widget.onReturnFocus（全仓 grep 只有声明处命中，
+                  //   见 lib/widgets/app_drawer.dart [D-042]）⇒ _restoreMusicFlowAppDrawerFocus 整段是死代码，
+                  //   文件注释承诺的「抽屉关闭后焦点回到触发它的菜单控件」实际没接线，键盘/无障碍会丢失焦点原点。
+                  //   建议：在 AppDrawer 关闭 / 返回时回调 onReturnFocus（或删掉这对声明）。
+                  //   守卫用例：test/widgets/b30c_main_scaffold_cov_test.dart 抽屉焦点相关用例。
                   onReturnFocus: _restoreMusicFlowAppDrawerFocus,
                   onOpenPage: _openPageInContentArea,
                 ),

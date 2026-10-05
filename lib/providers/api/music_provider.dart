@@ -278,6 +278,10 @@ final artistDetailProvider = FutureProvider.autoDispose
 final topSongsByArtistProvider = FutureProvider.autoDispose
     .family<List<Song>, String>((ref, artistName) async {
       final repository = ref.watch(musicRepositoryProvider);
+      // [D-041] 缺陷：用 artistName.trim().isEmpty 判空，却把未 trim 的 artistName 传给
+      //   repository.getTopSongs(artistName)，首尾空格会进入查询。
+      //   建议：判空与传参都用 artistName.trim()。
+      //   守卫用例：test/providers/api/b30p_music_provider_cov_test.dart topSongsByArtist 相关用例。
       if (repository == null || artistName.trim().isEmpty) {
         return [];
       }
@@ -314,6 +318,12 @@ final searchProvider = FutureProvider.autoDispose.family<SearchResult, String>((
   ref.onDispose(() => disposed = true);
   final repository = ref.watch(musicRepositoryProvider);
   if (query.isEmpty || repository == null) {
+    // [D-036] 缺陷（严重，debug 直接崩）：searchProvider 在自身构建期（同步、未 await）就写
+    //   searchLoadFailedProvider(query)，触发 Riverpod 断言
+    //   「Providers are not allowed to modify other providers during their initialization」。
+    //   触发条件：query 非空 且 musicRepositoryProvider == null（无活跃库 / 未登录 / 冷启动未就绪）。
+    //   建议：该复位挪到首个 await 之后，或包进 Future.microtask；更彻底是删掉构建期复位分支。
+    //   守卫用例：test/providers/api/b30p_music_provider_cov_test.dart 中「无 repository 时…」用例。
     if (query.isNotEmpty && !disposed) {
       ref.read(searchLoadFailedProvider(query).notifier).state = false;
     }
