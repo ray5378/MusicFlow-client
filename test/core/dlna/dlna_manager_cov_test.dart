@@ -479,8 +479,9 @@ void main() {
       expect(
         manager.playMode,
         'order',
-        reason: '[D-017 钉住现状] 非法模式被静默忽略，_playMode 保持原值'
-            '（建议改为 log 告警，便于定位 UI 传参错误）',
+        reason: '[D-017 锁定修复] 非法模式仍被忽略、_playMode 保持原值，'
+            '但已不再静默 —— setPlayMode 现在会打一条 warn 日志，'
+            'UI 传参错误可在诊断日志里定位',
       );
       manager.setPlayMode('');
       expect(manager.playMode, 'order', reason: '空串同样被忽略');
@@ -632,11 +633,12 @@ void main() {
       expect(manager.devices.length, before, reason: '未命中 id 时不应抛错也不应改列表');
     });
 
-    test('scanDevices 只钉住「不抛错 / 不破坏已初始化状态」[D-024 钉住现状]', () async {
-      // [D-024 钉住现状] scanDevices 内部走 SsdpDiscovery.search() 的真局域网
-      // M-SEARCH 广播 + 逐 location 拉 description.xml，测试机网段不能密闭复现
-      // 「应答为空」这一前提（实测跑通同一网段的真实 renderer 时 devices 非空）。
-      // 这里不做内容断言，只钉住：调用不抛异常，且不会动摇管理器状态。
+    test('scanDevices 只钉住「不抛错 / 不破坏已初始化状态」[D-024 锁定修复]', () async {
+      // [D-024 锁定修复] SsdpDiscovery.search 的拨号阶段已纳入总超时约束，
+      // scanDevices 也改为并发拉取各台 description.xml 且每台限时
+      // （perDeviceFetchTimeout，默认 6s）—— 慢设备/失联设备不再可能拖死整次扫描。
+      // 测试机网段仍不能密闭复现「慢设备应答」，这里继续只钉住：调用不抛异常，
+      // 且不会动摇管理器状态；限时行为见 b40e2_dlna_manager_fixes_test.dart。
       await expectLater(manager.scanDevices(), completes);
       expect(manager.devices, isA<List<DlnaDevice>>(), reason: '扫描后设备表访问器仍可用');
       for (final d in manager.devices) {
@@ -1045,19 +1047,19 @@ void main() {
       expect(manager.castQueueIndex, 0, reason: 'seek 不应改动队列游标');
     });
 
-    test('[D-015 钉住现状] seek 重建时 setUri 失败：只打日志、不回滚，客户端以为仍在播',
+    test('[D-015 锁定修复] seek 重建 setUri 失败：立即外显 ERROR + 下一轮轮询自动重投',
         () async {
       server.faults.add('SetAVTransportURI');
       final st = <DlnaDeviceStatus>[];
       manager.onStatusChanged = (s) => st.add(s);
-      await manager.startCast(_controlled(), _tracks(duration: 6));
+      await manager.startCast(_controlled(), _tracks(duration: 600));
 
       final stopSoFar = server.stoppedUris.length;
       final callsSoFar = st.length;
 
-      // 重建是「先 Stop、再 Set、再 Play」三段各自 catch：中间一段失败时设备已经
-      // 被 Stop 掉、新流没建起来，但 seek 照旧把内部状态回写成 PLAYING / 目标秒，
-      // 既不回滚也不重投 —— 用户侧看到的就是「拖了之后静音卡死」（D-015）。
+      // [D-015 已修复] 重建失败不再静默：置待重投标记 + onStatusChanged 推 ERROR，
+      // 下一轮轮询自动重投一次；重投仍失败（本例故障持续注入）则只重投一次即放弃，
+      // 不再死循环。外部至少能立刻从状态流看到「失败了」。
       await manager.seek(42);
 
       expect(
@@ -1068,24 +1070,27 @@ void main() {
       expect(
         server.stoppedUris.length,
         greaterThan(stopSoFar),
-        reason: 'D-015：重建前确实先 Stop 了设备，失败后设备是「停了、却没新流」',
+        reason: '重建前确实先 Stop 了设备',
       );
-      // seek 成功与失败都不推 onStatusChanged（写的是私有 _currentStatus），
-      // 外部连「失败了」这三个字都收不到，只能等下次切歌/下一轮轮询才发现。
       expect(
         st.length,
-        callsSoFar,
-        reason: 'D-015：seek 全程不推 onStatusChanged，失败信号完全不外泄',
+        greaterThan(callsSoFar),
+        reason: 'D-015 锁定修复：seek 重建失败必须经 onStatusChanged 外显（ERROR）',
+      );
+      expect(
+        st.last.state,
+        'ERROR',
+        reason: 'D-015 锁定修复：失败态对外可见，外部能区分「拖动成功/失败」',
       );
       expect(
         manager.isCasting,
         isTrue,
-        reason: 'D-015：投屏态未被回滚，客户端仍以为在投屏播放',
+        reason: '重投方案下不回滚投屏态，等自动重投',
       );
       expect(
         manager.castQueueIndex,
         0,
-        reason: 'D-015：游标未被回滚，客户端仍以为停在第 0 首',
+        reason: '游标不回滚',
       );
     });
 
@@ -1355,22 +1360,24 @@ void main() {
       await manager.startCast(_controlled(), _tracks(duration: 300));
       await Future<void>.delayed(const Duration(milliseconds: 2200)); // 首帧：状态落盘
 
-      // 逐帧 PLAYING/ERROR 翻转。stall 分支要求「本帧 prevState==PLAYING 且本帧非播」；
-      // 但 ERROR 帧会顺手把 _currentStatus.state 改写成 ERROR，下一帧的 prevState
-      // 便不再是 PLAYING —— 条件自相前提：_stallCount 最多累加到 1 即被 PLAYING 帧清零，
-      // _handleCastPlaybackError 永远触发不到（「曲中段拉流断了自动跳下一首」实际是死的）。
-      server.alternateTransportState = true;
-      await Future<void>.delayed(const Duration(milliseconds: 8800));
+      // [D-023 锁定修复] 设备曲中段恒报 ERROR（不再恢复）。原缺陷：ERROR 帧把
+      // _currentStatus.state 改写成 ERROR，下一帧 prevState 便不再是 PLAYING，
+      // 连击最多到 1 就断 —— 兜底不可达。修复后采用「连击段延续」语义：首帧
+      // 非播态仍要求 prevState==PLAYING，随后只要无 PLAYING/PAUSED 帧插入就连击
+      // 持续累计，恒报 ERROR 也能凑满 2 触发自动跳下一首。
+      server.transportState = 'ERROR';
+      await Future<void>.delayed(const Duration(milliseconds: 5200)); // ~2 帧后应触发跳过
+      server.transportState = 'PLAYING'; // 立刻恢复，避免继续连击跳过更多曲目
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       expect(
         manager.castQueueIndex,
-        0,
-        reason: '[D-023 钉住现状] 曲中段连续异常停止不会触发自动跳过：'
-            'stall 分支的 prevState 取自本帧刚写入的状态，连击条件无法连续成立；'
-            '修复方向：改记「上次落盘的传输态」(如 _lastKnownTransportState) 参与比较，'
-            '或把连击判定改为窗口时间(如 4s 内两次非播态)而非逐帧计数。',
+        1,
+        reason: '[D-023 锁定修复] 曲中段连续异常停止（恒报 ERROR）凑满 2 帧'
+            '应触发自动跳过，游标推进到下一首',
       );
-      expect(server.playedUris, hasLength(1), reason: '不应自动跳到下一首');
+      expect(server.playedUris, hasLength(2),
+          reason: '自动跳过应真实下发下一首的 Set+Play');
     });
 
     test('pre-cast 预检判无源：order 模式一路跳过，到队尾即停', () async {

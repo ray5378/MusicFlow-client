@@ -171,10 +171,13 @@ void main() {
       await tester.enterText(find.byType(TextField), '45');
       await _pumpFrame(tester);
 
-      // [D-候选] onChanged 手输不 setState，按钮保持上次构建的禁用态；
-      // 这里借 '+' 步进触发 setState 才能起播（见报告 D-候选 1）。
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.add));
-      await _pumpFrame(tester);
+      // [D-051 已修复] onChanged 补 setState —— 手输后「开始定时」立即可用，
+      // 无需再点预设/步进器中转。
+      expect(
+        tester.widget<MusicFlowButton>(_startButton(loc)).onPressed,
+        isNotNull,
+        reason: '[D-051 已修复] 手输 45 后起播按钮立即可用',
+      );
 
       await tester.tap(_startButton(loc));
       await _pumpFrames(tester);
@@ -183,7 +186,7 @@ void main() {
       expect(result, isA<SleepTimerStartChoice>());
       expect(
         (result as SleepTimerStartChoice).duration,
-        const Duration(minutes: 46),
+        const Duration(minutes: 45),
       );
       expect(find.byType(SleepTimerSheet), findsNothing);
     });

@@ -57,12 +57,14 @@ void main() {
       expect(c.authType, AuthType.token);
     });
 
-    // [D-001] serverUrl/username 缺失时是硬 cast，会抛 CastError 而非回落空串。
-    test('[D-001] 缺失 serverUrl 会抛异常（当前行为：硬 cast）', () {
-      expect(
-        () => ServerConfig.fromJson({'username': 'u'}),
-        throwsA(isA<TypeError>()),
-      );
+    // [D-001] 修复后：缺键回落空串，不再抛 TypeError（配合既有空串校验）。
+    test('[D-001] 缺失 serverUrl/username 回落空串，不抛异常', () {
+      final c = ServerConfig.fromJson({'username': 'u'});
+      expect(c.serverUrl, '');
+      expect(c.username, 'u');
+      final c2 = ServerConfig.fromJson({'serverUrl': 'http://a'});
+      expect(c2.serverUrl, 'http://a');
+      expect(c2.username, '');
     });
 
     test('copyWith 覆盖与保留', () {
@@ -124,10 +126,10 @@ void main() {
       expect(OfflineCacheSize.fromBytesFloor(99 * gb), OfflineCacheSize.g10);
     });
 
-    // [D-002] 语义与命名不符：<=0 时返回 g2(2GB) 默认档，而不是最小档/边界档。
-    test('[D-002] 非正数字节回落默认档 g2', () {
-      expect(OfflineCacheSize.fromBytesFloor(0), OfflineCacheSize.g2);
-      expect(OfflineCacheSize.fromBytesFloor(-1), OfflineCacheSize.g2);
+    // [D-002] 修复后：floor 语义，非正数字节回落最小档 g1。
+    test('[D-002] 非正数字节回落最小档 g1（floor 语义）', () {
+      expect(OfflineCacheSize.fromBytesFloor(0), OfflineCacheSize.g1);
+      expect(OfflineCacheSize.fromBytesFloor(-1), OfflineCacheSize.g1);
     });
   });
 
@@ -303,20 +305,22 @@ void main() {
       expect(s.lines.every((e) => e.startMs == null), isTrue);
     });
 
-    // [D-003] 混排时无时间戳的行 startMs=null，排序用 `?? 0` 会被顶到最前。
-    test('[D-003] 混排文本行被排到最前（当前行为）', () {
+    // [D-003] 修复后：无时间戳行排到结果末尾，不再被 `?? 0` 顶到最前。
+    test('[D-003] 混排文本行排在结果末尾', () {
       final s = LrcParser.parse('[00:01.00]a\nplain\n[00:02.00]b');
       expect(s.synced, isTrue);
-      expect(s.lines.first.value, 'plain');
-      expect(s.lines.first.startMs, isNull);
+      expect(s.lines.last.value, 'plain');
+      expect(s.lines.last.startMs, isNull);
+      expect(s.lines.first.startMs, 1000);
+      expect(s.lines[1].startMs, 2000);
     });
 
-    // [D-004] 一位毫秒（[00:01.5]）不被正则接受，整行被当作无时间戳文本丢弃文本标签。
-    test('[D-004] 一位毫秒时间标签不被识别（当前行为）', () {
+    // [D-004] 修复后：1~3 位毫秒都被识别，按 10^(3-len) 补齐。
+    test('[D-004] 一位毫秒时间标签被识别并按十分位补齐', () {
       final s = LrcParser.parse('[00:01.5]a');
-      expect(s.synced, isFalse);
-      // 该行以 '[' 开头 -> 被判定为标签行整体跳过
-      expect(s.lines, isEmpty);
+      expect(s.synced, isTrue);
+      expect(s.lines.single.value, 'a');
+      expect(s.lines.single.startMs, 1500);
     });
 
     test('只有空文本的时间戳行仍生成空 value 条目', () {
@@ -514,14 +518,16 @@ void main() {
 
     test('fromLocal 由 Artist 构造', () {
       final a = SearchArtist.fromLocal(
-        Artist(id: 'ar1', name: 'N', coverArt: 'c', albumCount: 4),
+        Artist(id: 'ar1', name: 'N', coverArt: 'c', albumCount: 4, songCount: 12),
       );
       expect(a.id, 'ar1');
       expect(a.avatar, 'c');
       expect(a.albumCount, '4');
       expect(a.isLocal, isTrue);
-      // [D-005] fromLocal 未填 songCount（Artist 模型本身也没有该字段），恒为空串。
-      expect(a.songCount, '');
+      // [D-005] 修复后：fromLocal 补填 songCount；缺省时回落空串。
+      expect(a.songCount, '12');
+      final b = SearchArtist.fromLocal(Artist(id: 'a2', name: 'M'));
+      expect(b.songCount, '');
     });
   });
 

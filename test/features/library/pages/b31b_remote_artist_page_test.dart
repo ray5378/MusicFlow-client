@@ -280,7 +280,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('远程艺术家页:重试按钮触发 _reload([D-048] 现状固定)', (
+  testWidgets('远程艺术家页:重试按钮成功重载(D-048 已修复)', (
     tester,
   ) async {
     when(
@@ -307,17 +307,16 @@ void main() {
     await tester.tap(find.text(loc.widgets_retry));
     await _settle(tester);
 
-    // [D-048] remote_artist_page.dart:54 `_reload()` 的 setState 闭包把
-    // `_loadSongs()` 的 Future 当作返回值交给了 setState，debug 构建下触发
-    // Flutter 断言且不会 markNeedsBuild —— 重试按钮点了不刷新。此处固定现状：
-    // 断言「抛了断言 + 错误态仍在」，修复后本用例应改成断言错误态消失。
+    // [D-048 已修复]：_reload 块体化 + loadingNonce 丢弃过期结果，
+    // 重试不再触发 setState Future 断言，错误态消失且歌曲行成功渲染。
     final errors = _drainExceptions(tester);
     expect(
       errors.any((e) => '$e'.contains('returned a Future')),
-      isTrue,
-      reason: '预期命中 D-048：setState 闭包返回 Future',
+      isFalse,
+      reason: '[D-048 已修复] 不再抛 setState Future 断言',
     );
-    expect(find.byType(MusicFlowErrorState), findsOneWidget);
+    expect(find.byType(MusicFlowErrorState), findsNothing);
+    expect(_songRow('起航'), findsOneWidget);
   });
 
   testWidgets('远程艺术家页:远程返回空列表展示空态文案', (tester) async {

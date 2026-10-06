@@ -379,15 +379,20 @@ void main() {
       expect(find.text('无法读取音乐库'), findsOneWidget);
       expect(find.byType(MusicFlowDrawerLibraryRow), findsNothing);
 
-      // ⚠️ [D-012] 已知缺陷(守卫用例)：点「重试」后错误态不会恢复。
-      // `onAction` 里的 `ref.invalidate(librariesProvider)` 从 onPressed 回调调用后
-      // 没有任何可观测的状态变化；重新订阅(折叠再展开)也仍然停在错误态。
-      // 修复后这条断言必须翻转（错误态 -> 骨架屏）。
+      // [D-012 已修复]：点重试立即切骨架反馈（invalidate 重建订阅）；
+      // 重试窗口(800ms)内流无新事件则回到错误态，可再次重试；
+      // 流恢复后列表正常渲染。
       await tester.tap(find.text('重试'));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(find.text('无法读取音乐库'), findsOneWidget);
-      expect(find.byType(MusicFlowSkeleton), findsNothing);
+      expect(find.text('无法读取音乐库'), findsNothing,
+          reason: '[D-012 已修复] 重试立即退出错误态');
+      expect(find.byType(MusicFlowSkeleton), findsWidgets,
+          reason: '[D-012 已修复] 重试有加载反馈');
+
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.text('无法读取音乐库'), findsOneWidget,
+          reason: '[D-012 已修复] 流未恢复时回到错误态可再次重试');
 
       await tester.tap(find.bySemanticsLabel('返回应用功能菜单'));
       await tester.pumpAndSettle();

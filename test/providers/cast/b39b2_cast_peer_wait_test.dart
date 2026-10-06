@@ -81,7 +81,7 @@ void main() {
  *   （1020-1025）已对空 peerId 早退返回 false，能传进 _clearSourceQueue 的
  *   peerId 恒非空 —— 守卫使然，属防御性死分支。
  *
- * - 1428-1434（seek 下发失败的清标记 + rethrow）：[D-060] 已注明死代码 ——
- *   _post 对所有异常 catch 后返回 null（见文件末尾 _post 定义），本 catch
- *   无异常可捕。b38b3 已有「seek 下发失败」钉住现状用例断言现行行为。
+ * - 1428-1434（seek 下发失败的处理）：[D-060] 已于 batch40 E2 修复 —— seek 现在
+ *   检查 _post 返回 null 视为失败：清因果屏障标记、不做乐观对齐、经 warn 日志
+ *   上报。b38b3 的「seek 下发失败」用例已翻成锁定修复断言。
  */

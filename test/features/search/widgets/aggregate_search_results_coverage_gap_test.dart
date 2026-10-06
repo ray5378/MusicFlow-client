@@ -300,7 +300,9 @@ void main() {
 
       expect(find.text(loc.search_network_search_failed), findsOneWidget);
       expect(_descriptions(tester).any((String t) => t.contains('全网插件超时')),
-          isTrue, reason: '错误描述直接把异常文本贴出来');
+          isFalse, reason: '[D-010 已修复] 异常原文不得外泄到 UI 文案');
+      expect(_descriptions(tester).any((String t) => t.contains('请检查网络')),
+          isTrue, reason: '[D-010 已修复] 错误描述为本地化通用引导文案');
       expect(_retryButton(tester), findsOneWidget);
       expect(evaluates, 1);
 
@@ -309,9 +311,9 @@ void main() {
       expect(evaluates, 2, reason: '重试按钮应 ref.invalidate 触发重新取值');
     });
 
-    // [D-010] 错误态把原始异常字符串（'$e'）直接展示给用户，
-    // 上线后可能把插件内部路径/地址透出来，属于「内部信息外泄」级别的表现缺陷。
-    testWidgets('error 文案是原始异常字符串（记录现状，待统一修复）',
+    // [D-010] 已修复：错误态不再把原始异常字符串拼进 UI 文案，
+    // 展示本地化通用引导文案，异常原文只送 Logger.error。
+    testWidgets('error 文案是本地化通用文案，异常原文不外泄(D-010 已修复)',
         (WidgetTester tester) async {
       await _pumpAggregate(
         tester,
@@ -323,8 +325,13 @@ void main() {
 
       expect(
         _descriptions(tester).any((String t) => t.contains('dio connect timeout')),
+        isFalse,
+        reason: '[D-010 已修复] 异常原文不得出现在 UI 文案中',
+      );
+      expect(
+        _descriptions(tester).any((String t) => t.contains('请检查网络')),
         isTrue,
-        reason: '当前实现直接展示异常原文',
+        reason: '[D-010 已修复] 展示本地化通用引导文案',
       );
     });
 
@@ -465,13 +472,9 @@ void main() {
       expect(_retryButton(tester), findsOneWidget);
     });
 
-    // [D-011] 真实缺陷：`_reload()` 写成了
-    //   setState(() => _future = widget.fetcher());
-    // fetcher 返回的是 Future → setState 回调返回了 Future，
-    // debug/profile 下 Flutter 的 setState 断言直接炸（"callback argument returned
-    // a Future"），断言把这次状态更新整个打断：重试按钮在 debug 包里等于没反应
-    // （release 包不跑断言，行为不一致）。正确写法是先取 future 再同步 setState。
-    testWidgets('点重试：fetcher 确实又调了一次，但被 setState 断言打断(D-011)',
+    // [D-011] 已修复：`_reload()` 先取 future 再同步 setState，
+    // setState 回调不再返回 Future，重试不再触发断言，错误行被结果替换。
+    testWidgets('点重试：无断言异常，数据成功替换错误行(D-011 已修复)',
         (WidgetTester tester) async {
       final queue = _FetchQueue(<_BlockFuture>[
         _errorFuture('本地库读取失败'),
@@ -481,18 +484,15 @@ void main() {
 
       expect(find.text(loc.search_local_load_failed), findsOneWidget);
       await tester.tap(_retryButton(tester));
-      expect(
-        tester.takeException(),
-        isNotNull,
-        reason: '手势里抛的 setState 断言（D-011）',
-      );
+      expect(tester.takeException(), isNull,
+          reason: '[D-011 已修复] setState 不再返回 Future，重试不抛断言');
       await _settle(tester);
 
       expect(queue.calls, 2, reason: '_reload 确实又拉了一次');
-      expect(find.text(loc.search_local_load_failed), findsOneWidget,
-          reason: 'D-011: 断言把状态更新打断，错误行还在');
-      expect(find.text('0:R0'), findsNothing,
-          reason: 'D-011: 重试没能把结果换成数据');
+      expect(find.text(loc.search_local_load_failed), findsNothing,
+          reason: '[D-011 已修复] 错误行被数据替换');
+      expect(find.text('0:R0'), findsOneWidget,
+          reason: '[D-011 已修复] 重试后成功渲染数据');
     });
   });
 

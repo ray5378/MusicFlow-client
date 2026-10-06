@@ -79,7 +79,9 @@ class _FakeManager extends DlnaManager {
   }
 
   @override
-  Future<List<DlnaDevice>> scanDevices() async {
+  Future<List<DlnaDevice>> scanDevices({
+    Duration perDeviceFetchTimeout = const Duration(seconds: 6),
+  }) async {
     calls.add('scan');
     return const <DlnaDevice>[];
   }
@@ -1007,9 +1009,9 @@ void main() {
       await notifier.toggle();
       expect(manager.calls, contains('resume'), reason: '非 PLAYING 时 toggle 应恢复');
 
-      // [D-029] 现状钉子：pause/resume 只往设备发命令，**不乐观回写本地 status**，
-      // 本地状态要等设备轮询回调（2s 一帧）才更新。于是「刚点暂停立刻再点一次
-      // toggle」读到的是陈旧 PLAYING，会再发一次 pause —— 命令被静默重复下发。
+      // [D-029 锁定修复] pause/resume 已乐观回写本地 status：第一次 toggle 把
+      // 本地状态拨成 PAUSED，第二次 toggle 读到的就是最新意图 → 走 resume，
+      // 不再把陈旧 PLAYING 读成「还没暂停」而重复下发 pause。
       manager.onStatusChanged?.call(
         const DlnaDeviceStatus(state: 'PLAYING', position: 1),
       );
@@ -1017,7 +1019,13 @@ void main() {
       await notifier.toggle();
       await notifier.toggle();
       final after = manager.calls.where((c) => c == 'pause').length;
-      expect(after, before + 2, reason: '设备没回推，陈旧状态下连点会重复下发 pause');
+      expect(after, before + 1,
+          reason: 'D-029：乐观回写后连点两次 toggle 只下发一次 pause');
+      expect(
+        container.read(dlnaCastProvider).status.state,
+        'PLAYING',
+        reason: '第二次 toggle 走 resume 并乐观回写为 PLAYING',
+      );
     });
 
     test('seek / setVolume / toggleMute 透传给 manager', () async {
@@ -1131,21 +1139,34 @@ void main() {
       expect(st.status.position, 300);
     });
 
-    test('[D-026] 命中行既无 verdict 也无 ok 时按「无源」处理（误杀方向）', () async {
+    test('[D-026 锁定修复] 命中行既无 verdict 也无 ok 时放行（unknown 不误杀）', () async {
       // QA（batch18 复核）发现：probeSong 命中一行但两个字段都没有 →
-      // `hit['ok'] == true` 得到 **false** → 判无源、静默拦截投屏；
-      // 而「结果集里压根没这首 id」反而走 hit.isEmpty 返回 **true** 放行 ——
-      // 两个边界方向相反，且误杀方向没有任何提示。现状钉子，改实现即红。
+      // 原实现回落 `hit['ok'] == true` 得 false，被判「无源」静默拦截投屏，
+      // 与「结果集里压根没这首 id → 放行」方向相反。[D-026 修复后]：
+      // 只有明确带回 ok=false 才判无源，缺字段（unknown）与「没这首」同方向放行。
       container = buildContainer();
       final ref = container.read(_refHolderProvider);
       await ensureDlnaManagerReady(ref);
       api.probeResults = <dynamic>[const <String, dynamic>{'songId': 's1'}];
 
+      expect(await manager.probeSongFn!('s1'), isTrue,
+          reason: 'D-026：缺字段的命中行按 unknown 放行，不再误杀');
+    });
+
+    test('[D-026 锁定修复] 命中行明确 ok=false 仍判无源', () async {
+      // 修复不改变「服务端明确不可播」的拦截方向：ok=false 仍拦。
+      container = buildContainer();
+      final ref = container.read(_refHolderProvider);
+      await ensureDlnaManagerReady(ref);
+      api.probeResults = <dynamic>[
+        const <String, dynamic>{'songId': 's1', 'ok': false},
+      ];
+
       expect(await manager.probeSongFn!('s1'), isFalse);
     });
 
     test('[D-026 对照] 结果集里没有这首时不误杀', () async {
-      // 与上一条对照：同一个接口，没这条就放行、有这条但字段空就拦。
+      // 与修复后行为对照：没这首 → 放行；有这首但字段空 → 同样放行（方向一致）。
       container = buildContainer();
       final ref = container.read(_refHolderProvider);
       await ensureDlnaManagerReady(ref);

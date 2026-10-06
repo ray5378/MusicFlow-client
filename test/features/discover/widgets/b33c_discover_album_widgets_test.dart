@@ -153,7 +153,8 @@ void main() {
         textScaler: const TextScaler.linear(2.0),
       );
 
-      expect(find.byKey(const Key('discover-recent-spotlight')), findsOneWidget);
+      // [D-007 已修复] spotlight 分支使用独立 key。
+      expect(find.byKey(const Key('discover-recent-spotlight-spot')), findsOneWidget);
       // 行布局：三张专辑各占一行，专辑名都直接可见。
       expect(find.text('专辑一'), findsOneWidget);
       expect(find.text('专辑二'), findsOneWidget);

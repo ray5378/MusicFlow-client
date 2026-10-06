@@ -185,10 +185,10 @@ void main() {
         size: const Size(360, 700),
         textScale: 1.6,
       );
-      // 大字号:切到「spotlight 行列表」分支(两条分支刻意共用同一个 key)
+      // 大字号:切到「spotlight 行列表」分支(D-007 修复后两条分支 key 各自独立)
       expect(find.byType(DiscoverRecentAlbumCard), findsNothing);
       expect(find.byType(MusicFlowAlbumRow), findsNWidgets(2));
-      expect(find.byKey(const Key('discover-recent-spotlight')), findsOneWidget);
+      expect(find.byKey(const Key('discover-recent-spotlight-spot')), findsOneWidget);
     });
 
     testWidgets('DiscoverAlbumRail / DiscoverFrequentAlbumShelf 可渲染', (tester) async {

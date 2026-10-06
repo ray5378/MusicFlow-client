@@ -157,7 +157,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     });
 
-    test('seek 下发失败：_post 吞错，seek 不抛且仍乐观对齐进度', () async {
+    test('[D-060 锁定修复] seek 下发失败：不抛、清判定标记、且不再乐观对齐进度',
+        () async {
       await ctrl.switchTo(remotePeer);
       expect(ctrl.state.activePeer?.peerId, remotePeer.peerId);
 
@@ -166,15 +167,31 @@ void main() {
         return defaultCall(method, path);
       };
 
-      // `_post` 内部 catch 了所有异常并返回 null，因此 `seek` 的 try/catch
-      // （1426-1436 的清标记 + rethrow）在现行代码下不可达 —— 这里如实断言
-      // 现行可观测行为：不抛，且随后仍乐观对齐到目标位置。
+      // [D-060 已修复] _post 内部 catch 所有异常返回 null；seek 现在把 null 视为
+      // 失败：清因果屏障标记（_seekIssuedAtMs/_seekAckAtMs/_seekTargetSeconds）、
+      // 不做乐观对齐（平滑进度保持原值），并经 warn 日志上报失败 —— 与
+      // 「设备拒绝 seek」不再是同一副「静默成功」面孔。
       await ctrl.seek(const Duration(seconds: 42));
-      expect(ctrl.state.smoothPositionSeconds, 42.0);
+      expect(
+        ctrl.state.smoothPositionSeconds,
+        isNot(42.0),
+        reason: 'D-060：下发失败时不得乐观对齐到目标位置（旧位置上报依然有效）',
+      );
       expect(
         reqs.any((r) => r.path.contains('seek')),
         isTrue,
         reason: '命令确实已下发',
+      );
+    });
+
+    test('seek 下发成功：仍乐观对齐到目标位置', () async {
+      await ctrl.switchTo(remotePeer);
+      await ctrl.seek(const Duration(seconds: 42));
+      expect(ctrl.state.smoothPositionSeconds, 42.0,
+          reason: '成功路径的乐观对齐行为不变');
+      expect(
+        reqs.any((r) => r.path.contains('seek')),
+        isTrue,
       );
     });
 

@@ -296,8 +296,9 @@ void main() {
   test('https 地址: 构建 wss 且连接失败后容错重试,不崩溃', () async {
     final login = stubLoginDio();
     final zoneErrors = <Object>[];
-    // 注意:源码从不 await/捕获 WebSocketChannel.ready,连接拒绝会产生
-    // 未捕获异步异常(缺陷候选),故本用例用 guarded zone 兜住。
+    // [D-056] 修复前:源码从不 await/捕获 WebSocketChannel.ready,连接拒绝
+    // 产生未捕获异步异常,只能用 guarded zone 兜住。修复后 ready 已被
+    // unawaited+catchError 捕获,zone 里不应再出现任何错误。
     await runZonedGuarded(() async {
       container = buildContainer(
         address: _addr('https://127.0.0.1:1'),
@@ -311,6 +312,9 @@ void main() {
     });
     expect(login.calls, isNotEmpty, reason: 'token resolve should happen');
     expect(server.upgrades, isEmpty); // 不应连到无关端口/线路
+    // [D-056] 修复后:连接失败被 ready.catchError 捕获,zone 零异常。
+    expect(zoneErrors, isEmpty,
+        reason: '[D-056] ready 失败应被捕获,不再有未处理异步异常');
     // 存活到这里即证明连接失败路径未让测试进程崩溃。
   });
 }

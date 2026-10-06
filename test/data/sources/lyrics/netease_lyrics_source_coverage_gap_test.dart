@@ -217,9 +217,9 @@ void main() {
       expect(await source.fetchLyrics(title: '歌名', artist: '艺人'), isNull);
     });
 
-    // [D-008] songs 字段类型不对(这里是 map)时,`as List?` 强转会抛 TypeError,
-    // 靠最外层 catch 兜住 -> 表现同样是 null,异常对调用方不可见。
-    test('songs 字段类型不对时靠 catch 吞掉,对外仍是 null', () async {
+    // [D-008] 修复后:songs 字段类型不对(这里是 map)时先判型并记 warn,
+    // 不再依赖外层 catch 吞 TypeError;对外仍安全返回 null。
+    test('songs 字段类型不对时判型安全返回 null,不抛异常', () async {
       final source = _source(
         bodies: <String>[
           jsonEncode(<String, Object>{

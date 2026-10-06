@@ -572,6 +572,9 @@ String pkgInfoVersion = '1.0.0';
 bool pkgInfoThrows = false;
 final List<String> launchedUrls = <String>[];
 
+/// url_launcher 桩的 canLaunch 返回值开关（AS-D-060/061 用例用）。
+bool launcherCanLaunch = true;
+
 /// 页面里 Ticker 呼吸动画不断请求新帧，`pumpAndSettle` 永远等不到静
 /// （踩坑 #73-B），统一用固定帧推进。
 Future<void> settle(WidgetTester tester, {int frames = 5}) async {
@@ -752,6 +755,7 @@ void main() {
   setUp(() {
     fakeHttp.reset();
     launchedUrls.clear();
+    launcherCanLaunch = true;
     pkgInfoVersion = '1.0.0';
     pkgInfoThrows = false;
 
@@ -797,7 +801,7 @@ void main() {
       };
     });
     _launcherChannel.setMockMethodCallHandler((MethodCall call) async {
-      if (call.method == 'canLaunch') return true;
+      if (call.method == 'canLaunch') return launcherCanLaunch;
       if (call.method == 'launch') {
         final args = call.arguments as Map<dynamic, dynamic>?;
         launchedUrls.add('${args?['url']}');
@@ -960,8 +964,9 @@ void main() {
       await settle(tester, frames: 10);
 
       expect(
-        find.textContaining(loc!.settings_library_switch_failed('').trim()),
+        find.textContaining(loc!.settings_library_switch_failed_generic),
         findsOneWidget,
+        reason: '[AS-D-062 已修复] 切库失败提示为稳定文案，不含异常原文',
       );
     });
   });
@@ -1273,8 +1278,9 @@ void main() {
 
       await tapCheckUpdate(tester);
       expect(
-        find.textContaining(loc!.settings_update_check_failed('').trim()),
+        find.textContaining(loc!.settings_update_check_failed_generic),
         findsOneWidget,
+        reason: '[AS-D-062 已修复] 失败提示为稳定文案，不含异常原文',
       );
       // finally 里把 _isCheckingUpdate 复位 → 骨架屏消失、行重新可点。
       expect(find.byType(MusicFlowSkeleton), findsNothing);
@@ -1282,8 +1288,9 @@ void main() {
       await tester.tap(find.text(loc!.settings_check_update));
       await settle(tester, frames: 12);
       expect(
-        find.textContaining(loc!.settings_update_check_failed('').trim()),
+        find.textContaining(loc!.settings_update_check_failed_generic),
         findsWidgets,
+        reason: '[AS-D-062 已修复] 失败提示为稳定文案',
       );
     });
 
@@ -1331,8 +1338,32 @@ void main() {
       expect(fakeHttp.calls.length, 2);
       expect(fakeHttp.calls.last, contains('releases.atom'));
       expect(
-        find.textContaining(loc!.settings_update_check_failed('').trim()),
+        find.textContaining(loc!.settings_update_check_failed_generic),
         findsOneWidget,
+        reason: '[AS-D-062 已修复] SocketException 也不把原文给用户',
+      );
+    });
+
+    testWidgets('31b 打开链接失败 → 稳定提示而非静默(AS-D-060/061)', (tester) async {
+      fakeHttp.body = releaseJson(
+        tag: 'v2.0.0',
+        assets: <Map<String, Object?>>[kZipAsset],
+      );
+      launcherCanLaunch = false;
+      await pumpPage(tester);
+
+      await tapCheckUpdate(tester);
+
+      // 更新弹窗里点「下载」→ pop 后调用 _openDownload/_openUrl，
+      // canLaunch false 时给稳定提示而非静默（AS-D-060），
+      // 桩内异常/失败路径也不会外漏 unhandled async error（AS-D-061）。
+      await tester.tap(find.text(loc!.settings_download));
+      await settle(tester, frames: 12);
+
+      expect(
+        find.textContaining(loc!.settings_open_link_failed),
+        findsOneWidget,
+        reason: '[AS-D-060/061 已修复] 链接打开失败给出稳定提示，不再静默',
       );
     });
 

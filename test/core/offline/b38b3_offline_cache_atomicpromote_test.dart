@@ -29,7 +29,7 @@ void main() {
     if (await base.exists()) await base.delete(recursive: true);
   });
 
-  test('rename 失败 → copy 兜底亦失败：进入 288 并清理 .part（291）', () async {
+  test('[D-061] rename 失败 → copy 兜底亦失败：降级不外抛，.part 仍被清理（291）', () async {
     final bytes = Uint8List.fromList(List.filled(16, 7));
     await m.putCover('c1', bytes, owners: ['s1']);
 
@@ -41,11 +41,10 @@ void main() {
     final partPath = '$targetPath.part';
     final partFile = File(partPath);
 
-    await expectLater(
-      m.putCover('c1', Uint8List.fromList(List.filled(16, 8)), owners: ['s1']),
-      throwsA(isA<FileSystemException>()),
-      reason: 'rename 与 copy 均失败时应向上抛（288 分支已执行）',
-    );
+    // [D-061] 修复前：copy 亦失败时 FileSystemException 上抛（b38b3 实测），
+    // 与「保证可用性」语义相悖。修复后：降级记日志、不外抛，putCover 正常完成。
+    await m.putCover(
+        'c1', Uint8List.fromList(List.filled(16, 8)), owners: ['s1']);
 
     // 291：finally 里清理了临时 .part 文件。
     expect(await partFile.exists(), isFalse,

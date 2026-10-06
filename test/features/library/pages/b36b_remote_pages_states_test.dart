@@ -164,22 +164,12 @@ void main() {
       repo.error = null;
       await tester.tap(find.text(loc.widgets_retry));
       await tester.pump();
-      // [真实缺陷 remote_album_page.dart:55] `_reload` 用箭头闭包
-      // `setState(() => _songsFuture = _loadSongs())`，闭包返回值是被赋的
-      // Future，触发 Flutter 的 "setState() callback argument returned a Future"
-      // 断言；debug 下重试被阻断（Future 未被替换，仍停在错误态）。
-      final retryError = tester.takeException();
-      if (retryError == null) {
-        await tester.pumpAndSettle();
-        expect(find.byType(SongListItem), findsOneWidget);
-      } else {
-        expect(
-          retryError.toString(),
-          contains('setState() callback argument returned a Future'),
-          reason: '预期命中已知缺陷，否则请更新用例',
-        );
-        expect(find.text(loc.library_remote_load_failed), findsOneWidget);
-      }
+      // [D-057 已修复] `_reload` 块体化，setState 闭包不再返回 Future，
+      // 重试按钮在 debug 下同样可用。
+      expect(tester.takeException(), isNull,
+          reason: '[D-057 已修复] 重试不再触发 setState Future 断言');
+      await tester.pumpAndSettle();
+      expect(find.byType(SongListItem), findsOneWidget);
     });
 
     testWidgets('空专辑 → 空态；「加入库」按钮禁用', (tester) async {
@@ -263,20 +253,11 @@ void main() {
       repo.error = null;
       await tester.tap(find.text(loc.widgets_retry));
       await tester.pump();
-      // [真实缺陷 remote_playlist_page.dart:50] 同 remote_album_page：setState
-      // 箭头闭包返回 Future，debug 断言阻断重试。
-      final retryError = tester.takeException();
-      if (retryError == null) {
-        await tester.pumpAndSettle();
-        expect(find.byType(SongListItem), findsOneWidget);
-      } else {
-        expect(
-          retryError.toString(),
-          contains('setState() callback argument returned a Future'),
-          reason: '预期命中已知缺陷，否则请更新用例',
-        );
-        expect(find.text(loc.library_remote_load_failed), findsOneWidget);
-      }
+      // [D-057 已修复] 同 remote_album_page：重试不再被 setState 断言阻断。
+      expect(tester.takeException(), isNull,
+          reason: '[D-057 已修复] 重试不再触发 setState Future 断言');
+      await tester.pumpAndSettle();
+      expect(find.byType(SongListItem), findsOneWidget);
     });
 
     testWidgets('空歌单 → 空态', (tester) async {

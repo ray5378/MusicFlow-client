@@ -93,7 +93,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('fanart 脏数据（apiKey 非字符串）→ 已知缺陷：build 抛 TypeError', (tester) async {
+  testWidgets('fanart 脏数据（apiKey 非字符串）→ 类型兜底不崩(D-059 已修复)', (tester) async {
     await _pump(tester);
     await tester.pump();
     _ctrl.add(<ProviderConfig>[
@@ -107,12 +107,9 @@ void main() {
     ]);
     await _settle(tester);
 
-    // ⚠️ 真实缺陷（cover_providers_page.dart:105）：`config['apiKey'] as String?`
-    //    未做类型兜底，脏数据（int/Map 等）会让副标题构建抛 TypeError，整页被
-    //    ErrorWidget 顶替。此用例把当前（缺陷）行为钉住，作为回归标记：
-    //    修复后此处应改为 expect(takeException(), isNull)。
-    expect(tester.takeException(), isA<TypeError>(),
-        reason: '入口未做类型兜底 → 脏数据崩溃（缺陷 D-COVER-APIKEY）');
+    // [D-059 已修复]：apiKey 类型兜底后脏数据不再让整页构建失败。
+    expect(tester.takeException(), isNull,
+        reason: '[D-059 已修复] 脏数据不再抛 TypeError，页面正常渲染');
   });
 
   testWidgets('未知 sourceId：标题回落 id，无副标题', (tester) async {

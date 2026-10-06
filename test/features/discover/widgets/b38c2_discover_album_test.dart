@@ -73,7 +73,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('discover-recent-spotlight')), findsOneWidget);
+    // [D-007 已修复] spotlight 分支使用独立 key。
+    expect(find.byKey(const Key('discover-recent-spotlight-spot')), findsOneWidget);
 
     await tester.tap(find.text('最近专辑一'));
     await tester.pumpAndSettle();

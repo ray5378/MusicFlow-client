@@ -266,20 +266,39 @@ void main() {
       expect(player.calls, isEmpty);
     });
 
-    // ⚠️ [D-013] 已知缺陷(守卫用例):_startPositionOf 里的 `as num?` 是裸强转,
-    // 服务端一旦给出非数值(如 startPosition: "12")就抛 TypeError,整条
-    // handleServerMessage 的 Future 直接 reject(WS 转调处未必 catch)。
-    // 现状断言:抛出。修好后应改为「解析不到就当没有起点」,本用例需翻转。
-    test('畸形载荷(startPosition 非数值)会让整个 handler reject', () async {
+    // [D-013] 修复后:_startPositionOf 先 is num 判型,畸形载荷(字符串等)按
+    // 「无起点」处理,不再抛 TypeError 打断整条 handleServerMessage。
+    test('畸形载荷(startPosition 非数值)按无起点处理,不再 reject', () async {
       ctl.noteSelfPeerId('peer-a');
       localQueue(<Song>[song('s1')]);
-      expect(
-        ctl.handleServerMessage(
-          qMsg(items: <Object?>[item('s1')], total: 1, startPosition: '12'),
-        ),
-        throwsA(isA<TypeError>()),
+      await ctl.handleServerMessage(
+        qMsg(items: <Object?>[item('s1')], total: 1, startPosition: '12'),
       );
-      expect(player.calls, isEmpty, reason: '抛错发生在比对阶段,播放器一个动作都没做');
+      expect(player.calls, isEmpty,
+          reason: '解析不到起点→按无起点处理;index 无效→直接返回,播放器无动作');
+    });
+
+    test('[D-013] 同型处 total/currentIndex 为字符串也不 reject', () async {
+      ctl.noteSelfPeerId('peer-a');
+      localQueue(<Song>[song('s1')]);
+      await ctl.handleServerMessage(
+        qMsg(
+          items: <Object?>[item('s1')],
+          total: '1',
+          currentIndex: 'x',
+        ),
+      );
+      expect(player.calls, isEmpty,
+          reason: 'total/currentIndex 畸形 → 解析为 null 回落 -1,直接 return 不跟随');
+    });
+
+    test('[D-013] 同队同曲+合法起点 → 一次性 seek 到起点(正常路径不回归)', () async {
+      ctl.noteSelfPeerId('peer-a');
+      localQueue(<Song>[song('s1')]);
+      await ctl.handleServerMessage(
+        qMsg(items: <Object?>[item('s1')], total: 1, startPosition: 12),
+      );
+      expect(player.seekTargets.single, const Duration(milliseconds: 12000));
     });
 
     test('本机 queue 为空时,远端非空队列应被判定为差异并跟随', () async {

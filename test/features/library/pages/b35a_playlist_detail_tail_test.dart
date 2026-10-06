@@ -338,12 +338,19 @@ void main() {
     await tester.tap(find.text(loc.song_sort_duration_desc));
     await _settle(tester, frames: 12);
 
-    // 现状钉扎：_applySortOption 失败后 _fullEntries 为空 ⇒ _totalCount==0 ⇒
-    // build 里 currentSongCount==0 的空态分支(397)优先于 _fullFailed 重试按钮
-    // (493-507) ⇒ 重试按钮永不可见（疑似缺陷,见报告）。拉全量失败路径本身
-    // (649-655)已被本用例执行。
-    expect(_row('起航'), findsNothing);
-    expect(find.text(loc.library_playlist_empty), findsOneWidget);
+    // [D-055 已修复]：_fullFailed 时空态分支不再遮蔽重试按钮 ——
+    // 失败优先展示重试入口；点击重试、仓库恢复后重排成功。
+    expect(find.text(loc.library_playlist_empty), findsNothing,
+        reason: '[D-055 已修复] 失败态不再被空态遮蔽');
+    expect(find.text(loc.library_load_failed_retry), findsOneWidget,
+        reason: '[D-055 已修复] 重试入口可见');
+
+    failBox[0] = false;
+    await tester.tap(find.text(loc.library_load_failed_retry));
+    await _settle(tester, frames: 12);
+
+    expect(_row('起航'), findsOneWidget,
+        reason: '[D-055 已修复] 重试后重排成功');
     expect(tester.takeException(), isNull);
   });
 
