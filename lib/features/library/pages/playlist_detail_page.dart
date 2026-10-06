@@ -322,6 +322,11 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
           onAction: _retry,
         );
       }
+      // [D-049] 此分支不可达：_displayMeta 仅在 _meta==null 且 initialName==null 时返回 null，
+      // 故 displayMeta==null 蕴含 initialName==null，三元恒走 MediaDetailLoadingView，
+      // PlaylistLoadingPreview 为死代码（预载加载态 UI 永不显示）。守卫：
+      // b32a_playlist_detail_page_test.dart「歌单详情:元数据加载中且有预载参数」（现状固定 findsNothing）；
+      // 修完翻该守卫用例（改回 findsOneWidget）。
       return widget.initialName != null
           ? PlaylistLoadingPreview(
               name: widget.initialName!,
