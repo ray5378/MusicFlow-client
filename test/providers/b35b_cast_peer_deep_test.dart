@@ -11,6 +11,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/data/models/song.dart';
@@ -65,6 +66,8 @@ class _Req {
 }
 
 void main() {
+  // 启动自动选中会读取「默认控制当前客户端」开关（SharedPreferences），纯 Dart 单测需先初始化绑定并在 setUp 里 mock prefs。
+  TestWidgetsFlutterBinding.ensureInitialized();
   late MockSubsonicApiClient client;
   late _RecPlayer player;
   late ProviderContainer container;
@@ -139,6 +142,8 @@ void main() {
   }
 
   setUp(() {
+    // 开关缺省为 false → 自动选中走历史路径（断言无需改动）。
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     reqs = <_Req>[];
     onCall = null;
     client = MockSubsonicApiClient();
