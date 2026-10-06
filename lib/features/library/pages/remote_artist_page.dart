@@ -75,7 +75,8 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
               title: loc.library_remote_load_failed,
               description: loc.library_remote_artist_load_failed_desc,
               actionLabel: loc.widgets_retry,
-              onAction: () => _reload(),
+              onAction: () => _reload(), // [D-048] 重试直接 setState 重建 _songsFuture，未取消上一个仍在飞行的 future（b31b 用例「重试按钮触发 _reload([D-048] 现状固定)」钉此路径）；修完翻该守卫用例。
+
             );
           }
           final songs = snapshot.data ?? [];
