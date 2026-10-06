@@ -1054,6 +1054,15 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
             return;
           }
         }
+        // [D-058] 真实缺陷（P1，离线无缓存下的紧凑无限重试）：本机离线、队列内歌曲
+        // 全部无离线缓存、且播放模式为默认的 all（非单曲循环/顺序）时，逐首
+        // _handlePlaybackError → next() 绕回队首后再次命中本分支，形成无节流的
+        // 紧凑循环（失败 → 下一首 → 回绕 → 再失败），把播放线程打满。
+        // 连跳保护（_replaceLoadedSource 内 _consecutiveFailSkips>=2）在离线分支
+        // 之前就已 return，根本走不到，保护形同虚设。
+        // 建议：离线分支内的跳过同样计入 _consecutiveFailSkips，达阈值后停止
+        // （或落到暂停态并提示），不要无缓存曲库整队列空转。
+        // 守卫用例：b37a2_player_provider_offline_test.dart（离线全无缓存场景）。
         // 未缓存：提示离线，沿用现有「跳过不可播」找下一首。
         Logger.info('No offline cache for: ${song.title}');
         _handlePlaybackError(song.id);
