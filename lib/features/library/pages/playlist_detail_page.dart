@@ -394,6 +394,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   ),
                 ),
               ),
+              // [D-055] 空态分支遮蔽「全量排序拉取失败」的重试入口：本分支在
+              // currentSongCount == 0 时先命中，而 _fullFailed 的重试按钮位于
+              // _buildFullListSlivers()（约 L493-507）—— 排序全量拉取失败时
+              // _fullEntries 为空 ⇒ 计数为 0 ⇒ 用户只看到「歌单为空」，拿不到
+              // 重试按钮（该重试路径实际不可达）。
+              // 守卫用例：test/features/library/pages/b35a_playlist_detail_tail_test.dart
+              // 「歌单详情:排序全量拉取失败 → 重试按钮,恢复后成功重排」（现为现状钉扎，
+              // 修完应断言重试按钮可见且点击后重排成功）。
               if (currentSongCount == 0)
                 SliverToBoxAdapter(
                   child: MusicFlowEmptyState(
