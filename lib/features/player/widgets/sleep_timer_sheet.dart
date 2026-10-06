@@ -83,6 +83,7 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
             )).toList(),
           ),
           const SizedBox(height: 16),
+          // [D-052] Dialog 的 IntrinsicWidth 压缩宽度后此步进 Row 在窄视口溢出约 6.8px（RenderFlex overflow，b33c 稳定复现）；修完翻守卫「定时弹窗窄视口无溢出」。
           // 自定义分钟步进器（0 起，+/-，分钟单位）。
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -113,6 +114,7 @@ class _SleepTimerSheetState extends State<SleepTimerSheet> {
                   ),
                   onChanged: (value) {
                     final n = int.tryParse(value) ?? 0;
+                    // [D-051] 手输只赋 _customMinutes 未 setState，「开始定时」按钮 onPressed 停留旧构建（分钟=0 时禁用），须再点预设/步进器才可用（b33c 守卫「手输分钟数后开始定时按钮可用」现状固定）；修完翻该守卫。
                     _customMinutes = n.clamp(0, _maxMinutes);
                   },
                 ),

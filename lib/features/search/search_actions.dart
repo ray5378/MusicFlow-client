@@ -81,6 +81,7 @@ Future<void> playRemoteSearchCollection(
   }
   try {
     final songs = kind == SearchEntityKind.playlist
+        // [D-050] SearchPlaylist 未实现 SearchSongLike，若调用点不传 playlist: 则强转必抛 TypeError（当前靠全部调用点显式传参掩盖；b33b 用例已锁 playlist: 传参路径）；修完翻守卫「playRemoteSearchCollection 歌单 kind 未传 playlist → 不应崩溃」。
         ? await repo.getPlaylistSongs(
             providerId,
             playlist ?? (item as SearchPlaylist),
