@@ -1433,6 +1433,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         '[seek] peer=$peerId target=${position.inSeconds}s send failed '
             '${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
       );
+      // [D-060] _post 对所有异常 catch 后返回 null（不抛，见本文件末尾 _post 定义），
+      // 故本 catch 连同上面的清标记与下方 rethrow 均为死代码：seek 失败既不清因果
+      // 屏障标记、也不会冒泡，与「设备拒绝 seek」无法区分，调用方随后仍乐观对齐目标
+      // 位置。修完需证明 _post 能区分网络失败并把失败信号传给调用方。
       rethrow;
     }
     // 立即用目标位置对齐平滑进度,减少插值滞后。

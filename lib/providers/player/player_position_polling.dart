@@ -103,6 +103,8 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // L317 一处、无外部置位路径 → 真实卡死场景下时钟外推永不启用。
       // 守卫用例：test/providers/player/b34a_pospoll_settle_test.dart
       // 「0 秒卡死重载自愈后不再重复重载」（修完需证明 _syntheticPositionFallbackActive 可被置位）。
+      // 同一门控同时锁死 player_provider.dart 的 positionStream ignorePositionWhileSynthetic
+      // 块（L556-573），一并视为本死代码家族。
       if (atStart) {
         _stagnantPositionTicks = 0;
       } else if (!stallSignal || deltaFromLast > 150) {

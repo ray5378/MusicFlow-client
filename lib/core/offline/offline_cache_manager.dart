@@ -280,6 +280,10 @@ class OfflineCacheManager {
     await _atomicPromote(tmp, file);
   }
 
+  // [D-061] 上方注释称「rename 失败时退化为直接覆盖写，保证可用性」，但 copy 亦
+  // 失败时异常会向上抛给调用方（b38b3 实测），并非「保证可用性」。建议 copy 失败
+  // 时降级为 warn + 返回失败态。守卫用例：
+  // test/core/offline/b38b3_offline_cache_atomicpromote_test.dart。
   Future<void> _atomicPromote(File tmp, File target) async {
     try {
       await tmp.rename(target.path);

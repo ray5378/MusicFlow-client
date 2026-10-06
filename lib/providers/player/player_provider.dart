@@ -1303,6 +1303,10 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     final sid = debugSession ?? _playDebugSession;
     bool isCurrentSession() =>
         _isPlaybackContextCurrent(session: sid, songId: song.id);
+    // [D-062] 会话作废守卫仅在 debugSession != null 时生效（同写法另见 L1347/L1383）。
+    // 若以 debugSession==null 调用转码重试，三处守卫全被跳过 → 该轮可能在被新会话
+    // 顶替后仍写回 state（播放错误曲目）。当前全库无传 null 的调用点，属「疑似」；
+    // 补 null 调用路径时需重估。守卫用例：test/providers/player/b38a4_provider_gaps_test.dart。
     if (debugSession != null && _playDebugSession != debugSession) {
       _playDbg(
         'sid=$sid transcoding retry abandoned '
