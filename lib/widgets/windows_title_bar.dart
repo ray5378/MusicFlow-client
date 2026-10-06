@@ -170,6 +170,9 @@ class WindowsOuterBorder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
+      // 关键：必须前景(foreground)绘制 —— 默认 background 会把 1px 外框
+      // 画在不透明 child 之下、被完全盖住，边框将不可见。
+      position: DecorationPosition.foreground,
       decoration: BoxDecoration(
         border: Border.all(color: Colors.black, width: borderWidth),
       ),

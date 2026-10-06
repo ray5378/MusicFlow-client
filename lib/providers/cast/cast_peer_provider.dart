@@ -647,6 +647,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       );
       return;
     }
+    // await 之后控制器可能已被 dispose（页面销毁 / 测试 teardown 后异步
+    // continuation 才恢复执行），必须提前退出 —— 否则下面访问 state 会抛
+    // "Tried to use CastPeerController after `dispose` was called"。
+    if (!mounted) return;
     final visible = peers.where((p) => p.available || p.self).toList();
     if (visible.isEmpty) return; // 服务端还没报上来任何端,等下一轮再评估
     _autoTargetDone = true;

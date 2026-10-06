@@ -408,10 +408,17 @@ class LocalStorage {
   ///
   /// 消费方：CastPeerController._maybeAutoSelectPlayingTarget（启动自动选中）。
   static Future<bool> getDefaultControlCurrentClient() async {
-    final prefs = await getPrefs();
-    final value = prefs.getBool(_keyDefaultControlCurrentClient) ?? false;
-    Logger.debugWithTag(_logTag, 'defaultControlCurrentClient=$value');
-    return value;
+    // 防御：脏数据（键存在但类型非 bool）会让 getBool 抛 TypeError；
+    // 读取失败一律按 false（= 历史默认语义），避免污染启动自动选中。
+    try {
+      final prefs = await getPrefs();
+      final value = prefs.getBool(_keyDefaultControlCurrentClient) ?? false;
+      Logger.debugWithTag(_logTag, 'defaultControlCurrentClient=$value');
+      return value;
+    } catch (e) {
+      Logger.debugWithTag(_logTag, 'read defaultControlCurrentClient failed: $e');
+      return false;
+    }
   }
 
   /// 保存「默认控制当前客户端」开关。
