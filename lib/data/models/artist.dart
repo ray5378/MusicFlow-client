@@ -11,6 +11,7 @@ class Artist {
   final String name;
   final String? coverArt;
   final int? albumCount;
+  final int? songCount;
   final bool starred;
 
   Artist({
@@ -18,6 +19,7 @@ class Artist {
     required this.name,
     this.coverArt,
     this.albumCount,
+    this.songCount,
     this.starred = false,
   });
 
@@ -28,6 +30,7 @@ class Artist {
       name: json['name'] as String,
       coverArt: json['coverArt'] as String?,
       albumCount: _toInt(json['albumCount']),
+      songCount: _toInt(json['songCount']),
       starred: json['starred'] != null,
     );
   }
@@ -39,6 +42,7 @@ class Artist {
       'name': name,
       'coverArt': coverArt,
       'albumCount': albumCount,
+      'songCount': songCount,
       'starred': starred,
     };
   }

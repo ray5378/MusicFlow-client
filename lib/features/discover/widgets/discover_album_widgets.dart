@@ -59,7 +59,9 @@ class DiscoverRecentAlbumRail extends StatelessWidget {
         ).scale(1).clamp(1.0, 2.0).toDouble();
         if (scale > 1.3) {
           return Column(
-            key: const Key('discover-recent-spotlight'),
+            // [D-007] 修复：spotlight 分支换独立 key，避免与普通分支的
+            // Key('discover-recent-spotlight') 冲突导致 Widget 复用不可预期。
+            key: const Key('discover-recent-spotlight-spot'),
             children: <Widget>[
               for (final album in albums)
                 MusicFlowAlbumRow(

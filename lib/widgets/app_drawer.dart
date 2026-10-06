@@ -45,6 +45,12 @@ class AppDrawer extends ConsumerStatefulWidget {
 class _AppDrawerState extends ConsumerState<AppDrawer> {
   bool _showLibraries = false;
 
+  // [D-012] 修复：重试点击后的反馈标志 —— invalidate 重建 StreamProvider
+  // 后若流未（立刻）重新发出事件，AsyncValue 停留在 reloading-error，
+  // UI 原样停在错误态、用户得不到任何反馈。点击重试时先切骨架反馈，
+  // 短暂计时后若仍未恢复则回到错误态（可再次重试）。
+  bool _libraryRetrying = false;
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
@@ -78,6 +84,8 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
 
     return libraries.when(
       data: (items) {
+        // [D-012] 库列表恢复后复位重试反馈标志。
+        _libraryRetrying = false;
         if (items.isEmpty) {
           return MusicFlowEmptyState(
             title: loc.widgets_drawer_library_empty_title,
@@ -146,12 +154,32 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
         );
       },
       loading: () => const _DrawerSkeletonList(),
-      error: (error, stackTrace) => MusicFlowErrorState(
-        title: loc.widgets_drawer_library_error_title,
-        description: loc.widgets_drawer_library_error_desc,
-        actionLabel: loc.widgets_retry,
-        onAction: () => ref.invalidate(librariesProvider),
-      ),
+      error: (error, stackTrace) {
+        // [D-012] 修复：重试不再是死按钮 —— 点击后立刻展示骨架反馈并
+        // invalidate 重建订阅；若重试窗口内流未恢复（仍报错），回到
+        // 错误态等待用户再次重试。
+        if (_libraryRetrying) {
+          return const _DrawerSkeletonList();
+        }
+        return MusicFlowErrorState(
+          title: loc.widgets_drawer_library_error_title,
+          description: loc.widgets_drawer_library_error_desc,
+          actionLabel: loc.widgets_retry,
+          onAction: () {
+            setState(() {
+              _libraryRetrying = true;
+            });
+            ref.invalidate(librariesProvider);
+            Timer(const Duration(milliseconds: 800), () {
+              if (mounted) {
+                setState(() {
+                  _libraryRetrying = false;
+                });
+              }
+            });
+          },
+        );
+      },
     );
   }
 

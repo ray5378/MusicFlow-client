@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/album.dart';
 import 'package:musicflow_client/data/models/search.dart';
 import 'package:musicflow_client/data/models/song.dart';
@@ -54,14 +55,19 @@ class _AlbumListPageState extends ConsumerState<AlbumListPage> {
 
   /// 播放本地专辑：拉取专辑详情歌曲后统一入口播放。
   Future<void> _playLocalAlbum(WidgetRef ref, Album album) async {
-    final detail = await ref.read(albumDetailProvider(album.id).future);
-    final songs = detail?.songs ?? const <Song>[];
-    if (songs.isEmpty || !mounted) return;
-    await playEffectiveQueue(
-      ref,
-      songs,
-      origin: QueueOrigin(QueueOriginKind.album, album.id),
-    );
+    // [D-054] 修复：详情拉取失败不再成为 unhandled async error，异常进 Logger。
+    try {
+      final detail = await ref.read(albumDetailProvider(album.id).future);
+      final songs = detail?.songs ?? const <Song>[];
+      if (songs.isEmpty || !mounted) return;
+      await playEffectiveQueue(
+        ref,
+        songs,
+        origin: QueueOrigin(QueueOriginKind.album, album.id),
+      );
+    } catch (e, st) {
+      Logger.error('play local album failed (id=${album.id})', e, st);
+    }
   }
 
   @override

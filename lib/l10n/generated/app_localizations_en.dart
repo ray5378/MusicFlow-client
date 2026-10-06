@@ -439,6 +439,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settings_library_switch_failed_generic =>
+      'Failed to switch library. Please try again later.';
+
+  @override
   String get settings_library_switch_subtitle =>
       'The current library\'s content and playback state will refresh after switching.';
 
@@ -753,6 +757,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String settings_update_check_failed(String error) {
     return 'Failed to check for updates: $error';
   }
+
+  @override
+  String get settings_update_check_failed_generic =>
+      'Update check failed. Please try again later.';
+
+  @override
+  String get settings_open_link_failed =>
+      'Couldn\'t open the link. Please try again later.';
 
   @override
   String get settings_update_found => 'Update available';

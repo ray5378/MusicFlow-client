@@ -68,8 +68,18 @@ class NeteaseLyricsSource implements LyricsSource {
       final searchData = _asMap(searchResponse.data);
       if (searchData == null) return null;
       final result = _asMap(searchData['result']);
-      final songs = result?['songs'] as List?;
-      if (songs == null || songs.isEmpty) return null;
+      // [D-008] 服务端 songs 字段类型异常（如返回 map 而非 list）时，旧的
+      // `as List?` 抛 TypeError 后会被外层 catch 整块吞掉（静默为空）。
+      // 先判型并记 warn，与「源无数据」区分。
+      final rawSongs = result?['songs'];
+      final List? songs = rawSongs is List ? rawSongs : null;
+      if (songs == null || songs.isEmpty) {
+        if (rawSongs != null && songs == null) {
+          Logger.warn(
+              'netease lyrics search: songs field is ${rawSongs.runtimeType}, expected List');
+        }
+        return null;
+      }
 
       final matchedSong = _pickBestMatch(
         songs: songs,

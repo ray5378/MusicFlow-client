@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -57,8 +59,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     });
     // 同步日志开关（默认关闭，需手动开启）到 Logger 全局状态。
     LocalStorage.getLoggingEnabled().then((value) {
-      if (mounted) setState(() => _loggingEnabled = value);
-      Logger.setLoggingEnabled(value);
+      // [AS-D-063] 修复：Logger.setLoggingEnabled 一并纳入 mounted 保护，
+      // 避免 dispose 后写全局日志状态。
+      if (mounted) {
+        setState(() => _loggingEnabled = value);
+        Logger.setLoggingEnabled(value);
+      }
     });
   }
 
@@ -78,9 +84,16 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           kind: MusicFlowMessageKind.success,
         );
       }
-    } catch (error) {
+    } catch (error, st) {
+      // [AS-D-062] 修复：异常原文不进 UI 文案 —— 按错误类型映射稳定文案，
+      // 原文只进 Logger。
+      Logger.error('update check failed', error, st);
+      if (!mounted) return;
+      final loc = AppLocalizations.of(context);
       _showMessage(
-        AppLocalizations.of(context).settings_update_check_failed('$error'),
+        error is TimeoutException
+            ? loc.discover_error_desc_check_route
+            : loc.settings_update_check_failed_generic,
         kind: MusicFlowMessageKind.error,
       );
     } finally {
@@ -227,10 +240,28 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        // [AS-D-060] 修复：canLaunchUrl false 不再静默，给用户稳定提示。
+        _showOpenLinkFailed();
+      }
+    } catch (e, st) {
+      // [AS-D-061] 修复：链接解析/跳转异常不再外漏为 unhandled async error，
+      // 失败给稳定提示、原文进 Logger。
+      Logger.error('open url failed: $url', e, st);
+      _showOpenLinkFailed();
     }
+  }
+
+  void _showOpenLinkFailed() {
+    if (!mounted) return;
+    _showMessage(
+      AppLocalizations.of(context).settings_open_link_failed,
+      kind: MusicFlowMessageKind.error,
+    );
   }
 
   void _showMessage(
@@ -575,9 +606,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         AppLocalizations.of(context).settings_library_switched(library.name),
         kind: MusicFlowMessageKind.success,
       );
-    } catch (error) {
+    } catch (error, st) {
+      // [AS-D-062] 修复：异常原文不进 UI 文案 —— 稳定文案 + 原文进 Logger。
+      Logger.error('library switch failed', error, st);
+      if (!mounted) return;
       _showMessage(
-        AppLocalizations.of(context).settings_library_switch_failed('$error'),
+        AppLocalizations.of(context).settings_library_switch_failed_generic,
         kind: MusicFlowMessageKind.error,
       );
     }

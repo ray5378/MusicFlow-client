@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/search.dart';
 import 'package:musicflow_client/data/models/song.dart';
@@ -51,10 +52,15 @@ class _PlaylistSearchPageState extends ConsumerState<PlaylistSearchPage> {
 
   /// 播放本地歌单：拉取歌单详情歌曲后统一入口播放。
   Future<void> _playLocalPlaylist(WidgetRef ref, Playlist playlist) async {
-    final detail = await ref.read(playlistDetailProvider(playlist.id).future);
-    final songs = detail?.songs ?? const <Song>[];
-    if (songs.isEmpty || !mounted) return;
-    await playEffectiveQueue(ref, songs);
+    // [D-054] 修复：详情拉取失败不再成为 unhandled async error，异常进 Logger。
+    try {
+      final detail = await ref.read(playlistDetailProvider(playlist.id).future);
+      final songs = detail?.songs ?? const <Song>[];
+      if (songs.isEmpty || !mounted) return;
+      await playEffectiveQueue(ref, songs);
+    } catch (e, st) {
+      Logger.error('play local playlist failed (id=${playlist.id})', e, st);
+    }
   }
 
   @override

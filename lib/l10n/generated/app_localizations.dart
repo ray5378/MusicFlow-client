@@ -836,6 +836,12 @@ abstract class AppLocalizations {
   /// **'切换音乐库失败: {error}'**
   String settings_library_switch_failed(String error);
 
+  /// No description provided for @settings_library_switch_failed_generic.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换音乐库失败，请稍后重试。'**
+  String get settings_library_switch_failed_generic;
+
   /// No description provided for @settings_library_switch_subtitle.
   ///
   /// In zh, this message translates to:
@@ -1373,6 +1379,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'检查更新失败: {error}'**
   String settings_update_check_failed(String error);
+
+  /// No description provided for @settings_update_check_failed_generic.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查更新失败，请稍后重试。'**
+  String get settings_update_check_failed_generic;
+
+  /// No description provided for @settings_open_link_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开链接，请稍后重试。'**
+  String get settings_open_link_failed;
 
   /// No description provided for @settings_update_found.
   ///

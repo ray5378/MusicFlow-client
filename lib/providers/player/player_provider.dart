@@ -1049,23 +1049,19 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
             return;
           } catch (e) {
             Logger.warn('Offline cache playback failed: ${song.title}', e);
-            // 缓存文件损坏 → 按「不可播」跳过，走下一首。
-            _handlePlaybackError(song.id);
+            // 缓存文件损坏 → 按「不可播」跳过，走下一首（计入离线连跳，D-058）。
+            _handleOfflinePlaybackError(song);
             return;
           }
         }
-        // [D-058] 真实缺陷（P1，离线无缓存下的紧凑无限重试）：本机离线、队列内歌曲
-        // 全部无离线缓存、且播放模式为默认的 all（非单曲循环/顺序）时，逐首
-        // _handlePlaybackError → next() 绕回队首后再次命中本分支，形成无节流的
-        // 紧凑循环（失败 → 下一首 → 回绕 → 再失败），把播放线程打满。
-        // 连跳保护（_replaceLoadedSource 内 _consecutiveFailSkips>=2）在离线分支
-        // 之前就已 return，根本走不到，保护形同虚设。
-        // 建议：离线分支内的跳过同样计入 _consecutiveFailSkips，达阈值后停止
-        // （或落到暂停态并提示），不要无缓存曲库整队列空转。
-        // 守卫用例：b37a2_player_provider_offline_test.dart（离线全无缓存场景）。
+        // [D-058 已修复] 原缺陷：离线 + 队列内歌曲全部无离线缓存 + 默认 all 模式时，
+        // 逐首 _handlePlaybackError → next() 绕回队首再次命中本分支，形成无节流的
+        // 紧凑无限重试（连跳节流闸在离线分支之前 return，根本走不到）。现在离线
+        // 分支内的跳过经 _handleOfflinePlaybackError 单独计数，连续 ≥2 次即停止
+        // 自动跳、落暂停态，不再让无缓存曲库整队列空转；成功播出后计数清零。
         // 未缓存：提示离线，沿用现有「跳过不可播」找下一首。
         Logger.info('No offline cache for: ${song.title}');
-        _handlePlaybackError(song.id);
+        _handleOfflinePlaybackError(song);
         return;
       }
 
@@ -1545,13 +1541,43 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     );
     // 同步推进下一首（不延迟）：状态连贯,流转播放/实时上报/远端镜像读到的
     // currentSong 始终是「正在/即将演唱」的下一首,不会因停留失败态而缺歌。
-    next();
+    // [D-031 已修复] 跳链是 fire-and-forget：next() 内部若再抛（如下一首的
+    // 解析/加载路径异常），异常不得作为未捕获的 Future 错误冒出本方法 ——
+    // 捕获后记日志即可，失败详情可在诊断日志里定位。
+    unawaited(
+      next().catchError((Object e, StackTrace st) {
+        Logger.errorWithTag(_playerLogTag, 'auto-skip next() failed', e);
+      }),
+    );
+  }
+
+  /// 离线分支的连续失败跳过计数（D-058）：离线时连跳节流闸（_replaceLoadedSource）
+  /// 不可达，这里单独计数；连续 ≥2 首不可播即停止自动跳并落暂停态，
+  /// 避免全无缓存的队列被紧凑无限重试打满播放线程。成功播出后清零。
+  int _offlineFailSkips = 0;
+
+  /// 离线分支专用失败跳过（D-058）：前 1 次仍照常跳下一首（本地曲可能只是
+  /// 误判无缓存），连续第 2 次起停止自动跳、落暂停态。
+  void _handleOfflinePlaybackError(Song song) {
+    _offlineFailSkips += 1;
+    if (_offlineFailSkips >= 2) {
+      _offlineFailSkips = 0;
+      Logger.warnWithTag(
+        _playerLogTag,
+        'offline: consecutive unplayable skips hit threshold, stop auto-skip '
+        '(song=${song.id}), falling back to paused state',
+      );
+      unawaited(pause());
+      return;
+    }
+    _handlePlaybackError(song.id);
   }
 
 
   Future<void> _syncPlaybackAfterSourceReady({required bool autoPlay}) async {
     // 真正播出一首后清零失败连跳计数,供日志反映当前失败段的长短。
     _consecutiveFailSkips = 0;
+    _offlineFailSkips = 0; // 有歌真正播出来 → 离线连跳保护复位（D-058）
     if (autoPlay) {
       _startPlayback();
       return;

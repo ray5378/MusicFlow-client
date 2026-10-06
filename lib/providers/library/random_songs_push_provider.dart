@@ -104,12 +104,18 @@ class RandomSongsPushClient {
       final wsUrl = _buildWsUrl(url, token, await _resolveClientId());
       try {
         final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-        // [D-056] `WebSocketChannel.connect` 的 `ready` Future 从未被
-        // await/捕获：连接被拒（端口关闭 / 网络不可达）时错误发生在 `ready` 上而非
-        // stream 上，下面的 try/catch 与 listen 的 onError 都兜不住 ⇒ 未捕获
-        // 异步异常（测试必须用 runZonedGuarded 才能跑过，生产会污染 zone/日志）。
+        // [D-056] ready 必须显式捕获：连接被拒（端口关闭 / 网络不可达）时错误
+        // 发生在 ready 上而非 stream 上，listen 的 onError 兜不住。unawaited +
+        // catchError 记日志并排重连，不再产生未处理异步异常。
         // 守卫用例：test/providers/library/b35b_random_songs_push_deep_test.dart
         // 「https 地址: 构建 wss 且连接失败后容错重试,不崩溃」。
+        unawaited(
+          channel.ready.catchError((Object e) {
+            Logger.warnWithTag(_tag, 'ws connect failed: $e');
+            _clearChannel();
+            _scheduleReconnect();
+          }),
+        );
         _channel = channel;
         _subscription = channel.stream.listen(
           _onMessage,

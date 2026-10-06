@@ -237,6 +237,8 @@ class SearchArtist {
       name: artist.name,
       avatar: artist.coverArt ?? '',
       albumCount: artist.albumCount?.toString() ?? '',
+      // [D-005] 本地艺人补 songCount，不再恒为空串。
+      songCount: artist.songCount?.toString() ?? '',
       isLocal: true,
     );
   }

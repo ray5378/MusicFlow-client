@@ -106,13 +106,13 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
         case 'prev':
           await player.previous();
         case 'seek':
-          final seconds = (payload['seconds'] as num?)?.toDouble();
+          final seconds = _asDouble(payload['seconds']);
           if (seconds == null) return;
           await player.seek(
             Duration(milliseconds: (seconds * 1000).round()),
           );
         case 'volume':
-          final volume = (payload['volume'] as num?)?.toDouble();
+          final volume = _asDouble(payload['volume']);
           if (volume == null) return;
           // 服务端音量是 0-100,本机 just_audio 是 0..1。
           await player.setVolume((volume / 100).clamp(0.0, 1.0));
@@ -163,8 +163,8 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     // 判定留痕:跟随一旦触发就会在本机 playQueue/playSong(出声!),必须能回答
     // "这次跟随是谁触发的". items/total/index/mode 四件套全打出来。
     final local = _ref.read(playerProvider);
-    final total = (queue['total'] as num?)?.toInt();
-    final index = (queue['currentIndex'] as num?)?.toInt();
+    final total = _asInt(queue['total']);
+    final index = _asInt(queue['currentIndex']);
     final mode = queue['playMode']?.toString();
     if (_sameAsLocal(local, queue)) {
       Logger.debugWithTag(
@@ -197,15 +197,15 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       // 大队列摘要:服务端 summarizeQueue 把 items 清空了,只剩外层元数据,
       // 无法逐项比对 → 退化为「外层三件套是否已一致」。一致即认定这条广播就是
       // 本端上报触发的(无需动作);不一致才当作外部改动去套用。
-      final total = (queue['total'] as num?)?.toInt() ?? -1;
+      final total = _asInt(queue['total']) ?? -1;
       if (total != local.queue.length) return false;
-      final idx = (queue['currentIndex'] as num?)?.toInt() ?? -1;
+      final idx = _asInt(queue['currentIndex']) ?? -1;
       if (idx != local.currentIndex) return false;
       final mode = queue['playMode']?.toString();
       return mode == null || mode == mapLocalPlayMode(local.playbackMode);
     }
     if (!_sameSongIds(items, local.queue)) return false;
-    final index = (queue['currentIndex'] as num?)?.toInt() ?? -1;
+    final index = _asInt(queue['currentIndex']) ?? -1;
     if (index != local.currentIndex) return false;
     final mode = queue['playMode']?.toString();
     if (mode != null && mode != mapLocalPlayMode(local.playbackMode)) return false;
@@ -227,7 +227,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
   Future<void> _follow(Map<String, dynamic> queue) async {
     final items = queue['items'];
     if (items is! List) return;
-    final total = (queue['total'] as num?)?.toInt() ?? items.length;
+    final total = _asInt(queue['total']) ?? items.length;
     if (items.isEmpty && total > 0) {
       // 大队列:WS 摘要只带外层元数据(items 被服务端 summarizeQueue 清空)。
       // 外层字段一个都不能丢 —— 服务端 summarizeQueue 是 `{...q, items: []}`,
@@ -269,7 +269,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       return;
     }
     final index =
-        ((queue['currentIndex'] as num?)?.toInt() ?? 0).clamp(0, songs.length - 1);
+        (_asInt(queue['currentIndex']) ?? 0).clamp(0, songs.length - 1);
     // 可听变更留痕:这一步会在本机出声(autoPlay 默认 true)。跟随误触发时,
     // 靠这行 + _handleQueueChanged 的 DIFF 行反推"谁让手机响的"。
     Logger.infoWithTag(
@@ -320,7 +320,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       }
       if (songs.isEmpty) return;
       final index =
-          ((snap['currentIndex'] as num?)?.toInt() ?? 0).clamp(0, songs.length - 1);
+          (_asInt(snap['currentIndex']) ?? 0).clamp(0, songs.length - 1);
       // 可听变更留痕(同 _follow):整队接管会在本机出声。
       Logger.infoWithTag(
         _tag,
@@ -356,8 +356,8 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
   }) async {
     await _applyPlayMode(queue);
     final startPos = _startPositionOf(queue);
-    final total = (queue['total'] as num?)?.toInt() ?? -1;
-    final index = (queue['currentIndex'] as num?)?.toInt() ?? -1;
+    final total = _asInt(queue['total']) ?? -1;
+    final index = _asInt(queue['currentIndex']) ?? -1;
     final player = _ref.read(playerProvider);
     // 流转带过来的起点:游标不变(同一首)时不能走「index == currentIndex 就返回」——
     // 那正好是「同队同曲、只是进度不同」的场景,必须本机 seek 落位。
@@ -414,8 +414,13 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
 
   /// 服务端快照里的「本次起播起点」(秒)。只在流转 / 带进度起播时**一次性**下发
   /// (见后端 QueueSnapshot.startPosition);缺省或非正数 → null(按从头播处理)。
+  /// [D-013] 服务端载荷字段先 `is num` 判型再取值，畸形载荷（字符串等）
+  /// 不再抛 TypeError 打断整条 handleServerMessage。
+  static double? _asDouble(Object? v) => v is num ? v.toDouble() : null;
+  static int? _asInt(Object? v) => v is num ? v.toInt() : null;
+
   static Duration? _startPositionOf(Map<String, dynamic> queue) {
-    final s = (queue['startPosition'] as num?)?.toDouble();
+    final s = _asDouble(queue['startPosition']);
     if (s == null || !s.isFinite || s <= 0) return null;
     return Duration(milliseconds: (s * 1000).round());
   }

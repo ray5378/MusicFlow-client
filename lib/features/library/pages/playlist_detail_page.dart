@@ -402,7 +402,9 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
               // 守卫用例：test/features/library/pages/b35a_playlist_detail_tail_test.dart
               // 「歌单详情:排序全量拉取失败 → 重试按钮,恢复后成功重排」（现为现状钉扎，
               // 修完应断言重试按钮可见且点击后重排成功）。
-              if (currentSongCount == 0)
+              // [D-055] 修复：空态判定放行失败态 —— _fullFailed 时不再遮蔽
+              // _buildFullListSlivers() 里的重试按钮，失败优先展示重试入口。
+              if (currentSongCount == 0 && !_fullFailed)
                 SliverToBoxAdapter(
                   child: MusicFlowEmptyState(
                     title: loc.library_playlist_empty,

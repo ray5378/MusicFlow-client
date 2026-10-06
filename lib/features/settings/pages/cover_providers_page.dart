@@ -101,13 +101,12 @@ class _CoverProvidersPageState extends ConsumerState<CoverProvidersPage> {
     );
   }
 
-  // [D-059] 真实缺陷（P2，脏数据崩溃）：config.config?['apiKey'] 未做类型兜底，
-  // 直接 as String?；当后端/历史配置把 apiKey 写成了非字符串（如 int / bool）时，
-  // 该 cast 抛 TypeError，封面 Provider 设置页整页构建失败（用户在设置里无法操作）。
-  // 建议：final v = config.config?['apiKey']; return (v is String ? v : '').trim();
-  // 守卫用例：b37b2_cover_providers_test.dart（apiKey 为 int 时钉住现状）。
+  // [D-059] 已修复：对 apiKey 做类型兜底，脏数据（int/bool/Map 等）不再抛
+  // TypeError 导致整页构建失败（守卫用例 b37b2_cover_providers_test.dart
+  // 已翻转为锁定修复）。
   String _fanartApiKey(ProviderConfig config) {
-    return (config.config?['apiKey'] as String? ?? '').trim();
+    final v = config.config?['apiKey'];
+    return (v is String ? v : '').trim();
   }
 
   bool _isConfigurable(String sourceId) => sourceId == 'fanart';

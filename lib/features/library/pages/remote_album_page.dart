@@ -52,14 +52,14 @@ class _RemoteAlbumPageState extends ConsumerState<RemoteAlbumPage> {
     );
   }
 
-  // [D-057] 真实缺陷（P2，debug 下重试入口失效）：`_reload` 用箭头体
-  // `setState(() => _songsFuture = _loadSongs())` —— 箭头表达式的值就是被赋
-  // 的 Future，Flutter 的 setState 会以断言
-  // "setState() callback argument returned a Future" 抛错；加载失败后用户
-  // 唯一的重试按钮点不动，页面永久停在错误态（release 剥离断言故仅 debug）。
-  // 建议改为块体： setState(() { _songsFuture = _loadSongs(); });
-  // 守卫用例：b36b_remote_pages_states_test.dart（重试命中该断言）。
-  void _reload() => setState(() => _songsFuture = _loadSongs());
+  // [D-057] 已修复：`_reload` 改为块体，先取 future 再同步 setState，
+  // 闭包不再返回 Future，重试按钮在 debug 下同样可用。
+  void _reload() {
+    final future = _loadSongs();
+    setState(() {
+      _songsFuture = future;
+    });
+  }
 
   Future<void> _playAll(List<Song> songs) async {
     if (songs.isEmpty) return;

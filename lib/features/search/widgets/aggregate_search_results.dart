@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/search.dart';
 import 'package:musicflow_client/providers/library/search_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -68,17 +69,22 @@ class AggregateSearchResults extends ConsumerWidget {
       loading: () => const <Widget>[
         SliverToBoxAdapter(child: MusicFlowMediaListSkeleton(count: 6)),
       ],
-      error: (e, _) => <Widget>[
-        SliverToBoxAdapter(
-          child: MusicFlowErrorState(
-            title: loc.search_network_search_failed,
-            description: '$e',
-            actionLabel: loc.widgets_retry,
-            onAction: () =>
-                ref.invalidate(searchResultsProvider(request)),
+      error: (e, st) {
+        // [D-010] 修复：异常原文只进日志，UI 展示本地化通用引导文案，
+        // 避免把文件路径/内部错误码等透给用户。
+        Logger.error('aggregate search failed', e, st);
+        return <Widget>[
+          SliverToBoxAdapter(
+            child: MusicFlowErrorState(
+              title: loc.search_network_search_failed,
+              description: loc.discover_error_desc_check_route,
+              actionLabel: loc.widgets_retry,
+              onAction: () =>
+                  ref.invalidate(searchResultsProvider(request)),
+            ),
           ),
-        ),
-      ],
+        ];
+      },
       data: (outcome) {
         final empty = outcome.songs.isEmpty &&
             outcome.albums.isEmpty &&
@@ -170,7 +176,12 @@ class _AggregateLocalBlockState<T> extends State<AggregateLocalBlock<T>> {
   }
 
   void _reload() {
-    setState(() => _future = widget.fetcher());
+    // [D-011] 修复：先取 future 再同步 setState，避免 setState 回调
+    // 返回 Future 触发 "callback argument returned a Future" 断言。
+    final future = widget.fetcher();
+    setState(() {
+      _future = future;
+    });
   }
 
   @override

@@ -27,8 +27,9 @@ class ServerConfig {
   /// 从 JSON 反序列化
   factory ServerConfig.fromJson(Map<String, dynamic> json) {
     return ServerConfig(
-      serverUrl: json['serverUrl'] as String,
-      username: json['username'] as String,
+      // [D-001] 缺键回落空串，配合既有空串校验，解析层不再抛 TypeError 崩溃。
+      serverUrl: json['serverUrl'] as String? ?? '',
+      username: json['username'] as String? ?? '',
       password: json['password'] as String?,
       apiKey: json['apiKey'] as String?,
       authType: AuthType.values.firstWhere(

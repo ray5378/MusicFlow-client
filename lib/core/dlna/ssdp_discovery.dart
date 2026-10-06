@@ -192,7 +192,18 @@ class SsdpDiscovery {
 
     try {
       // 逐接口拨号（语义与旧实现一致；顺序无关紧要）。
-      await Future.forEach(addrs, dial);
+      // [D-024 已修复] 拨号阶段同样受总超时约束：个别接口 bind/join 卡死时不再
+      // 拖死整次扫描（超时后丢弃剩余拨号，进入等待应答阶段）。
+      await Future.forEach(addrs, dial).timeout(
+        timeout,
+        onTimeout: () {
+          Logger.debugWithTag(
+            'SSDP',
+            'scan dial phase exceeded ${timeout.inMilliseconds}ms, '
+                'drop remaining dials and wait for responses',
+          );
+        },
+      );
       // 等待 timeout 后统一回收（与旧实现语义一致：超时即返回当前发现）。
       await Future<void>.delayed(timeout);
     } finally {

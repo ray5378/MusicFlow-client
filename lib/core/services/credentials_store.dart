@@ -29,7 +29,10 @@ class CredentialsStore {
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.iOS ||
-          defaultTargetPlatform == TargetPlatform.macOS);
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          // [D-014] Linux 桌面端 flutter_secure_storage 走 libsecret 完全可用，
+          // 原白名单漏掉导致 Linux 上「记住密码」静默失效。
+          defaultTargetPlatform == TargetPlatform.linux);
 
   /// 写入一组凭据字段（value 为 null/空串的字段会被删除）。
   /// 全静默失败降级：钥匙串不可用时记录日志，不阻断登录/保存流程。

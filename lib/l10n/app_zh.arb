@@ -209,6 +209,7 @@
   "settings_library_section_desc": "查看当前连接，也可以切换或编辑已经保存的音乐库。",
   "settings_library_single": "当前仅有一个音乐库",
   "settings_library_switch_failed": "切换音乐库失败: {error}",
+  "settings_library_switch_failed_generic": "切换音乐库失败，请稍后重试。",
   "@settings_library_switch_failed": {
     "description": "切换音乐库失败的提示（含错误信息）",
     "placeholders": {
@@ -412,6 +413,8 @@
   "settings_update_assets": "下载文件",
   "settings_update_assets_desc": "选择适合当前设备的安装文件。",
   "settings_update_check_failed": "检查更新失败: {error}",
+  "settings_update_check_failed_generic": "检查更新失败，请稍后重试。",
+  "settings_open_link_failed": "无法打开链接，请稍后重试。",
   "@settings_update_check_failed": {
     "description": "检查更新失败的提示（含错误信息）",
     "placeholders": {

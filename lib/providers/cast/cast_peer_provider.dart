@@ -1418,27 +1418,25 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 先打点再下发:_seekIssuedAtMs = seek **下发**时刻(对齐 HA 卡片,响应后才置
     // 会漏掉「下发与响应之间」的采样),供 sampleStale 判「采样早于 seek」。
     _seekIssuedAtMs = DateTime.now().millisecondsSinceEpoch;
-    try {
-      await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
-      // 因果屏障:seek 响应返回 = 服务端锚点已落位,此后发起的轮询必含 seek 结果。
-      _seekAckAtMs = DateTime.now().millisecondsSinceEpoch;
-      _seekTargetSeconds = position.inSeconds.toDouble();
-    } catch (e) {
-      // seek 失败:服务端未落位,旧位置上报依然有效,清掉判定标记。
+    // [D-060 已修复] _post 对所有异常 catch 后返回 null（不抛），故用返回值区分成败：
+    // null = 命令未送达服务端 → 视为 seek 失败：清因果屏障标记、不做乐观对齐
+    // （旧位置上报依然有效，交周期轮询确认真实进度），并经日志通道上报失败。
+    final res = await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
+    if (res == null) {
       _seekIssuedAtMs = 0;
       _seekAckAtMs = 0;
       _seekTargetSeconds = null;
-      Logger.debugWithTag(
+      Logger.warnWithTag(
         'CAST-PEER',
         '[seek] peer=$peerId target=${position.inSeconds}s send failed '
-            '${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
+            '(post returned null) ${DateTime.now().millisecondsSinceEpoch - t0}ms, '
+            'guard cleared and optimistic alignment skipped',
       );
-      // [D-060] _post 对所有异常 catch 后返回 null（不抛，见本文件末尾 _post 定义），
-      // 故本 catch 连同上面的清标记与下方 rethrow 均为死代码：seek 失败既不清因果
-      // 屏障标记、也不会冒泡，与「设备拒绝 seek」无法区分，调用方随后仍乐观对齐目标
-      // 位置。修完需证明 _post 能区分网络失败并把失败信号传给调用方。
-      rethrow;
+      return;
     }
+    // 因果屏障:seek 响应返回 = 服务端锚点已落位,此后发起的轮询必含 seek 结果。
+    _seekAckAtMs = DateTime.now().millisecondsSinceEpoch;
+    _seekTargetSeconds = position.inSeconds.toDouble();
     // 立即用目标位置对齐平滑进度,减少插值滞后。
     state = state.copyWith(smoothPositionSeconds: position.inSeconds.toDouble());
     Logger.debugWithTag(

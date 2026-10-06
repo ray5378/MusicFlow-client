@@ -35,6 +35,9 @@ class RemoteArtistPage extends ConsumerStatefulWidget {
 class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
   late Future<List<Song>> _songsFuture;
 
+  // [D-048] 修复：加载令牌，重试时自增，用于丢弃过期请求的结果。
+  int _loadingNonce = 0;
+
   @override
   void initState() {
     super.initState();
@@ -42,16 +45,27 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
   }
 
   Future<List<Song>> _loadSongs() async {
+    final nonce = ++_loadingNonce;
     final repo = ref.read(searchRepositoryProvider);
     if (repo == null) return [];
-    return repo.getCollectionSongs(
+    final songs = await repo.getCollectionSongs(
       SearchEntityKind.artist,
       widget.providerId,
       SearchSongLike(name: widget.artist.name),
     );
+    // [D-048] 修复：过期请求（已被更新的重试取代）的结果作废，
+    // UI 只由最新一次请求的 future 驱动，避免旧数据竞态。
+    return nonce == _loadingNonce ? songs : const <Song>[];
   }
 
-  void _reload() => setState(() => _songsFuture = _loadSongs());
+  void _reload() {
+    // [D-048] 修复：先取 future 再同步 setState，避免 setState 闭包
+    // 返回 Future 触发断言（重试按钮点了不刷新）。
+    final future = _loadSongs();
+    setState(() {
+      _songsFuture = future;
+    });
+  }
 
   Future<void> _playAll(List<Song> songs) async {
     if (songs.isEmpty) return;
@@ -75,8 +89,7 @@ class _RemoteArtistPageState extends ConsumerState<RemoteArtistPage> {
               title: loc.library_remote_load_failed,
               description: loc.library_remote_artist_load_failed_desc,
               actionLabel: loc.widgets_retry,
-              onAction: () => _reload(), // [D-048] 重试直接 setState 重建 _songsFuture，未取消上一个仍在飞行的 future（b31b 用例「重试按钮触发 _reload([D-048] 现状固定)」钉此路径）；修完翻该守卫用例。
-
+              onAction: _reload, // [D-048] 已修复：块体化 + loadingNonce 丢弃过期结果。
             );
           }
           final songs = snapshot.data ?? [];

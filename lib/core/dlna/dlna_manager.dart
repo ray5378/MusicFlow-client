@@ -59,6 +59,9 @@ class DlnaManager {
   bool _userPaused = false;
   /// 曲中段连续异常停止的连击计数（≥2 判定为播放失败，触发自动跳过兜底）。
   int _stallCount = 0;
+  /// [D-015] seek 重建失败后的待重投状态：置位时下一轮轮询自动重投一次。
+  bool _pendingSeekRetry = false;
+  int _pendingSeekSeconds = 0;
   /// 投前预检钩子（可选）：按 songId 问服务端「这首歌当前是否真的有可用音源」。
   /// 本地曲秒回 true；web 曲 Range 探测/多源换源。探测请求自身网络失败时实现方
   /// 应返回 true（不误杀，交设备实测兜底）。返回 false → 按播放模式跳下一首。
@@ -179,9 +182,12 @@ class DlnaManager {
   /// 设置投屏播放模式(对齐链路 A cast.playMode):列表循环 all/顺序 order/单曲 one/随机 shuffle。
   void setPlayMode(String mode) {
     if (!const <String>['order', 'one', 'all', 'shuffle'].contains(mode)) {
-      // [D-017 钉住现状] 非法模式(含空串)被静默忽略，_playMode 保持原值，UI 分不清
-      // 是「设置失败」还是「本来就该这个值」。建议补一条 warn 日志；修完记得翻
-      // test/core/dlna/dlna_manager_cov_test.dart 里 D-017 那条守卫断言。
+      // [D-017 已修复] 非法模式(含空串)仍被忽略、_playMode 保持原值，但不再静默：
+      // 补一条 warn 日志，让 UI 传参错误可在诊断日志里定位（batch40 E2）。
+      Logger.warnWithTag(
+        'DLNA',
+        'setPlayMode: invalid mode "$mode" ignored (keep "$_playMode")',
+      );
       return;
     }
     _playMode = mode;
@@ -221,16 +227,28 @@ class DlnaManager {
   // ==================== 设备发现 ====================
 
   /// 扫描 DLNA 设备
-  Future<List<DlnaDevice>> scanDevices() async {
-    // [D-024 钉住现状] 走真局域网 M-SEARCH + 逐个拉 description.xml，无法密闭复现；
-    // 会把真实 renderer 混进 _devices，也容易被慢设备拖死。建议给 SsdpDiscovery.search
-    // 加总超时 + 单台 fetch 超时；修完记得翻 dlna_manager_cov_test.dart 里 D-024 那条
-    // 「只钉住不抛错」的守卫用例（它本来就没做内容断言，改动不该让它红）。
+  ///
+  /// [perDeviceFetchTimeout] 单台设备 description.xml 拉取限时（D-024），
+  /// 测试可注入更短的时限；默认 6s（DeviceDescriptionParser 内部另有 5s 超时）。
+  Future<List<DlnaDevice>> scanDevices({
+    Duration perDeviceFetchTimeout = const Duration(seconds: 6),
+  }) async {
     final locations = await _discovery.search();
 
-    // 解析每个设备的 description.xml
-    for (final location in locations) {
-      await _fetchAndAddDevice(location);
+    // [D-024 已修复] 解析每个设备的 description.xml：改为并发拉取，且每台限时。
+    // 慢设备/失联设备最多拖一个超时周期，不再把整次扫描串行拖成 N×超时；
+    // 超时的这台本次跳过（后续被动 NOTIFY/重扫仍可补上）。
+    if (locations.isNotEmpty) {
+      await Future.wait(locations.map((location) async {
+        try {
+          await _fetchAndAddDevice(location).timeout(perDeviceFetchTimeout);
+        } catch (e) {
+          Logger.debugWithTag(
+            'DLNA',
+            'scan: description fetch skipped ($location): $e',
+          );
+        }
+      }));
     }
 
     // 标记离线设备
@@ -350,6 +368,7 @@ class DlnaManager {
     _provisionedIndex = null;
     _userPaused = false;
     _stallCount = 0;
+    _pendingSeekRetry = false;
 
     try {
       await _playCurrentTrack();
@@ -483,6 +502,7 @@ class DlnaManager {
     // 新一轮主动播放：清除用户暂停态（无失败连击概念：坏源无限跳）。
     _userPaused = false;
     _stallCount = 0;
+    _pendingSeekRetry = false; // 切歌后旧曲的 seek 重投已无意义（D-015）
 
     await SoapControl.stop(device.avTransportUrl!);
     // 尽力而为：单步失败不阻断后续关键动作。尤其曲毕主动续播时，若 Set 一次失败，
@@ -546,18 +566,24 @@ class DlnaManager {
     );
   }
 
-  /// 预置下一首到 SetNextAVTransportURI（按播放模式选择要无缝续播的曲目；
-  /// 设备不支持 SetNext 则回退为手动切歌）。同时记录 _provisionedIndex 供自动续播对齐游标。
-  Future<void> _provisionNextTrack() async {
-    if (!_nextSupported) return;
-    if (_castPath != DlnaCastPath.direct) return; // 仅逐首直传做预置。
-    // 计算按播放模式应预置的下一首下标（one/shuffle 预置本曲以支持自循环/随机缓冲）。
-    final int? nextIndex = switch (_playMode) {
+  /// 计算按播放模式应预置的「下一首」下标（one/shuffle 预置本曲以支持自循环/随机
+  /// 缓冲）；null 表示无可预置。供 [_provisionNextTrack] 与 enqueueSongs 的队尾
+  /// 预置抑制（D-019）共用。
+  int? _nextProvisionIndex() {
+    return switch (_playMode) {
       'shuffle' => _queue.length <= 1 ? null : _randomOtherIndex(),
       'one' => _queueIndex,
       'all' => _queue.length <= 1 ? null : (_queueIndex + 1) % _queue.length,
       _ => _queueIndex + 1 < _queue.length ? _queueIndex + 1 : null,
     };
+  }
+
+  /// 预置下一首到 SetNextAVTransportURI（按播放模式选择要无缝续播的曲目；
+  /// 设备不支持 SetNext 则回退为手动切歌）。同时记录 _provisionedIndex 供自动续播对齐游标。
+  Future<void> _provisionNextTrack() async {
+    if (!_nextSupported) return;
+    if (_castPath != DlnaCastPath.direct) return; // 仅逐首直传做预置。
+    final int? nextIndex = _nextProvisionIndex();
     _provisionedIndex = nextIndex;
     if (nextIndex == null) return;
 
@@ -700,36 +726,23 @@ class DlnaManager {
       '[seek] ${device.displayName} -> ${seconds}s rebuild stream (timeOffset=$seconds, song=${track.songId})',
     );
     try {
-      String url = await _directStreamUrl(track.songId);
-      final sep = url.contains('?') ? '&' : '?';
-      url = '$url${sep}timeOffset=$seconds';
-      final metadata = buildDidlLite(
-        title: track.title,
-        uri: url,
-        mime: track.mimeHint ?? 'audio/mpeg',
-        artist: track.artist,
-        album: track.album,
-      );
-      // rebuild 期间设备短暂非播态:互斥防误判曲末(与切歌同款守卫)。
-      _lastCompletionAdvance = DateTime.now();
-      // [D-015 钉住现状] 重建是「先 Stop、再 Set、再 Play」三段各自 catch：
-      // 中间任何一段失败(设备已被 Stop 掉、新流没建起来)都只打日志，既不回滚也不重投，
-      // 表现是「拖了之后设备静音卡死」，只能等下次切歌才恢复。建议失败时置内部失败态、
-      // 下一轮轮询自动重投一次，或直接回滚不投屏。改这段时注意它和 D-016 那条早退路径
-      // 是互斥的，别把兜底改成可达后又撞上早退。
-      try {
-        await SoapControl.stop(device.avTransportUrl!);
-      } catch (_) {}
-      try {
-        await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
-      } catch (e) {
-        Logger.debugWithTag('DLNA', '[seek] setUri failed: $e');
+      final ok = await _rebuildStreamAt(device, track, seconds);
+      if (!ok) {
+        // [D-015 已修复] 重建失败（Set/Play 任一段报错）：设备已被 Stop 掉、新流又没
+        // 建起来，正是「拖了之后静音卡死」的场景。置待重投标记，下一轮轮询自动重投
+        // 一次；同时立即把失败外显（onStatusChanged 推 ERROR），外部不再毫无信号。
+        Logger.warnWithTag(
+          'DLNA',
+          '[seek] rebuild to ${seconds}s failed, scheduled one auto-retry on next poll',
+        );
+        _pendingSeekRetry = true;
+        _pendingSeekSeconds = seconds;
+        _currentStatus = _currentStatus.copyWith(state: 'ERROR', position: seconds);
+        onStatusChanged?.call(_currentStatus);
+        return;
       }
-      try {
-        await SoapControl.play(device.avTransportUrl!);
-      } catch (e) {
-        Logger.debugWithTag('DLNA', '[seek] play failed: $e');
-      }
+      _pendingSeekRetry = false;
+      _stallCount = 0;
       // 墙钟锚点改到目标秒:同曲重投,不重置时长/游标/队列。
       _reanchorPlaybackClock(seconds.toDouble());
       _currentStatus = _currentStatus.copyWith(state: 'PLAYING', position: seconds);
@@ -739,11 +752,54 @@ class DlnaManager {
             '${DateTime.now().millisecondsSinceEpoch - t0}ms',
       );
     } catch (e) {
-      Logger.debugWithTag(
+      // _directStreamUrl（换 token）失败同样按重建失败处理：外显 + 待重投一次。
+      Logger.warnWithTag(
         'DLNA',
         '[seek] ${seconds}s failed ${DateTime.now().millisecondsSinceEpoch - t0}ms: $e',
       );
+      _pendingSeekRetry = true;
+      _pendingSeekSeconds = seconds;
+      _currentStatus = _currentStatus.copyWith(state: 'ERROR', position: seconds);
+      onStatusChanged?.call(_currentStatus);
     }
+  }
+
+  /// seek 重投流重建核心（D-015）：Stop → SetAVTransportURI(timeOffset) → Play。
+  /// 返回 Set/Play 两段是否全部成功（Stop 失败不阻断：设备可能本就已停）。
+  Future<bool> _rebuildStreamAt(
+    DlnaDevice device,
+    DlnaCastTrack track,
+    int seconds,
+  ) async {
+    String url = await _directStreamUrl(track.songId);
+    final sep = url.contains('?') ? '&' : '?';
+    url = '$url${sep}timeOffset=$seconds';
+    final metadata = buildDidlLite(
+      title: track.title,
+      uri: url,
+      mime: track.mimeHint ?? 'audio/mpeg',
+      artist: track.artist,
+      album: track.album,
+    );
+    // rebuild 期间设备短暂非播态:互斥防误判曲末(与切歌同款守卫)。
+    _lastCompletionAdvance = DateTime.now();
+    try {
+      await SoapControl.stop(device.avTransportUrl!);
+    } catch (_) {}
+    var ok = true;
+    try {
+      await SoapControl.setAvTransportUri(device.avTransportUrl!, url, metadata);
+    } catch (e) {
+      Logger.debugWithTag('DLNA', '[seek] setUri failed: $e');
+      ok = false;
+    }
+    try {
+      await SoapControl.play(device.avTransportUrl!);
+    } catch (e) {
+      Logger.debugWithTag('DLNA', '[seek] play failed: $e');
+      ok = false;
+    }
+    return ok;
   }
 
   /// 设置音量
@@ -784,12 +840,16 @@ class DlnaManager {
   Future<void> enqueueSongs(List<DlnaCastTrack> tracks) async {
     if (tracks.isEmpty || _currentDevice == null) return;
     _queue = [..._queue, ...tracks];
-    // [D-019 钉住现状] 追加会无条件重算并下发 SetNext：若追加的新曲正好是最后一首，
-    // 设备会缓存一支永远播不到的预置。建议「追加到队尾且 _provisionedIndex 指向它」
-    // 时不预置，等真正切歌时再下发。修完记得翻 dlna_manager_cov_test.dart 里
-    // enqueueSongs 相关用例（当前只断言「不重投当前曲 / 游标不动」，不会挡住这条）。
-    // 追加当前位置后的新曲:若当前已预置的是某首后续曲,顺延重算下一首,
-    // 保证「自动续播」能覆盖到末尾追加的曲目。
+    // [D-019 已修复] 追加后若按播放模式算出的「下一首」正指向**本次追加到队尾的
+    // 新曲**，则不预置 SetNext（避免设备缓存一支可能永远播不到的预置），
+    // 等真正切歌时再由客户端主动下发；其余场景（下一首指向既有曲目）照旧重算。
+    final appendedTailStart = _queue.length - tracks.length;
+    final nextIndex = _nextProvisionIndex();
+    if (nextIndex != null && nextIndex >= appendedTailStart) {
+      _provisionedIndex = null;
+      onTrackChanged?.call(_queueIndex);
+      return;
+    }
     await _provisionNextTrack();
     onTrackChanged?.call(_queueIndex);
   }
@@ -872,6 +932,43 @@ class DlnaManager {
     _polling = true;
 
     try {
+      // [D-015 已修复] 上一轮 seek 重建失败：自动重投一次（成功则恢复 PLAYING 外显，
+      // 再失败则不再自动重试，保持 ERROR 外显等用户/切歌介入）。本帧直接返回，
+      // 不做续播判定，避免与新流的瞬态状态打架。
+      if (_pendingSeekRetry) {
+        _pendingSeekRetry = false;
+        final retryTrack = (_queueIndex >= 0 && _queueIndex < _queue.length)
+            ? _queue[_queueIndex]
+            : null;
+        if (retryTrack != null) {
+          Logger.infoWithTag(
+            'DLNA',
+            '[seek] auto-retry rebuild -> ${_pendingSeekSeconds}s (song=${retryTrack.songId})',
+          );
+          final ok = await _rebuildStreamAt(
+            _currentDevice!,
+            retryTrack,
+            _pendingSeekSeconds,
+          );
+          if (ok) {
+            _stallCount = 0;
+            _reanchorPlaybackClock(_pendingSeekSeconds.toDouble());
+            _currentStatus = _currentStatus.copyWith(
+              state: 'PLAYING',
+              position: _pendingSeekSeconds,
+            );
+          } else {
+            _currentStatus = _currentStatus.copyWith(state: 'ERROR');
+            Logger.warnWithTag(
+              'DLNA',
+              '[seek] auto-retry rebuild failed again, give up auto-retry',
+            );
+          }
+          onStatusChanged?.call(_currentStatus);
+        }
+        return;
+      }
+
       // 上一帧位置/状态（用于自动续播检测）
       final prevState = _currentStatus.state;
       final prevPosition = _currentStatus.position;
@@ -1068,19 +1165,19 @@ class DlnaManager {
               'stuck=$positionStuck');
           await _advanceAfterCompletion();
         } else if (!_userPaused &&
-            prevState == 'PLAYING' &&
+            (prevState == 'PLAYING' || _stallCount > 0) &&
             prevPosition > 0 &&
             prevDuration > 0 &&
             prevDuration - prevPosition > 5 &&
             state != 'PLAYING' &&
             state != 'PAUSED') {
           // 曲中段设备异常停止（拉流失败/音源中断）→ 自动跳过兜底。
-          // [D-023 钉住现状] 这条兜底**当前不可达**：prevState 取的是上一帧刚写回的
-          // _currentStatus.state，而那个 ERROR 帧自己就把 state 改成了 ERROR，
-          // 下一帧的 prevState 便不再是 PLAYING —— _stallCount 最多加 1 就被 PLAYING
-          // 帧清零，永远凑不满 2。建议改拿已在维护的 _lastKnownTransportState 比较，
-          // 或把「连击」改成 4s 窗口内的两次非播态。修完记得翻
-          // dlna_manager_cov_test.dart 里 [D-023] 那条守卫用例(它断言「游标不动」)。
+          // [D-023 已修复] 原条件要求「上一帧 prevState==PLAYING」，但 ERROR 帧会把
+          // _currentStatus.state 改写成 ERROR，下一帧 prevState 便不再是 PLAYING，
+          // 连击最多到 1 就断 —— 兜底实际不可达。现改为「连击段延续」语义：第一帧
+          // 非播态仍要求 prevState==PLAYING（确系从播放中停下），随后只要没有
+          // PLAYING/PAUSED 帧插入（PLAYING 帧在上游清零、PAUSED 被排除），连击
+          // 持续累计；设备恒报 ERROR/STOPPED 的曲中段也能凑满 2 触发跳过。
           _stallCount++;
           if (_stallCount >= 2) {
             _stallCount = 0;

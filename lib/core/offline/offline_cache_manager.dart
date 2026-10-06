@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -280,9 +281,8 @@ class OfflineCacheManager {
     await _atomicPromote(tmp, file);
   }
 
-  // [D-061] 上方注释称「rename 失败时退化为直接覆盖写，保证可用性」，但 copy 亦
-  // 失败时异常会向上抛给调用方（b38b3 实测），并非「保证可用性」。建议 copy 失败
-  // 时降级为 warn + 返回失败态。守卫用例：
+  // [D-061] copy 亦失败时降级为 warn 日志、不外抛（b38b3 实测原本会把异常
+  // 抛给调用方，与「保证可用性」语义相悖）。守卫用例：
   // test/core/offline/b38b3_offline_cache_atomicpromote_test.dart。
   Future<void> _atomicPromote(File tmp, File target) async {
     try {
@@ -290,6 +290,11 @@ class OfflineCacheManager {
     } catch (_) {
       try {
         await tmp.copy(target.path);
+      } catch (e) {
+        // [D-061] copy 亦失败：缓存写入尽力而为，保住旧缓存与可用性，
+        // 降级记日志，不把异常抛给调用方。
+        Logger.warnWithTag('OFFLINE_CACHE',
+            'atomic promote failed: ${tmp.path} -> ${target.path}', e);
       } finally {
         try {
           if (await tmp.exists()) await tmp.delete();

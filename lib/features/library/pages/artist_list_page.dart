@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/artist.dart';
 import 'package:musicflow_client/data/models/search.dart';
 import 'package:musicflow_client/data/models/song.dart';
@@ -50,16 +51,16 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
 
   /// 播放本地歌手歌曲：拉取歌手详情歌曲后统一入口播放。
   Future<void> _playLocalArtist(WidgetRef ref, Artist artist) async {
-    // [D-054] 无 try/catch 的 unawaited 详情拉取：本方法（及 album_list_page.dart:57
-    // _playLocalAlbum、playlist_search_page.dart:52 _playLocalPlaylist 同型）被
-    // `onPlay: () => unawaited(...)` 调用，详情 provider future 失败时成为
-    // unhandled async error（测试与生产日志均会冒出，用户侧无反馈）。
-    // 守卫用例：test/features/library/pages/b34c_artist_list_page_test.dart
-    // 「仓库失败不崩」族（修完应断言失败被吞/有提示）。
-    final detail = await ref.read(artistDetailProvider(artist.id).future);
-    final songs = detail?.songs ?? const <Song>[];
-    if (songs.isEmpty || !mounted) return;
-    await playEffectiveQueue(ref, songs);
+    // [D-054] 修复：详情拉取失败不再成为 unhandled async error，
+    // 异常原文进 Logger（页面无既有 toast 机制，暂不做 UI 反馈）。
+    try {
+      final detail = await ref.read(artistDetailProvider(artist.id).future);
+      final songs = detail?.songs ?? const <Song>[];
+      if (songs.isEmpty || !mounted) return;
+      await playEffectiveQueue(ref, songs);
+    } catch (e, st) {
+      Logger.error('play local artist failed (id=${artist.id})', e, st);
+    }
   }
 
   @override

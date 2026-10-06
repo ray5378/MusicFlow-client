@@ -91,13 +91,12 @@ Future<void> ensureDlnaManagerReady(Ref ref) async {
         // transient(网络抖动)/unknown(未探过) 不误杀,交设备实测兜底。
         final verdict = hit['verdict'] as String?;
         if (verdict != null) return verdict != 'unplayable';
-        // [D-026] 缺陷钉子(批处理补测 2026-10-04)：命中行本身已由上面的 firstWhere
-        // 按 songId 过滤（这一点没缺陷）。真正的行为是：命中行既没有 verdict、也没有
-        // 旧版 ok 字段时，回落 `hit['ok'] == true` 得到 false，被判成「无源」——
-        // 方向是误杀（本可播的曲被投前预检拦掉）。补测已用一正一反两例钉住：
-        // 命中行无字段 -> false，结果集里根本没有这首 -> true（放行）。
-        // 将来若给「缺字段」加兜底（返回 true/不清判），这两例会红。
-        return hit['ok'] == true; // 旧服务端兼容
+        // [D-026 已修复] 旧服务端兼容：只有命中行**明确带回** ok 字段时才参考它；
+        // 既无 verdict 也无 ok（unknown/字段缺失）时与「结果集没这首」同方向放行，
+        // 不再把缺字段误判成「无源」拦掉本可播的曲。ok=false 仍判无源。
+        final ok = hit['ok'];
+        if (ok is bool) return ok;
+        return true;
       } on DlnaSongUnplayableException {
         return false;
       } catch (_) {
@@ -753,15 +752,26 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   }
 
   /// 暂停
-  // [D-029] 缺陷钉子(批处理补测 2026-10-04)：pause/resume/toggle 只往设备发命令，
-  // 不乐观回写本地 state.status —— 本地状态要等设备轮询回调(2s 一帧)才更新。
-  // 后果：刚点暂停立刻再点播放/暂停，会读到陈旧 status 重复下发同一条命令。补测用例已钉住该行为。
+  // [D-029 已修复] pause/resume 先乐观回写本地 state.status，再下发设备命令：
+  // 设备轮询回调（2s 一帧）到来前，连点 toggle 读到的已是最新意图，
+  // 不再把陈旧 PLAYING 读成「还没暂停」而重复下发 pause。
+  // 命令失败时由下一帧轮询回调纠正本地状态（最多滞后一个轮询周期）。
   Future<void> pause() async {
+    if (state.status.state != 'PAUSED') {
+      state = state.copyWith(
+        status: state.status.copyWith(state: 'PAUSED'),
+      );
+    }
     await _ref.read(dlnaManagerProvider).pause();
   }
 
   /// 恢复
   Future<void> resume() async {
+    if (state.status.state != 'PLAYING') {
+      state = state.copyWith(
+        status: state.status.copyWith(state: 'PLAYING'),
+      );
+    }
     await _ref.read(dlnaManagerProvider).resume();
   }
 

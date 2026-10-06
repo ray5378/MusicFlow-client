@@ -67,7 +67,8 @@ enum OfflineCacheSize {
 
   /// 从字节数取最近的匹配档位（用于显示当前配置）。
   static OfflineCacheSize fromBytesFloor(int bytes) {
-    if (bytes <= 0) return OfflineCacheSize.g2;
+    // [D-002] floor 语义：非正数字节回落最小档 g1（原为默认档 g2，与命名相悖）。
+    if (bytes <= 0) return OfflineCacheSize.g1;
     var best = OfflineCacheSize.g2;
     for (final option in OfflineCacheSize.values) {
       if (option.maxBytes <= bytes) best = option;

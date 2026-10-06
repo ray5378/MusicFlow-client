@@ -209,6 +209,7 @@
   "settings_library_section_desc": "View the current connection, or switch and edit saved libraries.",
   "settings_library_single": "Only one library is available",
   "settings_library_switch_failed": "Failed to switch library: {error}",
+  "settings_library_switch_failed_generic": "Failed to switch library. Please try again later.",
   "@settings_library_switch_failed": {
     "description": "Message when switching music libraries fails (with the error)",
     "placeholders": {
@@ -412,6 +413,8 @@
   "settings_update_assets": "Download files",
   "settings_update_assets_desc": "Choose the installer that fits this device.",
   "settings_update_check_failed": "Failed to check for updates: {error}",
+  "settings_update_check_failed_generic": "Update check failed. Please try again later.",
+  "settings_open_link_failed": "Couldn't open the link. Please try again later.",
   "@settings_update_check_failed": {
     "description": "Message when checking for updates fails (with the error)",
     "placeholders": {

@@ -407,6 +407,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get settings_library_switch_failed_generic => '切换音乐库失败，请稍后重试。';
+
+  @override
   String get settings_library_switch_subtitle => '选择后会刷新当前音乐库的内容与播放状态。';
 
   @override
@@ -701,6 +704,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String settings_update_check_failed(String error) {
     return '检查更新失败: $error';
   }
+
+  @override
+  String get settings_update_check_failed_generic => '检查更新失败，请稍后重试。';
+
+  @override
+  String get settings_open_link_failed => '无法打开链接，请稍后重试。';
 
   @override
   String get settings_update_found => '发现新版本';
