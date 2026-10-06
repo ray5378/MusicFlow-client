@@ -42,6 +42,7 @@ class AppSettingsPage extends ConsumerStatefulWidget {
 class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   bool _isCheckingUpdate = false;
   bool _autoPlayOnLaunch = false;
+  bool _defaultControlCurrentClient = false;
   bool _loggingEnabled = false;
 
   @override
@@ -49,6 +50,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     super.initState();
     LocalStorage.getAutoPlayOnLaunch().then((value) {
       if (mounted) setState(() => _autoPlayOnLaunch = value);
+    });
+    // 「默认控制当前客户端」开关（默认 false = 启动自动接管在播播放器）。
+    LocalStorage.getDefaultControlCurrentClient().then((value) {
+      if (mounted) setState(() => _defaultControlCurrentClient = value);
     });
     // 同步日志开关（默认关闭，需手动开启）到 Logger 全局状态。
     LocalStorage.getLoggingEnabled().then((value) {
@@ -330,6 +335,23 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                         ? null
                         : () => context.push('/library/edit/${library.id}'),
                   ),
+                  // 「添加新音乐库」：复用既有登录页路由 —— `/login?add=true`
+                  // 会让路由 redirect 放行（否则已认证用户会被弹回 /home），
+                  // 连接成功后 AuthRepository 走 addLibrary 落库
+                  // （见 auth_provider.dart 的 authenticated 分支）。
+                  // 抽屉里的同款入口见 app_drawer.dart，语义与文案完全一致；
+                  // 此处只是把入口也暴露到设置页，避免用户必须回抽屉才能加库。
+                  MusicFlowSettingRow(
+                    icon: AppIcons.add,
+                    title: loc.widgets_drawer_add_new_library,
+                    description: loc.widgets_drawer_add_new_library_subtitle,
+                    trailing: Icon(
+                      AppIcons.chevronRight,
+                      size: 20,
+                      color: context.musicFlowColors.muted,
+                    ),
+                    onPressed: () => context.push('/login?add=true'),
+                  ),
                 ],
               ),
               SizedBox(height: context.musicFlowSpacing.xl),
@@ -398,6 +420,23 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     onChanged: (value) async {
                       setState(() => _autoPlayOnLaunch = value);
                       await LocalStorage.setAutoPlayOnLaunch(value);
+                    },
+                  ),
+                  // 「默认控制当前客户端」开关 —— 功能注释：
+                  //  * 打开 = 启动后始终控制**当前客户端**；
+                  //  * 关闭（默认）= 启动后自动接管**正在播放中**的播放器。
+                  // 生效点只有一处：CastPeerController._maybeAutoSelectPlayingTarget
+                  // 在首次拉到播放端列表时先查本开关（开启则直接保持本机）。
+                  // 仅影响**启动时**的控制目标选择；运行中手动切换目标不受影响。
+                  MusicFlowToggleSettingRow(
+                    icon: AppIcons.speaker,
+                    title: loc.settings_default_control_current_client,
+                    description:
+                        loc.settings_default_control_current_client_desc,
+                    value: _defaultControlCurrentClient,
+                    onChanged: (value) async {
+                      setState(() => _defaultControlCurrentClient = value);
+                      await LocalStorage.setDefaultControlCurrentClient(value);
                     },
                   ),
                   if (isWindowsDesktop)

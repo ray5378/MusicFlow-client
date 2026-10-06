@@ -21,7 +21,7 @@ import 'package:musicflow_client/providers/ui/locale_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/widgets/main_scaffold.dart';
 import 'package:musicflow_client/widgets/windows_title_bar.dart'
-    show WindowsWindowChrome, isWindowsDesktop;
+    show WindowsOuterBorder, WindowsWindowChrome, isWindowsDesktop;
 import 'package:musicflow_client/features/discover/pages/discover_page.dart';
 import 'package:musicflow_client/features/library/pages/edit_library_page.dart';
 
@@ -148,7 +148,8 @@ class App extends ConsumerWidget {
             child: isWindowsDesktop
                 ? Stack(
                     children: <Widget>[
-                      content,
+                      // 窗口四周细黑边：Windows 无系统标题栏，需要明确窗口边界。
+                      WindowsOuterBorder(child: content),
                       const WindowsWindowChrome(),
                     ],
                   )

@@ -3260,4 +3260,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String provider_preprobe_skipped_many(int count) {
     return 'Skipped $count tracks with no playable source';
   }
+
+  @override
+  String get settings_default_control_current_client =>
+      'Default to controlling this client';
+
+  @override
+  String get settings_default_control_current_client_desc =>
+      'When on, always control this client at launch. When off, automatically take over whichever player is currently playing.';
 }

@@ -21,6 +21,8 @@ class LocalStorage {
   static const String _keyAudioQualitySettings = 'audio_quality_settings';
   static const String _keyPlaybackMode = 'playback_mode';
   static const String _keyAutoPlayOnLaunch = 'auto_play_on_launch';
+  static const String _keyDefaultControlCurrentClient =
+      'default_control_current_client';
   static const String _keyPlaybackSession = 'playback_session_v1';
   static const String _keyThemeMode = 'theme_mode';
   static const String _keyThemeSeedColor = 'theme_seed_color';
@@ -395,6 +397,31 @@ class LocalStorage {
     final prefs = await getPrefs();
     await prefs.setBool(_keyAutoPlayOnLaunch, value);
     Logger.infoWithTag(_logTag, 'autoPlayOnLaunch updated: $value');
+  }
+
+  /// 读取「默认控制当前客户端」开关（默认 **false**）。
+  ///
+  /// 语义（用户定稿）：
+  /// * false（默认）＝ 启动时若发现其它端「正在播放中」，自动把控制目标切
+  ///   过去（历史行为：默认控制正在播放中的播放器）；
+  /// * true ＝ 启动后始终控制**本客户端**，不自动切走。
+  ///
+  /// 消费方：CastPeerController._maybeAutoSelectPlayingTarget（启动自动选中）。
+  static Future<bool> getDefaultControlCurrentClient() async {
+    final prefs = await getPrefs();
+    final value = prefs.getBool(_keyDefaultControlCurrentClient) ?? false;
+    Logger.debugWithTag(_logTag, 'defaultControlCurrentClient=$value');
+    return value;
+  }
+
+  /// 保存「默认控制当前客户端」开关。
+  static Future<void> setDefaultControlCurrentClient(bool value) async {
+    final prefs = await getPrefs();
+    await prefs.setBool(_keyDefaultControlCurrentClient, value);
+    Logger.infoWithTag(
+      _logTag,
+      'defaultControlCurrentClient updated: $value',
+    );
   }
 
   /// 保存播放会话（队列 + 索引 + 进度 + 播放状态）。

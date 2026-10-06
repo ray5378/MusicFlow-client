@@ -13,6 +13,7 @@ import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dar
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/features/player/peer_display_order.dart'
     show peerKindRank;
+import 'package:musicflow_client/data/sources/local_storage.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
@@ -603,7 +604,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           .toList();
       // 成功路径才起周期刷新/做启动自动选中(失败路径的 [] 不算数)。
       _ensurePeersTimer();
-      _maybeAutoSelectPlayingTarget(list);
+      unawaited(_maybeAutoSelectPlayingTarget(list));
       return list;
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'loadPeers failed: $e');
@@ -633,8 +634,19 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 「正在播放中」以各端实时 /status(state==PLAYING)为准 —— PeerInfo.queueActive
   /// 只是「队列激活」,暂停时也为 true,区分不了在播/暂停。
   /// 首次拿到非空列表即置位,之后不再自动切。
-  void _maybeAutoSelectPlayingTarget(List<PeerInfo> peers) {
+  Future<void> _maybeAutoSelectPlayingTarget(List<PeerInfo> peers) async {
     if (_autoTargetDone) return;
+    // 「默认控制当前客户端」（设置项，默认关闭）：开启时**不做**启动自动切目标，
+    // 保持控制本机；关闭时沿用历史行为（自动接管正在播放中的播放器）。
+    // 读取失败按 false 处理 —— 设置读取异常不应改变用户的既有默认语义。
+    if (await LocalStorage.getDefaultControlCurrentClient()) {
+      _autoTargetDone = true; // 只影响启动这一次，之后不再评估
+      Logger.debugWithTag(
+        'CAST-PEER',
+        'auto-select: default-control-current-client on, keep local',
+      );
+      return;
+    }
     final visible = peers.where((p) => p.available || p.self).toList();
     if (visible.isEmpty) return; // 服务端还没报上来任何端,等下一轮再评估
     _autoTargetDone = true;

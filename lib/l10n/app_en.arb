@@ -3379,5 +3379,13 @@
         "type": "int"
       }
     }
+  },
+  "settings_default_control_current_client": "Default to controlling this client",
+  "@settings_default_control_current_client": {
+    "description": "settings_default_control_current_client"
+  },
+  "settings_default_control_current_client_desc": "When on, always control this client at launch. When off, automatically take over whichever player is currently playing.",
+  "@settings_default_control_current_client_desc": {
+    "description": "settings_default_control_current_client_desc"
   }
 }

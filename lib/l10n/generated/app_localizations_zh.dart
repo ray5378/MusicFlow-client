@@ -3098,4 +3098,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String provider_preprobe_skipped_many(int count) {
     return '已跳过 $count 首无可用音源的歌曲';
   }
+
+  @override
+  String get settings_default_control_current_client => '默认控制当前客户端';
+
+  @override
+  String get settings_default_control_current_client_desc =>
+      '开启后启动时始终控制本客户端；关闭则启动时自动接管正在播放中的播放器。';
 }

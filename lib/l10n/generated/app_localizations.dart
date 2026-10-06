@@ -5601,6 +5601,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已跳过 {count} 首无可用音源的歌曲'**
   String provider_preprobe_skipped_many(int count);
+
+  /// settings_default_control_current_client
+  ///
+  /// In zh, this message translates to:
+  /// **'默认控制当前客户端'**
+  String get settings_default_control_current_client;
+
+  /// settings_default_control_current_client_desc
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后启动时始终控制本客户端；关闭则启动时自动接管正在播放中的播放器。'**
+  String get settings_default_control_current_client_desc;
 }
 
 class _AppLocalizationsDelegate

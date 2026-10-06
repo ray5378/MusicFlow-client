@@ -146,6 +146,38 @@ Future<void> setDesktopLyricVisible(bool visible) async {  if (!isWindowsDesktop
   }
 }
 
+/// Windows 窗口内容最外圈的细黑边（1 逻辑像素）。
+///
+/// 为什么需要：Windows 上本应用**没有系统标题栏**（标题栏与窗口按钮由
+/// [WindowsWindowChrome] 自绘），窗口内容与桌面/相邻窗口贴合时边界不清晰，
+/// 用户反馈「看不出窗口到哪里结束」。这里统一描一圈 1px 纯黑，给窗口一个
+/// 明确、克制（「一点细黑边」）的轮廓。
+///
+/// 实现要点：
+/// * 用 [DecoratedBox] 只描边、不填充、不裁剪 —— 不影响任何命中测试
+///   （拖动顶部标题条、点窗口按钮、滚动正文全部照旧）；
+/// * 恒定纯黑（不随亮/暗主题变化）：这是「窗口外框」语义，与主题无关；
+/// * 只包**内容层**，不含 [WindowsWindowChrome] 覆盖层 —— 覆盖层自身透明，
+///   边框在其下方仍然完整可见。
+class WindowsOuterBorder extends StatelessWidget {
+  const WindowsOuterBorder({super.key, required this.child});
+
+  /// 边框宽度（逻辑像素）。刻意取 1：只提供轮廓，不喧宾夺主。
+  static const double borderWidth = 1;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black, width: borderWidth),
+      ),
+      child: child,
+    );
+  }
+}
+
 /// Windows 客户端无标题栏的顶部窗口控制覆盖层。
 ///
 /// 去掉系统/自绘标题栏后，由本组件在窗口最顶上提供一个透明的拖拽区
