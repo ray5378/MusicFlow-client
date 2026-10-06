@@ -50,6 +50,12 @@ class _ArtistListPageState extends ConsumerState<ArtistListPage> {
 
   /// 播放本地歌手歌曲：拉取歌手详情歌曲后统一入口播放。
   Future<void> _playLocalArtist(WidgetRef ref, Artist artist) async {
+    // [D-054] 无 try/catch 的 unawaited 详情拉取：本方法（及 album_list_page.dart:57
+    // _playLocalAlbum、playlist_search_page.dart:52 _playLocalPlaylist 同型）被
+    // `onPlay: () => unawaited(...)` 调用，详情 provider future 失败时成为
+    // unhandled async error（测试与生产日志均会冒出，用户侧无反馈）。
+    // 守卫用例：test/features/library/pages/b34c_artist_list_page_test.dart
+    // 「仓库失败不崩」族（修完应断言失败被吞/有提示）。
     final detail = await ref.read(artistDetailProvider(artist.id).future);
     final songs = detail?.songs ?? const <Song>[];
     if (songs.isEmpty || !mounted) return;

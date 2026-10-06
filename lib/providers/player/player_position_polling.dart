@@ -96,6 +96,13 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 起点阶段(atStart)一律清零：0 秒卡死由 _startupStuckTicks 重载路径
       // 负责；若这里也累计,Windows 上加载/buffering 阶段(playing 仍 true)会
       // 提前攒到阈值,用「跳下一首」取代更温和的「重载自愈」+死歌判定。
+      // [D-053] 合成进度兜底（synthetic position fallback）为永久死代码家族：
+      // shouldUseSyntheticPosition（约 L235-239）要求 sourcePlayerPos<=50ms 且
+      // _stagnantPositionTicks>=6，但本分支在 atStart（pos<=1500ms，50ms 必然满足）
+      // 时每 tick 清零计数，两条件逻辑上不可能同时成立；且激活写入点全库仅
+      // L317 一处、无外部置位路径 → 真实卡死场景下时钟外推永不启用。
+      // 守卫用例：test/providers/player/b34a_pospoll_settle_test.dart
+      // 「0 秒卡死重载自愈后不再重复重载」（修完需证明 _syntheticPositionFallbackActive 可被置位）。
       if (atStart) {
         _stagnantPositionTicks = 0;
       } else if (!stallSignal || deltaFromLast > 150) {
