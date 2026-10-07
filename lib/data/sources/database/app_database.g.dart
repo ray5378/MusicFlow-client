@@ -2035,6 +2035,281 @@ class CoverProviderConfigsCompanion
   }
 }
 
+class $RecommendCachesTable extends RecommendCaches
+    with TableInfo<$RecommendCachesTable, RecommendCacheTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecommendCachesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    scope,
+    payload,
+    cachedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'recommend_caches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecommendCacheTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('scope')) {
+      context.handle(_scopeMeta, scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta));
+    } else if (isInserting) {
+      context.missing(_scopeMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {scope};
+  @override
+  RecommendCacheTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecommendCacheTableData(
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RecommendCachesTable createAlias(String alias) {
+    return $RecommendCachesTable(attachedDatabase, alias);
+  }
+}
+
+class RecommendCacheTableData extends DataClass
+    implements Insertable<RecommendCacheTableData> {
+  final String scope;
+  final String payload;
+  final int cachedAt;
+  const RecommendCacheTableData({
+    required this.scope,
+    required this.payload,
+    required this.cachedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['scope'] = Variable<String>(scope);
+    map['payload'] = Variable<String>(payload);
+    map['cached_at'] = Variable<int>(cachedAt);
+    return map;
+  }
+
+  RecommendCachesCompanion toCompanion(bool nullToAbsent) {
+    return RecommendCachesCompanion(
+      scope: Value(scope),
+      payload: Value(payload),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory RecommendCacheTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecommendCacheTableData(
+      scope: serializer.fromJson<String>(json['scope']),
+      payload: serializer.fromJson<String>(json['payload']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'scope': serializer.toJson<String>(scope),
+      'payload': serializer.toJson<String>(payload),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+    };
+  }
+
+  RecommendCacheTableData copyWith({
+    String? scope,
+    String? payload,
+    int? cachedAt,
+  }) => RecommendCacheTableData(
+    scope: scope ?? this.scope,
+    payload: payload ?? this.payload,
+    cachedAt: cachedAt ?? this.cachedAt,
+  );
+  RecommendCacheTableData copyWithCompanion(
+    RecommendCachesCompanion data,
+  ) {
+    return RecommendCacheTableData(
+      scope: data.scope.present ? data.scope.value : this.scope,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecommendCacheTableData(')
+          ..write('scope: $scope, ')
+          ..write('payload: $payload, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(scope, payload, cachedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecommendCacheTableData &&
+          other.scope == this.scope &&
+          other.payload == this.payload &&
+          other.cachedAt == this.cachedAt);
+}
+
+class RecommendCachesCompanion
+    extends UpdateCompanion<RecommendCacheTableData> {
+  final Value<String> scope;
+  final Value<String> payload;
+  final Value<int> cachedAt;
+  final Value<int> rowid;
+  const RecommendCachesCompanion({
+    this.scope = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RecommendCachesCompanion.insert({
+    required String scope,
+    required String payload,
+    required int cachedAt,
+    this.rowid = const Value.absent(),
+  }) : scope = Value(scope),
+       payload = Value(payload),
+       cachedAt = Value(cachedAt);
+  static Insertable<RecommendCacheTableData> custom({
+    Expression<String>? scope,
+    Expression<String>? payload,
+    Expression<int>? cachedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (scope != null) 'scope': scope,
+      if (payload != null) 'payload': payload,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RecommendCachesCompanion copyWith({
+    Value<String>? scope,
+    Value<String>? payload,
+    Value<int>? cachedAt,
+    Value<int>? rowid,
+  }) {
+    return RecommendCachesCompanion(
+      scope: scope ?? this.scope,
+      payload: payload ?? this.payload,
+      cachedAt: cachedAt ?? this.cachedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecommendCachesCompanion(')
+          ..write('scope: $scope, ')
+          ..write('payload: $payload, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2046,6 +2321,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $LyricsProviderConfigsTable(this);
   late final $CoverProviderConfigsTable coverProviderConfigs =
       $CoverProviderConfigsTable(this);
+  late final $RecommendCachesTable recommendCaches = $RecommendCachesTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2055,6 +2333,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     serverAddresses,
     lyricsProviderConfigs,
     coverProviderConfigs,
+    recommendCaches,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([

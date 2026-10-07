@@ -5,6 +5,7 @@ import 'package:musicflow_client/data/sources/database/tables/music_libraries_ta
 import 'package:musicflow_client/data/sources/database/tables/server_addresses_table.dart';
 import 'package:musicflow_client/data/sources/database/tables/lyrics_provider_configs_table.dart';
 import 'package:musicflow_client/data/sources/database/tables/cover_provider_configs_table.dart';
+import 'package:musicflow_client/data/sources/database/tables/recommend_cache_table.dart';
 
 part 'app_database.g.dart';
 
@@ -14,13 +15,14 @@ part 'app_database.g.dart';
     ServerAddresses,
     LyricsProviderConfigs,
     CoverProviderConfigs,
+    RecommendCaches,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -37,6 +39,11 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         // 下载功能已整体移除：清理历史遗留的 download_tasks 表及其列。
         await customStatement('DROP TABLE IF EXISTS download_tasks');
+      }
+      if (from < 6) {
+        // v6：新增推荐类首页数据缓存表（home cards / recommend /
+        // local-recommend 的 KV-JSON 缓存）。
+        await m.createTable(recommendCaches);
       }
     },
   );

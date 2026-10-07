@@ -51,9 +51,13 @@ Future<List<Playlist>?> _recentPlaylistsFromCache(
   String? libraryId,
 ) async {
   if (libraryId == null || libraryId.isEmpty) return null;
-  final cached = await cache.getPlaylists(libraryId);
-  if (cached == null || cached.isEmpty) return null;
-  return _sortRecentPlaylists(cached);
+  // 先读 recent 专用 scope(服务端分页 size=50 的缓存)。
+  final cached = await cache.getRecentPlaylists(libraryId);
+  if (cached != null && cached.isNotEmpty) return _sortRecentPlaylists(cached);
+  // 老版本只写过全量 'playlists' 缓存:回退读全量,按同一口径排序取最近。
+  final full = await cache.getPlaylists(libraryId);
+  if (full == null || full.isEmpty) return null;
+  return _sortRecentPlaylists(full);
 }
 
 /// 最近更新的歌单(按 changed 倒序取前 20)
@@ -108,8 +112,10 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final all = await fetchWithCacheFallback<List<Playlist>>(
     ref: ref,
     label: 'recentPlaylists',
+    // 服务端分页:size=50(按 updatedAt 倒序取前 50),替代此前全量拉取
+    // (数百歌单时 317KB/次)。客户端仍按 changed 倒序再取前 20 渲染。
     fetch: () async {
-      final list = await repository.getPlaylists();
+      final list = await repository.getPlaylists(size: 50);
       list.sort((a, b) {
         final ta = a.changed?.millisecondsSinceEpoch ?? 0;
         final tb = b.changed?.millisecondsSinceEpoch ?? 0;
@@ -117,8 +123,9 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
       });
       return list;
     },
-    // 写全量缓存,冷启动未就绪时可用同一缓存兜底排序取最近歌单。
-    cacheWrite: (list) => cache.cachePlaylists(resolvedLibraryId, list),
+    // 只缓存这 50 条(recent 专用 scope):兜底语义仍成立 —— 冷启动未就绪时
+    // 读该缓存排序取前 20 秒出;且不再覆盖 playlistsProvider 的全量缓存。
+    cacheWrite: (list) => cache.cacheRecentPlaylists(resolvedLibraryId, list),
     cacheRead: () => _recentPlaylistsFromCache(cache, resolvedLibraryId),
     failedProvider: recentPlaylistsLoadFailedProvider,
     errorMessage: l10nNowCurrent().provider_network_error_playlist,

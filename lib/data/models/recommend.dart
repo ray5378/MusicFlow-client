@@ -29,6 +29,16 @@ class HomeCard {
       coverArt: json['coverArt'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'playlistId': playlistId,
+        'name': name,
+        'playlistName': playlistName,
+        'position': position,
+        'isCombo': isCombo,
+        'songCount': songCount,
+        if (coverArt != null) 'coverArt': coverArt,
+      };
 }
 
 /// 平台推荐歌单(来自 recommend 能力插件,如网易云/QQ 等)
@@ -65,6 +75,17 @@ class RecommendPlaylist {
       imported: json['imported'] as bool? ?? false,
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'source': source,
+        'name': name,
+        'creator': creator,
+        if (cover != null) 'cover': cover,
+        'trackCount': trackCount,
+        'link': link,
+        'imported': imported,
+      };
 }
 
 /// /rest/api/v1/recommend 整体返回(含 providerId 与频道列表)
@@ -73,6 +94,11 @@ class RecommendResult {
   final List<RecommendChannel> channels;
 
   RecommendResult({required this.providerId, required this.channels});
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'providerId': providerId,
+        'channels': channels.map((e) => e.toJson()).toList(),
+      };
 }
 
 /// 本地随机歌单条目:已入库的本地歌单,直接以本地 id 打开/播放(无需导入)。
@@ -97,6 +123,13 @@ class LocalRecommendPlaylist {
       songCount: (json['songCount'] as num?)?.toInt() ?? 0,
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'name': name,
+        if (coverArt != null) 'coverArt': coverArt,
+        'songCount': songCount,
+      };
 }
 
 /// 本地随机频道(一个平台一个),按平台分组展示。
@@ -132,6 +165,15 @@ class LocalRecommendChannel {
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'source': source,
+        'name': name,
+        'count': count,
+        if (subtag != null) 'subtag': subtag,
+        if (tagline != null) 'tagline': tagline,
+        'playlists': playlists.map((e) => e.toJson()).toList(),
+      };
 }
 
 /// 首页分区清单条目(来自 /rest/api/v1/home/sections)。
@@ -189,4 +231,11 @@ class RecommendChannel {
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'source': source,
+        'name': name,
+        'count': count,
+        'playlists': playlists.map((e) => e.toJson()).toList(),
+      };
 }

@@ -228,6 +228,29 @@ class MetadataCacheRepository {
         .toList();
   }
 
+  /// 最近更新歌单的专用缓存 scope（服务端分页 size=50 的结果）。
+  ///
+  /// 与全量 'playlists' scope 分开存：recentPlaylistsProvider 现在只拉前
+  /// 50 条,若仍写 'playlists' 会把 playlistsProvider 的全量兜底缓存
+  /// （可达数百条）覆盖瘦身,造成「全部歌单」冷启动兜底退化。
+  Future<void> cacheRecentPlaylists(
+    String libraryId,
+    List<Playlist> playlists,
+  ) async {
+    await _saveMap(libraryId, 'recent_playlists', {
+      'playlists': playlists.map((e) => e.toJson()).toList(),
+      'cachedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  Future<List<Playlist>?> getRecentPlaylists(String libraryId) async {
+    final map = await _readMap(libraryId, 'recent_playlists');
+    if (map == null) return null;
+    final list = map['playlists'] as List?;
+    if (list == null) return null;
+    return _parseList<Playlist>(list, Playlist.fromJson);
+  }
+
   Future<void> cachePlaylistDetail(String libraryId, Playlist playlist) async {
     await _saveMap(libraryId, 'playlist_detail_${playlist.id}', {
       'playlist': playlist.toJson(),

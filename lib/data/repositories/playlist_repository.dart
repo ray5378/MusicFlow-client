@@ -115,10 +115,19 @@ class PlaylistRepository {
     }
   }
 
-  /// 获取所有歌单
-  Future<List<Playlist>> getPlaylists() async {
+  /// 获取所有歌单。
+  ///
+  /// 可选 [size]:服务端分页参数,按 updatedAt 倒序取前 [size] 条
+  /// (服务端 /rest/getPlaylists 已支持 size/offset);不传 = 全量(旧行为),
+  /// 全量调用方(playlistsProvider 等)不受影响。
+  Future<List<Playlist>> getPlaylists({int? size}) async {
     try {
-      final response = await _apiClient.get(ApiConstants.getPlaylists);
+      final response = await _apiClient.get(
+        ApiConstants.getPlaylists,
+        queryParameters: size == null
+            ? null
+            : <String, dynamic>{'size': size.toString()},
+      );
 
       final playlistList = response['playlists']?['playlist'] as List?;
       if (playlistList == null) return [];
