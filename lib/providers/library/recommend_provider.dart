@@ -142,8 +142,12 @@ class HomeRecommendSection {
   bool get isEmpty => fixed.isEmpty && random.isEmpty;
 }
 
+/// 首页「为你推荐」区块数据（固定推荐卡 + 随机补位本地歌单）。
+///
+/// 与 randomSongsProvider 对齐 —— **保持数据,不自动释放**:离开发现页再回来
+/// 不重拉;watch 的依赖(活跃库/客户端)变化时 Riverpod 会自动失效重建重拉。
 final homeRecommendSectionProvider =
-    FutureProvider.autoDispose<HomeRecommendSection>((ref) async {
+    FutureProvider<HomeRecommendSection>((ref) async {
   final repo = ref.watch(recommendRepositoryProvider);
   final plRepo = ref.watch(playlistRepositoryProvider);
 

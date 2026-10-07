@@ -12,17 +12,22 @@ import 'package:musicflow_client/app.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
 import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
+/// 图片内存缓存字节上限。用户拍板固定 128MB（2026-10-08），
+/// 见 [main] 内对 imageCache 的配置。
+const int kImageCacheMaximumSizeBytes = 128 << 20;
+
 Future<void> main() async {
   runZonedGuarded(
     () async {
       await WidgetsFlutterBinding.ensureInitialized();
 
-      // 收紧 Flutter 内部图片内存缓存：禁止磁盘/内存图片缓存的策略下，
-      // 只保留极小的解码缓存兜底，并允许在切库/线路变化时快速清理。
-      // 具体请求仍走 CoverArtImage 的 size 预算与视口优先加载。
+      // 图片内存缓存：用户约定：封面等图片类数据只走内存缓存不落盘，
+      // 内存配额按拍板固定 128MB（2026-10-08）。
+      // 允许在切库/线路变化时快速清理；具体请求仍走 CoverArtImage 的
+      // size 预算与视口优先加载。
       PaintingBinding.instance.imageCache
         ..maximumSize = 64
-        ..maximumSizeBytes = 32 << 20;
+        ..maximumSizeBytes = kImageCacheMaximumSizeBytes;
 
       // 应用持久化的日志开关（默认关闭，需用户在设置里手动开启）。
       // 注意：不能在 runApp 前 await 平台存储（SharedPreferences）——桌面端

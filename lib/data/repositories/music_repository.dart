@@ -222,7 +222,8 @@ class MusicRepository {
   /// 一次性返回。歌曲字段经 Song.fromJson 解析(服务端部分数值为浮点,已做容错)。
   Future<List<Song>> getAllSongs({String query = ''}) async {
     try {
-      const pageSize = 200; // 与后端 /v1/songs 的 pageSize 上限对齐
+      const pageSize = 2000; // 与后端 /v1/songs 的 pageSize 上限(2000, batch43 提升自 200)对齐:
+      // 13 万级整库 661 次串行请求 -> 66 次,冷加载从十几秒降到 2~3 秒(单页 <35ms 实测)。
       final List<Song> all = <Song>[];
       int page = 1;
       int total = 0;
