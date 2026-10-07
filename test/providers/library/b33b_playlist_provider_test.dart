@@ -53,6 +53,7 @@ List<Override> _commonOverrides({
 void main() {
   setUpAll(() {
     registerFallbackValue(_pl("fb"));
+    registerFallbackValue(<Playlist>[]);
   });
 
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -61,14 +62,18 @@ void main() {
     test('成功: 按 changed 倒序并取前 20', () async {
       final repo = _FakePlaylistRepository();
       final cache = _FakeMetadataCache();
-      when(() => repo.getPlaylists()).thenAnswer((_) async {
+      // b42:recentPlaylists 改走服务端分页 size=50 + recent 专用缓存 scope。
+      when(() => repo.getPlaylists(size: 50)).thenAnswer((_) async {
         final list = <Playlist>[];
         for (var i = 0; i < 25; i++) {
           list.add(_pl('p$i', changed: DateTime(2024, 1, i + 1)));
         }
         return list;
       });
-      when(() => cache.cachePlaylists(any(), any())).thenAnswer((_) async {});
+      when(() => cache.cacheRecentPlaylists(any(), any()))
+          .thenAnswer((_) async {});
+      when(() => cache.getRecentPlaylists(any()))
+          .thenAnswer((_) async => null);
       when(() => cache.getPlaylists(any()))
           .thenAnswer((_) async => null);
 
@@ -90,6 +95,8 @@ void main() {
 
     test('仓库为 null + 缓存命中 → 缓存兜底返回排序结果', () async {
       final cache = _FakeMetadataCache();
+      when(() => cache.getRecentPlaylists(any()))
+          .thenAnswer((_) async => null);
       final cached = <Playlist>[
         _pl('c1', changed: DateTime(2024, 3, 1)),
         _pl('c2', changed: DateTime(2024, 5, 1)),
@@ -112,6 +119,8 @@ void main() {
 
     test('仓库为 null + 缓存未命中 → 返回空列表', () async {
       final cache = _FakeMetadataCache();
+      when(() => cache.getRecentPlaylists(any()))
+          .thenAnswer((_) async => null);
       when(() => cache.getPlaylists(any())).thenAnswer((_) async => null);
 
       final container = ProviderContainer(
@@ -131,6 +140,8 @@ void main() {
     test('冷启动: 活跃库未就绪但 lastLibraryId 命中缓存 → 缓存兜底', () async {
       final cache = _FakeMetadataCache();
       when(() => cache.getLastLibraryId()).thenAnswer((_) async => 'lib-x');
+      when(() => cache.getRecentPlaylists('lib-x'))
+          .thenAnswer((_) async => null);
       when(() => cache.getPlaylists('lib-x')).thenAnswer(
         (_) async => <Playlist>[_pl('k1', changed: DateTime(2024, 6, 1))],
       );

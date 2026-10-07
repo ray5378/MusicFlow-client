@@ -151,7 +151,7 @@ class _B35aFakePlaylistRepository extends PlaylistRepository {
   }) async {}
 
   @override
-  Future<List<Playlist>> getPlaylists() async => const <Playlist>[];
+  Future<List<Playlist>> getPlaylists({int? size}) async => const <Playlist>[];
 }
 
 Future<void> settle(WidgetTester tester, {int frames = 10}) async {

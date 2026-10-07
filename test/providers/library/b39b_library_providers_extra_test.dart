@@ -76,8 +76,14 @@ void main() {
     test('远程失败 → cacheRead 读缓存（line 122）', () async {
       final repo = MockPlaylistRepository();
       final cache = MockMetadataCacheRepository();
-      when(() => repo.getPlaylists()).thenThrow(StateError('offline'));
-      when(() => cache.cachePlaylists(any(), any())).thenAnswer((_) async {});
+      // b42:recentPlaylists 已改为服务端分页 size=50,fetch 换签名、
+      // 缓存读写换 recent 专用 scope;本用例改为钉「recent 缓存缺失 →
+      // 回退旧全量缓存兜底」路径,原意(远程失败回落缓存)不变。
+      when(() => repo.getPlaylists(size: 50)).thenThrow(StateError('offline'));
+      when(() => cache.cacheRecentPlaylists(any(), any()))
+          .thenAnswer((_) async {});
+      when(() => cache.getRecentPlaylists('lib-1'))
+          .thenAnswer((_) async => null);
       when(() => cache.getPlaylists('lib-1')).thenAnswer(
         (_) async => <Playlist>[_playlist('p1')],
       );

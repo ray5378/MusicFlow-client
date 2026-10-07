@@ -7,6 +7,7 @@ import 'package:musicflow_client/data/models/recommend.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/repositories/playlist_repository.dart';
+import 'package:musicflow_client/data/repositories/recommend_cache_repository.dart';
 import 'package:musicflow_client/data/repositories/recommend_repository.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
@@ -16,6 +17,8 @@ import 'package:musicflow_client/providers/library/recommend_provider.dart';
 import '../../helpers/mocks.dart';
 
 class _FakeRecommendRepository extends Mock implements RecommendRepository {}
+
+class _FakeRecommendCache extends Mock implements RecommendCacheRepository {}
 
 class _FakePlaylistRepository extends Mock implements PlaylistRepository {}
 
@@ -57,9 +60,16 @@ List<Override> _baseOverrides({
       activeLibraryProvider.overrideWithValue(_lib()),
       activeAddressProvider.overrideWith((ref) => _addr()),
       recommendRepositoryProvider.overrideWith((ref) => repo),
+      // b42:homeCards/recommendChannels/localRecommend 接入 drift 缓存仓库,
+      // 测试里用 mock 隔离(未 stub 的读取返回 null = 缓存未命中)。
+      recommendCacheRepositoryProvider.overrideWith((ref) => _FakeRecommendCache()),
     ];
 
 void main() {
+  // homeCards 等失败路径会经 NetworkErrorNotifier → ToastNotifier 访问
+  // WidgetsBinding,必须先初始化。
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('homeSectionsProvider', () {
     test('成功: 返回分区清单', () async {
       final repo = _FakeRecommendRepository();
@@ -122,6 +132,9 @@ void main() {
         overrides: <Override>[
           activeLibraryProvider.overrideWithValue(_lib()),
           recommendRepositoryProvider.overrideWith((ref) => null),
+          recommendCacheRepositoryProvider.overrideWith(
+            (ref) => _FakeRecommendCache(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -162,6 +175,9 @@ void main() {
         overrides: <Override>[
           activeLibraryProvider.overrideWithValue(_lib()),
           recommendRepositoryProvider.overrideWith((ref) => null),
+          recommendCacheRepositoryProvider.overrideWith(
+            (ref) => _FakeRecommendCache(),
+          ),
         ],
       );
       addTearDown(container.dispose);
