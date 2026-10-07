@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kIsWeb, listEquals, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,6 +39,35 @@ import 'package:musicflow_client/features/discover/widgets/hoverable_horizontal_
 import 'package:musicflow_client/features/discover/pages/search_page.dart';
 
 const double _playlistCardWidth = 128;
+
+/// 屏外分区预取错开步长:首帧后按首页排版顺序逐个触发分区数据加载,
+/// 给首屏分区的请求让出连接池与带宽(按排版顺序 = 加载优先级),
+/// 同时保证用户滑到任一分区时数据已在加载或已就绪。
+const int _kSectionPrefetchStaggerMs = 100;
+
+/// 首页分区 → 屏外预取触发器(batch44 视口优先加载)。
+///
+/// 背景:分区数据 provider 均为 keepAlive FutureProvider,首次被 watch
+/// (即分区 widget 首次被 SliverList 构建)时才发起请求。CustomScrollView
+/// 的 cacheExtent 只覆盖视口外 400px,更远的分区要等用户滑近才拉取 ——
+/// 滑到时才看到 loading。这里在首帧后按排版顺序用 ref.read 补触发:
+///
+/// - `ref.read(provider.future)` 对「已在加载/已加载」的 provider **幂等**
+///   (返回同一个 future,不会重复请求),因此首帧内已构建的分区(视口 +
+///   cacheExtent,build 时已 watch 触发)此处 read 是无害空转,真正被
+///   触发的只有屏外分区 —— 「首屏立即、屏外延迟后补齐」;
+/// - 「随机歌曲」刻意不预取:该区块按需拉取(缓存秒出 + 广播信号触发),
+///   整页刷新/预取都不应触发其远程请求(见 [_DiscoverPageState._refresh]);
+/// - 「播放控制」无需预取:恒被 hoist 到排版首位 = 恒在首屏,build 即
+///   watch;且其 provider 是 autoDispose,无 watcher 的 read 预取会违背
+///   「隐藏分区 = 零请求」(R22)的语义。
+final Map<String, Future<void> Function(WidgetRef ref)>
+_homeSectionPrefetch = <String, Future<void> Function(WidgetRef ref)>{
+  'recent-playlists': (ref) => ref.read(recentPlaylistsProvider.future),
+  'home-recommend': (ref) => ref.read(homeRecommendSectionProvider.future),
+  'local-recommend': (ref) => ref.read(localRecommendChannelsProvider.future),
+  'platform-recommend': (ref) => ref.read(recommendChannelsProvider.future),
+};
 
 /// 宽屏(无分类导航)时内容区顶部与首个分区之间的间距。
 ///
@@ -159,6 +188,57 @@ class DiscoverPage extends ConsumerStatefulWidget {
 }
 
 class _DiscoverPageState extends ConsumerState<DiscoverPage> {
+  /// 已调度过屏外预取的分区清单(防重复调度;布局/清单变化后重新调度)。
+  List<String>? _prefetchScheduledKeys;
+
+  /// 本轮错开预取的 Timer 收口:State dispose(或重新调度)时撤销未触发的
+  /// Timer,避免 widget test 判定「Timer is still pending」与孤儿回调。
+  final List<Timer> _prefetchTimers = <Timer>[];
+
+  /// 首帧后按首页排版顺序触发屏外分区数据加载(batch44 视口优先加载)。
+  ///
+  /// 首帧内 SliverList 只构建视口 + cacheExtent 范围内的分区,这些分区在
+  /// build 中 watch provider 即时拉取 = 首屏分区立即触发;更远的分区由本
+  /// 方法在首帧结束后按排版顺序错开补触发(详见 [_homeSectionPrefetch])。
+  /// 调度以「可见分区清单」为键去重:用户编辑布局/清单变化后重新调度。
+  void _scheduleSectionPrefetch(List<String> keys) {
+    if (listEquals(_prefetchScheduledKeys, keys)) return;
+    _prefetchScheduledKeys = List<String>.of(keys);
+    // 重新调度前撤销上一轮未触发的错开 Timer(已触发的 cancel 无害),
+    // 避免新旧两轮预取叠加,也保证 State dispose 后无孤儿 Timer。
+    for (final timer in _prefetchTimers) {
+      timer.cancel();
+    }
+    _prefetchTimers.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final entry in keys.indexed) {
+        final prefetch = _homeSectionPrefetch[entry.$2];
+        if (prefetch == null) continue;
+        // 排版序 × 步长错开:首屏分区已在首帧触发,这里对其是幂等空转;
+        // 屏外分区按序补齐,排在前面的先发(加载优先级跟随排版顺序)。
+        _prefetchTimers.add(
+          Timer(
+            Duration(milliseconds: _kSectionPrefetchStaggerMs * entry.$1),
+            () {
+              if (!mounted) return;
+              unawaited(prefetch(ref));
+            },
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final timer in _prefetchTimers) {
+      timer.cancel();
+    }
+    _prefetchTimers.clear();
+    super.dispose();
+  }
+
   Future<void> _refresh() async {
     // 随机歌曲由区块按需拉取:这里只刷新其余区块,再广播「歌单变更」信号,
     // 让区块自行重拉最新随机歌曲,避免整页刷新也触发随机歌单远程请求。
@@ -342,6 +422,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       sectionWidgets[key] = sectionWidget;
     }
     final visibleSectionKeys = sectionWidgets.keys.toList();
+    // 视口优先加载:首屏分区已随首帧 build 即时拉取,屏外分区延迟到
+    // 首帧后按排版顺序错开补触发(幂等,不影响已加载的分区)。
+    _scheduleSectionPrefetch(visibleSectionKeys);
     // 分类导航只在 compact 展示(见下方 Column);宽屏没有它时,内容区需要
     // 自己补一段顶部间距,让首个分区(随机歌曲)标题落在侧边栏「主页」行
     // 的水平线上:侧栏 = 头部 64 + 分割线 1 + 列表上边距 16 + 行半高 32 = 113;

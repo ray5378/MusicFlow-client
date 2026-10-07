@@ -378,6 +378,17 @@ mixin PlayerSeekInternals on PlayerNotifier {
     _loadedSourceSongId = null;
     _playDbg('source=$label load begin song=$songId generation=$generation');
 
+    // 网络流加载在途标记（batch44 抗断网配套）：除 offline_file（本地文件，
+    // 不涉及服务端重试窗口）外，direct_stream / transcoding / preview /
+    // seek_reload_stream 都是服务端流端点（/rest/stream、/rest/stream-remote）。
+    // 服务端可能挂起请求重试上游（总窗口 30 分钟）才显式失败，在途期间
+    // 0 秒卡死看门狗据此延迟介入（见 player_position_polling 的守卫）。
+    final isNetworkStreamLoad = label != 'offline_file';
+    if (isNetworkStreamLoad) {
+      _streamLoadInFlightGeneration = generation;
+      _streamLoadInFlightSongId = songId;
+    }
+
     // 网络加载节流闸口（2026-09-17）：当正处于「连续失败自动跳」的连跳段且已
     // 连错 >= 2 首时，在每次真实加载前短暂 sleep，压低坏源成片时对反代的拉流/
     // 探测并发冲击。此处不冻结 next()——游标/state/currentSong 已在
@@ -394,6 +405,15 @@ mixin PlayerSeekInternals on PlayerNotifier {
         _loadedSourceSongId = null;
       }
       rethrow;
+    } finally {
+      // 在途标记收尾：只在仍是本次加载（generation 未被更新的加载覆盖）时
+      // 清除。若 setSource 挂起（服务端重试窗口），finally 不执行，标记保持
+      // 到请求落定 —— 正是看门狗需要延后的整段时间。
+      if (isNetworkStreamLoad &&
+          _streamLoadInFlightGeneration == generation) {
+        _streamLoadInFlightGeneration = null;
+        _streamLoadInFlightSongId = null;
+      }
     }
 
     if (_sourceGeneration != generation ||

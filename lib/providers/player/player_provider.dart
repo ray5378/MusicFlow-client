@@ -151,6 +151,21 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 的阶段也能累计,覆盖源加载挂起这一最常被漏掉的场景。
   bool _expectingAutoplay = false;
 
+  /// 在途网络流加载标记（batch44 抗断网配套，2026-10-08）。
+  ///
+  /// 背景：服务端对取流失败的新歌会**挂起请求自动重试**（前 1 分钟每 10s
+  /// →之后每分钟→总窗口 30 分钟）才显式失败。窗口内 `player.setUrl` 一直
+  /// 不返回，位置停在起点 —— 「0 秒卡死看门狗」会把它误判成卡死：6s reload、
+  /// 12s 再 reload、18s 放弃跳歌；且每次 reload 都会拆掉在途请求、让服务端
+  /// **重开整个 30 分钟重试窗口**，彻底破坏挂起重试语义（也是无节流紧凑
+  /// 重试，D-058 教训）。这里记录当前在途的网络流加载（generation+songId），
+  /// 看门狗据此对「当前曲流加载在途」延迟介入：不 reload、不跳歌，等服务端
+  /// 窗口自行落定 —— 成功则出声、位置前进自然解除；显式失败则 setUrl 抛错，
+  /// 照常走播放失败路径（转码重试 → _handlePlaybackError 自动跳歌）。
+  /// generation 守卫防止慢在途请求的收尾清掉新加载的标记。
+  int? _streamLoadInFlightGeneration;
+  String? _streamLoadInFlightSongId;
+
   /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
   /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
 

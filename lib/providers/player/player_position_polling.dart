@@ -130,48 +130,67 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 而 0 秒卡死恰恰发生在 loading/buffering 阶段(player.playing 仍 true)，
       // 若复用旧看门狗，该阶段计数会被恒清零、永不触发。
       if (_startupStuckTicks >= _startupStuckSkipThresholdTicks) {
-        final stuckSong = state.currentSong;
-        final startTicks = _startupStuckTicks;
-        final stuckSongId = stuckSong?.id;
-        _startupStuckTicks = 0;
-        // 区分「瞬时挂起」(重载一次即恢复)与「真无可播源」(重载仍卡 0 秒):
-        // 同一首连续达到重载容错上限仍无进展,判定为不可播,转入既有失败跳歌
-        // 逻辑(_handlePlaybackError)标记死歌并跳下一首,而非无限重载同一首
-        // 原地空转——若后端确无可播源,重载多少次都无济于事。
-        if (stuckSongId != null && _startupStuckSongId == stuckSongId) {
-          _startupReloadStreak += 1;
-        } else {
-          _startupStuckSongId = stuckSongId;
-          _startupReloadStreak = 1;
-        }
-        if (stuckSongId != null &&
-            _startupReloadStreak >= _startupReloadTolerance) {
+        // 抗断网守卫（batch44）：当前曲的网络流加载仍在途（setUrl 未返回）
+        // 时，「卡在起点」正是服务端在挂起重试窗口内等上游（总窗口 30 分钟，
+        // 前 1 分钟每 10s →之后每分钟）—— 此刻不得 reload（会拆掉在途请求
+        // 并让服务端重开整个重试窗口，也是无节流紧凑重试）也不得跳歌。
+        // 清零计数延迟介入，等服务端窗口落定：成功则位置前进自然解除；
+        // 显式失败则 setUrl 抛错，照常走播放失败路径（转码重试 →
+        // _handlePlaybackError 自动跳歌），客户端不抢在服务端之前掐断。
+        // 仅守卫「流加载在途」本身：真正起播后仍卡死（服务端已响应但源坏）
+        // 的场景不受影响，计数从零重新累计、看门狗照常接力。
+        if (_streamLoadInFlightSongId != null &&
+            _streamLoadInFlightSongId == state.currentSong?.id) {
+          _startupStuckTicks = 0;
           _playDbg(
-            'startup_stuck_watchdog GIVE_UP reload_streak=$_startupReloadStreak '
-            'song=$stuckSongId ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
-            'processing=${processing.name} — judged unplayable, skip to next',
+            'startup_stuck_watchdog deferred: stream load in flight '
+            'song=$_streamLoadInFlightSongId (server retry window), '
+            'processing=${processing.name} playing=${player.playing}',
           );
-          _startupStuckSongId = null;
-          _startupReloadStreak = 0;
-          _handlePlaybackError(stuckSongId);
-          return;
-        }
-        _playDbg(
-          'startup_stuck_watchdog reload song=$stuckSongId '
-          'reload_streak=$_startupReloadStreak/$_startupReloadTolerance '
-          'ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
-          'statePos=${state.position} processing=${processing.name} '
-          'playing=${player.playing}',
-        );
-        if (stuckSong != null) {
-          unawaited(
-            playSong(
-              stuckSong,
-              queue: state.queue,
-              index: state.currentIndex,
-            ),
+        } else {
+          final stuckSong = state.currentSong;
+          final startTicks = _startupStuckTicks;
+          final stuckSongId = stuckSong?.id;
+          _startupStuckTicks = 0;
+          // 区分「瞬时挂起」(重载一次即恢复)与「真无可播源」(重载仍卡 0 秒):
+          // 同一首连续达到重载容错上限仍无进展,判定为不可播,转入既有失败跳歌
+          // 逻辑(_handlePlaybackError)标记死歌并跳下一首,而非无限重载同一首
+          // 原地空转——若后端确无可播源,重载多少次都无济于事。
+          if (stuckSongId != null && _startupStuckSongId == stuckSongId) {
+            _startupReloadStreak += 1;
+          } else {
+            _startupStuckSongId = stuckSongId;
+            _startupReloadStreak = 1;
+          }
+          if (stuckSongId != null &&
+              _startupReloadStreak >= _startupReloadTolerance) {
+            _playDbg(
+              'startup_stuck_watchdog GIVE_UP reload_streak=$_startupReloadStreak '
+              'song=$stuckSongId ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
+              'processing=${processing.name} — judged unplayable, skip to next',
+            );
+            _startupStuckSongId = null;
+            _startupReloadStreak = 0;
+            _handlePlaybackError(stuckSongId);
+            return;
+          }
+          _playDbg(
+            'startup_stuck_watchdog reload song=$stuckSongId '
+            'reload_streak=$_startupReloadStreak/$_startupReloadTolerance '
+            'ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
+            'statePos=${state.position} processing=${processing.name} '
+            'playing=${player.playing}',
           );
-          return;
+          if (stuckSong != null) {
+            unawaited(
+              playSong(
+                stuckSong,
+                queue: state.queue,
+                index: state.currentIndex,
+              ),
+            );
+            return;
+          }
         }
       }
 
