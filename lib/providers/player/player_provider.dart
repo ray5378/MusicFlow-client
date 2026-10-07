@@ -129,8 +129,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   Timer? _positionPollTimer;
   Duration _lastPolledPlayerPosition = Duration.zero;
   int _stagnantPositionTicks = 0;
-  int _lastStagnantLogTick = -1;
-  int _lastIgnoredSyntheticPositionLogTick = -1;
 
   /// 0 秒卡死兜底计数：播放意图存在但长时间卡在 loading/buffering 且
   /// 位置无进展时累计；一旦离开该状态或超出阈值即清零/reset。
@@ -187,7 +185,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 循环/顺序)。进程真正比播放引擎更可靠地表达“用户还在播但要结束了”。
   /// 5 tick ≈ 2.5s。暂停/前进/离开末段任一情况都会清零，避免误判。
   int _nearEndStuckTicks = 0;
-  bool _syntheticPositionFallbackActive = false;
   int _playDebugSession = 0;
   bool _loggedDurationUnavailableForSong = false;
   /// 元数据时长与实时流上报时长明显不符的留痕标记（每首只打一次，避免刷屏）。
@@ -368,7 +365,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   int get _srvShufflePos; // ignore: unused_element
   void _releaseSeekAnchor(int seekGeneration); // ignore: unused_element, unused_element_parameter
   Future<bool> _replaceLoadedSource({ required String songId, required String label, required bool Function() ownsSource, required Future<void> Function(AudioPlayer player) setSource, }); // ignore: unused_element, unused_element_parameter
-  void _resetShuffleHistory({bool updateState = true}); // ignore: unused_element, unused_element_parameter
+  void _resetShuffleHistory();
   int _resolveCurrentBitRateKbps({ required Song song, required AudioQualityLevel quality, required PlaybackSource source, int? maxBitRate, }); // ignore: unused_element, unused_element_parameter
   int? _resolveForcedNextIndex(); // ignore: unused_element, unused_element_parameter
   int _resolveRestoredQueueIndex({ required List<Song> queue, required int preferredIndex, required String? currentSongId, }); // ignore: unused_element, unused_element_parameter
@@ -549,32 +546,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
       final logicalPosition = _logicalPlayerPosition(position);
 
-      // 合成进度模式下，positionStream 可能回传 0 或过时位置，
-      // 会把 UI 进度回退。此时统一忽略，交给轮询器维护并在恢复后切回真实位置。
-      final ignorePositionWhileSynthetic =
-          _syntheticPositionFallbackActive &&
-          state.position > const Duration(milliseconds: 250);
-      if (ignorePositionWhileSynthetic) {
-        final isStuckZero = position <= const Duration(milliseconds: 50);
-        final shouldLog =
-            _stagnantPositionTicks != _lastIgnoredSyntheticPositionLogTick &&
-            _stagnantPositionTicks % 6 == 0;
-        if (shouldLog) {
-          _lastIgnoredSyntheticPositionLogTick = _stagnantPositionTicks;
-          _playDbg(
-            isStuckZero
-                ? 'positionStream ignored_stuck_zero '
-                      'sourcePos=$position logicalPos=$logicalPosition '
-                      'statePos=${state.position} '
-                      'song=${state.currentSong?.id}'
-                : 'positionStream ignored_while_synthetic '
-                      'sourcePos=$position logicalPos=$logicalPosition '
-                      'statePos=${state.position} '
-                      'song=${state.currentSong?.id}',
-          );
-        }
-        return;
-      }
+      // [D-053] 原 ignorePositionWhileSynthetic 块已随合成进度兜底一并删除
+      // （2026-10-07 用户拍板：合成进度回退功能不要）。
 
       // 进度更新节流 ≥250ms(与投屏 tick 对齐):positionStream(~200ms)
       // 高频 tick 只写回明显前进的位置,避免驱动整页高频重建(SEC §8.2)。
@@ -747,7 +720,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     // 监听随机模式
     player.shuffleModeEnabledStream.listen((enabled) {
       if (!enabled) {
-        _resetShuffleHistory(updateState: false);
+        _resetShuffleHistory();
       }
       if (mounted) {
         state = state.copyWith(
@@ -972,9 +945,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       _clearStreamContext();
       _lastPolledPlayerPosition = initialPosition ?? Duration.zero;
       _stagnantPositionTicks = 0;
-      _lastStagnantLogTick = -1;
-      _lastIgnoredSyntheticPositionLogTick = -1;
-      _syntheticPositionFallbackActive = false;
       _loggedDurationUnavailableForSong = false;
       _loggedDurationMismatchForSong = false;
 
@@ -1299,17 +1269,12 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     final sid = debugSession ?? _playDebugSession;
     bool isCurrentSession() =>
         _isPlaybackContextCurrent(session: sid, songId: song.id);
-    // [D-062] 会话作废守卫仅在 debugSession != null 时生效（同写法另见 L1347/L1383）。
-    // 若以 debugSession==null 调用转码重试，三处守卫全被跳过 → 该轮可能在被新会话
-    // 顶替后仍写回 state（播放错误曲目）。当前全库无传 null 的调用点，属「疑似」；
-    // 补 null 调用路径时需重估。守卫用例：test/providers/player/b38a4_provider_gaps_test.dart。
-    if (debugSession != null && _playDebugSession != debugSession) {
-      _playDbg(
-        'sid=$sid transcoding retry abandoned '
-        '(current=$_playDebugSession)',
-      );
-      return;
-    }
+    // [D-062] 已按用户决策删除（2026-10-07）：原入口/setUrl/post-setup 三处
+    // `debugSession != null && _playDebugSession != debugSession` 守卫为防御性
+    // 死代码 —— 调用点（playSong 失败回退）进方法前已做两次会话检查且其间
+    // 无 await，入口条件恒 false；方法内后两道守卫与紧邻的 isCurrentSession()
+    // 之间同样无 await（batch39 坐实）。真正可达的会话检查（catch 内路由刷新
+    // 之后的守卫与各 isCurrentSession()）全部保留。
 
     try {
       final streamUrl = _buildStreamUrlOrThrow(
@@ -1343,14 +1308,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
           'source=direct_stream_transcoding setUrl='
           '${_summarizeStreamUrl(streamUrl)}',
         );
-        // 在实际设置音源前再次检查会话
-        if (debugSession != null && _playDebugSession != debugSession) {
-          _playDbg(
-            'sid=$sid transcoding setUrl abandoned '
-            '(current=$_playDebugSession)',
-          );
-          return;
-        }
         final sourceReady = await _replaceLoadedSource(
           songId: song.id,
           label: 'direct_stream_transcoding',
@@ -1379,14 +1336,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         rethrow;
       }
 
-      // 转码设置音源完成后再次检查会话
-      if (debugSession != null && _playDebugSession != debugSession) {
-        _playDbg(
-          'sid=$sid transcoding post-setup abandoned '
-          '(current=$_playDebugSession)',
-        );
-        return;
-      }
       await _applyPendingSeekIfNeeded();
       if (!isCurrentSession()) return;
       final effectiveQuality = _ref.read(effectiveQualityProvider);
@@ -1709,9 +1658,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     _completionHandlingSongId = null;
     _lastPolledPlayerPosition = Duration.zero;
     _stagnantPositionTicks = 0;
-    _lastStagnantLogTick = -1;
-    _lastIgnoredSyntheticPositionLogTick = -1;
-    _syntheticPositionFallbackActive = false;
     _loggedDurationUnavailableForSong = false;
     _loggedDurationMismatchForSong = false;
 
@@ -2386,7 +2332,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         shuffleHistoryCount: 0,
       );
     }
-    _resetShuffleHistory(updateState: false);
+    _resetShuffleHistory();
 
     // ==================== ② 底层下发串行化 ====================
     _modeApplyChain = _modeApplyChain
@@ -2491,7 +2437,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 被保留并被 _watchLocalQueue 镜像回服务端,把权威队列顶回 1 首。
   Future<void> clearQueue({bool keepCurrent = true}) async {
     _clearForcedNext();
-    _resetShuffleHistory(updateState: false);
+    _resetShuffleHistory();
 
     final currentSong = state.currentSong;
     if (keepCurrent && currentSong != null) {
@@ -2551,7 +2497,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     if (index < 0 || index >= state.queue.length) return;
 
     _clearForcedNext();
-    _resetShuffleHistory(updateState: false);
+    _resetShuffleHistory();
 
     final newQueue = [...state.queue];
     newQueue.removeAt(index);

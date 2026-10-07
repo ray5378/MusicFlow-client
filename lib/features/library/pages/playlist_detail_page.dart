@@ -1005,7 +1005,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
       context: context,
       playlistName: playlist.name,
     );
-    if (!confirmed || !mounted) return;
+    if (confirmed != true || !mounted) return; // [D-009] bool? 三态：null(外部 pop)/false 都不删
 
     try {
       await ref.read(ensureActiveAddressProvider.future);

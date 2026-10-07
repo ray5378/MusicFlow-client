@@ -37,7 +37,11 @@ Future<PlaylistFormResult?> showPlaylistFormDialog({
   );
 }
 
-Future<bool> showDeletePlaylistConfirmDialog({
+/// 返回三态：
+/// * `true`  —— 用户点「删除」确认；
+/// * `false` —— 用户点「取消」主动放弃；
+/// * `null`  —— 弹窗被外部关闭（返回键 / 滑动关闭 / 代码 pop），用户未做选择。
+Future<bool?> showDeletePlaylistConfirmDialog({
   required BuildContext context,
   required String playlistName,
 }) async {
@@ -82,7 +86,7 @@ Future<bool> showDeletePlaylistConfirmDialog({
     ),
   );
 
-  return confirmed ?? false;
+  return confirmed;
 }
 
 class _PlaylistFormSheet extends StatefulWidget {

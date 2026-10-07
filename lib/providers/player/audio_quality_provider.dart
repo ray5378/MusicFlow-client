@@ -54,13 +54,11 @@ final effectiveQualityProvider = Provider<AudioQualityLevel>((ref) {
     return settings.wifiQuality;
   }
 
-  // 启动阶段 StreamProvider 可能短暂为 loading，回退到监控器的实时值。
-  // 若两者都未知（none），优先按 Wi-Fi 音质处理，避免误用移动网络限码率。
+  // 启动阶段 StreamProvider 可能短暂为 loading，回退到监控器的实时值；
+  // 两者都未知（none）时走 switch 的 none 臂按 Wi-Fi 音质处理，避免误用移动网络限码率。
+  // （原 none 前置 early-return 与 switch none 臂二选一：保留穷尽 switch，
+  //   删除恒不可达的 early-return —— 2026-10-07 死代码清理。）
   final type = networkType.valueOrNull ?? monitorType;
-  if (type == NetworkType.none) {
-    return settings.wifiQuality;
-  }
-
   return switch (type) {
     NetworkType.wifi => settings.wifiQuality,
     NetworkType.mobile => settings.mobileQuality,

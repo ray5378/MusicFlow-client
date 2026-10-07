@@ -30,9 +30,13 @@ import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_drawer.
 class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key, this.onReturnFocus, this.onOpenPage});
 
-  // [D-042] 缺陷：onReturnFocus 只声明、从未调用（MainScaffold 侧见 lib/widgets/main_scaffold.dart），
-  //   导致抽屉关闭后焦点不回原点、对端整段恢复逻辑为死代码。
-  //   建议：抽屉关闭 / 返回时回调 onReturnFocus。
+  // [D-042] 已接线：抽屉内容由 Scaffold 的 DrawerController 承载，动画完全
+  //   收起后 DrawerController 不再构建 child，_AppDrawerState 随之被卸载 ——
+  //   dispose 因此是「抽屉真正关闭」的单一收敛点（手势关闭 / 点遮罩 / 返回键 /
+  //   Navigator.pop / closeDrawer 全部汇入）。dispose 中回调 onReturnFocus，
+  //   把焦点还给打开抽屉的触发控件（MainScaffold 侧见
+  //   lib/widgets/main_scaffold.dart 的 _restoreMusicFlowAppDrawerFocus；
+  //   守卫用例 test/widgets/b41e3_drawer_focus_test.dart）。
   final VoidCallback? onReturnFocus;
 
   /// 打开页面的回调：由 MainScaffold 提供，统一落到内容区分支导航器。
@@ -50,6 +54,29 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
   // UI 原样停在错误态、用户得不到任何反馈。点击重试时先切骨架反馈，
   // 短暂计时后若仍未恢复则回到错误态（可再次重试）。
   bool _libraryRetrying = false;
+
+  // 抽屉内容所在的 ModalRoute：dispose 时用它区分「抽屉收起导致本组件被
+  // 卸载」与「整个壳路由被弹出」（如登出跳转），仅前者回调 onReturnFocus。
+  ModalRoute<dynamic>? _enclosingRoute;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _enclosingRoute = ModalRoute.of(context);
+  }
+
+  @override
+  void dispose() {
+    // [D-042] 已接线：抽屉动画完全收起后 DrawerController 不再构建 child，
+    // AppDrawer 由此被卸载 —— 这里正是「抽屉真正关闭」的时刻；手势关闭 /
+    // 点遮罩 / 返回键 / Navigator.pop / closeDrawer 等关闭路径都汇聚到此处。
+    final callback = widget.onReturnFocus;
+    final route = _enclosingRoute;
+    if (callback != null && (route == null || route.isCurrent)) {
+      callback();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -185,7 +212,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
 
   Widget _buildNavigationList() {
     final loc = AppLocalizations.of(context);
-    final entries = <_DrawerNavigationEntry?>[
+    final entries = <_DrawerNavigationEntry>[
       _DrawerNavigationEntry(
         title: loc.widgets_artists,
         icon: AppIcons.profile,
@@ -237,18 +264,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
-        if (entry == null) {
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              context.musicFlowSpacing.md,
-              context.musicFlowSpacing.xxs,
-              context.musicFlowSpacing.md,
-              context.musicFlowSpacing.xs,
-            ),
-            child: const MusicFlowDivider(),
-          );
-        }
-
         return Padding(
           padding: EdgeInsets.fromLTRB(
             context.musicFlowSpacing.xs,

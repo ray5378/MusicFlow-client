@@ -487,12 +487,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             drawer:
                 widget.drawerOverride ??
                 AppDrawer(
-                  // [D-042] 缺陷：这里把 _restoreMusicFlowAppDrawerFocus 作为 onReturnFocus 传给 AppDrawer，
-                  //   但 AppDrawer 从头到尾没有调用过 widget.onReturnFocus（全仓 grep 只有声明处命中，
-                  //   见 lib/widgets/app_drawer.dart [D-042]）⇒ _restoreMusicFlowAppDrawerFocus 整段是死代码，
-                  //   文件注释承诺的「抽屉关闭后焦点回到触发它的菜单控件」实际没接线，键盘/无障碍会丢失焦点原点。
-                  //   建议：在 AppDrawer 关闭 / 返回时回调 onReturnFocus（或删掉这对声明）。
-                  //   守卫用例：test/widgets/b30c_main_scaffold_cov_test.dart 抽屉焦点相关用例。
+                  // [D-042] 已接线：AppDrawer 在抽屉动画完全收起、内容被
+                  // DrawerController 卸载时回调 onReturnFocus（手势 / 遮罩 /
+                  // 返回键 / Navigator.pop / closeDrawer 各关闭路径的单一
+                  // 收敛点，见 lib/widgets/app_drawer.dart [D-042]），
+                  // _restoreMusicFlowAppDrawerFocus 据此把焦点还给
+                  // openMusicFlowAppDrawer 记录的触发控件。
+                  // 守卫用例：test/widgets/b41e3_drawer_focus_test.dart。
                   onReturnFocus: _restoreMusicFlowAppDrawerFocus,
                   onOpenPage: _openPageInContentArea,
                 ),

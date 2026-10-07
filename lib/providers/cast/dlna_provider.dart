@@ -128,16 +128,23 @@ class DlnaDevicesState {
     this.isScanning = false,
   });
 
+  /// [D-025] 哨兵：省略 = 保持现状，显式传 null = 清空。
+  static const Object _unset = Object();
+
   DlnaDevicesState copyWith({
-    List<DlnaDevice>? devices,
-    bool? isScanning,
+    Object? devices = _unset,
+    Object? isScanning = _unset,
   }) {
-    // [D-025] 缺陷钉子(批处理补测 2026-10-04)：这里用 `x ?? this.x`，与
-    // DlnaCastState 的 `clearDevice` 语义不一致 —— 想「清空设备列表 / 结束扫描」没有真正的 clear 口，
-    // 只能传一个假值再绕；补测用例已把现状钉住，改实现时记得翻断言。
+    // [D-025] 已修复（2026-10-07 用户拍板：可空字段改显式清空语义）——
+    // 哨兵参数：省略 = 保持，显式 null = 清空，与 DlnaCastState.clearDevice
+    // 语义对齐；现有调用点（省略或传真值）行为零变化。
     return DlnaDevicesState(
-      devices: devices ?? this.devices,
-      isScanning: isScanning ?? this.isScanning,
+      devices: identical(devices, _unset)
+          ? this.devices
+          : (devices as List<DlnaDevice>?) ?? const [],
+      isScanning: identical(isScanning, _unset)
+          ? this.isScanning
+          : (isScanning as bool?) ?? false,
     );
   }
 }
@@ -662,12 +669,9 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   Future<void> reorderQueue(int from, int to) async {
     if (!state.isCasting) return;
     final manager = _ref.read(dlnaManagerProvider);
-    // [D-030] 缺陷钉子(批处理补测 2026-10-04)：下面这个重排用的是
-    // `queue.insert(to > from ? to - 1 : to, item)` —— 但它前面刚 removeAt(from)，
-    // 队列长度已经 -1，这时再对「向下拖」减 1 就会少挪一格：把下标 0 拖到 2，
-    // 正确结果 [s2,s3,s1] 实际变成 [s2,s1,s3]；只有「向上拖」(from > to) 不受影响。
-    // 修法：remove 之后用 insert(to, item)（或先记录再 insertAt(to)）。
-    // 补测已把现状钉住，改实现时那两例会立刻红。
+    // [D-030] 语义已确认（2026-10-07 用户拍板）：`to` 为 Flutter
+    // ReorderableListView 标准间隙下标，`insert(to > from ? to - 1 : to)`
+    // 是标准写法，现状正确，不修。
     await manager.reorderQueue(from, to);
     final queue = List<DlnaCastTrack>.of(state.queue);
     if (from >= 0 &&

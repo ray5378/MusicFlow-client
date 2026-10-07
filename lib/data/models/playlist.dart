@@ -105,16 +105,10 @@ DateTime? _parseDate(dynamic value) {
   }
   final s = value.toString().trim();
   if (s.isEmpty) return null;
-  // 标准 ISO 8601
+  // 标准 ISO 8601。DateTime.parse 本身就接受 "2024-01-01 00:00:00" 空格分隔格式，
+  // 此前的 replaceFirst(' ', 'T') 二次兜底不可达（[b41e1 清理] 删除）。
   try {
     return DateTime.parse(s);
   } catch (_) {}
-  // 去掉尾部时区缩写 (e.g. "2024-01-01T00:00:00Z" 已OK,
-  // 但 "2024-01-01 00:00:00" 需要 T)
-  if (!s.contains('T') && s.contains(' ')) {
-    try {
-      return DateTime.parse(s.replaceFirst(' ', 'T'));
-    } catch (_) {}
-  }
   return null;
 }

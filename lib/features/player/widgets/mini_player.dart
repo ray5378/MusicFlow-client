@@ -527,7 +527,6 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
                                 child: ClipRect(
                                   child: _MiniPlayerTrack(
                                     song: song,
-                                    useHero: true,
                                     showSubtitle: showSubtitle,
                                     lyricLine: widget.lyricLine,
                                     lyricAccent: lyricAccent,
@@ -770,7 +769,6 @@ String _formatPlayerDuration(Duration duration) {
 class _MiniPlayerTrack extends StatelessWidget {
   const _MiniPlayerTrack({
     required this.song,
-    required this.useHero,
     required this.showSubtitle,
     this.lyricLine,
     required this.lyricAccent,
@@ -779,7 +777,6 @@ class _MiniPlayerTrack extends StatelessWidget {
   });
 
   final Song? song;
-  final bool useHero;
   final bool showSubtitle;
   final String? lyricLine;
 
@@ -807,13 +804,11 @@ class _MiniPlayerTrack extends StatelessWidget {
         : null;
     final coverInner = _MiniPlayerCover(song: song);
     // Hero 只包封面本体，进度环作为外层包装不参与飞行过渡。
-    final coverHero = useHero
-        ? Hero(
-            tag: playerCoverHeroTag,
-            createRectTween: playerCoverRectTween,
-            child: coverInner,
-          )
-        : coverInner;
+    final coverHero = Hero(
+      tag: playerCoverHeroTag,
+      createRectTween: playerCoverRectTween,
+      child: coverInner,
+    );
     // RepaintBoundary:进度环 200~500ms 重绘隔离在 46px 环内,不连带
     // 封面/歌名/歌词/背景等整条迷你条重绘(智能按需渲染 §GPU 门控)。
     // 封面不再承载任何入口：唤出「流转播放」专用页面走最右侧按钮
@@ -846,15 +841,12 @@ class _MiniPlayerTrack extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              if (useHero)
-                Hero(
-                  tag: playerTitleHeroTag,
-                  createRectTween: playerLinearRectTween,
-                  flightShuttleBuilder: playerTextFlightShuttleBuilder,
-                  child: title,
-                )
-              else
-                title,
+              Hero(
+                tag: playerTitleHeroTag,
+                createRectTween: playerLinearRectTween,
+                flightShuttleBuilder: playerTextFlightShuttleBuilder,
+                child: title,
+              ),
               // 当前歌词行：暖黄高亮，取色与大屏歌词页一致（随封面自适应）。
               // RepaintBoundary:歌词行切换的重绘只影响本行文本区域。
               if (lyric != null)

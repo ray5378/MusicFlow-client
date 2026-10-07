@@ -706,21 +706,12 @@ class DlnaManager {
     }
     final t0 = DateTime.now().millisecondsSinceEpoch;
     final device = _currentDevice!;
-    // 无队列信息(异常态)拿不到 songId → 退回 SOAP seek,尽力而为。
-    final track = (_queueIndex >= 0 && _queueIndex < _queue.length) ? _queue[_queueIndex] : null;
-    // [D-016 钉住现状] 这段 SOAP Seek 兜底不可达：走到这里的前提是 _currentDevice
-    // 非空(上面已早退)，而 track==null 意味着队列里也拿不到下标 —— 两条 if 互斥，
-    // SoapControl.seek 永远执行不到。建议合成一条早退路径 + 一条带 track 的重建路径。
-    // 修完记得翻 dlna_manager_cov_test.dart 里「stopCast 之后 seek 依旧早退」那条守卫。
-    if (track == null) {
-      Logger.debugWithTag('DLNA', '[seek] no current track, fallback SOAP Seek ${seconds}s');
-      try {
-        await SoapControl.seek(device.avTransportUrl!, seconds);
-      } catch (e) {
-        Logger.debugWithTag('DLNA', '[seek] fallback SOAP Seek failed: $e');
-      }
-      return;
-    }
+    // [D-016 已删除（2026-10-07 用户拍板）] 原「无队列信息 → SOAP Seek 兜底」
+    // 确认为不可达死代码后整体移除：startCast 建设备必同时建队列且 startIndex
+    // 经校验；removeQueueItem 清空队列时直接 stopCast 清设备；其余队列编辑与
+    // 游标推进均保持 0 <= _queueIndex < _queue.length —— 「有设备必有队列信息」
+    // 不变量成立，track==null 与「device 非空」互斥，SoapControl.seek 无现实场景。
+    final track = _queue[_queueIndex];
     Logger.debugWithTag(
       'DLNA',
       '[seek] ${device.displayName} -> ${seconds}s rebuild stream (timeOffset=$seconds, song=${track.songId})',

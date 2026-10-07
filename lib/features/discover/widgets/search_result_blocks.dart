@@ -130,7 +130,10 @@ class LocalResultsBlock extends ConsumerWidget {
           (ref.watch(localPlaylistSearchProvider(query)).valueOrNull?.items ??
                   const <Playlist>[])
               .isNotEmpty,
-        SearchScope.all => false,
+        // [b41e1 清理] stackedScopes 永不含 all（all → kSearchScopeStackOrder 四档），
+        // 此 arm 不可达；switch 表达式穷举性要求保留 arm，改成立断言防契约破坏。
+        SearchScope.all =>
+          throw StateError('stackedScopes must never contain SearchScope.all'),
       };
 
   @override
@@ -182,7 +185,10 @@ class LocalResultsBlock extends ConsumerWidget {
           ref.watch(localArtistSearchProvider(query)).isLoading,
         SearchScope.playlist =>
           ref.watch(localPlaylistSearchProvider(query)).isLoading,
-        SearchScope.all => false,
+        // [b41e1 清理] stackedScopes 永不含 all（all → kSearchScopeStackOrder 四档），
+        // 此 arm 不可达；switch 表达式穷举性要求保留 arm，改成立断言防契约破坏。
+        SearchScope.all =>
+          throw StateError('stackedScopes must never contain SearchScope.all'),
       };
 }
 

@@ -9,13 +9,13 @@ mixin PlayerShuffleQueueInternals on PlayerNotifier {
     required bool clearForwardHistory,
   }) {
     if (!state.shuffleEnabled) {
-      _resetShuffleHistory(updateState: false);
+      _resetShuffleHistory();
       _syncShuffleHistoryState();
       return;
     }
 
     if (!_isSameQueueBySongId(state.queue, nextQueue)) {
-      _resetShuffleHistory(updateState: false);
+      _resetShuffleHistory();
       _syncShuffleHistoryState();
       return;
     }
@@ -87,12 +87,9 @@ mixin PlayerShuffleQueueInternals on PlayerNotifier {
     return _shuffleHistory.takeLastValidForward(state.queue);
   }
 
-  void _resetShuffleHistory({bool updateState = true}) {
+  void _resetShuffleHistory() {
     _shuffleHistory.reset();
     _shuffleQueueIndexer.resetRound();
-    if (updateState) {
-      _syncShuffleHistoryState();
-    }
   }
 
   void _syncShuffleHistoryState() {

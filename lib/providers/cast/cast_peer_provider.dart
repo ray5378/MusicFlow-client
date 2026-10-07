@@ -1307,7 +1307,19 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
     final target = !state.status.playing;
     _transportCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    await _post(target ? 'play' : 'pause');
+    // [D-016 失败外显(2026-10-07)] _post 返回 null = 命令未送达服务端 →
+    // 清判定标记、不做乐观翻转（轮询以后端权威状态为准），warn 外显失败。
+    final res = await _post(target ? 'play' : 'pause');
+    if (res == null) {
+      _transportCommandAtMs = 0;
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[toggle] peer=${state.activePeer?.peerId} '
+            'action=${target ? 'play' : 'pause'} send failed '
+            '(post returned null), optimistic flip skipped',
+      );
+      return;
+    }
     // 乐观置位(对齐前端 castTogglePlay):点击后按钮立即翻转,不依赖轮询/事件;
     // 轮询随后以后端权威状态修正。
     state = state.copyWith(
@@ -1327,7 +1339,17 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
     if (!state.status.playing) return;
     _transportCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    await _post('pause');
+    // [D-016 失败外显(2026-10-07)] 同 toggle：null = 未送达，清标记不乐观翻转。
+    final res = await _post('pause');
+    if (res == null) {
+      _transportCommandAtMs = 0;
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[pause] peer=${state.activePeer?.peerId} send failed '
+            '(post returned null), optimistic flip skipped',
+      );
+      return;
+    }
     state = state.copyWith(
       status: state.status.copyWith(
         state: 'PAUSED_PLAYBACK',
@@ -1382,7 +1404,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       await _ref.read(playerProvider.notifier).next();
       return;
     }
-    await _post('next');
+    // [D-016 失败外显(2026-10-07)] 下发失败（null）时 warn 外显并跳过本次补拉。
+    final res = await _post('next');
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[next] peer=${state.activePeer?.peerId} send failed (post returned null)',
+      );
+      return;
+    }
     unawaited(pollOnce(fullQueue: true));
   }
 
@@ -1391,7 +1421,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       await _ref.read(playerProvider.notifier).previous();
       return;
     }
-    await _post('prev');
+    // [D-016 失败外显(2026-10-07)] 同 next。
+    final res = await _post('prev');
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[previous] peer=${state.activePeer?.peerId} send failed (post returned null)',
+      );
+      return;
+    }
     unawaited(pollOnce(fullQueue: true));
   }
 
@@ -1454,7 +1492,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     if (state.activePeer == null) return;
     // 先打点再下发:上报是周期性的(~4s),连续拖动时回传的可能是上一拍的值。
     _volumeCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    await _post('volume', data: <String, dynamic>{'volume': volume});
+    // [D-016 失败外显(2026-10-07)] null = 未送达：清标记（不抑制旧值回传）、
+    // 不做乐观回写，warn 外显。
+    final res = await _post('volume', data: <String, dynamic>{'volume': volume});
+    if (res == null) {
+      _volumeCommandAtMs = 0;
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[setVolume] peer=${state.activePeer?.peerId} volume=$volume '
+            'send failed (post returned null), optimistic writeback skipped',
+      );
+      return;
+    }
     final nextStatus = state.status.copyWith(volume: volume);
     state = state.copyWith(status: nextStatus);
   }
@@ -1464,7 +1513,17 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     if (state.activePeer == null) return;
     // 与 setVolume 同理:静音态同样来自远端周期上报。
     _volumeCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    await _post('mute', data: <String, dynamic>{'muted': muted});
+    // [D-016 失败外显(2026-10-07)] 同 setVolume。
+    final res = await _post('mute', data: <String, dynamic>{'muted': muted});
+    if (res == null) {
+      _volumeCommandAtMs = 0;
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[setMuted] peer=${state.activePeer?.peerId} muted=$muted '
+            'send failed (post returned null), optimistic writeback skipped',
+      );
+      return;
+    }
     final nextStatus = state.status.copyWith(muted: muted);
     state = state.copyWith(status: nextStatus);
   }
@@ -1474,7 +1533,16 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 下发投屏播放模式(order|one|all|shuffle)。
   Future<void> setPlayMode(String mode) async {
     if (state.activePeer == null) return;
-    await _post('play-mode', data: <String, dynamic>{'mode': mode});
+    // [D-016 失败外显(2026-10-07)] null = 未送达：不乐观写回播放模式。
+    final res = await _post('play-mode', data: <String, dynamic>{'mode': mode});
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[setPlayMode] peer=${state.activePeer?.peerId} mode=$mode '
+            'send failed (post returned null), optimistic writeback skipped',
+      );
+      return;
+    }
     state = state.copyWith(playMode: mode);
     unawaited(pollOnce());
   }
@@ -1723,11 +1791,20 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final peerId = state.activePeer?.peerId;
     if (peerId == null || songs.isEmpty) return;
     final items = songs.map(songToQueueItem).toList();
-    await _post(
+    // [D-016 失败外显(2026-10-07)] 加歌未送达时 warn 外显并跳过补拉。
+    final res = await _post(
       'queue/enqueue',
       data: <String, dynamic>{'items': items},
       budget: queueTransferBudget(items.length),
     );
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[enqueueSongs] peer=${state.activePeer?.peerId} '
+            'items=${items.length} send failed (post returned null)',
+      );
+      return;
+    }
     unawaited(pollOnce(fullQueue: true));
   }
 
@@ -1735,7 +1812,16 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<void> jumpTo(int index) async {
     final peerId = state.activePeer?.peerId;
     if (peerId == null) return;
-    await _post('queue/jump', data: <String, dynamic>{'index': index});
+    // [D-016 失败外显(2026-10-07)] 点歌未送达时 warn 外显并跳过补拉。
+    final res = await _post('queue/jump', data: <String, dynamic>{'index': index});
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[jumpTo] peer=${state.activePeer?.peerId} index=$index '
+            'send failed (post returned null)',
+      );
+      return;
+    }
     unawaited(pollOnce(fullQueue: true));
   }
 
@@ -1751,7 +1837,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           )
           .timeout(const Duration(seconds: 8));
     } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'removeQueueItem failed: $e');
+      // [D-016 失败外显(2026-10-07)] 删歌失败从 debug 升级为 warn。
+      Logger.warnWithTag('CAST-PEER', 'removeQueueItem failed: $e');
     }
     unawaited(pollOnce(fullQueue: true));
   }
@@ -1760,7 +1847,16 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<void> reorderQueue(int from, int to) async {
     final peerId = state.activePeer?.peerId;
     if (peerId == null) return;
-    await _post('queue/reorder', data: <String, dynamic>{'from': from, 'to': to});
+    // [D-016 失败外显(2026-10-07)] 重排未送达时 warn 外显并跳过补拉。
+    final res = await _post('queue/reorder', data: <String, dynamic>{'from': from, 'to': to});
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[reorderQueue] peer=${state.activePeer?.peerId} from=$from to=$to '
+            'send failed (post returned null)',
+      );
+      return;
+    }
     unawaited(pollOnce(fullQueue: true));
   }
 
@@ -1775,7 +1871,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
             .deleteRaw('/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue')
             .timeout(const Duration(seconds: 8));
       } catch (e) {
-        Logger.debugWithTag('CAST-PEER', 'clearCastQueue failed: $e');
+        // [D-016 失败外显(2026-10-07)] 清队失败从 debug 升级为 warn。
+        Logger.warnWithTag('CAST-PEER', 'clearCastQueue failed: $e');
       }
     }
     await backToLocal();

@@ -61,18 +61,9 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           (processing == ProcessingState.loading ||
               processing == ProcessingState.buffering);
       final wantsPlaying = player.playing || _expectingAutoplay;
-      // 合成进度兜底正在承担推进时(锁缓存流可能以 0 上报真实位置但音频在播),
-      // 不把“定位在起点”当作 0 秒卡死,否则看门狗会重载一首正常在播的歌。
-      // 已移除边播边缓存(LockCachingAudioSource)，不再需要对锁缓存流做
-      // “位置报 0 但音频在播”的合成进度护航，相关分支恒为 false。
-      final syntheticCarrying =
-          _syntheticPositionFallbackActive &&
-          isReadyPlaying &&
-          sourcePlayerPos <= const Duration(milliseconds: 50);
       if (wantsPlaying &&
           atStart &&
           hasNoProgress &&
-          !syntheticCarrying &&
           !inSeekSettle &&
           !_shouldPreserveSeekPosition()) {
         _startupStuckTicks += 1;
@@ -96,15 +87,11 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 起点阶段(atStart)一律清零：0 秒卡死由 _startupStuckTicks 重载路径
       // 负责；若这里也累计,Windows 上加载/buffering 阶段(playing 仍 true)会
       // 提前攒到阈值,用「跳下一首」取代更温和的「重载自愈」+死歌判定。
-      // [D-053] 合成进度兜底（synthetic position fallback）为永久死代码家族：
-      // shouldUseSyntheticPosition（约 L235-239）要求 sourcePlayerPos<=50ms 且
-      // _stagnantPositionTicks>=6，但本分支在 atStart（pos<=1500ms，50ms 必然满足）
-      // 时每 tick 清零计数，两条件逻辑上不可能同时成立；且激活写入点全库仅
-      // L317 一处、无外部置位路径 → 真实卡死场景下时钟外推永不启用。
-      // 守卫用例：test/providers/player/b34a_pospoll_settle_test.dart
-      // 「0 秒卡死重载自愈后不再重复重载」（修完需证明 _syntheticPositionFallbackActive 可被置位）。
-      // 同一门控同时锁死 player_provider.dart 的 positionStream ignorePositionWhileSynthetic
-      // 块（L556-573），一并视为本死代码家族。
+      // [D-053] 合成进度兜底（synthetic position fallback）已按用户决策整体删除
+      // （2026-10-07：合成进度回退功能不要）。原激活条件（sourcePlayerPos<=50ms
+      // 且 _stagnantPositionTicks>=6）与本分支 atStart 清零逻辑互斥，属不可达
+      // 死代码；源卡死时 UI 进度本就冻结（无合成推进），自愈由 0 秒卡死/停滞/
+      // 近末尾三道看门狗接管。
       if (atStart) {
         _stagnantPositionTicks = 0;
       } else if (!stallSignal || deltaFromLast > 150) {
@@ -190,76 +177,9 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
 
       // 正常情况下用底层播放器位置对齐 UI 进度。
       final drift = (playerPos - state.position).inMilliseconds.abs();
-      final keepSyntheticProgress =
-          _syntheticPositionFallbackActive &&
-          isReadyPlaying &&
-          sourcePlayerPos <= const Duration(milliseconds: 50);
-      final preserveSyntheticPosition =
-          _syntheticPositionFallbackActive &&
-          state.position > const Duration(milliseconds: 250) &&
-          (!isReadyPlaying ||
-              playerPos + const Duration(seconds: 5) < state.position);
-
-      if (drift >= 250 &&
-          !keepSyntheticProgress &&
-          !preserveSyntheticPosition) {
-        final canDeactivateSynthetic =
-            _syntheticPositionFallbackActive &&
-            isReadyPlaying &&
-            sourcePlayerPos > Duration.zero &&
-            drift <= 3000;
-        if (canDeactivateSynthetic) {
-          _syntheticPositionFallbackActive = false;
-          _seekDbg('position fallback deactivated, player position recovered');
-        }
+      if (drift >= 250) {
         state = state.copyWith(position: playerPos);
         return;
-      }
-      if (drift >= 250 &&
-          preserveSyntheticPosition &&
-          _stagnantPositionTicks != _lastStagnantLogTick &&
-          _stagnantPositionTicks % 6 == 0) {
-        _playDbg(
-          'position sync skipped to preserve synthetic '
-          'sourcePlayerPos=$sourcePlayerPos playerPos=$playerPos '
-          'statePos=${state.position} '
-          'driftMs=$drift playing=${player.playing} '
-          'processing=${processing.name} song=${state.currentSong?.id}',
-        );
-      }
-      if (drift >= 250 &&
-          keepSyntheticProgress &&
-          _stagnantPositionTicks != _lastStagnantLogTick &&
-          _stagnantPositionTicks % 6 == 0) {
-        _playDbg(
-          'position drift sync skipped while synthetic active '
-          'sourcePlayerPos=$sourcePlayerPos playerPos=$playerPos '
-          'statePos=${state.position} '
-          'driftMs=$drift song=${state.currentSong?.id}',
-        );
-      }
-
-      // iOS + LockCachingAudioSource 某些流上 position 可能卡在 0。
-      // 当确认持续卡住时，按时间片推进 UI 进度，避免进度条一直 0:00。
-      final shouldUseSyntheticPosition =
-          isReadyPlaying &&
-          sourcePlayerPos <= const Duration(milliseconds: 50) &&
-          state.duration > Duration.zero &&
-          _stagnantPositionTicks >= 6;
-      if (shouldUseSyntheticPosition &&
-          _stagnantPositionTicks != _lastStagnantLogTick &&
-          _stagnantPositionTicks % 6 == 0) {
-        _lastStagnantLogTick = _stagnantPositionTicks;
-        _playDbg(
-          'position_stagnant ticks=$_stagnantPositionTicks '
-          'sourcePlayerPos=$sourcePlayerPos playerPos=$playerPos '
-          'statePos=${state.position} '
-          'buffered=${player.bufferedPosition} duration=${state.duration} '
-          'processing=${processing.name} playing=${player.playing} '
-          'song=${state.currentSong?.id} '
-          'format=$_currentStreamFormat maxBitRate=$_currentStreamMaxBitRate '
-          'stream=${_summarizeStreamUrl(_currentStreamUrl)}',
-        );
       }
       // 近末尾守卫(Windows 专项增强)：某些源尾段 position 会停在 duration
       // 前一小段不再前推，或到达/越过声明末尾而 completed 永不触发 → 末尾永久
@@ -269,8 +189,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // `_nearEndStuckTicks`——只要「(确实在播) 或 (位置已到声明末尾)」且位置停在
       // 末段 2.5s 窗口内不前进，累计满阈值即视为播完并走正式完成流程
       // (尊重 随机/单曲循环/顺序)。
-      if (!shouldUseSyntheticPosition &&
-          state.duration > const Duration(seconds: 3) &&
+      if (state.duration > const Duration(seconds: 3) &&
           state.duration - state.position <=
               const Duration(milliseconds: 2500) &&
           (player.playing || state.position >= state.duration) &&
@@ -291,13 +210,12 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         }
       }
 
-      // 停滞看门狗：确实在播但进度持续不走(非合成进度场景)，
+      // 停滞看门狗：确实在播但进度持续不走，
       // 达到阈值即自动跳下一首自愈。统一作用于本机与远程试听，
       // 保持继续跳直到找到能前進的歌曲。
       // (stallSignal 在 Windows 上为 player.playing、移动端为 isReadyPlaying，
       //  避免 Windows 因 processing 卡在 buffering 而被看门狗漏判)
       if (stallSignal &&
-          !shouldUseSyntheticPosition &&
           _stagnantPositionTicks >= _stagnantSkipThresholdTicks) {
         final stuckTicks = _stagnantPositionTicks;
         _stagnantPositionTicks = 0;
@@ -307,28 +225,10 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           'statePos=${state.position} '
           'processing=${processing.name} playing=${player.playing}',
         );
-        // 注意：本函数作用域内存在局部变量 `next`(Duration)，其声明在下方，
-        // Dart 中局部变量会遮蔽同名成员方法，故必须显式用 this.next() 调用跳歌方法。
-        unawaited(this.next());
+        unawaited(next());
         return;
       }
 
-      // 非合成进度在此结束(两个守卫都要求非合成，不会在这里触发)；
-      // 合成进度才继续往下，按时间片推进 UI 进度。
-      if (!shouldUseSyntheticPosition) return;
-
-      final next = _normalizeSeekPosition(
-        state.position + const Duration(milliseconds: 500),
-      );
-      if (next <= state.position) return;
-
-      if (!_syntheticPositionFallbackActive) {
-        _syntheticPositionFallbackActive = true;
-        _seekDbg(
-          'position fallback activated song=${state.currentSong?.id}',
-        );
-      }
-      state = state.copyWith(position: next);
     });
   }
 

@@ -39,6 +39,15 @@ class SubsonicApiClient {
 
   MusicLibrary? get library => _library;
 
+  /// [b41 收口] 响应负载安全取 Map：服务端脏数据（非 Map 负载）属数据错误，
+  /// 抛 Exception 走普通失败分支；不能用裸 as（抛 TypeError 属 Error，
+  /// 会被 [b41e1] 的 Error 穿透逻辑 rethrow，破坏「响应类型错误→返回失败」契约
+  /// 与 handoff 主通道回落链路，见 handoff_e2e_test / b30b ping 用例）。
+  static Map<String, dynamic> _asResponseMap(Object? rawData) {
+    if (rawData is Map<String, dynamic>) return rawData;
+    throw Exception('Unexpected response payload: ${rawData.runtimeType}');
+  }
+
   /// 本安装的临时端 ID(懒加载一次后缓存,供每个请求带上 `x-mf-client-id`)。
   /// 服务端用它区分同一账号下的多个播放端;客户端本身不需要、也看不到它。
   ///
@@ -50,6 +59,10 @@ class SubsonicApiClient {
     try {
       return _clientIdCache = await LocalStorage.getClientId();
     } catch (e) {
+      // [b41 收口订正] clientId 是 best-effort 遥测头：存储不可用（含无 binding
+      // 测试环境抛的 binding Error）一律降级为 null，不做 Error 穿透 —— 否则
+      // 鉴权拦截器每个请求都会被炸掉（见 handoff_e2e_test 回归）。与上方
+      // 5 处主链路 catch 的「Error 穿透」语义不同，此处刻意全吞。
       Logger.debugWithTag('SUBSONIC', 'clientId unavailable: $e');
       return null;
     }
@@ -83,7 +96,7 @@ class SubsonicApiClient {
   Future<PingResult> ping() async {
     try {
       final response = await _dio.get(ApiConstants.ping);
-      final data = response.data as Map<String, dynamic>;
+      final data = _asResponseMap(response.data);
       _checkResponse(data);
 
       final subsonicResponse = data['subsonic-response'];
@@ -98,6 +111,7 @@ class SubsonicApiClient {
       Logger.error('Ping failed', e);
       return PingResult(success: false, errorMessage: e.message);
     } catch (e) {
+      if (e is Error) rethrow; // [b41e1] Error 穿透：TypeError 等编程错误不再吞成失败
       Logger.error('Ping failed', e);
       return PingResult(success: false, errorMessage: e.toString());
     }
@@ -107,7 +121,7 @@ class SubsonicApiClient {
   Future<List<String>> getOpenSubsonicExtensions() async {
     try {
       final response = await _dio.get(ApiConstants.getOpenSubsonicExtensions);
-      final data = response.data as Map<String, dynamic>;
+      final data = _asResponseMap(response.data);
       _checkResponse(data);
 
       final subsonicResponse = data['subsonic-response'];
@@ -116,9 +130,11 @@ class SubsonicApiClient {
       if (extensions == null) return [];
 
       return extensions
-          .map((e) => (e as Map<String, dynamic>)['name'] as String)
+          .map(_asResponseMap)
+          .map((e) => e['name'] as String)
           .toList();
     } catch (e) {
+      if (e is Error) rethrow; // [b41e1] Error 穿透：编程错误不再吞成空列表
       Logger.warn('Failed to get OpenSubsonic extensions', e);
       return [];
     }
@@ -144,7 +160,7 @@ class SubsonicApiClient {
         },
       ),
     );
-    final data = response.data as Map<String, dynamic>;
+    final data = _asResponseMap(response.data);
     _checkResponse(data);
     return data['subsonic-response'];
   }
@@ -225,7 +241,7 @@ class SubsonicApiClient {
         },
       ),
     );
-    final responseData = response.data as Map<String, dynamic>;
+    final responseData = _asResponseMap(response.data);
     _checkResponse(responseData);
     return responseData['subsonic-response'];
   }
@@ -314,13 +330,15 @@ class SubsonicApiClient {
     final baseUrl = _dio.options.baseUrl;
     if (_library == null || baseUrl.isEmpty) return '';
     try {
-      final data = await postRaw(
+      final data = _asResponseMap(await postRaw(
         ApiConstants.dlnaStreamUrl,
         data: <String, dynamic>{'songId': songId},
-      ) as Map<String, dynamic>;
+      ));
       final path = data['streamUrl'] as String?;
       if (path == null || path.isEmpty) {
-        throw StateError('server returned no streamUrl');
+        // 期望内的服务端数据缺失 → 用 Exception（保持走下方回退链路）；
+        // 若用 StateError(Error 子类) 会被 [b41e1] 的 Error 穿透改成上抛，破坏回退契约。
+        throw Exception('server returned no streamUrl');
       }
       final uri = Uri.parse(joinServerUrl(baseUrl, path));
       return uri.toString();
@@ -334,6 +352,7 @@ class SubsonicApiClient {
       Logger.warn('DLNA unauthenticated stream fetch failed, falling back to authenticated stream', e);
       return getStreamUrl(songId, maxBitRate: maxBitRate);
     } catch (e) {
+      if (e is Error) rethrow; // [b41e1] Error 穿透：编程错误不再静默回退旧链路
       Logger.warn('DLNA unauthenticated stream fetch failed, falling back to authenticated stream', e);
       return getStreamUrl(songId, maxBitRate: maxBitRate);
     }
@@ -407,20 +426,21 @@ class SubsonicApiClient {
   Future<List<Map<String, dynamic>>> getMusicFolders() async {
     try {
       final response = await _dio.get(ApiConstants.getMusicFolders);
-      final data = response.data as Map<String, dynamic>;
+      final data = _asResponseMap(response.data);
       _checkResponse(data);
 
       final subsonicResponse = data['subsonic-response'];
       final folders = subsonicResponse['musicFolders']?['musicFolder'];
 
       if (folders is List) {
-        return folders.cast<Map<String, dynamic>>();
+        return folders.map(_asResponseMap).toList();
       } else if (folders is Map) {
         // Single folder potentially
-        return [folders as Map<String, dynamic>];
+        return [_asResponseMap(folders)];
       }
       return [];
     } catch (e) {
+      if (e is Error) rethrow; // [b41e1] Error 穿透：编程错误不再吞成空列表
       Logger.warn('Failed to get music folders', e);
       return [];
     }

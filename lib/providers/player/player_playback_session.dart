@@ -343,15 +343,10 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
     final queue = <Song>[];
     for (final item in rawQueue) {
       try {
+        // jsonDecode 产物恒为 Map<String, dynamic>（原 `item is Map` 非 String 键
+        // 防御分支从磁盘路径永远进不去 —— 2026-10-07 按死代码删除）。
         if (item is Map<String, dynamic>) {
           queue.add(Song.fromJson(item));
-          continue;
-        }
-        if (item is Map) {
-          final mapped = item.map(
-            (key, value) => MapEntry(key.toString(), value),
-          );
-          queue.add(Song.fromJson(mapped));
         }
       } catch (e) {
         Logger.warnWithTag(

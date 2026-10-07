@@ -363,9 +363,9 @@ class DiscoverFrequentAlbumShelf extends StatelessWidget {
         final maximumWidth = constraints.maxWidth < 340
             ? constraints.maxWidth
             : 340.0;
-        final minimumWidth = constraints.maxWidth < 280
-            ? constraints.maxWidth
-            : 280.0;
+        // [b41e1 清理] useAccessibleList 已在 maxWidth < 280 时早退，
+        // 走到这里必有 maxWidth >= 280，原三元真分支不可达 → 常量。
+        final minimumWidth = 280.0;
         final tileWidth = (constraints.maxWidth * 0.86)
             .clamp(minimumWidth, maximumWidth)
             .toDouble();
@@ -641,9 +641,9 @@ class DiscoverFrequentAlbumLoading extends StatelessWidget {
         final maximumWidth = constraints.maxWidth < 340
             ? constraints.maxWidth
             : 340.0;
-        final minimumWidth = constraints.maxWidth < 280
-            ? constraints.maxWidth
-            : 280.0;
+        // [b41e1 清理] useAccessibleList 已在 maxWidth < 280 时早退，
+        // 走到这里必有 maxWidth >= 280，原三元真分支不可达 → 常量。
+        final minimumWidth = 280.0;
         final tileWidth = (constraints.maxWidth * 0.86)
             .clamp(minimumWidth, maximumWidth)
             .toDouble();

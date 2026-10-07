@@ -78,15 +78,18 @@ class DlnaDevice {
 
   String get displayName => alias?.isNotEmpty == true ? alias! : name;
 
+  /// copyWith 哨兵：区分「省略参数（保持原值）」与「显式传 null（清空字段）」。
+  static const Object _unset = Object();
+
   DlnaDevice copyWith({
     String? id,
     String? name,
-    String? alias,
+    Object? alias = _unset,
     String? location,
-    String? manufacturer,
-    String? model,
-    String? avTransportUrl,
-    String? renderingControlUrl,
+    Object? manufacturer = _unset,
+    Object? model = _unset,
+    Object? avTransportUrl = _unset,
+    Object? renderingControlUrl = _unset,
     DateTime? lastSeen,
     bool? available,
     bool? disabled,
@@ -94,22 +97,24 @@ class DlnaDevice {
     return DlnaDevice(
       id: id ?? this.id,
       name: name ?? this.name,
-      alias: alias ?? this.alias,
+      // [D-022 已修] 可空字段用哨兵区分两种语义：省略=保持、显式 null=清空。
+      // 不传参数的既有调用（如 copyWith(available: false)）行为完全不变，源兼容。
+      alias: _resolveNullable(alias, this.alias),
       location: location ?? this.location,
-      manufacturer: manufacturer ?? this.manufacturer,
-      model: model ?? this.model,
-      avTransportUrl: avTransportUrl ?? this.avTransportUrl,
-      // [D-022 钉住现状] `x ?? this.x` 兜底是全局的：**显式传 null 清不掉**这些可空字段
-      // (alias / renderingControlUrl 都被吃掉)。调用方以为「已抹掉 RenderingControl 地址」，
-      // 实际设备仍带音量控制 → 「设备无 RenderingControl → setVolume/toggleMute 早退」
-      // 那条分支永远走不到。建议可空字段改成显式 clear 语义(或加 clearX())；
-      // 修完记得翻 test/core/dlna/dlna_manager_cov_test.dart 里 [D-022] 那条守卫用例。
-      renderingControlUrl: renderingControlUrl ?? this.renderingControlUrl,
+      manufacturer: _resolveNullable(manufacturer, this.manufacturer),
+      model: _resolveNullable(model, this.model),
+      avTransportUrl: _resolveNullable(avTransportUrl, this.avTransportUrl),
+      renderingControlUrl:
+          _resolveNullable(renderingControlUrl, this.renderingControlUrl),
       lastSeen: lastSeen ?? this.lastSeen,
       available: available ?? this.available,
       disabled: disabled ?? this.disabled,
     );
   }
+
+  /// [D-022] 哨兵解析：省略（= _unset）→ 保持 current；其余（含显式 null）→ 采用传入值。
+  static T? _resolveNullable<T>(Object? value, T? current) =>
+      identical(value, _unset) ? current : value as T?;
 }
 
 /// DLNA 播放状态
