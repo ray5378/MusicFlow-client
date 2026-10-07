@@ -346,7 +346,7 @@ void main() {
             .toList(),
         <String>['1', '2', '3'],
       );
-      expect(api.calls.first.query!['pageSize'], '200');
+      expect(api.calls.first.query!['pageSize'], '2000');
       expect(api.calls.first.query!['query'], 'ab');
     });
 
