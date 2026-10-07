@@ -46,6 +46,7 @@
 // #79 jsonDecode 出来的对象恒为 `Map<String, dynamic>`，所以 `_parsePlaybackSessionQueue`
 //     里 `item is Map`（非 String 键）那条防御分支**从磁盘路径永远进不去**（见「剩余
 //     缺口」）；能打到的只有 `Song.fromJson` 抛异常那个 catch。
+//     该分支已于 2026-10-07 作为死代码删除（batch41 E2）。
 import 'dart:async';
 import 'dart:io';
 
@@ -319,19 +320,6 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 30));
     });
     return h;
-  }
-
-  /// 轮询等会话文件出现（恢复尾巴的落盘是 fire-and-forget，单次读会抢跑）。
-  Future<Map<String, dynamic>?> waitSession([
-    Duration budget = const Duration(seconds: 5),
-  ]) async {
-    final deadline = DateTime.now().add(budget);
-    while (DateTime.now().isBefore(deadline)) {
-      final s = await LocalStorage.getPlaybackSession();
-      if (s != null) return s;
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-    return null;
   }
 
   // ═══════════════ 一、投屏队列镜像 syncQueueForCast ═══════════════
@@ -894,9 +882,21 @@ void main() {
       // 服务端为准不回推（内容一致，避免 MB 级冗余上行）。
       expect(h.cast.mirrorCalls, 0);
       // 服务端胜出后要立刻把服务端内容落成本地会话（下次启动两侧一致）。
-      final saved = await waitSession();
+      // 确定性驱动：bounded 轮询直等「目标内容」出现 —— 落盘是 fire-and-forget
+      // 真 IO，时长不可控，固定 5s 预算在高负载下会抢跑误红；这里轮询上限 30s，
+      // 且以「currentSongId == x3」为退出条件（非空即可），既有内容错也不会误绿。
+      Map<String, dynamic>? saved;
+      final persistDeadline = DateTime.now().add(const Duration(seconds: 30));
+      while (DateTime.now().isBefore(persistDeadline)) {
+        final s = await LocalStorage.getPlaybackSession();
+        if (s != null && s['currentSongId'] == 'x3') {
+          saved = s;
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
       expect(saved, isNotNull,
-          reason: '服务端胜出后必须回写一次本地会话（fire-and-forget，最多等 5s）');
+          reason: '服务端胜出后必须回写一次本地会话（fire-and-forget，轮询上限 30s）');
       expect(saved!['currentSongId'], 'x3',
           reason: '服务端胜出必须回写本地，否则下次启动又退回旧本地会话');
     });

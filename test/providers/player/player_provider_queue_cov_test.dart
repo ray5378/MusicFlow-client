@@ -576,7 +576,13 @@ void main() {
       expect(container.read(queueOriginProvider), isNotNull);
 
       await notifier.clearQueue(keepCurrent: false);
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      // 确定性驱动：bounded 轮询等 teardown 生效（固定 120ms 在高负载下会抢跑）。
+      final originDeadline = DateTime.now().add(const Duration(seconds: 5));
+      while (container.read(queueOriginProvider) != null &&
+          DateTime.now().isBefore(originDeadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
 
       expect(container.read(queueOriginProvider), isNull);
     });
@@ -637,10 +643,17 @@ void main() {
           const QueueOrigin(QueueOriginKind.album, 'al9');
 
       notifier.removeFromQueue(0);
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      // 确定性驱动：bounded 轮询等 immediate 落盘完成（真 IO，固定 120ms 会抢跑）。
+      Map<String, dynamic>? savedSession;
+      final persistDeadline = DateTime.now().add(const Duration(seconds: 10));
+      while (savedSession == null && DateTime.now().isBefore(persistDeadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        savedSession = await LocalStorage.getPlaybackSession();
+      }
 
       expect(container.read(queueOriginProvider), isNull);
-      expect(await LocalStorage.getPlaybackSession(), isNotNull);
+      expect(savedSession, isNotNull, reason: 'immediate 落盘应在轮询预算内完成');
     });
 
     test('移除当前项**之前**的项：当前下标左移 1', () async {

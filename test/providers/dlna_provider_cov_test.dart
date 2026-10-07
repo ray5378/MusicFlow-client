@@ -645,17 +645,16 @@ void main() {
       );
     });
 
-    test('[D-025] DlnaDevicesState.copyWith 显式传 null 清不掉字段', () {
-      // 现状钉子：DlnaDevicesState.copyWith 用的是 `x ?? this.x`，与
-      // DlnaCastState 的 `clearDevice` 语义不一致 —— 想「清空设备列表 /
-      // 结束扫描」只能传一个假值再绕，没有真正的 clear 口。
+    test('[D-025] DlnaDevicesState.copyWith 显式传 null 清空字段（已翻转）', () {
+      // 已修复（2026-10-07 用户拍板：显式清空语义）：copyWith 改为哨兵参数，
+      // 显式传 null 真正清空；省略参数 = 保持现状（见 b41e2_d025_copywith_test.dart）。
       final base = DlnaDevicesState(
         devices: <DlnaDevice>[_device('u1', '电视')],
         isScanning: true,
       );
-      final kept = base.copyWith(devices: null, isScanning: null);
-      expect(kept.devices.length, 1);
-      expect(kept.isScanning, isTrue);
+      final cleared = base.copyWith(devices: null, isScanning: null);
+      expect(cleared.devices, isEmpty);
+      expect(cleared.isScanning, isFalse);
     });
 
     test('dlnaCastTrackFromSong 逐字段映射', () {
@@ -949,21 +948,19 @@ void main() {
       await notifier.reorderQueue(0, 2);
 
       final st = container.read(dlnaCastProvider);
-      // [D-030] 现状钉子（batch18 QA 复核期间新发现）：产品侧用的是
-      // `queue.insert(to > from ? to - 1 : to, item)`，向下拖(from < to)时少挪一格 ——
-      // 把队首 0 拖到下标 2，正确结果应是 [s2,s3,s1]，实际得到 [s2,s1,s3]；
-      // 向上拖(from > to)走 `to` 分支不受影响（下面那条对照）。
-      // 修正方向：remove 之后再 insert(to)（remove 后长度已 -1，不必再 -1）。
+      // [D-030] 语义已确认（2026-10-07 用户拍板）：`to` 为 Flutter
+      // ReorderableListView 标准间隙下标，`insert(to > from ? to - 1 : to)`
+      // 是标准写法，现状正确，不修。断言钉住该标准语义。
       expect(
         st.queue.map((t) => t.songId).toList(),
         <String>['s2', 's1', 's3'],
-        reason: '[D-030] 向下拖 off-by-one（现状钉子，改实现即红）',
+        reason: '[D-030] 向下拖：to 为间隙下标，落位 [s2,s1,s3]（语义已确认，不修）',
       );
       expect(manager.calls, contains('reorderQueue'));
       expect(player.syncCastCalls, greaterThan(0), reason: '重排后要镜像回本机');
     });
 
-    test('reorderQueue 向上拖（from > to）下标不偏（D-030 对照）', () async {
+    test('reorderQueue 向上拖（from > to）落位正确（D-030 对照）', () async {
       await startCastOk();
       player.syncCastCalls = 0;
 
@@ -973,7 +970,7 @@ void main() {
       expect(
         st.queue.map((t) => t.songId).toList(),
         <String>['s3', 's1', 's2'],
-        reason: '队尾 2 移到下标 0 —— 这条分支不偏，缺陷只发生在向下拖',
+        reason: '队尾 2 移到下标 0（from > to 走 to 分支，与向下拖同属标准间隙语义）',
       );
       expect(player.syncCastCalls, greaterThan(0));
     });

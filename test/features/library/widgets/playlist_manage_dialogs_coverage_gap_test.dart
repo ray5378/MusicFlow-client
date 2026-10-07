@@ -248,8 +248,8 @@ void main() {
 
   group('showDeletePlaylistConfirmDialog', () {
     testWidgets('确认文案带上歌单名,取消 -> false', (WidgetTester tester) async {
-      late Future<bool> future;
-      await _open<bool>(
+      late Future<bool?> future;
+      await _open<bool?>(
         tester,
         (ctx) {
           future = showDeletePlaylistConfirmDialog(
@@ -271,8 +271,8 @@ void main() {
     });
 
     testWidgets('点删除 -> true', (WidgetTester tester) async {
-      late Future<bool> future;
-      await _open<bool>(
+      late Future<bool?> future;
+      await _open<bool?>(
         tester,
         (ctx) {
           future = showDeletePlaylistConfirmDialog(
@@ -288,12 +288,12 @@ void main() {
       expect(await _awaitResult(future), true);
     });
 
-    // [D-009] 弹窗被外部 pop 掉(返回键/滑动关闭)时,showDeletePlaylistConfirmDialog
-    // 把确认结果兜底成 false —— 这里记录:没点按钮也算「没删」。
-    testWidgets('弹窗被直接 pop 掉 -> 兜底为 false(不会误删)',
+    // [D-009 已修] 返回值改三态:弹窗被外部 pop(返回键/滑动关闭)→ null,
+    // 与「用户点取消主动放弃(false)」可区分;调用方用 `!= true` 兜底,依然不会误删。
+    testWidgets('弹窗被直接 pop 掉 -> 返回 null(未选择)',
         (WidgetTester tester) async {
-      late Future<bool> future;
-      final BuildContext ctx = await _open<bool>(
+      late Future<bool?> future;
+      final BuildContext ctx = await _open<bool?>(
         tester,
         (ctx) {
           future = showDeletePlaylistConfirmDialog(
@@ -310,8 +310,8 @@ void main() {
       await _settle(tester);
       expect(
         await _awaitResult(future),
-        false,
-        reason: '空返回值被 ?? false 兜住',
+        isNull,
+        reason: '[D-009] 外部 pop 不再兜底成 false,而是返回 null',
       );
     });
   });

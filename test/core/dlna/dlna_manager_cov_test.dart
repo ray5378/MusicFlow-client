@@ -992,9 +992,8 @@ void main() {
       expect(
         server.sawActions.contains('Seek'),
         isFalse,
-        reason: '[D-016 钉住现状] SOAP Seek 兜底分支不可达：'
-            'stopCast 同时清空 _currentDevice 与队列，两段 if 互斥，'
-            '兜底里的 SoapControl.seek 永远不会执行。',
+        reason: '[D-016 已删除（2026-10-07）] SOAP Seek 兜底已按用户决策移除：'
+            '「有设备必有队列信息」不变量成立，seek 只走重投流重建路径。',
       );
     });
 
@@ -1141,8 +1140,8 @@ void main() {
     });
 
     test('设备没有 RenderingControl 地址时 setVolume/toggleMute 早退', () async {
-      // 注意：这里必须**直接构造**无 RenderingControl 的设备 —— 用
-      // `_controlled().copyWith(renderingControlUrl: null)` 清不掉（见 D-022）。
+      // 注意：这里直接构造无 RenderingControl 的设备（更直白）；
+      // D-022 修复后 `copyWith(renderingControlUrl: null)` 也能真正清空了。
       await manager.startCast(_noRendering(), _tracks(duration: 6));
       await manager.setVolume(55);
       await manager.toggleMute();
@@ -1150,17 +1149,20 @@ void main() {
       expect(server.setMuteCalls, isEmpty);
     });
 
-    test('[D-022 钉住现状] copyWith 显式传 null 清不掉可空字段', () {
+    test('[D-022 已修] copyWith 显式传 null 清空可空字段，省略保持原值', () {
       final withAlias = _controlled().copyWith(alias: '客厅音箱');
-      final kept = withAlias.copyWith(renderingControlUrl: null, alias: null);
+      final cleared = withAlias.copyWith(renderingControlUrl: null, alias: null);
       expect(
-        kept.renderingControlUrl,
-        server.renderingControlUrl,
-        reason: '[D-022] copyWith 用 `x ?? this.x` 兜底，显式 null 被吃掉，'
-            '调用方以为「已清空」、实际仍是原值；'
-            '这会让「抹掉 RenderingControl 地址」的调用静默失效（如设备改造型后无音量控制）。',
+        cleared.renderingControlUrl,
+        isNull,
+        reason: '[D-022] copyWith 已用哨兵区分「省略/显式 null」，显式 null 真正清空，'
+            '「抹掉 RenderingControl 地址」的调用生效（无音量控制分支可达）。',
       );
-      expect(kept.alias, '客厅音箱', reason: 'alias 同为 ?? 兜底，传 null 清不掉已有别名');
+      expect(cleared.alias, isNull, reason: '显式 null 清空 alias');
+      final kept = withAlias.copyWith(disabled: true);
+      expect(kept.renderingControlUrl, server.renderingControlUrl,
+          reason: '省略参数保持原值');
+      expect(kept.alias, '客厅音箱', reason: '省略参数保持原值');
       expect(kept.avTransportUrl, server.avTransportUrl, reason: '传值的字段正常生效');
     });
   });

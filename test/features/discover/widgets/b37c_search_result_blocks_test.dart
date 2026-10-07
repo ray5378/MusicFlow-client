@@ -7,9 +7,10 @@
 //   * _playlists 卡片的 onPressed → push PlaylistDetailPage(334-343) 与
 //     onLongPress → showPlaylistOptionsSheet(345)。
 //
-// 说明：_hasData/_isLoading 的 `SearchScope.all => false`（源码 133/185）为
-// **不可达防御分支** —— SearchScope.stackedScopes 对 all 返回 kSearchScopeStackOrder
-// （不含 all），故这两个 case 永远不会被调用，属于死代码，不在此补测。
+// 说明：_hasData/_isLoading 的 SearchScope.all arm（源码 133/185）为**不可达分支** ——
+// SearchScope.stackedScopes 对 all 返回 kSearchScopeStackOrder（不含 all）。b41e1
+// 清理后该 arm 由「静默 false」改为「throw StateError 断言」（穷举性要求保留 arm），
+// 契约由 b41e1_search_scope_guard_test.dart 守护，行为仍不可达，不在此补测。
 //
 // 只写 test/，只读 lib/。
 

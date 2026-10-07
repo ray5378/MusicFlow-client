@@ -14,7 +14,7 @@
 //        `_giveUpPointer → didStopTrackingLastPointer`：accepted 态调 `_checkEnd`
 //        （onEnd），只有 possible 态才调 `_checkCancel`（onCancel）——而 possible 态下
 //        `_scrubbing` 必为 false，只会命中 673 行守卫。故 674-677 无路径可达。
-//   * 857：_MiniPlayerTrack 的 `else title`（`useHero == false`）—— 唯一调用点恒传 true。
+//   * 857：_MiniPlayerTrack 的 `else title`（`useHero == false`）—— 已由 batch41 E3 清理（参数与死分支删除）。
 //
 // 手法：MiniPlayerView 是 `@visibleForTesting` 纯控件，直接挂树打手势；
 // 真 MiniPlayer 的 onSeek 闭包用 `tester.widget<MiniPlayerView>(...).onSeek` 显式触发

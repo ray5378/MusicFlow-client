@@ -25,7 +25,7 @@
 //          State**、`_scrubbing` 归零，`_scrubSongId != widget.songId` 永远不成立
 //          ⇒ 防御性死代码。
 //   * 857：`_MiniPlayerTrack(useHero: false)` 的 `else title` 分支 ——
-//          全库仅 530 行一处构造点且硬编码 `useHero: true`，无调用方。
+//          已由 batch41 E3 清理：useHero 参数与死分支删除，恒走 Hero 封装。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

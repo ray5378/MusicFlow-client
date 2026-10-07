@@ -7,8 +7,9 @@
 //   406,407         `_handleBackPressed` 的 closeDrawer 分支
 //   409,410         `_handleBackPressed` 的 popRootNavigator 分支
 //
-// 本文件只打**可覆盖**的 6 行（310–313 / 409–410），剩下 6 行是死代码/平台
-// 盲区，见文件末尾「不可覆盖说明」。
+// 本文件只打**可覆盖**的 6 行（310–313 / 409–410）。原基线 65/69/70/73
+// （_restoreMusicFlowAppDrawerFocus 整段）已由 batch41 E3 接线修复（[D-042]，
+// 守卫用例见 test/widgets/b41e3_drawer_focus_test.dart），不再是死代码。
 //
 // 关键手法（与 b30c 的 harness 同源，但这里做了两处增强）：
 //   * ConnectivityMonitor 是普通可继承类，`networkTypeStream` / `currentNetworkType`
@@ -326,10 +327,10 @@ void main() {
 
   // -------------------------------------------------------------------------
   // 不可覆盖说明（真实缺陷/死代码，如需覆盖必须先改 lib，本轮铁律不改）：
-  //   * 65–73 `_restoreMusicFlowAppDrawerFocus`：MainScaffold 把它作为
-  //     `onReturnFocus` 传给 AppDrawer，但 AppDrawer 从头到尾**没有调用**该回调
-  //     （全仓仅声明处命中，见 lib/widgets/app_drawer.dart [D-042]）⇒ 整段是
-  //     死代码，键盘/无障碍「关闭抽屉后焦点回到触发控件」的承诺实际未接线。
+  //   * 65–73 `_restoreMusicFlowAppDrawerFocus`：[D-042] 已由 batch41 E3 接线 ——
+  //     AppDrawer 在抽屉动画收起、内容被 DrawerController 卸载时回调
+  //     onReturnFocus，本段随之复活；守卫用例见
+  //     test/widgets/b41e3_drawer_focus_test.dart。
   //   * 406–407 closeDrawer 分支：抽屉打开时返回事件被 DrawerController 的
   //     ChildBackButtonDispatcher 先吃掉，BackButtonListener 收不到
   //     （见 lib/widgets/main_scaffold.dart [D-044]）。

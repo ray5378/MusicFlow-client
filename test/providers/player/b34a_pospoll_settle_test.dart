@@ -6,6 +6,7 @@
 // 其余 miss（69-71、183-252、311-322 合成进度 fallback 家族）经源码比对为
 // **不可达死代码**：激活条件 `_stagnantPositionTicks >= 6 && sourcePlayerPos <= 50ms`
 // 与 `atStart`（pos<=1.5s 即清零计数，99-100 行）自相矛盾 —— 见报告 D-xxx。
+// [D-053] 该死代码家族已于 2026-10-07 按用户决策整体删除（合成进度回退不要）。
 import 'dart:async';
 
 import 'package:dio/dio.dart';
