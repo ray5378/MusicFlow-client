@@ -102,6 +102,12 @@ dependencies:
   smtc_windows: ^1.1.0
   flutter_rust_bridge: 2.11.1
 
+# 方案1(Android 超时适配):vendor 副本放宽 ExoPlayer HttpDataSource 超时,
+# 吃满服务端 30 分钟取流重试窗(详见 third_party/just_audio/README-MusicFlow.md)。
+dependency_overrides:
+  just_audio:
+    path: third_party/just_audio
+
 dev_dependencies:
   drift_dev: ^2.22.1
   flutter_test:
