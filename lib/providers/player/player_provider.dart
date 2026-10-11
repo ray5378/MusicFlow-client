@@ -166,6 +166,54 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   int? _streamLoadInFlightGeneration;
   String? _streamLoadInFlightSongId;
 
+  /// 当前在途网络流加载的起始时刻（毫秒时间戳，与 [_streamLoadInFlightSongId]
+  /// 同生同灭）。用于给「抗断网延后」加一道**上限**：服务端重试窗口本意是长时间
+  /// 挂起自愈，但 Windows(media_kit) 后端偶发 `setUrl` **永不返回**（既不
+  /// resolve 也不 reject），此时无上限的延后会让「0 秒卡死看门狗」永远按兵不动
+  /// —— 播放彻底冻结在 0 秒且无任何恢复途径（用户主诉「Windows 卡死在歌曲开头、
+  /// Android 正常」）。超过上限后放行看门狗自愈，避免永久冻结。
+  int? _streamLoadInFlightSinceMs;
+
+  /// 抗断网延后**兜底**上限（三档中的最后一档：既非 idle 停滞、也非 loading
+  /// 无进展的其余情形，例如平台报告 `buffering` 等）。
+  ///
+  /// 保持 batch44「窗口内不拆在途请求」的长等待语义：真实重试窗口 ≤30min 内
+  /// 必然落定（成功出流或显式失败），故取 30min 作为**安全网**——既不改变
+  /// batch44 的实际行为，又保证在途标记不会「永久」为真。
+  @visibleForTesting
+  int debugStreamLoadLoadingCeilingMs = 1800000;
+
+  /// 「平台未接管音源」判定的**短上限**（idle 停滞情形）。
+  ///
+  /// Windows(media_kit/libmpv) 在拿到非法响应（如反代回 502 / 请求被中断）时，
+  /// 会把 `processingState` 置为 [ProcessingState.idle]，并且**永不**把 `setUrl`
+  /// 的 Future 置为终态（既不 resolve 也不 reject）；同时 `playing` 仍为 true、
+  /// 位置停在 0、`duration` 为 0。这与「服务端挂起重试窗口」（应为 `loading`）
+  /// 是可区分的两种形态。若对 idle 也沿用长等待，0 秒卡死看门狗会被无限期搁置
+  /// → 播放永久冻结在 0 秒。
+  ///
+  /// 取 10s：与 Android(ExoPlayer 连接超时 30s) 同数量级但更激进，尽快自愈。
+  @visibleForTesting
+  int debugStreamLoadIdleStuckCeilingMs = 10000;
+
+  /// 「平台已接管音源但等不到数据」判定的**中上限**（loading 停滞、位置零前进）。
+  ///
+  /// just_audio_media_kit 给 libmpv 传 **`network-timeout=0`（无限等网络）**：反代/
+  /// 上游慢、或反代 10s 超时把连接搞坏时，libmpv **不报错**，只长期停在
+  /// `loading@0:00` 等数据；此时 `processingState` 为 [ProcessingState.loading]
+  /// （非 idle），`setUrl` 的 Future 亦不置终态。若把 loading 整体当作「合法长等待」
+  /// 沿用 30min 兜底，就会**永久卡死**（用户实测：歌单第一首卡在开始、手动切歌才
+  /// 恢复；第一首无预取、只能冷抓）。
+  ///
+  /// 取 30s：合法冷启动最坏 ≈ membuf 18s 硬顶 + ffmpeg 起播，实测正常冷抓首字节
+  /// 5-8s；30s 不会误杀慢歌，又能救 loading 卡死。超界同样清在途标记，交给既有
+  /// 升级链（reload → 判死歌 → 跳下一首）。
+  ///
+  /// ⚠ 判别**只看位置零前进**（`sourcePlayerPos <= 1.5s`），**不看** `duration == 0`：
+  /// libmpv/flac 一打开就带总时长，`duration` 很快非 0，若当必要条件看门狗会被解除。
+  @visibleForTesting
+  int debugStreamLoadNoProgressCeilingMs = 30000;
+
   /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
   /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
 

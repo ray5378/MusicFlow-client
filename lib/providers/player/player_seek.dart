@@ -387,6 +387,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
     if (isNetworkStreamLoad) {
       _streamLoadInFlightGeneration = generation;
       _streamLoadInFlightSongId = songId;
+      _streamLoadInFlightSinceMs = DateTime.now().millisecondsSinceEpoch;
     }
 
     // 网络加载节流闸口（2026-09-17）：当正处于「连续失败自动跳」的连跳段且已
@@ -413,6 +414,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
           _streamLoadInFlightGeneration == generation) {
         _streamLoadInFlightGeneration = null;
         _streamLoadInFlightSongId = null;
+        _streamLoadInFlightSinceMs = null;
       }
     }
 

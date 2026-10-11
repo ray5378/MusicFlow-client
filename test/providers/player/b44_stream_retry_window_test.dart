@@ -94,6 +94,116 @@ class _FakeAudioPlayerPlatform extends AudioPlayerPlatform {
     );
   }
 
+  /// 发一条「loading + 位置钉在 0 + duration=0」的事件：对照用例模拟
+  /// 「服务端取流失败挂起重试窗口」这一**合法**长等待形态（platform 处于
+  /// [ProcessingStateMessage.loading]，而非 idle）。
+  ///
+  /// 注：替身不 emit 时 just_audio 自己会把 processingState 置为 **loading**
+  /// （平台加载开始即合成），所以要复现「idle 停滞」必须显式发 idle 事件。
+  void emitLoadingAtStart() {
+    _events.add(
+      PlaybackEventMessage(
+        processingState: ProcessingStateMessage.loading,
+        updateTime: DateTime.now(),
+        updatePosition: Duration.zero,
+        bufferedPosition: Duration.zero,
+        duration: Duration.zero,
+        icyMetadata: null,
+        currentIndex: 0,
+        androidAudioSessionId: null,
+      ),
+    );
+  }
+
+  Timer? _idlePinTimer;
+
+  /// 周期钉住「idle + 位置 0 + duration 0」：复现 Windows v5.8.0 实测日志中
+  /// 「平台层压根没接管音源」的形态（processingState 落到 idle 并永远停住，
+  /// 而 setUrl 的 Future 既不 resolve 也不 reject）。
+  ///
+  /// 两个坑，都是必须的绕法：
+  /// 1. just_audio 会在 `_platformLoading` 为真时把平台发来的 idle **强制覆盖**
+  ///    成 loading（“The platform may emit an idle state while it's starting up
+  ///    which we override here”），所以先发一条 ready 让该覆盖失效，再钉 idle。
+  /// 2. 必须**周期**重发：just_audio 在 playing 时会按 updateTime 外推 position，
+  ///    只发一次会把位置一路推过 1.5s（atStart 失守 → 看门狗永远攒不到阈值）。
+  void startIdlePin() {
+    _events.add(
+      PlaybackEventMessage(
+        processingState: ProcessingStateMessage.ready,
+        updateTime: DateTime.now(),
+        updatePosition: Duration.zero,
+        bufferedPosition: Duration.zero,
+        duration: Duration.zero,
+        icyMetadata: null,
+        currentIndex: 0,
+        androidAudioSessionId: null,
+      ),
+    );
+    _idlePinTimer ??= Timer.periodic(const Duration(milliseconds: 200), (_) {
+      // 每轮先发 ready（持续解除 just_audio 的 idle→loading 覆盖：每次 reload
+      // 都会重新置起 _platformLoading），再发 idle 收尾 —— 一次轮询采样到的是
+      // 本轮最后那条 idle。
+      for (final state in const [
+        ProcessingStateMessage.ready,
+        ProcessingStateMessage.idle,
+      ]) {
+        _events.add(
+          PlaybackEventMessage(
+            processingState: state,
+            updateTime: DateTime.now(),
+            updatePosition: Duration.zero,
+            bufferedPosition: Duration.zero,
+            duration: Duration.zero,
+            icyMetadata: null,
+            currentIndex: 0,
+            androidAudioSessionId: null,
+          ),
+        );
+      }
+    });
+  }
+
+  void stopIdlePin() {
+    _idlePinTimer?.cancel();
+    _idlePinTimer = null;
+  }
+
+  Timer? _loadingPinTimer;
+
+  /// 周期钉住「loading + 位置 0 + duration 0」：复现「平台已接管、正等服务端
+  /// 重试窗口」这一**合法**长等待形态（processingState 持续为 loading）。
+  ///
+  /// 与 [startIdlePin] 的差异：loading 属「非 idle」，会命中 just_audio 的
+  /// `_platformLoading` 掩码清除分支并被原样上报为 loading，故**无需**先发 ready。
+  /// 每 200ms 重发以钉住位置（防止 playing 时按 updateTime 外推越过 1.5s，使
+  /// 0 秒卡死看门狗因 atStart 失守而自行停摆——那样就无法证明「loading 分支
+  /// 才是没误杀的原因」）。
+  ///
+  /// [duration] 默认为 [Duration.zero]（模拟「打开后仍未知时长」）；传非零值可复现
+  /// libmpv/flac「一打开就带总时长」的真实情形（见 loading 档回归钉子用例）。
+  void startLoadingPin({Duration duration = Duration.zero}) {
+    _loadingPinTimer ??= Timer.periodic(const Duration(milliseconds: 200), (_) {
+      _events.add(
+        PlaybackEventMessage(
+          processingState: ProcessingStateMessage.loading,
+          updateTime: DateTime.now(),
+          updatePosition: Duration.zero,
+          bufferedPosition: Duration.zero,
+          duration: duration,
+          icyMetadata: null,
+          currentIndex: 0,
+          androidAudioSessionId: null,
+        ),
+      );
+    });
+  }
+
+  void stopLoadingPin() {
+    _loadingPinTimer?.cancel();
+    _loadingPinTimer = null;
+  }
+
   @override
   Future<LoadResponse> load(LoadRequest request) async {
     loadCount += 1;
@@ -553,5 +663,246 @@ void main() {
         reason: '队列(order 模式)尽头的失败歌落暂停态,不无限绕圈',
       );
     });
+  });
+
+  // batch45 —— 抗断网延后必须**有界且按状态判别**（修「Windows 卡死在歌曲开头」）。
+  //
+  // 用户 v5.8.0 Windows(via media_kit/libmpv) 实测日志坐实：反代对慢首字节回
+  // 502 时，平台层压根没接管音源——`processingState` 由 loading 落到 **idle**
+  // 并永远停住，`setUrl` 的 Future 既不 resolve 也不 reject。batch44 的守卫据此
+  // 无限期延后 0 秒卡死看门狗 → 播放永久冻结在 0 秒且无任何可见报错。
+  //
+  // batch46 —— 补上 `loading` 档漏洞（本轮）：media_kit 给 libmpv 传
+  // `network-timeout=0`（无限等网络），反代慢/超时把连接搞坏时 libmpv **不报错**、
+  // 只长期停在 `loading@0:00`（非 idle）。旧实现把 loading 整体当「合法长等待」
+  // 沿用 30min 兜底 → 同样**永久卡死**（用户实测「歌单第一首卡在开始」）。故改
+  // 两极上界：idle 档 10s / loading 档 30s（只看位置零前进，不看 duration）。
+  //
+  // 修法：按 processingState 判别——
+  //   · `idle` + 播放意图 + 位置≈0 + duration=0：平台未接管 → 短上限(10s)。
+  //   · `loading` + 播放意图 + 位置零前进：平台已接管但等不到数据 → 中上限(30s)。
+  //     两档超界均**清在途标记**，让既有升级链（reload→判死→跳歌）接力自愈，
+  //     不新增第二套恢复逻辑。其余情形走 30min 兜底安全网。
+  group('抗断网延后:按 processingState 判别,idle 停滞必须自愈', () {
+    test('idle 停滞超上界 → 看门狗不再 defer,最终跳过该曲(不再永久冻结)', () async {
+      // loadGate 永不完成 → setUrl 永不返回；周期钉 idle@0 → 与实测日志同形。
+      justAudio.player.loadGate = Completer<void>();
+      container = buildContainer(justAudio.player);
+      final notifier = container.read(playerProvider.notifier);
+      // idle 停滞上限注入成极小值：省去真实等待（生产默认 10s）。
+      notifier.debugStreamLoadIdleStuckCeilingMs = 2000;
+      notifier.state = notifier.state.copyWith(
+        playbackMode: PlaybackMode.order,
+        loopMode: LoopMode.off,
+        shuffleEnabled: false,
+      );
+      await waitQuiet(notifier);
+
+      unawaited(
+        notifier.playSong(
+          _song('s0'),
+          queue: <Song>[_song('s0'), _song('s1')],
+          index: 0,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      justAudio.player.startIdlePin();
+      // 时序：阈值 12 tick ≈ 6s 首次触发；此时 idle 停滞已 >2s 上界 →
+      // 放行 reload(第 1 次)；再过 ≈6s 同曲连续达容错上限 → 判死跳下一首。
+      // 轮询式等待（上限 30s）：真正要断言的是「最终会跳过该曲、不永久冻结」，
+      // 而非某个墙钟余量。固定 13.5s 太紧（需同时覆盖 2s 判定上限 + 两轮
+      // 各 ~6s reload），CI 争用时易抖；轮询到状态落定即返回，语义等价且
+      // 不依赖墙钟。注意：2s/6s 等真实逻辑常量保持不变，仅改等待方式。
+      final idleDeadline = DateTime.now().add(const Duration(seconds: 60));
+      while (notifier.state.currentSong?.id != 's1' &&
+          DateTime.now().isBefore(idleDeadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+      justAudio.player.stopIdlePin();
+
+      expect(
+        notifier.state.currentSong?.id,
+        's1',
+        reason: 'idle 停滞超上界后必须自愈：reload → 连续 2 次判死 → 跳下一首；'
+            '修复前会永远 defer（currentSong 恒为 s0）'
+            '(loadLog=${justAudio.player.loadLog})',
+      );
+    }, timeout: const Timeout(Duration(seconds: 90)));
+
+    test('processing=loading 时仍保持 batch44 长等待(不误伤断网自愈)', () async {
+      justAudio.player.loadGate = Completer<void>();
+      container = buildContainer(justAudio.player);
+      final notifier = container.read(playerProvider.notifier);
+      // idle 上限注入成 1ms：若判别错误（把 loading 当 idle），7.6s 处必已 reload。
+      notifier.debugStreamLoadIdleStuckCeilingMs = 1;
+      await waitQuiet(notifier);
+
+      unawaited(
+        notifier.playSong(
+          _song('s0'),
+          queue: <Song>[_song('s0'), _song('s1')],
+          index: 0,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      // 让 platform 落到 loading（合法等服务端重试窗形态）。
+      justAudio.player.emitLoadingAtStart();
+      await Future<void>.delayed(const Duration(milliseconds: 7600));
+
+      expect(
+        justAudio.player.loadCount,
+        1,
+        reason: 'loading 属合法长等待，不得因 idle 上限而提前 reload/跳歌 '
+            '(loadLog=${justAudio.player.loadLog})',
+      );
+      expect(
+        notifier.state.currentSong?.id,
+        's0',
+        reason: '窗口内不得自动跳歌',
+      );
+    });
+
+    test(
+      'processing=loading 远超 idle 上界仍不误杀(reload 需 idle,两条件为 AND)',
+      timeout: const Timeout(Duration(seconds: 90)),
+      () async {
+        // 注入极小 idle 上界(2s)；但让 platform 持续停在 loading 并钉住位置 0。
+        // 若判别式把 loading 也算「未接管」(两条件为 OR)，2s 上界后必 reload；
+        // 因判别式要求 processing==idle(AND)，loading 分支走**独立的 loading 档
+        // 上界(30s)**，13s(<30s)后仍不得 reload、不得跳歌。
+        justAudio.player.loadGate = Completer<void>();
+        container = buildContainer(justAudio.player);
+        final notifier = container.read(playerProvider.notifier);
+        notifier.debugStreamLoadIdleStuckCeilingMs = 2000;
+        notifier.state = notifier.state.copyWith(
+          playbackMode: PlaybackMode.order,
+          loopMode: LoopMode.off,
+          shuffleEnabled: false,
+        );
+        await waitQuiet(notifier);
+
+        unawaited(
+          notifier.playSong(
+            _song('s0'),
+            queue: <Song>[_song('s0'), _song('s1')],
+            index: 0,
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // 持续钉 loading@0 —— 保证「atStart + playing」成立、看门狗本可触发，
+        // 从而真正检验判别式，而不是靠位置漂移掩盖问题。
+        justAudio.player.startLoadingPin();
+        await Future<void>.delayed(const Duration(milliseconds: 13000));
+        justAudio.player.stopLoadingPin();
+
+        expect(
+          justAudio.player.loadCount,
+          1,
+          reason: 'loading 有独立 loading 档(30s)：在途远超 idle 上界(2s)也不得 reload '
+              '(13s < 30s) (loadLog=${justAudio.player.loadLog})',
+        );
+        expect(
+          notifier.state.currentSong?.id,
+          's0',
+          reason: 'loading 形态下不得自动跳歌（判别式两条件为 AND）',
+        );
+      },
+    );
+
+    test(
+      'loading 无进展超 loading 档上界 → 不再 defer,最终跳过该曲(救永久卡死)',
+      timeout: const Timeout(Duration(seconds: 90)),
+      () async {
+        // batch46 漏洞复现：libmpv `network-timeout=0` 时平台长期停在 loading@0
+        // 等数据（**非 idle**），旧实现按「loading = 合法长等待」沿用 30min 兜底
+        // → 永久卡死（用户实测「歌单第一首卡在开始」）。修复后 loading 无进展有
+        // 独立上界；此处注入 2s 省去真实 30s 等待。
+        justAudio.player.loadGate = Completer<void>();
+        container = buildContainer(justAudio.player);
+        final notifier = container.read(playerProvider.notifier);
+        notifier.debugStreamLoadNoProgressCeilingMs = 2000;
+        notifier.state = notifier.state.copyWith(
+          playbackMode: PlaybackMode.order,
+          loopMode: LoopMode.off,
+          shuffleEnabled: false,
+        );
+        await waitQuiet(notifier);
+
+        unawaited(
+          notifier.playSong(
+            _song('s0'),
+            queue: <Song>[_song('s0'), _song('s1')],
+            index: 0,
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // 与第 6 条一致：持续钉 loading@0，保证「atStart + playing」成立、
+        // 看门狗本可触发（否则无法真正检验 loading 档）。
+        justAudio.player.startLoadingPin();
+        // 时序：阈值 12 tick ≈ 6s 首次触发；此时 loading 无进展已 >2s 上界 →
+        // 放行 reload(第 1 次)；再过 ≈6s 同曲连续达容错上限 → 判死跳下一首。
+        // 轮询到状态落定即返回（上限 60s），不依赖墙钟（与 idle 用例同风格）。
+        final loadingDeadline = DateTime.now().add(const Duration(seconds: 60));
+        while (notifier.state.currentSong?.id != 's1' &&
+            DateTime.now().isBefore(loadingDeadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+        justAudio.player.stopLoadingPin();
+
+        expect(
+          notifier.state.currentSong?.id,
+          's1',
+          reason: 'loading 无进展超上界后必须自愈：reload → 连续 2 次判死 → 跳下一首；'
+              '修复前会永远 defer（currentSong 恒为 s0，永久卡死）'
+              '(loadLog=${justAudio.player.loadLog})',
+        );
+      },
+    );
+
+    test(
+      'loading 无进展且 duration 非 0(libmpv 一打开就带时长)仍触发恢复',
+      timeout: const Timeout(Duration(seconds: 90)),
+      () async {
+        // 防回归钉子：若把 `duration == 0` 当作 loading 档的必要条件，libmpv/flac
+        // 一打开 duration 就非 0 → 看门狗被解除 → 又退回永久卡死。本用例把 duration
+        // 钉成 320s、位置钉 0、processing 钉 loading，断言仍必须自愈。
+        justAudio.player.loadGate = Completer<void>();
+        container = buildContainer(justAudio.player);
+        final notifier = container.read(playerProvider.notifier);
+        notifier.debugStreamLoadNoProgressCeilingMs = 2000;
+        notifier.state = notifier.state.copyWith(
+          playbackMode: PlaybackMode.order,
+          loopMode: LoopMode.off,
+          shuffleEnabled: false,
+        );
+        await waitQuiet(notifier);
+
+        unawaited(
+          notifier.playSong(
+            _song('s0'),
+            queue: <Song>[_song('s0'), _song('s1')],
+            index: 0,
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // 钉 loading@0 且 duration=320s（复现 libmpv 一打开就已知总时长的真实情形）。
+        justAudio.player.startLoadingPin(
+          duration: const Duration(seconds: 320),
+        );
+        final durationDeadline = DateTime.now().add(const Duration(seconds: 60));
+        while (notifier.state.currentSong?.id != 's1' &&
+            DateTime.now().isBefore(durationDeadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+        justAudio.player.stopLoadingPin();
+
+        expect(
+          notifier.state.currentSong?.id,
+          's1',
+          reason: 'duration 非 0 不得解除 loading 档看门狗：仍须 reload → 判死 → 跳下一首 '
+              '(loadLog=${justAudio.player.loadLog})',
+        );
+      },
+    );
   });
 }

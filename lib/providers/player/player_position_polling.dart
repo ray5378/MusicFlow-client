@@ -139,15 +139,117 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         // _handlePlaybackError 自动跳歌），客户端不抢在服务端之前掐断。
         // 仅守卫「流加载在途」本身：真正起播后仍卡死（服务端已响应但源坏）
         // 的场景不受影响，计数从零重新累计、看门狗照常接力。
-        if (_streamLoadInFlightSongId != null &&
-            _streamLoadInFlightSongId == state.currentSong?.id) {
+        //
+        // ★ 上限 + **状态判别**兜底（修「Windows 卡死在歌曲开头」，2026-10-11）：
+        //   用户实测日志（v5.8.0 / Windows / media_kit）坐实：反代对慢首字节回
+        //   502 时，平台层**压根没接管音源** —— `processingState` 由 loading 落到
+        //   `idle` 并**永远**停住，`setUrl` 的 Future 既不 resolve 也不 reject，
+        //   于是本守卫被无限期触发 → 播放永久冻结在 0 秒且无任何用户可见报错。
+        //   这与「服务端挂起重试窗口」（平台应为 `loading`）是**可区分**的形态：
+        //     · `loading` + 播放意图 + 位置零前进：平台已接管，但可能长期停在加载态
+        //       等数据 —— 30s 无进展上限（★★ 两级上界，详见下方）。
+        //     · `idle` + 仍有播放意图 + 位置≈0 + duration=0：平台未接管，判为
+        //       真实起播失败 —— 用短上限(10s)超界即**清在途标记**（只是不再拿它
+        //       当挡箭牌，并不拆掉在途 HTTP 请求）→ 既有升级链
+        //       （reload 当前曲 → 连续达容错上限判死歌 → _handlePlaybackError 跳歌）。
+        final inFlightSongId = _streamLoadInFlightSongId;
+        final loadInFlight =
+            inFlightSongId != null && inFlightSongId == state.currentSong?.id;
+        final playerDuration = player.duration;
+        // 为什么用 `processing` + **位置零前进** 来判「真实起播失败」？
+        //   `player.processingState` 并非平台上报值的直通，而是被 just_audio 的
+        //   `_platformLoading` 掩码位统一过：只要平台已声明「加载中」，应用侧一律
+        //   看到 `loading`，**绝不会**看到 `idle`：
+        //     if (_platformLoading && message.processingState != idle)
+        //       _platformLoading = false;                 // just_audio 本体掩码
+        //     processingState: _platformLoading
+        //         ? loading
+        //         : values[message.processingState.index];
+        //   （见 third_party/just_audio 内 `_setPlatformActive`/`_platformLoading` 一带）
+        //   于是可据此二分：
+        //     · `idle`    ⟺ 平台不在加载态（含其自报错误 / 停止）→ 判为「压根没接管」。
+        //     · `loading` ⟺ 平台已接管音源，但可能停在加载态等数据（不保证会推进）。
+        //
+        // ★★ 两级上界（修「Windows loading 态永久卡死」，2026-10-12）：
+        //   把 `loading` **整体**当作「合法长等待、唯一上界 30min」是错误的。
+        //   just_audio_media_kit 给 libmpv 传了 **`network-timeout=0`（无限等网络）**：
+        //   当反代/上游慢、或反代 10s 超时把连接搞坏时，libmpv **不报错**，只长期停在
+        //   `loading@0:00` 等数据 —— 应用侧看到 `loading`（掩码清除分支），若沿用
+        //   30min 上界 → 表现为**永久卡死**（用户实测：「歌单第一首会卡在开始，手动
+        //   切歌才能正常播放」「我不难过 这首还是没正常播放」；歌单第一首没有前一首，
+        //   无预取可用、只能冷抓，冷抓首字节实测 5.1s、慢时超时）。
+        //   故按 processing 分**两级**上界：
+        //     · `idle` + 播放意图 + 位置≈0：平台压根没接管 → 短上限(idle 档 10s)。
+        //     · `loading` + 播放意图 + 位置**零前进**：平台已接管但等不到数据
+        //       → 中上限(loading 档 30s)。超界**同样**清在途标记 → 交给既有升级链
+        //       （reload 当前曲 → 连续达容错上限判死歌 → _handlePlaybackError 跳歌），
+        //       不新增第二套恢复逻辑。
+        //     · 其余：兜底 30min 安全网（真实服务端重试窗口 ≤30min 内必然落定）。
+        //   30s 依据：合法冷启动最坏 ≈ membuf 18s 硬顶 + ffmpeg 起播，实测正常
+        //   冷抓首字节 5-8s；30s 不会误杀慢歌，又能救 loading 卡死。
+        //
+        //   ⚠ 为什么**不能**用 `duration == 0` 当 loading 档的必要条件？libmpv/flac
+        //   一打开（拿到响应头）通常就知道总时长，`duration` 很快变为非 0；若把
+        //   `duration == 0` 当必要条件，看门狗会被解除 → 又退回永久卡死。故 loading
+        //   档**只基于位置零前进**（`sourcePlayerPos <= 1.5s`），不看 duration。
+        //
+        //   两端真实包对得上：
+        //     · 合法慢加载：just_audio_media_kit 的 `load()`（mediakit_player.dart
+        //       L236 置 `_processingState = ProcessingStateMessage.loading`、
+        //       L239 `_updatePlaybackEvent()` 发出）**先发 loading** → 掩码被清 →
+        //       应用看到 loading → 走 loading 档(30s)；最坏冷启动亦在 30s 内起播，
+        //       不误杀。
+        //     · 502 失败：media_kit 错误回调（同文件 L144-151）回 `idle`，而掩码已被
+        //       前面的 loading 清掉 → 应用**真的看到 `idle`** → 走 idle 档(10s)。
+        //   ⚠ 前提假设：平台**先发 loading、后发 error**。若某实现顺序反转（先 error
+        //   后首个非 idle），掩码仍为真 → 应用看到 loading → 落入 loading 档(30s)
+        //   兜住（不再是 30min 永久冻结，属可接受的自愈时延）。
+        final platformNeverTookSource =
+            processing == ProcessingState.idle &&
+                wantsPlaying &&
+                sourcePlayerPos <= const Duration(milliseconds: 1500) &&
+                (playerDuration == null || playerDuration == Duration.zero);
+        // loading 档（无进展）：已请求播放 && 平台处于 loading && 位置始终没越过 1.5s。
+        // 依据「位置零前进」而非 `duration == 0`（libmpv 一打开就带时长，见上）。
+        final inLoadingNoProgress = wantsPlaying &&
+            processing == ProcessingState.loading &&
+            sourcePlayerPos <= const Duration(milliseconds: 1500);
+        // 三档优先级：idle 档(10s) > loading 档(30s) > 兜底(30min)。
+        final ceilingMs = platformNeverTookSource
+            ? debugStreamLoadIdleStuckCeilingMs
+            : (inLoadingNoProgress
+                ? debugStreamLoadNoProgressCeilingMs
+                : debugStreamLoadLoadingCeilingMs);
+        final inFlightMs = loadInFlight && _streamLoadInFlightSinceMs != null
+            ? DateTime.now().millisecondsSinceEpoch -
+                _streamLoadInFlightSinceMs!
+            : 0;
+        final deferInFlight = loadInFlight && inFlightMs < ceilingMs;
+        if (deferInFlight) {
           _startupStuckTicks = 0;
           _playDbg(
             'startup_stuck_watchdog deferred: stream load in flight '
-            'song=$_streamLoadInFlightSongId (server retry window), '
+            'song=$inFlightSongId inFlightMs=$inFlightMs ceilingMs=$ceilingMs '
+            'idleStuck=$platformNeverTookSource '
+            'loadingNoProgress=$inLoadingNoProgress '
             'processing=${processing.name} playing=${player.playing}',
           );
         } else {
+          if (loadInFlight) {
+            // 自愈：无论 setUrl 的 Future 是否完成，在途标记都不得永久为真。
+            // 仅停止「当挡箭牌」，不拆在途请求（请求终态由平台自理）。
+            _streamLoadInFlightGeneration = null;
+            _streamLoadInFlightSongId = null;
+            _streamLoadInFlightSinceMs = null;
+            _playDbg(
+              'startup_stuck_watchdog defer ceiling exceeded -> act '
+              'song=$inFlightSongId inFlightMs=$inFlightMs ceilingMs=$ceilingMs '
+              'idleStuck=$platformNeverTookSource '
+              'loadingNoProgress=$inLoadingNoProgress '
+              'processing=${processing.name} playing=${player.playing} '
+              'duration=$playerDuration',
+            );
+          }
           final stuckSong = state.currentSong;
           final startTicks = _startupStuckTicks;
           final stuckSongId = stuckSong?.id;
