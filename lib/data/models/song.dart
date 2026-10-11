@@ -41,7 +41,14 @@ class Song {
   final int? bitDepth;
   final int? samplingRate;
   final int? channelCount;
+  /// 本地=文件系统路径;WebDAV=`w:<sourceId>:<href>`;平台歌曲为空/无意义。
   final String? path;
+  final String? sourcePlatform; // 来源平台 slug(如 netease)
+  final String? sourcePluginId; // 来源插件 id(如 go-music-dl)
+  final bool? isWeb; // 是否平台(web)歌曲
+  final String? rowType; // "local" | "webdav" | "web"
+  final String? albumArtist; // 服务端 displayAlbumArtist
+  final String? composer; // 服务端 displayComposer
   final bool? isVideo;
   final int? playCount;
   final DateTime? created;
@@ -78,6 +85,12 @@ class Song {
     this.samplingRate,
     this.channelCount,
     this.path,
+    this.sourcePlatform,
+    this.sourcePluginId,
+    this.isWeb,
+    this.rowType,
+    this.albumArtist,
+    this.composer,
     this.isVideo,
     this.playCount,
     this.created,
@@ -140,6 +153,12 @@ class Song {
     int? samplingRate,
     int? channelCount,
     String? path,
+    String? sourcePlatform,
+    String? sourcePluginId,
+    bool? isWeb,
+    String? rowType,
+    String? albumArtist,
+    String? composer,
     bool? isVideo,
     int? playCount,
     DateTime? created,
@@ -176,6 +195,12 @@ class Song {
       samplingRate: samplingRate ?? this.samplingRate,
       channelCount: channelCount ?? this.channelCount,
       path: path ?? this.path,
+      sourcePlatform: sourcePlatform ?? this.sourcePlatform,
+      sourcePluginId: sourcePluginId ?? this.sourcePluginId,
+      isWeb: isWeb ?? this.isWeb,
+      rowType: rowType ?? this.rowType,
+      albumArtist: albumArtist ?? this.albumArtist,
+      composer: composer ?? this.composer,
       isVideo: isVideo ?? this.isVideo,
       playCount: playCount ?? this.playCount,
       created: created ?? this.created,
@@ -219,6 +244,13 @@ class Song {
       samplingRate: _toInt(json['samplingRate']),
       channelCount: _toInt(json['channelCount']),
       path: _toStr(json['path']),
+      sourcePlatform: _toStr(json['sourcePlatform']),
+      sourcePluginId: _toStr(json['sourcePluginId']),
+      isWeb: _toBool(json['isWeb']),
+      rowType: _toStr(json['rowType']),
+      // 服务端 DTO 用 displayAlbumArtist / displayComposer
+      albumArtist: _toStr(json['displayAlbumArtist']),
+      composer: _toStr(json['displayComposer']),
       isVideo: _toBool(json['isVideo']),
       playCount: _toInt(json['playCount']),
       created: json['created'] is String
@@ -268,6 +300,13 @@ class Song {
       'samplingRate': samplingRate,
       'channelCount': channelCount,
       'path': path,
+      'sourcePlatform': sourcePlatform,
+      'sourcePluginId': sourcePluginId,
+      'isWeb': isWeb,
+      'rowType': rowType,
+      // 与 fromJson 读键保持一致,保证本地缓存往返无损
+      'displayAlbumArtist': albumArtist,
+      'displayComposer': composer,
       'isVideo': isVideo,
       'playCount': playCount,
       'created': created?.toIso8601String(),

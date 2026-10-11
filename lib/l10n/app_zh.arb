@@ -2753,6 +2753,82 @@
       }
     }
   },
+  "song_info_field_title": "标题",
+  "@song_info_field_title": {
+    "description": "歌曲信息弹窗:标题字段标签"
+  },
+  "song_info_field_artist": "歌手",
+  "@song_info_field_artist": {
+    "description": "歌曲信息弹窗:歌手字段标签"
+  },
+  "song_info_field_album": "专辑",
+  "@song_info_field_album": {
+    "description": "歌曲信息弹窗:专辑字段标签"
+  },
+  "song_info_field_year": "年份",
+  "@song_info_field_year": {
+    "description": "歌曲信息弹窗:年份字段标签"
+  },
+  "song_info_field_album_artist": "专辑艺人",
+  "@song_info_field_album_artist": {
+    "description": "歌曲信息弹窗:专辑艺人字段标签"
+  },
+  "song_info_field_composer": "作曲",
+  "@song_info_field_composer": {
+    "description": "歌曲信息弹窗:作曲字段标签"
+  },
+  "song_info_field_genre": "风格",
+  "@song_info_field_genre": {
+    "description": "歌曲信息弹窗:风格字段标签"
+  },
+  "song_info_field_track": "音轨",
+  "@song_info_field_track": {
+    "description": "歌曲信息弹窗:音轨字段标签"
+  },
+  "song_info_saved_path": "保存路径",
+  "@song_info_saved_path": {
+    "description": "歌曲信息弹窗:本地/WebDAV 歌曲的保存路径行标签"
+  },
+  "song_info_source": "来源",
+  "@song_info_source": {
+    "description": "歌曲信息弹窗:平台歌曲的来源行标签"
+  },
+  "platform_netease": "网易云",
+  "@platform_netease": {
+    "description": "平台显示名:网易云"
+  },
+  "platform_qq": "QQ音乐",
+  "@platform_qq": {
+    "description": "平台显示名:QQ音乐"
+  },
+  "platform_kugou": "酷狗",
+  "@platform_kugou": {
+    "description": "平台显示名:酷狗"
+  },
+  "platform_kuwo": "酷我",
+  "@platform_kuwo": {
+    "description": "平台显示名:酷我"
+  },
+  "platform_migu": "咪咕",
+  "@platform_migu": {
+    "description": "平台显示名:咪咕"
+  },
+  "platform_qianqian": "千千",
+  "@platform_qianqian": {
+    "description": "平台显示名:千千"
+  },
+  "platform_soda": "汽水",
+  "@platform_soda": {
+    "description": "平台显示名:汽水"
+  },
+  "platform_huawei": "华为音乐",
+  "@platform_huawei": {
+    "description": "平台显示名:华为音乐"
+  },
+  "platform_apple": "Apple Music",
+  "@platform_apple": {
+    "description": "平台显示名:Apple Music"
+  },
   "song_option_unknown_artist": "未知歌手",
   "@song_option_unknown_artist": {
     "description": "song_option_unknown_artist"

@@ -2592,6 +2592,63 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get song_info_field_title => '标题';
+
+  @override
+  String get song_info_field_artist => '歌手';
+
+  @override
+  String get song_info_field_album => '专辑';
+
+  @override
+  String get song_info_field_year => '年份';
+
+  @override
+  String get song_info_field_album_artist => '专辑艺人';
+
+  @override
+  String get song_info_field_composer => '作曲';
+
+  @override
+  String get song_info_field_genre => '风格';
+
+  @override
+  String get song_info_field_track => '音轨';
+
+  @override
+  String get song_info_saved_path => '保存路径';
+
+  @override
+  String get song_info_source => '来源';
+
+  @override
+  String get platform_netease => '网易云';
+
+  @override
+  String get platform_qq => 'QQ音乐';
+
+  @override
+  String get platform_kugou => '酷狗';
+
+  @override
+  String get platform_kuwo => '酷我';
+
+  @override
+  String get platform_migu => '咪咕';
+
+  @override
+  String get platform_qianqian => '千千';
+
+  @override
+  String get platform_soda => '汽水';
+
+  @override
+  String get platform_huawei => '华为音乐';
+
+  @override
+  String get platform_apple => 'Apple Music';
+
+  @override
   String get song_option_unknown_artist => '未知歌手';
 
   @override

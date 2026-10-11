@@ -15,6 +15,7 @@ import 'package:musicflow_client/widgets/music_flow_artwork.dart';
 import 'package:musicflow_client/features/library/pages/album_detail_page.dart';
 import 'package:musicflow_client/features/library/pages/artist_detail_page.dart';
 import 'package:musicflow_client/features/player/widgets/add_to_playlist_sheet.dart' show AddToPlaylistSheet;
+import 'package:musicflow_client/features/player/widgets/song_info_dialog.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 class SongOptionsExtraAction {
@@ -229,6 +230,19 @@ class _SongOptionsSheet extends ConsumerWidget {
         ),
       ]);
     }
+
+    // 「歌曲信息」：先关面板再开弹窗（桌面=窗户样式对话框；移动=底部抽屉）。
+    actions.add(
+      _SongOptionRow(
+        icon: AppIcons.info,
+        title: loc.song_info_title,
+        onPressed: () => unawaited(
+          _closeAndRun(context, () async {
+            await showSongInfoDialog(context: hostContext, song: song);
+          }),
+        ),
+      ),
+    );
 
     if (extraActions.isNotEmpty) {
       actions.add(

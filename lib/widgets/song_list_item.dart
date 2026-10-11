@@ -125,6 +125,8 @@ class MusicFlowSongRow extends StatelessWidget {
             selected: selectionMode ? selected : (isCurrent ? true : null),
             onPressed: mainAction,
             onLongPress: mainLongPress,
+            // 桌面右键 = 长按菜单（打开歌曲操作面板）：与 long-press 同一个回调入口。
+            onSecondaryTap: mainLongPress,
             minimumSize: const Size(0, 48),
             borderRadius: context.musicFlowRadii.control,
             child: mainContent,

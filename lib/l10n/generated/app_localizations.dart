@@ -4728,6 +4728,120 @@ abstract class AppLocalizations {
   /// **'{count} 声道'**
   String song_info_channels_count(int count);
 
+  /// 歌曲信息弹窗:标题字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'标题'**
+  String get song_info_field_title;
+
+  /// 歌曲信息弹窗:歌手字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'歌手'**
+  String get song_info_field_artist;
+
+  /// 歌曲信息弹窗:专辑字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑'**
+  String get song_info_field_album;
+
+  /// 歌曲信息弹窗:年份字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'年份'**
+  String get song_info_field_year;
+
+  /// 歌曲信息弹窗:专辑艺人字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'专辑艺人'**
+  String get song_info_field_album_artist;
+
+  /// 歌曲信息弹窗:作曲字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'作曲'**
+  String get song_info_field_composer;
+
+  /// 歌曲信息弹窗:风格字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'风格'**
+  String get song_info_field_genre;
+
+  /// 歌曲信息弹窗:音轨字段标签
+  ///
+  /// In zh, this message translates to:
+  /// **'音轨'**
+  String get song_info_field_track;
+
+  /// 歌曲信息弹窗:本地/WebDAV 歌曲的保存路径行标签
+  ///
+  /// In zh, this message translates to:
+  /// **'保存路径'**
+  String get song_info_saved_path;
+
+  /// 歌曲信息弹窗:平台歌曲的来源行标签
+  ///
+  /// In zh, this message translates to:
+  /// **'来源'**
+  String get song_info_source;
+
+  /// 平台显示名:网易云
+  ///
+  /// In zh, this message translates to:
+  /// **'网易云'**
+  String get platform_netease;
+
+  /// 平台显示名:QQ音乐
+  ///
+  /// In zh, this message translates to:
+  /// **'QQ音乐'**
+  String get platform_qq;
+
+  /// 平台显示名:酷狗
+  ///
+  /// In zh, this message translates to:
+  /// **'酷狗'**
+  String get platform_kugou;
+
+  /// 平台显示名:酷我
+  ///
+  /// In zh, this message translates to:
+  /// **'酷我'**
+  String get platform_kuwo;
+
+  /// 平台显示名:咪咕
+  ///
+  /// In zh, this message translates to:
+  /// **'咪咕'**
+  String get platform_migu;
+
+  /// 平台显示名:千千
+  ///
+  /// In zh, this message translates to:
+  /// **'千千'**
+  String get platform_qianqian;
+
+  /// 平台显示名:汽水
+  ///
+  /// In zh, this message translates to:
+  /// **'汽水'**
+  String get platform_soda;
+
+  /// 平台显示名:华为音乐
+  ///
+  /// In zh, this message translates to:
+  /// **'华为音乐'**
+  String get platform_huawei;
+
+  /// 平台显示名:Apple Music
+  ///
+  /// In zh, this message translates to:
+  /// **'Apple Music'**
+  String get platform_apple;
+
   /// song_option_unknown_artist
   ///
   /// In zh, this message translates to:

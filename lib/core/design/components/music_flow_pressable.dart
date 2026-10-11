@@ -41,6 +41,7 @@ class MusicFlowPressable extends StatefulWidget {
     required this.child,
     this.onPressed,
     this.onLongPress,
+    this.onSecondaryTap,
     this.semanticLabel,
     this.minimumSize = const Size.square(48),
     this.borderRadius,
@@ -60,6 +61,10 @@ class MusicFlowPressable extends StatefulWidget {
   final Widget child;
   final VoidCallback? onPressed;
   final VoidCallback? onLongPress;
+
+  /// 桌面端鼠标**右键**触发的回调。为 null 时沿用既有语义：右键回落到
+  /// [onLongPress]（桌面「右键 = 长按菜单」）。两者都不会产生按压缩放反馈。
+  final VoidCallback? onSecondaryTap;
   final String? semanticLabel;
   final Size minimumSize;
   final BorderRadius? borderRadius;
@@ -103,7 +108,9 @@ class _MusicFlowPressableState extends State<MusicFlowPressable>
   bool _pressed = false;
 
   bool get _interactive =>
-      widget.onPressed != null || widget.onLongPress != null;
+      widget.onPressed != null ||
+      widget.onLongPress != null ||
+      widget.onSecondaryTap != null;
 
   @override
   void initState() {
@@ -273,14 +280,15 @@ class _MusicFlowPressableState extends State<MusicFlowPressable>
     // 不参与按压反馈（InkWell 的 onLongPress 只响应主按钮长按，右键不会
     // 走那里——安卓长按正常、Windows 右键无反应的根因）。
     if (event.buttons == kSecondaryButton) {
-      final longPress = widget.onLongPress;
-      if (longPress != null) {
+      // 右键优先走显式 onSecondaryTap,未提供时回落到 onLongPress(既有语义)。
+      final secondary = widget.onSecondaryTap ?? widget.onLongPress;
+      if (secondary != null) {
         // 本 Listener 是深层节点,先于根级 MusicFlowTapAnchorScope 收到
         // onPointerDown;菜单在下面同步打开时,根级还没记录本次坐标,
         // 锚点会停留在上一次按下的位置,表现为弹窗「偶发正常、偶发漂移」。
         // 必须在触发前就地写入本次事件的坐标。
         musicFlowLastTapGlobalPosition = event.position;
-        _invoke(longPress);
+        _invoke(secondary);
       }
       return;
     }

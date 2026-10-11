@@ -2733,6 +2733,63 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get song_info_field_title => 'Title';
+
+  @override
+  String get song_info_field_artist => 'Artist';
+
+  @override
+  String get song_info_field_album => 'Album';
+
+  @override
+  String get song_info_field_year => 'Year';
+
+  @override
+  String get song_info_field_album_artist => 'Album artist';
+
+  @override
+  String get song_info_field_composer => 'Composer';
+
+  @override
+  String get song_info_field_genre => 'Genre';
+
+  @override
+  String get song_info_field_track => 'Track';
+
+  @override
+  String get song_info_saved_path => 'Saved path';
+
+  @override
+  String get song_info_source => 'Source';
+
+  @override
+  String get platform_netease => 'NetEase Cloud Music';
+
+  @override
+  String get platform_qq => 'QQ Music';
+
+  @override
+  String get platform_kugou => 'Kugou';
+
+  @override
+  String get platform_kuwo => 'Kuwo';
+
+  @override
+  String get platform_migu => 'Migu';
+
+  @override
+  String get platform_qianqian => 'Qianqian';
+
+  @override
+  String get platform_soda => 'Soda Music';
+
+  @override
+  String get platform_huawei => 'Huawei Music';
+
+  @override
+  String get platform_apple => 'Apple Music';
+
+  @override
   String get song_option_unknown_artist => 'Unknown artist';
 
   @override
