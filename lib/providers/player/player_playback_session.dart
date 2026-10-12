@@ -370,23 +370,12 @@ mixin PlayerPlaybackSessionInternals on PlayerNotifier {
     required List<Song> queue,
     required int preferredIndex,
     required String? currentSongId,
-  }) {
-    if (queue.isEmpty) return 0;
-
-    if (currentSongId != null && currentSongId.isNotEmpty) {
-      if (preferredIndex >= 0 &&
-          preferredIndex < queue.length &&
-          queue[preferredIndex].id == currentSongId) {
-        return preferredIndex;
-      }
-
-      final matched = queue.indexWhere((song) => song.id == currentSongId);
-      if (matched >= 0) return matched;
-    }
-
-    if (preferredIndex < 0) return 0;
-    if (preferredIndex >= queue.length) return queue.length - 1;
-    return preferredIndex;
-  }
+  }) =>
+      // ADR-2 阶段 1：纯解析逻辑外提（[resolveRestoredQueueIndex]），便于单测。
+      resolveRestoredQueueIndex(
+        queue: queue,
+        preferredIndex: preferredIndex,
+        currentSongId: currentSongId,
+      );
 
 }

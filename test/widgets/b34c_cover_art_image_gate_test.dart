@@ -2,7 +2,7 @@
 //
 // 已有 test/widgets/cover_art_image_test.dart 覆盖安全策略与骨架约束；
 // 本文件补：
-//   * 全局并发闸门 _CoverRequestGate：8 个封面同时构建 → 6 个持槽发网络请求、
+//   * 全局并发闸门 _CoverRequestGate：8 个封面同时构建 → 4 个持槽发网络请求、
 //     其余排队骨架；失败释放槽位后排队者被放行（_drain）；
 //   * 失败自动重试：errorBuilder → 1s 指数退避 → 带尝试次数的新 key 重建；
 //   * 离线回退：isOffline=true 时命中本地缓存走 Image.file；
@@ -116,7 +116,7 @@ Widget _boundScope({
 
 /// 需要 dio 的导入（Client 构造）。
 void main() {
-  testWidgets('并发闸门：8 个封面只有 6 个持槽发请求，其余排队骨架', (tester) async {
+  testWidgets('并发闸门：8 个封面只有 4 个持槽发请求，其余排队骨架', (tester) async {
     debugNetworkImageHttpClientProvider = _PendingHttpClient.new;
 
     await tester.pumpWidget(
@@ -134,13 +134,13 @@ void main() {
 
     expect(
       find.byType(Image),
-      findsNWidgets(6),
-      reason: '闸门上限 6：6 个封面持槽发网络请求',
+      findsNWidgets(4),
+      reason: '闸门上限 4（与服务端渲染并发护栏对齐，ADR-4）：4 个封面持槽发网络请求',
     );
     expect(
       find.byType(MusicFlowSkeleton),
-      findsNWidgets(2),
-      reason: '超出的 2 个封面渲染排队骨架',
+      findsNWidgets(4),
+      reason: '超出的 4 个封面渲染排队骨架',
     );
     expect(tester.takeException(), isNull);
 
@@ -261,6 +261,24 @@ void main() {
 
     final image = tester.widget<Image>(find.byType(Image));
     expect(image.image, isNot(isA<FileImage>()), reason: '动态封面不读缓存');
+    expect(tester.takeException(), isNull);
+
+    debugNetworkImageHttpClientProvider = null;
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('网络封面开启 gaplessPlayback，避免换图占位闪烁', (tester) async {
+    debugNetworkImageHttpClientProvider = _PendingHttpClient.new;
+
+    await tester.pumpWidget(
+      _boundScope(
+        child: const Center(child: CoverArtImage(coverArtId: 'gl-1', size: 40)),
+      ),
+    );
+    await tester.pump();
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.gaplessPlayback, isTrue, reason: 'P3：换图保留上一帧');
     expect(tester.takeException(), isNull);
 
     debugNetworkImageHttpClientProvider = null;

@@ -35,6 +35,7 @@ import 'package:musicflow_client/providers/api/gd_music_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_cache_daemon.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
+import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
 export 'package:musicflow_client/providers/player/player_state.dart';
 export 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
@@ -42,6 +43,9 @@ import 'package:musicflow_client/providers/player/player_state.dart';
 import 'package:musicflow_client/providers/player/shuffle_history.dart';
 import 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
 import 'package:musicflow_client/providers/player/player_seek_policy.dart';
+// ADR-2 阶段 1：看门狗 / 队列纯策略外提（详见对应文件头注释）。
+import 'package:musicflow_client/providers/player/player_watchdog_policy.dart';
+import 'package:musicflow_client/providers/player/player_queue_policy.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 import 'package:musicflow_client/providers/player/transcoded_stream_seek.dart';
 part 'player_platform_helpers.dart';
@@ -130,6 +134,10 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   Duration _lastPolledPlayerPosition = Duration.zero;
   int _stagnantPositionTicks = 0;
 
+  /// 不可见降频用的物理 tick 计数（见 player_position_polling.dart）：
+  /// 每累计 [kHiddenPollDecimation] 个基准 tick 才做一次完整轮询。
+  int _hiddenPollCounter = 0;
+
   /// 0 秒卡死兜底计数：播放意图存在但长时间卡在 loading/buffering 且
   /// 位置无进展时累计；一旦离开该状态或超出阈值即清零/reset。
   int _startupStuckTicks = 0;
@@ -181,7 +189,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 必然落定（成功出流或显式失败），故取 30min 作为**安全网**——既不改变
   /// batch44 的实际行为，又保证在途标记不会「永久」为真。
   @visibleForTesting
-  int debugStreamLoadLoadingCeilingMs = 1800000;
+  int debugStreamLoadLoadingCeilingMs = kStreamLoadFallbackCeilingMs;
 
   /// 「平台未接管音源」判定的**短上限**（idle 停滞情形）。
   ///
@@ -193,8 +201,10 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// → 播放永久冻结在 0 秒。
   ///
   /// 取 10s：与 Android(ExoPlayer 连接超时 30s) 同数量级但更激进，尽快自愈。
+  /// 跨仓契约：必须严格大于服务端首字节等待 [kServerStreamBufferHeadWaitMs]（默认 6s）
+  /// 并留 ≥[kStreamLoadHeadWaitAlignmentMarginMs] 余量，否则会抢在服务端合法缓冲窗口内判死。
   @visibleForTesting
-  int debugStreamLoadIdleStuckCeilingMs = 10000;
+  int debugStreamLoadIdleStuckCeilingMs = kStreamLoadIdleCeilingMs;
 
   /// 「平台已接管音源但等不到数据」判定的**中上限**（loading 停滞、位置零前进）。
   ///
@@ -212,7 +222,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// ⚠ 判别**只看位置零前进**（`sourcePlayerPos <= 1.5s`），**不看** `duration == 0`：
   /// libmpv/flac 一打开就带总时长，`duration` 很快非 0，若当必要条件看门狗会被解除。
   @visibleForTesting
-  int debugStreamLoadNoProgressCeilingMs = 30000;
+  int debugStreamLoadNoProgressCeilingMs = kStreamLoadNoProgressCeilingMs;
 
   /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
   /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
@@ -1551,6 +1561,14 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       'play fail songId=$songId, auto-skip '
       'consecutive=$_consecutiveFailSkips',
     );
+    // 合并提示（仅一次/失败串）：连续自动跳过达到阈值时告诉用户「不是你点错了」。
+    // 注意：**只提示、不停止**——不停播/不落暂停态，跳过语义与本契约均不变。
+    if (shouldNotifyFailSkipStreak(consecutiveFailSkips: _consecutiveFailSkips)) {
+      ToastNotifier.show(
+        l10nNowCurrent().provider_playback_skipped_many(_consecutiveFailSkips),
+        kind: MusicFlowMessageKind.warning,
+      );
+    }
     // 同步推进下一首（不延迟）：状态连贯,流转播放/实时上报/远端镜像读到的
     // currentSong 始终是「正在/即将演唱」的下一首,不会因停留失败态而缺歌。
     // [D-031 已修复] 跳链是 fire-and-forget：next() 内部若再抛（如下一首的

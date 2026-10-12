@@ -67,17 +67,9 @@ mixin PlayerShuffleQueueInternals on PlayerNotifier {
     return null;
   }
 
-  bool _isSameQueueBySongId(List<Song> currentQueue, List<Song> nextQueue) {
-    if (identical(currentQueue, nextQueue)) return true;
-    if (currentQueue.length != nextQueue.length) return false;
-
-    for (var i = 0; i < currentQueue.length; i++) {
-      if (currentQueue[i].id != nextQueue[i].id) {
-        return false;
-      }
-    }
-    return true;
-  }
+  bool _isSameQueueBySongId(List<Song> currentQueue, List<Song> nextQueue) =>
+      // ADR-2 阶段 1：同一性判定外提（[isSameQueueBySongId]），便于单测。
+      isSameQueueBySongId(currentQueue, nextQueue);
 
   int? _takeLastValidBackHistoryIndex() {
     return _shuffleHistory.takeLastValidBack(state.queue);

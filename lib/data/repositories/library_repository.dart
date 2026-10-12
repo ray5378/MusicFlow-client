@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:musicflow_client/core/services/credentials_store.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
@@ -19,8 +20,15 @@ class LibraryRepository {
 
   LibraryRepository(this._db);
 
-  Stream<List<MusicLibrary>> watchLibraries() {
-    return (_db.select(_db.musicLibraries)..orderBy([
+  /// 媒体库凭据字段：明文曾直接落在 drift(SQLite)，治理后只进钥匙串。
+  static const List<String> _credentialFields = ['password', 'apiKey'];
+
+  Stream<List<MusicLibrary>> watchLibraries() async* {
+    // 凭据治理（幂等）：把历史遗留的明文凭据搬进系统钥匙串并清空 drift 列。
+    // 只在流建立前跑一次，避免在 watch 的 asyncMap 里写库触发二次发射。
+    await migrateLegacyCredentials();
+
+    yield* (_db.select(_db.musicLibraries)..orderBy([
           (t) => OrderingTerm(mode: OrderingMode.asc, expression: t.createdAt),
         ]))
         .watch()
@@ -39,14 +47,85 @@ class LibraryRepository {
                       ]))
                     .get();
 
-            libraries.add(_mapLibrary(row, addresses));
+            libraries.add(await _mapLibrary(row, addresses));
           }
           return libraries;
         });
   }
 
+  /// 把 drift 里残留的历史明文凭据迁移到 CredentialsStore 并清空列。
+  /// 幂等：无明文时零开销；钥匙串不可用时保留明文兜底（不丢数据）。
+  Future<void> migrateLegacyCredentials() async {
+    final rows = await _db.select(_db.musicLibraries).get();
+    var migrated = 0;
+    for (final row in rows) {
+      final legacyPassword = row.password;
+      final legacyApiKey = row.apiKey;
+      final hasPlaintext =
+          (legacyPassword != null && legacyPassword.isNotEmpty) ||
+          (legacyApiKey != null && legacyApiKey.isNotEmpty);
+      if (!hasPlaintext) continue;
+
+      // 钥匙串里已有的值优先（可能是更晚写入的），只补缺。
+      final existing = await CredentialsStore.readAll(
+        CredentialsStore.scopeLibrary,
+        row.id,
+        _credentialFields,
+      );
+      final desired = <String, String?>{
+        'password': existing['password'] ?? legacyPassword,
+        'apiKey': existing['apiKey'] ?? legacyApiKey,
+      };
+      await CredentialsStore.writeAll(
+        CredentialsStore.scopeLibrary,
+        row.id,
+        desired,
+      );
+
+      // 回读校验：只有确认凭据已真正落到钥匙串，才清空 drift 明文列。
+      // 钥匙串不可用（未注册插件 / Linux 缺 libsecret 等）时保持明文兜底，
+      // 宁可留旧明文也不丢凭据。
+      final verify = await CredentialsStore.readAll(
+        CredentialsStore.scopeLibrary,
+        row.id,
+        _credentialFields,
+      );
+      final persisted = desired.entries
+          .where((e) => e.value != null && e.value!.isNotEmpty)
+          .every((e) => verify[e.key] == e.value);
+      if (!persisted) {
+        Logger.warnWithTag(
+          _tag,
+          'secure storage unavailable; keep plaintext for id=${row.id}',
+        );
+        continue;
+      }
+
+      await (_db.update(_db.musicLibraries)..where((t) => t.id.equals(row.id)))
+          .write(
+        MusicLibrariesCompanion(
+          password: const Value<String?>(null),
+          apiKey: const Value<String?>(null),
+        ),
+      );
+      migrated++;
+    }
+    if (migrated > 0) {
+      Logger.infoWithTag(
+        _tag,
+        'migrated $migrated library credential row(s) to secure storage',
+      );
+    }
+  }
+
   Future<void> addLibrary(MusicLibrary library) async {
     Logger.infoWithTag(_tag, 'addLibrary id=${library.id} name=${library.name}');
+    // 凭据只进系统钥匙串，drift 不入明文（ADR-3）。
+    await CredentialsStore.writeAll(
+      CredentialsStore.scopeLibrary,
+      library.id,
+      {'password': library.password, 'apiKey': library.apiKey},
+    );
     await _db.transaction(() async {
       await _db
           .into(_db.musicLibraries)
@@ -56,8 +135,6 @@ class LibraryRepository {
               name: library.name,
               authType: Value(library.authType.name),
               username: Value(library.username),
-              password: Value(library.password),
-              apiKey: Value(library.apiKey),
               serverType: Value(library.serverType),
               serverVersion: Value(library.serverVersion),
               isOpenSubsonic: Value(library.isOpenSubsonic),
@@ -92,6 +169,12 @@ class LibraryRepository {
       _tag,
       'updateLibrary id=${library.id} name=${library.name}',
     );
+    // 凭据只进系统钥匙串，drift 列显式清空（ADR-3）。
+    await CredentialsStore.writeAll(
+      CredentialsStore.scopeLibrary,
+      library.id,
+      {'password': library.password, 'apiKey': library.apiKey},
+    );
     await _db.transaction(() async {
       await (_db.update(
         _db.musicLibraries,
@@ -100,8 +183,8 @@ class LibraryRepository {
           name: Value(library.name),
           authType: Value(library.authType.name),
           username: Value(library.username),
-          password: Value(library.password),
-          apiKey: Value(library.apiKey),
+          password: const Value<String?>(null),
+          apiKey: const Value<String?>(null),
           extensions: Value(jsonEncode(library.extensions)),
           updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
           isActive: Value(
@@ -142,6 +225,12 @@ class LibraryRepository {
 
   Future<void> deleteLibrary(String id) async {
     Logger.infoWithTag(_tag, 'deleteLibrary id=$id');
+    // 连同钥匙串中的凭据一并清除，避免孤儿凭据残留（ADR-3）。
+    await CredentialsStore.deleteAll(
+      CredentialsStore.scopeLibrary,
+      id,
+      _credentialFields,
+    );
     await (_db.delete(_db.musicLibraries)..where((t) => t.id.equals(id))).go();
   }
 
@@ -186,17 +275,23 @@ class LibraryRepository {
     });
   }
 
-  MusicLibrary _mapLibrary(
+  Future<MusicLibrary> _mapLibrary(
     MusicLibraryTableData row,
     List<ServerAddressTableData> addrRows,
-  ) {
+  ) async {
+    // 凭据从系统钥匙串回填；drift 列仅作历史明文兜底（迁移完成前生效）。
+    final creds = await CredentialsStore.readAll(
+      CredentialsStore.scopeLibrary,
+      row.id,
+      _credentialFields,
+    );
     return MusicLibrary(
       id: row.id,
       name: row.name,
       authType: MusicLibraryAuthType.values.byName(row.authType),
       username: row.username,
-      password: row.password,
-      apiKey: row.apiKey,
+      password: creds['password'] ?? row.password,
+      apiKey: creds['apiKey'] ?? row.apiKey,
       serverType: row.serverType,
       serverVersion: row.serverVersion,
       isOpenSubsonic: row.isOpenSubsonic,

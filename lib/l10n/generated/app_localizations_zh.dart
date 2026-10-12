@@ -3166,6 +3166,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String provider_playback_skipped_many(int count) {
+    return '已自动跳过 $count 首无法播放的歌曲';
+  }
+
+  @override
   String get settings_default_control_current_client => '默认控制当前客户端';
 
   @override

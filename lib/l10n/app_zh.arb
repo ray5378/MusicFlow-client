@@ -3459,6 +3459,15 @@
       }
     }
   },
+  "provider_playback_skipped_many": "已自动跳过 {count} 首无法播放的歌曲",
+  "@provider_playback_skipped_many": {
+    "description": "provider_playback_skipped_many",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "settings_default_control_current_client": "默认控制当前客户端",
   "@settings_default_control_current_client": {
     "description": "settings_default_control_current_client"

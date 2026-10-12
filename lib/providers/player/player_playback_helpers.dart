@@ -8,6 +8,22 @@ const Duration _nearEndProbeLead = Duration(seconds: 60);
 /// 临近结束补探的最小间隔(同一首单曲循环时不至于每帧重探)。
 const Duration _nearEndProbeMinGap = Duration(seconds: 60);
 
+/// 「连续自动跳过」达到该数量时，给用户**一条**合并提示。
+///
+/// 只提示、**不停止**跳过：「无停播阈值、不可播逐曲移除、无限跳」是 2026-09-09
+/// 拍板并在 CI 钉死的播放链路契约（服务端 `.github/workflows/playback-chain-guard.yml`
+/// 对 `QueueController` 与 Web `frontend/src/stores/player.ts` 做静态守卫）；
+/// 客户端本机同理（见 `_handlePlaybackError` 注释）。此阈值纯粹为「可感知」——
+/// 静默连跳多首会让用户以为点错了（同 `_skipKnownUnplayable` 的护栏 5）。
+const int kFailSkipNotifyThreshold = 3;
+
+/// 是否应在本次连跳后向用户发合并提示（纯函数，便于确定性单测）。
+///
+/// **恰好**到达 [kFailSkipNotifyThreshold] 时命中一次：调用方计数器
+/// (`_consecutiveFailSkips`) 仅在真正播出一首后清零，故一条失败串只提示一次。
+bool shouldNotifyFailSkipStreak({required int consecutiveFailSkips}) =>
+    consecutiveFailSkips == kFailSkipNotifyThreshold;
+
 mixin PlayerPlaybackInternals on PlayerNotifier {
   /// 异步补充歌曲元数据（格式/码率/位深/采样率/声道数），不阻塞播放流程。
   Future<void> _enrichSongMetadata(String songId, int session) async {

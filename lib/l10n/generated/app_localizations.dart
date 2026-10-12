@@ -5734,6 +5734,12 @@ abstract class AppLocalizations {
   /// **'已跳过 {count} 首无可用音源的歌曲'**
   String provider_preprobe_skipped_many(int count);
 
+  /// provider_playback_skipped_many
+  ///
+  /// In zh, this message translates to:
+  /// **'已自动跳过 {count} 首无法播放的歌曲'**
+  String provider_playback_skipped_many(int count);
+
   /// settings_default_control_current_client
   ///
   /// In zh, this message translates to:

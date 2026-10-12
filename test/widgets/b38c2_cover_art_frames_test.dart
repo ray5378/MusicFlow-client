@@ -330,9 +330,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    // 闸门上限 6：首批只有 6 个封面真正发起网络请求，另外 2 个排队渲染骨架。
-    expect(http.requests, 6, reason: '并发闸门把在途请求封顶在 6');
-    expect(find.byType(MusicFlowSkeleton), findsNWidgets(2));
+    // 闸门上限 4（与服务端渲染并发护栏对齐，ADR-4）：首批只有 4 个封面真正发起网络请求，另外 4 个排队渲染骨架。
+    expect(http.requests, 4, reason: '并发闸门把在途请求封顶在 4');
+    expect(find.byType(MusicFlowSkeleton), findsNWidgets(4));
 
     // 前一批失败 → 释放槽位 → _drain 放行排队者 → 其 grantCoverSlot 被调用。
     await _settle(tester, frames: 6);

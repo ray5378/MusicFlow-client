@@ -19,7 +19,7 @@ import 'package:musicflow_client/providers/offline/offline_provider.dart';
 /// ~50 个封面会一次性打出 ~50 条独立 HTTPS 连接（并各自缓冲解码头 → 内存暴涨）。
 ///
 /// 该闸门在 `CoverArtImage`（所有封面都必经的单一漏斗）把「同时真正发起网络请求的
-/// 封面」限为 [maxConcurrent]（默认 6）：未获得槽位的封面先渲染同尺寸骨架占位，
+/// 封面」限为 [maxConcurrent]：未获得槽位的封面先渲染同尺寸骨架占位，
 /// 等前一批封面出帧（或滑出视口销毁）释放槽位后再补齐真封面。这样即便列表一屏构建
 /// 了 50 个封面，同时在途连接也被封顶，杜绝 ~50 条并发。
 class _CoverRequestGate {
@@ -58,9 +58,15 @@ class _CoverRequestGate {
   }
 }
 
-/// 全应用共享的封面并发闸门。上限 6：既压住 ~50 条并发连接，又保证滚动时封面能
-/// 稳定补齐（比 4 更宽松，接近主流连接池每主机上限）。
-final _coverRequestGate = _CoverRequestGate(6);
+/// 全应用共享的封面并发闸门。上限 **4**：**与服务端封面渲染并发护栏对齐**
+/// （`COVER_RENDER_CONCURRENCY` 默认 4，见 ADR-4 背压对齐）——客户端单机并发
+/// 不应超过服务端渲染槽位数，否则「冷缓存一屏封面」会在服务端渲染队列里堆积成慢请求。
+/// 未获槽位的封面渲染同尺寸骨架，出帧/销毁后再补齐，滚动时仍能稳定填图。
+///
+/// 说明：服务端在渲染队列满时会回 `503 + Retry-After` 供具备请求头能力的调用方退避，
+/// 但本组件走 `Image.network`、读不到响应头，故客户端侧暂不消费该信号（仅由
+/// 失败重试兜底）；如需端侧自适应退避，应改造为经 dio 拉取封面字节后再解码。
+final _coverRequestGate = _CoverRequestGate(4);
 
 /// 网络封面图。
 ///
@@ -294,6 +300,9 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
         width: widget.size,
         height: widget.size,
         fit: widget.fit,
+        // 换图（同一 State 下 provider 变化，如骨架→真图、重试换 key 前的过渡）
+        // 时保留上一帧，避免占位闪烁（P3 体验打磨）。
+        gaplessPlayback: true,
         // 限制解码尺寸（物理像素）：避免按远超显示需求的原图尺寸解码/缓存，
         // 降低内存占用与解码耗时；ResizeImage 等比缩放，不影响显示效果。
         cacheWidth: cacheSize,
@@ -345,6 +354,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
         width: widget.size,
         height: widget.size,
         fit: widget.fit,
+        // 离线缓存命中→本地文件解码完成的过渡保留上一帧，避免占位闪烁。
+        gaplessPlayback: true,
         cacheWidth: cacheSize,
         cacheHeight: cacheSize,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {

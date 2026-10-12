@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
@@ -18,6 +20,36 @@ import 'package:flutter_test/flutter_test.dart';
 AppDatabase? _sharedDb;
 
 AppDatabase get _db => _sharedDb ??= AppDatabase();
+
+/// 媒体库凭据已迁移到系统钥匙串（ADR-3）：用内存 Map 假扮
+/// flutter_secure_storage 的平台通道，让同文件里的读写分支都能跑通。
+const MethodChannel _secureChannel = MethodChannel(
+  'plugins.it_nomads.com/flutter_secure_storage',
+);
+final Map<String, String> _secureKv = <String, String>{};
+
+void _installSecureStorageMock() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(_secureChannel, (MethodCall call) async {
+    final Map<Object?, Object?> args =
+        (call.arguments as Map<Object?, Object?>?) ?? <Object?, Object?>{};
+    final String? key = args['key'] as String?;
+    switch (call.method) {
+      case 'write':
+        _secureKv[key!] = args['value'] as String;
+        return null;
+      case 'read':
+        return _secureKv[key];
+      case 'delete':
+        _secureKv.remove(key);
+        return null;
+      case 'containsKey':
+        return _secureKv.containsKey(key);
+      default:
+        return null;
+    }
+  });
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +82,17 @@ void main() {
   });
 
   setUp(() {
+    // ADR-3：凭据读写走 flutter_secure_storage 通道，装内存替身并清空。
+    _secureKv.clear();
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    _installSecureStorageMock();
     repo = LibraryRepository(_db);
+  });
+
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_secureChannel, null);
   });
 
   Future<List<MusicLibrary>> _watch() => repo.watchLibraries().first;

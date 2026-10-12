@@ -3331,6 +3331,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String provider_playback_skipped_many(int count) {
+    return 'Auto-skipped $count unplayable tracks';
+  }
+
+  @override
   String get settings_default_control_current_client =>
       'Default to controlling this client';
 

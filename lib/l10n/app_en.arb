@@ -3459,6 +3459,15 @@
       }
     }
   },
+  "provider_playback_skipped_many": "Auto-skipped {count} unplayable tracks",
+  "@provider_playback_skipped_many": {
+    "description": "provider_playback_skipped_many",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "settings_default_control_current_client": "Default to controlling this client",
   "@settings_default_control_current_client": {
     "description": "settings_default_control_current_client"

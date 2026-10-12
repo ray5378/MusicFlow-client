@@ -5,11 +5,53 @@ const int _startupStuckSkipThresholdTicks = 12;
 const int _startupReloadTolerance = 2;
 const int _nearEndStuckTicksThreshold = 5;
 
+/// 位置轮询的**基准**周期（可见态）。
+///
+/// 所有累计型看门狗阈值（[_stagnantSkipThresholdTicks] 等）都以「该周期
+/// 记 1 tick」标定，故此常量是对外契约的一部分，勿单独改动。
+const Duration kPositionPollBaseInterval = Duration(milliseconds: 500);
+
+/// 窗口不可见（最小化 / 隐藏到托盘）时的**抽稀因子**。
+///
+/// 不可见时用户看不到进度，无需 2Hz 写回 UI；每 [kHiddenPollDecimation] 个
+/// 基准 tick 只做一次完整轮询（有效周期 = 500ms × 4 = 2s），其余物理 tick
+/// 直接返回以省掉 `player.position` 读取与 `state` 写回带来的重建。
+///
+/// ⚠ 抽稀**不等于停摆**：一次完整轮询按本因子加权累计（见 `tickWeight`），
+/// 使停滞 / 0 秒卡死 / 近末尾三道看门狗仍按**墙钟**阈值触发——后台播放遇到
+/// 卡死照常自愈，不会因为降频被成倍拖慢。
+@visibleForTesting
+const int kHiddenPollDecimation = 4;
+
 mixin PlayerPositionPollingInternals on PlayerNotifier {
+  /// 渲染可见性真值（前台激活且未隐藏到托盘）。
+  ///
+  /// 容器未就绪等异常按「可见」处理：宁可按原 500ms 轮询，也不因一次读取
+  /// 失败把看门狗拖慢。
+  bool _isRenderingActive() {
+    try {
+      return _ref.read(isRenderingActiveProvider);
+    } catch (_) {
+      return true;
+    }
+  }
+
   void _startPositionPolling(AudioPlayer player) {
     _positionPollTimer?.cancel();
-    _positionPollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _hiddenPollCounter = 0;
+    _positionPollTimer = Timer.periodic(kPositionPollBaseInterval, (_) {
       if (!mounted) return;
+      // 不可见降频：抽稀掉的物理 tick 直接返回，不读取位置、不写回 UI。
+      // 完整轮询用 tickWeight 加权累计，保持看门狗墙钟阈值不变。
+      int tickWeight = 1;
+      if (!_isRenderingActive()) {
+        _hiddenPollCounter += 1;
+        if (_hiddenPollCounter < kHiddenPollDecimation) return;
+        _hiddenPollCounter = 0;
+        tickWeight = kHiddenPollDecimation;
+      } else {
+        _hiddenPollCounter = 0;
+      }
       if (state.currentSong == null) return;
       if (_shouldPreserveSeekPosition()) {
         return;
@@ -61,18 +103,19 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           (processing == ProcessingState.loading ||
               processing == ProcessingState.buffering);
       final wantsPlaying = player.playing || _expectingAutoplay;
-      if (wantsPlaying &&
-          atStart &&
-          hasNoProgress &&
-          !inSeekSettle &&
-          !_shouldPreserveSeekPosition()) {
-        _startupStuckTicks += 1;
-      } else {
-        _startupStuckTicks = 0;
-      }
+      // 判定外提（ADR-2 阶段 1，[nextStartupStuckTicks]）：只搬运计数转移，字段仍在本类。
+      _startupStuckTicks = nextStartupStuckTicks(
+        current: _startupStuckTicks,
+        tickWeight: tickWeight,
+        wantsPlaying: wantsPlaying,
+        atStart: atStart,
+        hasNoProgress: hasNoProgress,
+        inSeekSettle: inSeekSettle,
+        preserveSeekPosition: _shouldPreserveSeekPosition(),
+      );
       // 一旦位置确有前进(迈出起点)，视为已恢复，清空期望意图标记与计数，
       // 避免后续看门狗仅凭旧标记误判。
-      if (sourcePlayerPos > const Duration(milliseconds: 1500)) {
+      if (hasLeftStartup(sourcePlayerPos)) {
         _expectingAutoplay = false;
         // 真正开始播放：清零「连续重载」计数与标记，同曲后续再停滞从 1 重新计，
         // 不会因历史卡死而被立刻判死。
@@ -92,14 +135,14 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 且 _stagnantPositionTicks>=6）与本分支 atStart 清零逻辑互斥，属不可达
       // 死代码；源卡死时 UI 进度本就冻结（无合成推进），自愈由 0 秒卡死/停滞/
       // 近末尾三道看门狗接管。
-      if (atStart) {
-        _stagnantPositionTicks = 0;
-      } else if (!stallSignal || deltaFromLast > 150) {
-        _stagnantPositionTicks = 0;
-      } else {
-        _stagnantPositionTicks += 1;
-      }
-
+      // 判定外提（ADR-2 阶段 1，[nextStagnantTicks]）。
+      _stagnantPositionTicks = nextStagnantTicks(
+        current: _stagnantPositionTicks,
+        tickWeight: tickWeight,
+        atStart: atStart,
+        stallSignal: stallSignal,
+        deltaMs: deltaFromLast,
+      );
       // Windows 专项近末尾计数：不依赖 processing==ready(见字段注释)。
       // Windows 撞到容器 EOF 常把 processing 置于 buffering 而非 completed，
       // 通用计数随之被清零，导致看门狗对 Windows 末尾卡死失效。这里只要
@@ -109,18 +152,19 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 搁到 idle/其他 ≠completed，同样不上报 completed —— 此时 position 恰好
       // 到达/越过声明 duration。故「位置已到声明末尾」也计为「该结束了」，覆盖
       // 0秒/中途/近末尾三道看门狗(都要求 playing)原本都漏判的 Windows 场景。
-      final inNearEndWindow =
-          state.duration > const Duration(seconds: 3) &&
-          state.duration - state.position <=
-              const Duration(milliseconds: 2500);
-      final endEngaged =
-          inNearEndWindow &&
-          (player.playing || state.position >= state.duration);
-      if (endEngaged && deltaFromLast <= 150 && !inSeekSettle) {
-        _nearEndStuckTicks += 1;
-      } else {
-        _nearEndStuckTicks = 0;
-      }
+      final endEngaged = isNearEndCompletionEngaged(
+        duration: state.duration,
+        position: state.position,
+        playing: player.playing,
+      );
+      // 判定外提（ADR-2 阶段 1，[nextNearEndStuckTicks]）。
+      _nearEndStuckTicks = nextNearEndStuckTicks(
+        current: _nearEndStuckTicks,
+        tickWeight: tickWeight,
+        endEngaged: endEngaged,
+        deltaMs: deltaFromLast,
+        inSeekSettle: inSeekSettle,
+      );
       _lastPolledPlayerPosition = sourcePlayerPos;
 
       // 0 秒卡死兜底看门狗：播放意图存在但长时间(≥阈值)卡在起点
@@ -204,22 +248,25 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         //   ⚠ 前提假设：平台**先发 loading、后发 error**。若某实现顺序反转（先 error
         //   后首个非 idle），掩码仍为真 → 应用看到 loading → 落入 loading 档(30s)
         //   兜住（不再是 30min 永久冻结，属可接受的自愈时延）。
+        // 档位判定外提（ADR-2 阶段 1）：[classifyStreamLoadStuck] 归一三档，
+        // [streamLoadStuckCeilingMs] 选择在途等待上界；宿主仅注入可调试配置。
+        final stuckLevel = classifyStreamLoadStuck(
+          processing: processing,
+          wantsPlaying: wantsPlaying,
+          sourcePlayerPos: sourcePlayerPos,
+          playerDuration: playerDuration,
+        );
         final platformNeverTookSource =
-            processing == ProcessingState.idle &&
-                wantsPlaying &&
-                sourcePlayerPos <= const Duration(milliseconds: 1500) &&
-                (playerDuration == null || playerDuration == Duration.zero);
-        // loading 档（无进展）：已请求播放 && 平台处于 loading && 位置始终没越过 1.5s。
-        // 依据「位置零前进」而非 `duration == 0`（libmpv 一打开就带时长，见上）。
-        final inLoadingNoProgress = wantsPlaying &&
-            processing == ProcessingState.loading &&
-            sourcePlayerPos <= const Duration(milliseconds: 1500);
+            stuckLevel == StreamLoadStuckLevel.idleNeverTookSource;
+        final inLoadingNoProgress =
+            stuckLevel == StreamLoadStuckLevel.loadingNoProgress;
         // 三档优先级：idle 档(10s) > loading 档(30s) > 兜底(30min)。
-        final ceilingMs = platformNeverTookSource
-            ? debugStreamLoadIdleStuckCeilingMs
-            : (inLoadingNoProgress
-                ? debugStreamLoadNoProgressCeilingMs
-                : debugStreamLoadLoadingCeilingMs);
+        final ceilingMs = streamLoadStuckCeilingMs(
+          level: stuckLevel,
+          idleNeverTookSourceMs: debugStreamLoadIdleStuckCeilingMs,
+          loadingNoProgressMs: debugStreamLoadNoProgressCeilingMs,
+          fallbackMs: debugStreamLoadLoadingCeilingMs,
+        );
         final inFlightMs = loadInFlight && _streamLoadInFlightSinceMs != null
             ? DateTime.now().millisecondsSinceEpoch -
                 _streamLoadInFlightSinceMs!
@@ -310,10 +357,11 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // `_nearEndStuckTicks`——只要「(确实在播) 或 (位置已到声明末尾)」且位置停在
       // 末段 2.5s 窗口内不前进，累计满阈值即视为播完并走正式完成流程
       // (尊重 随机/单曲循环/顺序)。
-      if (state.duration > const Duration(seconds: 3) &&
-          state.duration - state.position <=
-              const Duration(milliseconds: 2500) &&
-          (player.playing || state.position >= state.duration) &&
+      if (isNearEndCompletionEngaged(
+            duration: state.duration,
+            position: state.position,
+            playing: player.playing,
+          ) &&
           _nearEndStuckTicks >= _nearEndStuckTicksThreshold) {
         final doneSongId = state.currentSong?.id;
         final hasPartialStuckTicks = _nearEndStuckTicks;

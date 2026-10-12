@@ -13,6 +13,10 @@ class FallbackInterceptor extends Interceptor {
 
   int _consecutiveFailures = 0;
 
+  /// 故障切换重入护栏：切换 + 重试属「全链路」动作，多条在途请求并发
+  /// 失败时只允许一条执行，其余直接向上抛。
+  bool _failoverInFlight = false;
+
   FallbackInterceptor(this._addressPool, this._dio);
 
   @override
@@ -59,6 +63,18 @@ class FallbackInterceptor extends Interceptor {
         super.onError(err, handler);
         return;
       }
+      // 并发重入护栏：一次切换/重试未结束前，其余在途连接错误直接向上抛，
+      // 避免多条请求同时「markFailed + 切换 + 重试 + 弹提示」，造成重复切换、
+      // 切到刚切走的线路、弹多条提示等竞态。
+      if (_failoverInFlight) {
+        Logger.debugWithTag(
+          _tag,
+          'failover in flight, skip duplicate handling '
+          'path=${err.requestOptions.path}',
+        );
+        super.onError(err, handler);
+        return;
+      }
       _consecutiveFailures++;
       Logger.warnWithTag(
         _tag,
@@ -80,51 +96,61 @@ class FallbackInterceptor extends Interceptor {
       if (_consecutiveFailures >= 2) {
         final currentAddress = _addressPool.activeAddress;
         if (currentAddress != null) {
-          _addressPool.markFailed(currentAddress);
+          _failoverInFlight = true;
+          try {
+            _addressPool.markFailed(currentAddress);
 
-          final next = _addressPool.getNextAvailable();
-          if (next != null && next.id != currentAddress.id) {
-            // Try probing/switching to next
-            Logger.infoWithTag(
-              _tag,
-              'trying switch: ${currentAddress.label} -> ${next.label}',
-            );
-            final success = await _addressPool.switchTo(next, manual: false);
-            if (success) {
-              _consecutiveFailures = 0;
-              ToastNotifier.show(l10nNowCurrent().core_network_switched_notice(next.label));
-
-              // Retry with new address
-              final opts = err.requestOptions;
-              opts.baseUrl = next.url;
-
-              try {
-                final response = await _dio.fetch(opts);
-                Logger.infoWithTag(
-                  _tag,
-                  'retry succeeded on ${next.label} path=${opts.path}',
+            final next = _addressPool.getNextAvailable();
+            if (next != null && next.id != currentAddress.id) {
+              // Try probing/switching to next
+              Logger.infoWithTag(
+                _tag,
+                'trying switch: ${currentAddress.label} -> ${next.label}',
+              );
+              final success = await _addressPool.switchTo(next, manual: false);
+              if (success) {
+                _consecutiveFailures = 0;
+                ToastNotifier.show(
+                  l10nNowCurrent().core_network_switched_notice(next.label),
                 );
-                return handler.resolve(response);
-              } catch (e) {
-                // If retry fails, it might trigger onError again via the interceptor chain
-                // So we just return here, letting the next error propagate if it wasn't resolved
+
+                // Retry with new address
+                final opts = err.requestOptions;
+                opts.baseUrl = next.url;
+
+                try {
+                  final response = await _dio.fetch(opts);
+                  Logger.infoWithTag(
+                    _tag,
+                    'retry succeeded on ${next.label} path=${opts.path}',
+                  );
+                  return handler.resolve(response);
+                } catch (e) {
+                  // 重试请求若再失败，会经同一拦截器再次触发 onError，但已被
+                  // 上面的 in-flight 护栏短路；这里只需把重试错误向上抛。
+                  Logger.warnWithTag(
+                    _tag,
+                    'retry failed on ${next.label} path=${opts.path}',
+                    e,
+                  );
+                  if (e is DioException) {
+                    return handler.next(e);
+                  }
+                }
+              } else {
                 Logger.warnWithTag(
                   _tag,
-                  'retry failed on ${next.label} path=${opts.path}',
-                  e,
+                  'switch rejected by address pool: ${next.label}',
                 );
-                if (e is DioException) {
-                  return handler.next(e);
-                }
               }
             } else {
               Logger.warnWithTag(
                 _tag,
-                'switch rejected by address pool: ${next.label}',
+                'no next address available for fallback',
               );
             }
-          } else {
-            Logger.warnWithTag(_tag, 'no next address available for fallback');
+          } finally {
+            _failoverInFlight = false;
           }
         }
       }
