@@ -37,22 +37,24 @@ export 'package:musicflow_client/features/discover/widgets/local_platform_recomm
 export 'package:musicflow_client/features/discover/widgets/platform_recommend_section.dart';
 export 'package:musicflow_client/features/discover/widgets/recent_playlists_section.dart';
 
-/// 屏外分区预取错开步长:首帧后按首页排版顺序逐个触发分区数据加载,
-/// 给首屏分区的请求让出连接池与带宽(按排版顺序 = 加载优先级),
-/// 同时保证用户滑到任一分区时数据已在加载或已就绪。
+/// 屏外分区预取错开步长:**首屏(视口 + cacheExtent 内分区)数据全部就绪后**,
+/// 才按首页排版顺序逐个触发屏外分区预取 —— 启动阶段的连接池与带宽
+/// 全部让给首屏分区,加快启动显示;用户滑到任一分区时数据已在加载或已就绪。
 const int _kSectionPrefetchStaggerMs = 100;
 
-/// 首页分区 → 屏外预取触发器(batch44 视口优先加载)。
+/// 首页分区 → 屏外预取触发器(首屏就绪后延迟补齐,v5.8.6)。
 ///
 /// 背景:分区数据 provider 均为 keepAlive FutureProvider,首次被 watch
 /// (即分区 widget 首次被 SliverList 构建)时才发起请求。CustomScrollView
 /// 的 cacheExtent 只覆盖视口外 400px,更远的分区要等用户滑近才拉取 ——
-/// 滑到时才看到 loading。这里在首帧后按排版顺序用 ref.read 补触发:
+/// 滑到时才看到 loading。这里在首屏就绪后按排版顺序错开补触发:
 ///
+/// - 触发时机 = 视口 + cacheExtent 内分区的 provider future **全部完成**
+///   (见 [_DiscoverPageState._prefetchAfterViewportSettled])。启动阶段
+///   绝不与首屏抢带宽:慢网络下等待更久,首屏永远优先;
 /// - `ref.read(provider.future)` 对「已在加载/已加载」的 provider **幂等**
-///   (返回同一个 future,不会重复请求),因此首帧内已构建的分区(视口 +
-///   cacheExtent,build 时已 watch 触发)此处 read 是无害空转,真正被
-///   触发的只有屏外分区 —— 「首屏立即、屏外延迟后补齐」;
+///   (返回同一个 future,不会重复请求):等待期只 await 已构建分区(对其
+///   read 是无害空转),真正被错开触发的只有屏外分区;
 /// - 「随机歌曲」刻意不预取:该区块按需拉取(缓存秒出 + 广播信号触发),
 ///   整页刷新/预取都不应触发其远程请求(见 [_DiscoverPageState._refresh]);
 /// - 「播放控制」无需预取:恒被 hoist 到排版首位 = 恒在首屏,build 即
@@ -123,15 +125,21 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   /// 已调度过屏外预取的分区清单(防重复调度;布局/清单变化后重新调度)。
   List<String>? _prefetchScheduledKeys;
 
+  /// 已进入构建范围(视口 + cacheExtent)的分区 key —— itemBuilder 登记。
+  /// 屏外预取的等待期只 await 这些分区的数据就绪(对其 read 幂等空转,
+  /// 不重复请求);未构建的屏外分区绝不提前触发(v5.8.6 启动加速)。
+  final Set<String> _builtSectionKeys = <String>{};
+
   /// 本轮错开预取的 Timer 收口:State dispose(或重新调度)时撤销未触发的
   /// Timer,避免 widget test 判定「Timer is still pending」与孤儿回调。
   final List<Timer> _prefetchTimers = <Timer>[];
 
-  /// 首帧后按首页排版顺序触发屏外分区数据加载(batch44 视口优先加载)。
+  /// 首帧后安排屏外分区预取(**首屏数据全部就绪后才启动**,v5.8.6)。
   ///
   /// 首帧内 SliverList 只构建视口 + cacheExtent 范围内的分区,这些分区在
-  /// build 中 watch provider 即时拉取 = 首屏分区立即触发;更远的分区由本
-  /// 方法在首帧结束后按排版顺序错开补触发(详见 [_homeSectionPrefetch])。
+  /// build 中 watch provider 即时拉取 = 首屏分区立即触发,启动带宽全部
+  /// 用于首屏;更远的分区由 [_prefetchAfterViewportSettled] 在首屏就绪后
+  /// 按排版顺序错开补触发(详见 [_homeSectionPrefetch])。
   /// 调度以「可见分区清单」为键去重:用户编辑布局/清单变化后重新调度。
   void _scheduleSectionPrefetch(List<String> keys) {
     if (listEquals(_prefetchScheduledKeys, keys)) return;
@@ -142,24 +150,54 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       timer.cancel();
     }
     _prefetchTimers.clear();
+    // 重新调度 = 布局/清单变化:已构建分区集合随之重建,由 itemBuilder
+    // 在新一轮构建中重新登记。
+    _builtSectionKeys.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      for (final entry in keys.indexed) {
-        final prefetch = _homeSectionPrefetch[entry.$2];
-        if (prefetch == null) continue;
-        // 排版序 × 步长错开:首屏分区已在首帧触发,这里对其是幂等空转;
-        // 屏外分区按序补齐,排在前面的先发(加载优先级跟随排版顺序)。
-        _prefetchTimers.add(
-          Timer(
-            Duration(milliseconds: _kSectionPrefetchStaggerMs * entry.$1),
-            () {
-              if (!mounted) return;
-              unawaited(prefetch(ref));
-            },
-          ),
-        );
-      }
+      unawaited(_prefetchAfterViewportSettled(keys));
     });
+  }
+
+  /// 等**首屏分区数据全部就绪**,再按排版顺序错开预取屏外分区。
+  ///
+  /// 「首屏就绪」的判定:只 await 已进入构建范围(视口 + cacheExtent,
+  /// 由 itemBuilder 登记,见 [_builtSectionKeys])的分区 —— 这些分区的
+  /// provider 已被 watch,对其 `ref.read(provider.future)` 是幂等空转
+  /// (返回同一个 future,不会重复请求);**屏外分区不进集合**,其请求
+  /// 绝不会在首屏就绪前发出。这样启动阶段(首屏 loading 期间)连接池
+  /// 与带宽全部让给首屏,冷启动显示最快;首屏出齐后的空闲期再补齐
+  /// 屏外,用户滑到即秒出。
+  Future<void> _prefetchAfterViewportSettled(List<String> keys) async {
+    final pending = <Future<void>>[];
+    for (final key in keys) {
+      if (!_builtSectionKeys.contains(key)) continue; // 屏外:不碰,不提前触发
+      final prefetch = _homeSectionPrefetch[key];
+      if (prefetch == null) continue; // random-songs/remote-control 无预取项
+      // 已构建分区 = 已 watch:read 幂等空转。失败 future 也要放行等待期
+      // (失败分区不应阻塞屏外预取),逐个吞掉错误。
+      pending.add(prefetch(ref).then((_) {}, onError: (Object _) {}));
+    }
+    await Future.wait(pending);
+    if (!mounted) return;
+    for (final entry in keys.indexed) {
+      final key = entry.$2;
+      // 视口内分区已就绪(或正在渲染),只补屏外分区;random-songs /
+      // remote-control 无预取项自然跳过。
+      if (_builtSectionKeys.contains(key)) continue;
+      final prefetch = _homeSectionPrefetch[key];
+      if (prefetch == null) continue;
+      // 排版序 × 步长错开:排在前面的先发(加载优先级跟随排版顺序)。
+      _prefetchTimers.add(
+        Timer(
+          Duration(milliseconds: _kSectionPrefetchStaggerMs * entry.$1),
+          () {
+            if (!mounted) return;
+            unawaited(prefetch(ref));
+          },
+        ),
+      );
+    }
   }
 
   @override
@@ -354,8 +392,9 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       sectionWidgets[key] = sectionWidget;
     }
     final visibleSectionKeys = sectionWidgets.keys.toList();
-    // 视口优先加载:首屏分区已随首帧 build 即时拉取,屏外分区延迟到
-    // 首帧后按排版顺序错开补触发(幂等,不影响已加载的分区)。
+    // 视口优先加载:首屏分区已随首帧 build 即时拉取(启动带宽全给首屏,
+    // 加快启动显示);屏外分区等首屏数据全部就绪后,才按排版顺序错开
+    // 补触发(见 _scheduleSectionPrefetch)。
     _scheduleSectionPrefetch(visibleSectionKeys);
     // 分类导航只在 compact 展示(见下方 Column);宽屏没有它时,内容区需要
     // 自己补一段顶部间距,让首个分区(随机歌曲)标题落在侧边栏「主页」行
@@ -443,6 +482,10 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                                 return _buildHomeSectionEditEntry(context);
                               }
                               final key = visibleSectionKeys[index];
+                              // 登记已构建分区(视口 + cacheExtent 范围):
+                              // 屏外预取的等待期只等这些分区的数据就绪,
+                              // 不碰任何屏外分区(见 _builtSectionKeys)。
+                              _builtSectionKeys.add(key);
                               final child = KeyedSubtree(
                                 key: ValueKey<String>('home-section-$key'),
                                 child: sectionWidgets[key]!,

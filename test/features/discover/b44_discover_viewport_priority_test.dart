@@ -1,16 +1,20 @@
-// batch44 —— 发现页视口优先加载（按首页排版顺序安排加载优先级）。
+// v5.8.6 —— 发现页视口优先加载：启动带宽全给首屏，屏外分区等首屏
+// 数据全部就绪后才按排版顺序错开预取。
 //
-// 被钉行为（discover_page.dart 的 _scheduleSectionPrefetch / _homeSectionPrefetch）：
+// 被钉行为（discover_page.dart 的 _scheduleSectionPrefetch /
+// _prefetchAfterViewportSettled / _homeSectionPrefetch）：
 //   1. 冷启动首帧：首屏分区（SliverList 视口 + cacheExtent 内）在 build 中
 //      watch provider 即时拉取；屏外分区不在首帧发起。
-//   2. 首帧后：屏外分区按首页排版顺序 × 100ms 步长错开补触发（ref.read 幂等），
-//      滑到时数据已在加载/就绪。
-//   3. 幂等（缓存命中不延迟/不重复）：同一 provider 的 builder 只跑一次 ——
-//      首帧已 watch 的分区再被预取 read 不会重复请求。
-//   4. 「随机歌曲」不被预取触发（该区块按需拉取，缓存秒出语义保持）。
+//   2. 首屏未就绪前：屏外分区**零发起**——预取等待期只 await 已构建分区
+//      的 provider future，不碰任何屏外分区（慢网络下等待更久，首屏永远
+//      优先，启动带宽全部让给首屏）。
+//   3. 首屏就绪后：屏外分区按首页排版顺序 × 100ms 步长错开补齐。
+//   4. 幂等：预取 read 不重复请求（已 watch 的 provider 返回同一 future）。
+//   5. 「随机歌曲」不被预取触发（该区块按需拉取，缓存秒出语义保持）。
 //
 // 姿势与 discover_page_test.dart 的 _pumpDiscover 一致：ProviderScope 全桩，
-// 但**不 pumpAndSettle**，用带时长的 pump 观察帧序与错开触发时序。
+// 不 pumpAndSettle（骨架动画无限循环），用带时长的 pump 观察帧序与错开
+// 触发时序；首屏分区的「就绪时机」用 Future.delayed 精确控制。
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -71,6 +75,7 @@ Future<void> _pumpDiscover(
   WidgetTester tester, {
   required _FetchRecorder rec,
   Size size = const Size(390, 400),
+  Map<String, Duration> firstScreenDelay = const <String, Duration>{},
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   tester.view.devicePixelRatio = 1;
@@ -100,17 +105,22 @@ Future<void> _pumpDiscover(
         //  local-recommend, platform-recommend]
         homeSectionsProvider.overrideWith((ref) async => const <HomeSection>[]),
         // 各分区数据 provider:记录拉取发起(异步 builder 第一行同步执行,
-        // 顺序即真实发起顺序)。
+        // 顺序即真实发起顺序)。firstScreenDelay 控制指定分区的「就绪
+        // 时机」(值返回前的延迟),用于验证「首屏未就绪 → 屏外零发起」。
         randomSongsProvider.overrideWith((ref) async {
           rec.record('random-songs');
           return _songs();
         }),
         recentPlaylistsProvider.overrideWith((ref) async {
           rec.record('recent-playlists');
+          final delay = firstScreenDelay['recent-playlists'];
+          if (delay != null) await Future.delayed(delay);
           return <Playlist>[_playlist()];
         }),
         homeRecommendSectionProvider.overrideWith((ref) async {
           rec.record('home-recommend');
+          final delay = firstScreenDelay['home-recommend'];
+          if (delay != null) await Future.delayed(delay);
           return const HomeRecommendSection(
             fixed: <HomeCard>[],
             random: <Playlist>[],
@@ -134,34 +144,83 @@ Future<void> _pumpDiscover(
       ),
     ),
   );
-  // pumpWidget 已完成首帧(含 addPostFrameCallback),预取 Timer 已排上。
+  // pumpWidget 已完成首帧(含 addPostFrameCallback),预取等待期已排上。
 }
 
 void main() {
-  testWidgets('窄视口冷启动:首屏分区首帧拉取,屏外分区按排版顺序错开补齐', (
+  testWidgets('窄视口冷启动:首屏分区首帧拉取,屏外分区在首屏就绪前零发起', (
+    tester,
+  ) async {
+    final rec = _FetchRecorder();
+    // 首屏分区 recent-playlists 的就绪延迟到 2s 后:模拟慢网络下的首屏
+    // loading 阶段(narrow 视口 + cacheExtent 400 的首帧只构建它)。
+    // 只给首帧确实构建的分区包 delay:后随数据返回才进入覆盖范围的
+    // 分区不包,避免 teardown 时残留未到期 timer。
+    await _pumpDiscover(
+      tester,
+      rec: rec,
+      size: const Size(390, 400),
+      firstScreenDelay: const <String, Duration>{
+        'recent-playlists': Duration(seconds: 2),
+      },
+    );
+
+    final firstFrame = List<String>.of(rec.order);
+    // 首屏分区已发起(视口 + cacheExtent 内)。
+    expect(firstFrame, contains('recent-playlists'));
+    // 屏外分区(local-recommend / platform-recommend 位于排版尾部)
+    // 不在首帧发起。
+    expect(firstFrame, isNot(contains('local-recommend')));
+    expect(firstFrame, isNot(contains('platform-recommend')));
+
+    // 首屏未就绪(2s 未到):推进 600ms,屏外分区仍零发起 —— 预取等待期
+    // 只 await 已构建分区,启动带宽全部让给首屏。
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(
+      rec.countOf('local-recommend'),
+      0,
+      reason: '首屏数据未就绪时,屏外分区不得发起(不等同于旧的立即预取)',
+    );
+    expect(rec.countOf('platform-recommend'), 0);
+
+    // 推进到 2.1s:首屏分区 future 完成 → 预取启动,错开步长 100ms ×
+    // 排版序(local index 4 → 400ms,platform index 5 → 500ms)全部到期。
+    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    expect(rec.countOf('local-recommend'), 1, reason: '首屏就绪后补齐');
+    expect(rec.countOf('platform-recommend'), 1);
+    // 补齐顺序遵循首页排版顺序:local-recommend 先于 platform-recommend。
+    final deferred = rec.order
+        .where((k) => !firstFrame.contains(k))
+        .toList(growable: false);
+    expect(
+      deferred.indexOf('local-recommend'),
+      lessThan(deferred.indexOf('platform-recommend')),
+      reason: '屏外分区按排版顺序错开触发(排版序 = 加载优先级)',
+    );
+  });
+
+  testWidgets('首屏即就绪(缓存秒出):600ms 内屏外分区按排版序错开补齐', (
     tester,
   ) async {
     final rec = _FetchRecorder();
     await _pumpDiscover(tester, rec: rec, size: const Size(390, 400));
 
     final firstFrame = List<String>.of(rec.order);
-    // 屏外分区(local-recommend / platform-recommend 位于排版尾部)不得在首帧发起。
-    expect(
-      firstFrame,
-      isNot(contains('local-recommend')),
-      reason: '排版尾部的分区不应在首帧(视口+cacheExtent 外)发起拉取',
-    );
+    expect(firstFrame, isNot(contains('local-recommend')));
     expect(firstFrame, isNot(contains('platform-recommend')));
 
-    // 推进 600ms:错开步长 100ms × 排版序(最大 500ms)全部到期,屏外分区补齐。
+    // 首屏分区无延迟 → future 立即完成 → 预取等待期当帧即过 → 错开
+    // Timer 排期;推进 600ms(最大 500ms 步长到期)全部补齐。
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
 
-    expect(rec.countOf('local-recommend'), 1, reason: '延迟后仍会加载');
-    expect(rec.countOf('platform-recommend'), 1, reason: '延迟后仍会加载');
+    expect(rec.countOf('local-recommend'), 1, reason: '首屏就绪后仍会补齐');
+    expect(rec.countOf('platform-recommend'), 1);
 
-    // 补齐顺序遵循首页排版顺序:local-recommend 先于 platform-recommend,
-    // 且都晚于首帧已发起的分区。
     final deferred = rec.order
         .where((k) => !firstFrame.contains(k))
         .toList(growable: false);
@@ -177,16 +236,14 @@ void main() {
     final rec = _FetchRecorder();
     await _pumpDiscover(tester, rec: rec, size: const Size(390, 1400));
 
-    // 视口 1400 + cacheExtent 400 覆盖前几个分区:近期更新的歌单(排版第 3)
-    // 必然在首屏内,首帧由 build watch 触发,不等错开步长。
+    // 视口 1400 + cacheExtent 400 覆盖全部分区:每个分区首帧由 build
+    // watch 触发,不等任何错开步长。
     expect(
       rec.order.first,
       'recent-playlists',
       reason: '首屏分区立即拉取,不等首帧后的预取错开',
     );
 
-    // 推进后四个可预取分区全部就绪,发起顺序 = 首页排版顺序
-    // (首帧 SliverList 按序构建 + 屏外预取按序错开,两者都遵循排版)。
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
     final sectionOrder = rec.order
@@ -212,7 +269,7 @@ void main() {
     );
   });
 
-  testWidgets('幂等(缓存命中不延迟/不重复):预取 read 不会让任何分区重复拉取', (
+  testWidgets('幂等(缓存命中不重复):预取 read 不让任何分区重复拉取', (
     tester,
   ) async {
     final rec = _FetchRecorder();
