@@ -165,12 +165,13 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     }
   }
 
-  /// 饱和窗口观察：按 min(信号剩余时长, 500ms) 到期后重建，重新评估饱和态。
-  /// 500ms 上界保证信号过期后最坏半秒内恢复封面加载（真实过期即 TTL 30s）。
+  /// 饱和窗口观察：按信号**剩余时长**精确到期后重建，重新评估饱和态。
+  /// 精确到期而非「每 500ms 轮询」：既不在窗口内空转，又保证过期即恢复
+  /// （原实现撞上 remainingMs==0 的边界会多等一个 500ms 周期才恢复）。
   void _scheduleSaturationRetry() {
     if (_saturationWatchTimer?.isActive ?? false) return;
     final remainingMs = CoverPressureObserver.signalRemainingMs();
-    final waitMs = remainingMs > 0 && remainingMs < 500 ? remainingMs : 500;
+    final waitMs = remainingMs > 0 ? remainingMs : 1;
     _saturationWatchTimer = Timer(
       Duration(milliseconds: waitMs),
       () {
