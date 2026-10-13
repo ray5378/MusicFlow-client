@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
@@ -14,6 +15,7 @@ import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dar
 import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
 /// 服务端推送客户端 —— 主项目 `/ws` 的**唯一**长连接。
 ///
@@ -44,14 +46,28 @@ class RandomSongsPushClient {
   final Ref _ref;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
+  StreamSubscription<NetworkType>? _networkSub;
   Timer? _reconnectTimer;
+  Timer? _heartbeatTimer;
   bool _disposed = false;
   bool _connecting = false;
   int _reconnectDelayMs = _minReconnectDelayMs;
   String? _activeUrl;
 
+  /// 最后一次收到**任意**帧的时刻。半开连接(TCP 已被中间设备丢弃,但本端迟迟
+  /// 收不到 FIN)不会触发 `onDone`/`onError`,仅靠事件是发现不了的;必须靠
+  /// 「多久没收到帧」这个时间量来判死并主动重连。
+  DateTime _lastFrameAt = DateTime.now();
+
   static const int _minReconnectDelayMs = 2000;
   static const int _maxReconnectDelayMs = 30000;
+
+  /// 应用层心跳周期:与 HA 卡片(25s)、服务端 pong 契约一致。空闲时没有
+  /// 业务事件,靠它维持「有来有回」,既保活又作为存活证据。
+  static const int _heartbeatIntervalMs = 25000;
+
+  /// 存活超时:3 个心跳周期都没收到任何帧(含 pong)→ 判定半开 → 强制重连。
+  static const int _livenessTimeoutMs = _heartbeatIntervalMs * 3;
 
   void _init() {
     // 活跃地址变化 → 重连到新线路。
@@ -67,6 +83,26 @@ class RandomSongsPushClient {
       if (next == null) return;
       _reconnect();
     });
+    // 前台恢复(最小化/托盘/熄屏回来)→ 半开连接不会自己冒泡,主动探一次;
+    // 只有「确实已陈旧」才重建,避免每次失焦-恢复都无谓重连。
+    _ref.listen<bool>(appVisibilityProvider, (prev, next) {
+      if (_disposed) return;
+      if (next == true) _resumeIfStale();
+    });
+    // 网络恢复(断网重连 / 切 Wi-Fi)→ 旧连接必然失效,立即重连并复位退避。
+    // 防御性:单元测试里不一定装配了 ConnectivityMonitor/AddressPool 依赖,
+    // 取不到就跳过这条触发(其余心跳/看门狗/前台恢复仍然生效)。
+    try {
+      _networkSub = _ref
+          .read(connectivityMonitorProvider)
+          .networkTypeStream
+          .listen((type) {
+        if (_disposed) return;
+        if (type != NetworkType.none) _forceReconnect();
+      });
+    } catch (e) {
+      Logger.debugWithTag(_tag, 'connectivity monitor unavailable: $e');
+    }
     unawaited(_connect());
   }
 
@@ -133,6 +169,7 @@ class RandomSongsPushClient {
         );
         Logger.infoWithTag(_tag, 'ws connected: ${Uri.parse(wsUrl).host}');
         _reconnectDelayMs = _minReconnectDelayMs;
+        _startHeartbeat();
       } catch (e) {
         Logger.warnWithTag(_tag, 'ws connect failed: $e');
         _clearChannel();
@@ -141,6 +178,37 @@ class RandomSongsPushClient {
     } finally {
       _connecting = false;
     }
+  }
+
+  /// 启动应用层心跳 + 存活看门狗(每周期执行):
+  /// - 距上次收到任意帧超过 [_livenessTimeoutMs] → 判半开,强制重连;
+  /// - 否则发一个 `{"type":"ping"}`,服务端回 `{"type":"pong"}`(见后端 ws)。
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _lastFrameAt = DateTime.now();
+    _heartbeatTimer = Timer.periodic(
+      const Duration(milliseconds: _heartbeatIntervalMs),
+      (_) {
+        if (_disposed) return;
+        final ch = _channel;
+        if (ch == null) return;
+        if (DateTime.now().difference(_lastFrameAt).inMilliseconds >
+            _livenessTimeoutMs) {
+          Logger.warnWithTag(
+            _tag,
+            'ws liveness timeout (>${_livenessTimeoutMs}ms no frame), force reconnect',
+          );
+          _forceReconnect();
+          return;
+        }
+        try {
+          ch.sink.add(jsonEncode(const {'type': 'ping'}));
+        } catch (e) {
+          Logger.warnWithTag(_tag, 'ws ping failed: $e');
+          _forceReconnect();
+        }
+      },
+    );
   }
 
   /// 解析 WebSocket 认证 token:
@@ -213,6 +281,8 @@ class RandomSongsPushClient {
   }
 
   void _onMessage(dynamic data) {
+    // 收到任意帧即视为「连接仍活着」——心跳/pong 与业务事件同样算数。
+    _lastFrameAt = DateTime.now();
     try {
       final decoded = data is String
           ? jsonDecode(data)
@@ -260,6 +330,31 @@ class RandomSongsPushClient {
     unawaited(_connect());
   }
 
+  /// 强制重连:作废当前(可能已半开的)通道并立即重连,退避复位。
+  ///
+  /// 关键在 [_clearChannel] 会把 `_channel` 置 null —— 否则 [_connect] 开头
+  /// 「同一线路且通道非空 → 跳过」的短路会让重连被吞掉,这正是「看得见状态、
+  /// 按不动」的成因。
+  void _forceReconnect() {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    _clearChannel();
+    _reconnectDelayMs = _minReconnectDelayMs;
+    unawaited(_connect());
+  }
+
+  /// 仅当连接缺失或已陈旧时才重建(用于前台恢复,避免无谓抖连)。
+  void _resumeIfStale() {
+    if (_disposed) return;
+    final stale = _channel == null ||
+        DateTime.now().difference(_lastFrameAt).inMilliseconds >
+            _livenessTimeoutMs;
+    if (stale) {
+      Logger.infoWithTag(_tag, 'resumed, ws stale → reconnect');
+      _forceReconnect();
+    }
+  }
+
   void _scheduleReconnect() {
     if (_disposed) return;
     _reconnectTimer?.cancel();
@@ -276,6 +371,8 @@ class RandomSongsPushClient {
   }
 
   void _clearChannel() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _subscription?.cancel();
     _subscription = null;
     _channel?.sink.close();
@@ -284,6 +381,8 @@ class RandomSongsPushClient {
 
   Future<void> _disconnect() async {
     _reconnectTimer?.cancel();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _subscription?.cancel();
     _subscription = null;
     _channel?.sink.close();
@@ -293,6 +392,8 @@ class RandomSongsPushClient {
   void dispose() {
     _disposed = true;
     _reconnectTimer?.cancel();
+    _heartbeatTimer?.cancel();
+    _networkSub?.cancel();
     _subscription?.cancel();
     _channel?.sink.close();
     _channel = null;
