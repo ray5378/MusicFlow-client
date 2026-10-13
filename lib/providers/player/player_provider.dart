@@ -202,7 +202,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// → 播放永久冻结在 0 秒。
   ///
   /// 取 10s：与 Android(ExoPlayer 连接超时 30s) 同数量级但更激进，尽快自愈。
-  /// 跨仓契约：必须严格大于服务端首字节等待 [kServerStreamBufferHeadWaitMs]（默认 6s）
+  /// 跨仓契约：必须严格大于服务端首字节等待 [kServerStreamBufferHeadWaitMs]（默认 8s）
   /// 并留 ≥[kStreamLoadHeadWaitAlignmentMarginMs] 余量，否则会抢在服务端合法缓冲窗口内判死。
   @visibleForTesting
   int debugStreamLoadIdleStuckCeilingMs = kStreamLoadIdleCeilingMs;
