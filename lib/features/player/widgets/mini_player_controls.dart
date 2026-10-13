@@ -213,6 +213,7 @@ class MiniPlayerControls {
       MusicFlowIconButton(
         icon: AppIcons.transferInfinity,
         label: loc.player_transfer_playback_current(currentPlayerName),
+        iconSize: 20,
         foregroundColor: isCasting
             ? context.musicFlowColors.accent
             : context.musicFlowColors.ink,
