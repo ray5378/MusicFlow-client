@@ -54,6 +54,10 @@
 //        ⇒ 单看「已有 2 个半坡值」分不清是淡出还是淡入。淡入是 `_startPlayback`
 //        里 `play()` **之后**才调的（1511 行），所以要用 `playCount` 定位淡入起点，
 //        而不是靠斜坡长度猜。
+// #203-D 「固定延时 + 阶梯计数」判据对**真定时器**零容错：全量并行负载下
+//       tick 延迟 >步长即翻车（隔离全绿、全量飘红，曾被误判为「环境抖动」，
+//       根因即此）。凡「等爬坡到第 N 档 / 等爬坡收敛 / 等恢复落地」一律改
+//       waitUntil 轮询（步长 20ms、斜坡最长 500ms ⇒ 10ms 轮询粒度冗余充足）。
 // #193-D `play()`（1926 行 `cancelFade`）本身就要求 `state.currentSong != null`，
 //       所以「用 play() 中止一次进行中的淡出」这条用例必须先装过一首歌，装源用
 //       `autoPlay:false`（避免 0 秒卡死看门狗介入），再 `play()`。
@@ -726,7 +730,14 @@ void main() {
 
       await notifier.playSong(_song('s2'), queue: <Song>[_song('s2')]);
       await waitUntil(() => (platform.last?.loadCount ?? 0) > p.loadCount);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      // 踩坑 #203-D：真定时器（#190-D）下「固定延时等爬坡完成」零容错，改为
+      // 轮询等收敛（fadeMs=10 单步，正常 ~20ms 即到顶）。
+      await waitUntil(
+        () =>
+            p.volumeCalls.isNotEmpty &&
+            p.volumeCalls.last == notifier.state.volume,
+        ticks: 300,
+      );
 
       final vol = notifier.state.volume;
       expect(p.volumeCalls, contains(0.0), reason: '淡入从 0.0 起步（源码 84）');
@@ -742,7 +753,13 @@ void main() {
 
       await notifier.playSong(_song('s2'), queue: <Song>[_song('s2')]);
       await waitUntil(() => (platform.last?.loadCount ?? 0) > p.loadCount);
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      // 踩坑 #203-D：同上，轮询等 5 步爬坡收敛（fadeMs=100，正常 ~100ms）。
+      await waitUntil(
+        () =>
+            p.volumeCalls.isNotEmpty &&
+            p.volumeCalls.last == notifier.state.volume,
+        ticks: 300,
+      );
 
       final vol = notifier.state.volume;
       final ramp = _partialRamp(p.volumeCalls, vol);
@@ -769,7 +786,15 @@ void main() {
       // 淡入是 `_startPlayback` 里 `play()` 之后才调的，所以用 playCount 定位。
       await waitUntil(() => p.playCount >= 1);
       p.volumeCalls.clear();
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      // 踩坑 #203-D：原写法「固定 40ms 后要求爬满 2 档」对真定时器零容错——
+      // 步长 20ms、窗口 40ms，容错恰 1 倍；全量套件并行负载下 tick 延迟
+      // >20ms 是常态，40ms 常只落 1 档即翻车（隔离跑全绿、被长期误判成
+      // 「环境抖动」的根因）。斜坡总长 500ms/25 档，轮询粒度 10ms ⇒ 冗余
+      // 充足；返回时仍在中段，后续「切歌瞬间压在半坡」断言语义不变。
+      await waitUntil(
+        () => _partialRamp(p.volumeCalls, notifier.state.volume).length >= 2,
+        ticks: 300,
+      );
       expect(_partialRamp(p.volumeCalls, notifier.state.volume).length >= 2,
           isTrue, reason: '此刻淡入已爬了 2 档');
 
@@ -788,7 +813,12 @@ void main() {
           autoPlay: false,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      // 踩坑 #203-D：s3 的 _fadeOut→_cancelFade 恢复满值同样是异步到达的，
+      // 固定 80ms 零容错；轮询等「半坡值之后紧邻满值」的中止指纹落地。
+      await waitUntil(
+        () => _hasRestoreAfterPartial(p.volumeCalls, notifier.state.volume),
+        ticks: 300,
+      );
 
       // 踩坑 #193-D：`volumeCalls[0]` 是**上一次** clear 之后的起点，不等于
       // 淡入的 0.0 起步值（#194-D 那批失败里有「Actual 0.8」就是这么来的）。
