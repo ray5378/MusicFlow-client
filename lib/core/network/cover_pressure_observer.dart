@@ -96,7 +96,8 @@ class CoverPressureObserver {
   static CoverPressureSignal _signal = CoverPressureSignal.none;
   static DateTime? _signalAt;
 
-  /// 当前这枚信号的生效时长：`Retry-After` 合法（>0）时按其秒数，否则 [signalTtl]。
+  /// 当前这枚信号的生效时长：`Retry-After` 合法（>0）时按其秒数（上限为
+  /// [signalTtl]），否则即 [signalTtl]。
   static Duration _hold = signalTtl;
 
   /// 安装全局拦截（幂等；重复安装只是重复包装，无副作用但没必要）。
@@ -115,9 +116,12 @@ class CoverPressureObserver {
     _signal = signal;
     _signalAt = DateTime.now();
     // 生效时长按服务端建议：Retry-After 秒数优先，缺失/非法才回落兜底 TTL。
-    _hold = signal.retryAfterSeconds > 0
+    // 上限仍是兜底 TTL：Retry-After 只能把窗口**缩短**；异常大的建议值
+    // （misconfig / 上游注入）不会把封面压制成长时间空白。
+    final suggested = signal.retryAfterSeconds > 0
         ? Duration(seconds: signal.retryAfterSeconds)
         : signalTtl;
+    _hold = suggested < signalTtl ? suggested : signalTtl;
   }
 
   /// 当前有效信号（过期返回 none）。
