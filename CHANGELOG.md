@@ -2,6 +2,16 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.3] - 2026-10-13
+
+### 修复
+
+- **续播/流转首曲双载（进度条在跑却没声音）**：`playSong(initialPosition)` 原先先按 `timeOffset=0` 起播（大文件走整曲缓冲，56MB WebDAV 要 3~4s），音源就绪后才经 pendingSeek 管线**整条重拉**到 `timeOffset=at`。大文件上被放大成反复重载（真机日志实证：同一首 45 秒内整曲缓冲 3 次），起播窗口内 UI 已显示恢复进度、音频却还没就位，表现为进度条在跑但没声音、切下一首才响。现首载流直接带 `timeOffset`（整秒），不足 1 秒的余数作为播放器 `initialPosition` 一并落位，位置偏移从起播第一帧起生效；`_applyPendingSeekIfNeeded` 新增双载守卫——待落位与当前流偏移一致时清残留，绝不再重拉。全程一次加载，群组流转（transfer-from）与本地会话恢复两条路径同时受益。
+
+### 测试
+
+- 新增 `b45_initial_load_timeoffset_test.dart`：首载 timeOffset/余数落位/单次加载/双载守卫/不退化/seek 仍重拉，共 4 例。
+
 ## [5.8.2] - 2026-10-13
 
 ### 安全（P1）· 媒体库凭据治理

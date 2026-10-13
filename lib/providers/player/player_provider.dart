@@ -1155,12 +1155,19 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
+      // [D-063] 续播/流转落位前移：initialPosition 非空时首载流直接带
+      // timeOffset（整秒），不再先按 timeOffset=0 整曲缓冲起播、音源就绪后
+      // 再整条重拉的双载 churn —— 56MB WebDAV 大文件上表现为同一首 45s 内
+      // 整曲缓冲 3 次（240 日志实证），用户感知为进度条在跑却没声音。
+      final resumeOffset = initialPosition ?? Duration.zero;
+      final resumeOffsetSec = resumeOffset.inSeconds;
       final streamUrl = _buildStreamUrlOrThrow(
         song.id,
         session: debugSession,
         source: 'primary_stream',
         format: transcodeFormat,
         maxBitRate: maxBitRate,
+        timeOffset: resumeOffsetSec > 0 ? resumeOffsetSec : null,
       );
       final isAppleHttpStream =
           _isApplePlatform && streamUrl.startsWith('http://');
@@ -1202,7 +1209,15 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
             songId: song.id,
           ),
           setSource: (player) async {
-            await player.setUrl(streamUrl);
+            // [D-063] 与 URL timeOffset（整秒）配对：余数（<1s）直接交给播放器
+            // 起播落位（与 _reloadStreamForSeek 同一模式），音源就绪后无需
+            // 再走一次 seek/重拉。
+            await player.setUrl(
+              streamUrl,
+              initialPosition: resumeOffsetSec > 0
+                  ? resumeOffset - Duration(seconds: resumeOffsetSec)
+                  : null,
+            );
           },
         );
         if (!sourceReady) return;
@@ -1212,6 +1227,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
           format: transcodeFormat,
           maxBitRate: maxBitRate,
           seekByReloadStream: useServerTimeOffsetSeek,
+          // [D-063] 首载即带偏移：位置换算/通知栏/看门狗从起播第一帧起
+          // 就按恢复进度走，不再有 UI 已恢复、音频还在从头的窗口。
+          sourcePositionOffset: resumeOffset,
         );
         await _syncPlaybackAfterSourceReady(autoPlay: autoPlay);
         if (!isCurrentSession()) return;

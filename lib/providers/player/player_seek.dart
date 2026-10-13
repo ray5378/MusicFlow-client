@@ -43,6 +43,19 @@ mixin PlayerSeekInternals on PlayerNotifier {
     );
     if (!canSeekNow) return;
 
+    // [D-063] 双载守卫：首载流已按 pending 位置带 timeOffset 起播（偏移一致）
+    // 时，pendingSeek 只是同一位置的残留 —— 直接清掉，绝不升级为再重拉一次
+    // 整条流。那正是大文件反复整曲缓冲的成因（240 实证：同一首 56MB 在 45s
+    // 内缓冲 3 次，用户感知进度条在跑却没声音）。
+    if (pending == _sourcePositionOffset) {
+      _seekDbg(
+        'applyPendingSeek skipped: initial load already at offset '
+        'song=$currentSongId offset=$_sourcePositionOffset',
+      );
+      _clearPendingSeek();
+      return;
+    }
+
     _isApplyingPendingSeek = true;
     final seekGeneration = ++_seekRequestGeneration;
     final playbackSession = _playDebugSession;
