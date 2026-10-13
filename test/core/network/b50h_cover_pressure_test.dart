@@ -294,7 +294,12 @@ void main() {
   // B. 闸门反馈（widget）
   // ------------------------------------------------------------------
   group('B. 饱和窗口的闸门消费（widget）', () {
-    setUp(CoverPressureObserver.resetForTest);
+    setUp(() {
+      CoverPressureObserver.resetForTest();
+      // 兜底：用例中途失败也不把注入口残留给后续用例（原先靠各用例末尾
+      // 手动置 null,失败早退时会泄漏）。
+      addTearDown(() => debugNetworkImageHttpClientProvider = null);
+    });
     tearDown(CoverPressureObserver.resetForTest);
 
     testWidgets('饱和窗口内：8 个封面全部骨架占位、零网络请求', (tester) async {
@@ -360,8 +365,10 @@ void main() {
       expect(find.byType(Image), findsNothing);
 
       // 信号过期（reset 模拟 TTL 到期）→ 观察定时器到期重建 → 恢复闸门。
+      // 观察定时器按信号剩余时长一次性到期（此处无 Retry-After ⇒ 兜底 TTL
+      // 30s）；reset 只清信号、不改已排定的 Timer,故需推进 >=30s 让它触发。
       CoverPressureObserver.resetForTest();
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 31));
       await settle(tester, frames: 4);
 
       expect(
@@ -435,6 +442,10 @@ void main() {
 
     setUp(() async {
       savedOverrides = HttpOverrides.current;
+      // 本组是**真 loopback 端到端**：必须让 HttpClient() 走真实实现,故先撤下
+      // flutter_test 的全局桩（它把所有请求变成 400）,再安装观测器
+      // （观测器 C4 起会保留并委派 HttpOverrides.current）。
+      HttpOverrides.global = null;
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       coverUri = Uri.parse(
         'http://127.0.0.1:${server.port}/rest/getCoverArt?id=cov-1&size=500',
