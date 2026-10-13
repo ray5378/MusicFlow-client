@@ -53,9 +53,11 @@ CoverPressureSignal parseCoverPressureHeaders(Map<String, String> headers) {
   final saturatedRaw = normalized['x-musicflow-cover-saturated']?.trim();
   final retryRaw = normalized['retry-after']?.trim();
 
-  // 饱和标记：'1' / 'true' 视为饱和；'0' / 缺失 / 空串视为未饱和。
-  final saturated =
-      saturatedRaw != null && saturatedRaw.isNotEmpty && saturatedRaw != '0';
+  // 饱和标记用**白名单**：仅 '1' / 'true'（大小写不敏感）视为饱和；其余
+  // （'0' / 缺失 / 空串 / 未来可能出现的其它字面量）一律未饱和。原实现
+  // 「非 '0' 且非空即饱和」会把 'false' / 'no' 之类误判成饱和。
+  final saturated = saturatedRaw == '1' ||
+      (saturatedRaw != null && saturatedRaw.toLowerCase() == 'true');
 
   // Retry-After 按 delta-seconds 解析（服务端只发秒数，不发 HTTP-date）。
   var retryAfter = 0;
