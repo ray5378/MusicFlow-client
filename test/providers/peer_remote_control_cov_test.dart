@@ -475,7 +475,7 @@ void main() {
   // ==================== 6. _adoptRemoteQueue：摘要态按需拉全队 ====================
 
   group('6. 摘要态按需拉全队', () {
-    test('拉回来的快照带起点与模式 → playQueue + setPlaybackMode', () async {
+    test('快照自带起点(兜底分支) → playQueue + setPlaybackMode', () async {
       ctl.noteSelfPeerId('p 1/a');
       localQueue(<Song>[song('s1')]);
       rawResolver = (_) => <String, dynamic>{
@@ -491,6 +491,43 @@ void main() {
       expect(player.playQueuePositions, <Duration?>[const Duration(seconds: 3)]);
       expect(player.modeCalls, <PlaybackMode>[PlaybackMode.order]);
       expect(ctl.state.lastAction, 'queue');
+    });
+
+    test('拉回的快照无起点(服务端已一次性删除) → 用广播带的起点起播,不从 0 播', () async {
+      // 现实链路:服务端 localPlayFrom 广播 peer_queue_changed 时随快照带出一次性
+      // startPosition,随后**立即删除**(不落库),故重新 GET /queue 拿不到。
+      // 大队列(summarizeQueue 清空 items)必然走本分支,若不带上广播起点就
+      // 一定从 0 播 —— 这正是「Windows 接收端总是从头播」的一条确定性路径。
+      ctl.noteSelfPeerId('peer-a');
+      localQueue(<Song>[song('s1')]);
+      rawResolver = (_) => <String, dynamic>{
+            'items': <Object?>[item('x'), item('y')],
+            'currentIndex': 1,
+            // 注意:快照**没有** startPosition。
+          };
+      await ctl.handleServerMessage(
+        qMsg(items: <Object?>[], total: 9, currentIndex: 1, startPosition: 65),
+      );
+      expect(player.playQueues.single.map((s) => s.id), <String>['x', 'y']);
+      expect(
+        player.playQueuePositions,
+        <Duration?>[const Duration(seconds: 65)],
+        reason: '必须沿用广播下发的起点,而非快照里已不存在的字段',
+      );
+      expect(ctl.state.lastAction, 'queue');
+    });
+
+    test('广播与快照都无起点 → initialPosition 为 null(从头播)', () async {
+      ctl.noteSelfPeerId('peer-a');
+      localQueue(<Song>[song('s1')]);
+      rawResolver = (_) => <String, dynamic>{
+            'items': <Object?>[item('x'), item('y')],
+            'currentIndex': 0,
+          };
+      await ctl.handleServerMessage(
+        qMsg(items: <Object?>[], total: 9, currentIndex: 0),
+      );
+      expect(player.playQueuePositions, <Duration?>[null]);
     });
 
     test('同一条广播被投递两次 → 只拉一趟(在途去重)', () async {
