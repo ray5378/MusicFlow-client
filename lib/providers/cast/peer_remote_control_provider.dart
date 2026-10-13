@@ -239,7 +239,9 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       // 长度对不上 → 服务端换的是**另一份队列**(Web 端点了别的歌单/整列表)。
       // 摘要里没有 items,不主动拉全队的话客户端会一直播着旧队列,表现为
       // 「Web 让客户端播这个歌单,客户端没反应」。故按需拉一次全队再整队播放。
-      if (total != localLength) await _adoptRemoteQueue(total);
+      if (total != localLength) {
+        await _adoptRemoteQueue(total, _startPositionOf(queue));
+      }
       return;
     }
     final local = _ref.read(playerProvider);
@@ -296,7 +298,10 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
   ///
   /// 只对**自己的**实例队列发一次:同一条广播会被投递两次,用 [_adoptingQueue]
   /// 做在途去重,避免两趟 MB 级拉取 + 两次起播。
-  Future<void> _adoptRemoteQueue(int expectedTotal) async {
+  Future<void> _adoptRemoteQueue(
+    int expectedTotal, [
+    Duration? broadcastStartPosition,
+  ]) async {
     final peerId = _selfPeerId;
     if (peerId == null || peerId.isEmpty) return;
     if (_adoptingQueue) return;
@@ -330,7 +335,10 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       await _ref.read(playerProvider.notifier).playQueue(
         songs,
         startIndex: index,
-        initialPosition: _startPositionOf(snap),
+        // 服务端 startPosition 是一次性的（localPlayFrom 广播后即删，其后任何
+        // GET /queue 都不再带）。故优先用广播快照带下来的起点，拉回的快照仅作
+        // 兜底 —— 否则大队列流转接管必然从 0 播。
+        initialPosition: broadcastStartPosition ?? _startPositionOf(snap),
       );
       await _applyPlayMode(snap);
       if (mounted) {
