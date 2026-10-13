@@ -331,11 +331,18 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
             'playing=${player.playing}',
           );
           if (stuckSong != null) {
+            // 保位重载（流转/续播接收端「从头播放」根因修复）：带 timeOffset
+            // 的首载流解码 timeline 自 0 起，换算后的逻辑进度 playerPos 才是用户
+            // 真实进度。此前这里不传 initialPosition，重载落回 timeOffset=0 从头播
+            // —— Windows(media_kit) 慢起播被 0 秒卡死看门狗误判并重载时必然从头
+            // 出声。仅在有流偏移时保位，普通曲目卡死的重载语义保持不变。
             unawaited(
               playSong(
                 stuckSong,
                 queue: state.queue,
                 index: state.currentIndex,
+                initialPosition:
+                    _sourcePositionOffset > Duration.zero ? playerPos : null,
               ),
             );
             return;
