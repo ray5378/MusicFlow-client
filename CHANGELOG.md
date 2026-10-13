@@ -2,6 +2,12 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.5] - 2026-10-13
+
+### 改进
+
+- **封面链路消费服务端背压信号（Retry-After）**：服务端封面渲染队列满时不回 503，而是排队出图后在成功响应头附 `X-MusicFlow-Cover-Saturated` / `Retry-After`（ADR-4），此前客户端读不到响应头、只能靠失败重试兜底（报告 §5.2 / [j2] 因此缓做）。现新增 `lib/core/network/cover_pressure_observer.dart`：经 `HttpOverrides.global` 透明包装 `HttpClient`（main.dart 在 runApp 前安装——`NetworkImage` 内部共享 client 为懒初始化 static，装晚了拦不到），**只 tap 封面 URL（path 以 /getCoverArt 结尾）的响应头**，其余流量零行为改变；`Image.network` 管线不动，既有封面测试的 `debugNetworkImageHttpClientProvider` 注入缝零改动。`CoverArtImage` 据此做两件事：① 饱和窗口内暂不占用并发槽位（骨架占位，信号 TTL 30s 过期后最坏 500ms 内重建放行），不再往已饱和的服务端渲染队列堆积；② 失败重试延时取 max(指数退避 1s/2s, Retry-After)，按服务端建议等待更礼貌。新增 `test/core/network/b50h_cover_pressure_test.dart` 16 例：头解析纯逻辑（大小写/非法值/TTL）、闸门饱和与恢复（widget）、本地 HttpServer loopback 端到端（真响应头→信号，非封面流量不记录）。同时修正 `cover_art_image.dart` 头注释中「NetworkImage 每次请求都 new HttpClient()」的过时描述（当前 Flutter 为共享 client）。
+
 ## [5.8.4] - 2026-10-13
 
 ### 改进

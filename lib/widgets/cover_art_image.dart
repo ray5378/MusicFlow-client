@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/network/cover_pressure_observer.dart';
 import 'package:musicflow_client/core/utils/cover_ref_security.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -13,10 +14,11 @@ import 'package:musicflow_client/providers/offline/offline_provider.dart';
 
 /// 全局封面并发闸门：把同时进行的网络封面请求数封顶在一个小值。
 ///
-/// 背景：每个网络封面都走 Flutter 的 [Image.network]，而其 `NetworkImage` 在
-/// **每次请求时都会 `new HttpClient()` 并在加载完成后 `close()`**——不同封面之间
-/// 没有任何 keep-alive 连接复用。于是「播放大歌单」时，队列/歌单里一屏所能构建的
-/// ~50 个封面会一次性打出 ~50 条独立 HTTPS 连接（并各自缓冲解码头 → 内存暴涨）。
+/// 背景：每个网络封面都走 Flutter 的 [Image.network]，其 `NetworkImage` 内部
+/// 持有一个**共享的 `static final HttpClient()`（懒初始化，首次图片请求时才
+/// 创建）**——不同封面复用同一 client 与连接池。于是「播放大歌单」时，队列/
+/// 歌单里一屏所能构建的 ~50 个封面会一次性打出大量并发请求（并各自缓冲
+/// 解码头 → 内存暴涨）。
 ///
 /// 该闸门在 `CoverArtImage`（所有封面都必经的单一漏斗）把「同时真正发起网络请求的
 /// 封面」限为 [maxConcurrent]：未获得槽位的封面先渲染同尺寸骨架占位，
@@ -63,9 +65,12 @@ class _CoverRequestGate {
 /// 不应超过服务端渲染槽位数，否则「冷缓存一屏封面」会在服务端渲染队列里堆积成慢请求。
 /// 未获槽位的封面渲染同尺寸骨架，出帧/销毁后再补齐，滚动时仍能稳定填图。
 ///
-/// 说明：服务端在渲染队列满时会回 `503 + Retry-After` 供具备请求头能力的调用方退避，
-/// 但本组件走 `Image.network`、读不到响应头，故客户端侧暂不消费该信号（仅由
-/// 失败重试兜底）；如需端侧自适应退避，应改造为经 dio 拉取封面字节后再解码。
+/// 说明：服务端在渲染队列满时不回 503，而是排队出图后在**成功响应头**附
+/// `X-MusicFlow-Cover-Saturated` / `Retry-After`（见 ADR-4）。客户端经
+/// [CoverPressureObserver]（main.dart 在 runApp 前安装的 HttpOverrides
+/// 透明包装）只读这两个头，不改变请求/响应行为；本组件据此做两件事：
+/// ① 饱和窗口内暂不占用并发槽位（骨架占位，信号过期后重建放行）；
+/// ② 失败重试延时取 max(指数退避, Retry-After)。
 final _coverRequestGate = _CoverRequestGate(4);
 
 /// 网络封面图。
@@ -74,9 +79,9 @@ final _coverRequestGate = _CoverRequestGate(4);
 /// 1. **就绪兜底**：地址探测未完成（status != ok）不发起请求，等后台连接
 ///    服务器成功后组件随 `activeAddressProvider` 重建再请求，避免冷启动
 ///    一堆失败请求与占位闪变（SPEC §8.3 时机控制配套）。
-/// 2. **失败自动重试**：单次加载失败后指数退避重试（1s / 2s，共 3 次尝试），
-///    用带尝试次数的 key 强制重新请求，覆盖服务器刚就绪 / 线路切换 /
-///    偶发网络抖动导致的封面不稳定。
+/// 2. **失败自动重试**：单次加载失败后退避重试（指数 1s / 2s 与服务端
+///    `Retry-After` 取大，共 3 次尝试），用带尝试次数的 key 强制重新请求，
+///    覆盖服务器刚就绪 / 线路切换 / 偶发网络抖动导致的封面不稳定。
 /// 3. **地址/封面变化重置**：URL 变化（切线路导致 baseUrl 变化、封面 id
 ///    变化）时重置重试计数，保证新地址的封面不被旧失败状态锁死。
 ///
@@ -112,6 +117,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   static const int _maxAttempts = 3;
   int _attempt = 0;
   Timer? _retryTimer;
+  Timer? _saturationWatchTimer;
   String? _lastUrl;
 
   /// 并发闸门相关状态（见 [_CoverRequestGate]）。
@@ -123,6 +129,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   @override
   void dispose() {
     _retryTimer?.cancel();
+    _saturationWatchTimer?.cancel();
     _coverRequestGate.release(this);
     super.dispose();
   }
@@ -140,13 +147,37 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   }
 
   /// 请求一个并发槽位；成功则同步置位，失败则加入闸门等待队列。
+  ///
+  /// 背压消费（§5.2 / ADR-4）：服务端封面渲染队列饱和时（观测器收到
+  /// `X-MusicFlow-Cover-Saturated` 响应头），暂不发起新封面请求——不占槽、
+  /// 不入队，仅渲染骨架，等信号过期后由 [_scheduleSaturationRetry] 触发
+  /// 重建再走闸门，避免往已饱和的服务端渲染队列里继续堆积。
   void _requestCoverSlot() {
     if (!mounted || _slotGranted || _everShownNetwork || _slotQueued) return;
+    if (CoverPressureObserver.isSaturated) {
+      _scheduleSaturationRetry();
+      return;
+    }
     if (_coverRequestGate.acquire(this)) {
       _slotGranted = true;
     } else {
       _slotQueued = true;
     }
+  }
+
+  /// 饱和窗口观察：按 min(信号剩余时长, 500ms) 到期后重建，重新评估饱和态。
+  /// 500ms 上界保证信号过期后最坏半秒内恢复封面加载（真实过期即 TTL 30s）。
+  void _scheduleSaturationRetry() {
+    if (_saturationWatchTimer?.isActive ?? false) return;
+    final remainingMs = CoverPressureObserver.signalRemainingMs();
+    final waitMs = remainingMs > 0 && remainingMs < 500 ? remainingMs : 500;
+    _saturationWatchTimer = Timer(
+      Duration(milliseconds: waitMs),
+      () {
+        if (!mounted) return;
+        setState(() {}); // 重建：信号过期则重新走闸门，否则继续骨架等待
+      },
+    );
   }
 
   /// 释放当前持有的槽位（或从闸门等待队列移除）。渲染中的缓存封面不占槽位。
@@ -174,10 +205,18 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     });
   }
 
-  /// 加载失败：未到上限则指数退避（1s / 2s）后重试一次。
+  /// 加载失败：未到上限则退避后重试一次。
+  ///
+  /// 退避时长取 max(指数退避 1s/2s, 服务端 Retry-After 秒数)（§5.2 背压
+  /// 消费）：饱和窗口内的失败大概率是服务端排队所致，按服务端建议的
+  /// Retry-After 等待比固定 1s 更礼貌，也减少无效重试。
   void _scheduleRetry() {
     if (!mounted || _attempt >= _maxAttempts - 1) return;
-    final delay = Duration(seconds: 1 << _attempt);
+    final backoff = Duration(seconds: 1 << _attempt);
+    final retryAfterSeconds =
+        CoverPressureObserver.currentSignal().retryAfterSeconds;
+    final retryAfter = Duration(seconds: retryAfterSeconds);
+    final delay = retryAfter > backoff ? retryAfter : backoff;
     _retryTimer?.cancel();
     _retryTimer = Timer(delay, () {
       if (!mounted) return;
@@ -241,6 +280,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       _lastUrl = coverUrl;
       _attempt = 0;
       _retryTimer?.cancel();
+      _saturationWatchTimer?.cancel();
       _coverRequestGate.release(this);
       _slotGranted = false;
       _slotQueued = false;

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:musicflow_client/app.dart';
+import 'package:musicflow_client/core/network/cover_pressure_observer.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
 import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
@@ -28,6 +29,12 @@ Future<void> main() async {
       PaintingBinding.instance.imageCache
         ..maximumSize = 64
         ..maximumSizeBytes = kImageCacheMaximumSizeBytes;
+
+      // 封面背压观测器（§5.2 / ADR-4）：安装 HttpOverrides 透明包装，
+      // 只读封面 URL 的响应头（X-MusicFlow-Cover-Saturated / Retry-After），
+      // 信号供 CoverArtImage 闸门消费。必须在 runApp 前安装——NetworkImage
+      // 内部的共享 HttpClient 是懒初始化 static，首次图片请求时才创建。
+      CoverPressureObserver.install();
 
       // 应用持久化的日志开关（默认关闭，需用户在设置里手动开启）。
       // 注意：不能在 runApp 前 await 平台存储（SharedPreferences）——桌面端
