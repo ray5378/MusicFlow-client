@@ -2,6 +2,13 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.4] - 2026-10-13
+
+### 改进
+
+- **起播缓冲标定：镜像服务端新上界 8000**：服务端整曲缓冲的有界等待改为分档（总大小已知 8s / 未知 6s，v4.6.8）并对慢源做投影早退（观测 >=1.2s 且 >=256KB，推算整曲超上界即提前回退直通）。客户端看门狗镜像常量 `kServerStreamBufferHeadWaitMs` 6000->8000（= 服务端可能的最长合法等待）；「平台未接管音源(idle)」判死上界 10s 不动，契约余量 1500->2000ms；5s/10s 两档起播阈值与 30s loading 档均不动（实测首字节后 13~21MB/s 瞬间填满，非起播瓶颈）。b50g 跨仓契约组补等值钉死——服务端改常量不同步改这里即测试失败。
+- **`AudioLoadConfiguration` 提取单一常量源**：该配置原先在 `lib/core/services/audio_handler_service.dart`（AudioService 初始化）与 `lib/providers/player/player_provider.dart`（桌面端降级路径）各复制粘贴一份 Android/iOS LoadControl 参数，「改一边忘一边」的漂移风险实打实存在。现合并为 `lib/core/player/audio_load_config.dart` 的 `kAudioLoadConfiguration`，两处共用；新增 `test/core/player/audio_load_config_test.dart` 两道守卫：① 标定值钉死（5s/10s 起播档 + 10min/15min 驻留窗 + Darwin 10min）；② 静态防漂移——两处原复制粘贴点不得再出现内联 `AndroidLoadControl(`，必须引用单一常量源。
+
 ## [5.8.3] - 2026-10-13
 
 ### 修复

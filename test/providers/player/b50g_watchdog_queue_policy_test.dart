@@ -478,11 +478,16 @@ void main() {
 
   // §4.2 P2「头等待窗口 ↔ 客户端看门狗阈值对齐」的契约守卫（j1）。
   //
-  // 服务端冷启动整曲缓冲时最多挂起 `STREAM_BUFFER_HEAD_WAIT_MS`（默认 6s）再回退直通；
-  // 客户端「平台未接管音源(idle)」一档的判死上界必须**严格大于**它并留足余量，
-  // 否则服务端仍在合法缓冲窗口内、客户端已抢先判死 → 无谓 reload/跳歌。
+  // 服务端冷启动整曲缓冲时最多挂起 `STREAM_BUFFER_HEAD_WAIT_MS`（分档：已知 8s /
+  // 未知 6s，v5.8.4 起镜像取已知档 8000）再回退直通；客户端「平台未接管音源(idle)」
+  // 一档的判死上界必须**严格大于**它并留足余量，否则服务端仍在合法缓冲窗口内、
+  // 客户端已抢先判死 → 无谓 reload/跳歌。
   // 本组把该不变式钉死：任一侧调常量导致余量不足都会让此用例失败（变异验证）。
   group('六、跨仓契约：首字节等待 vs idle 判死上界（j1）', () {
+    test('镜像值 = 服务端已知档上界 8000（v5.8.4 对齐；改服务端必须同步改这里）', () {
+      expect(kServerStreamBufferHeadWaitMs, 8000);
+    });
+
     test('idle 判死上界 - 服务端首字节等待 ≥ 契约余量下界', () {
       expect(
         kStreamLoadIdleCeilingMs - kServerStreamBufferHeadWaitMs,
@@ -499,7 +504,7 @@ void main() {
         kStreamLoadNoProgressCeilingMs,
         greaterThan(kStreamLoadIdleCeilingMs),
       );
-      // 冷启动合法最坏 ≈ 首字节等待 + 起播；30s 需明显高于 6s 头等待。
+      // 冷启动合法最坏 ≈ 首字节等待 + 起播；30s 需明显高于 8s 头等待。
       expect(
         kStreamLoadNoProgressCeilingMs,
         greaterThan(kServerStreamBufferHeadWaitMs * 2),

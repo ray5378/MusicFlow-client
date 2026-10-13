@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:musicflow_client/core/player/audio_load_config.dart';
 import 'package:musicflow_client/core/services/notification_permission_service.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
@@ -247,18 +248,9 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 
 /// 初始化 AudioService
 Future<MusicFlowAudioHandler> initAudioService() async {
+  // 缓冲标定取全 App 单一常量源（原两份复制粘贴，2026-10-13 合并，防漂移）。
   final audioPlayer = AudioPlayer(
-    audioLoadConfiguration: const AudioLoadConfiguration(
-      androidLoadControl: AndroidLoadControl(
-        minBufferDuration: Duration(minutes: 10),
-        maxBufferDuration: Duration(minutes: 15),
-        bufferForPlaybackDuration: Duration(seconds: 5),
-        bufferForPlaybackAfterRebufferDuration: Duration(seconds: 10),
-      ),
-      darwinLoadControl: DarwinLoadControl(
-        preferredForwardBufferDuration: Duration(minutes: 10),
-      ),
-    ),
+    audioLoadConfiguration: kAudioLoadConfiguration,
   );
 
   final handler = await AudioService.init(

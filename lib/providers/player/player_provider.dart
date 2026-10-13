@@ -23,6 +23,7 @@ import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/player/server_shuffle_sequence.dart';
 import 'package:musicflow_client/core/player/shuffle_queue_indexer.dart';
 import 'package:musicflow_client/core/player/playback_payload.dart';
+import 'package:musicflow_client/core/player/audio_load_config.dart';
 import 'package:musicflow_client/core/services/audio_handler_service.dart';
 import 'package:musicflow_client/core/services/smtc_service.dart';
 
@@ -540,18 +541,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       _audioHandler?.canPlay = () => state.currentSong != null;
     } catch (e) {
       Logger.warn('AudioService not available: $e');
+      // 缓冲标定取全 App 单一常量源（原两份复制粘贴，2026-10-13 合并，防漂移）。
       player = AudioPlayer(
-        audioLoadConfiguration: const AudioLoadConfiguration(
-          androidLoadControl: AndroidLoadControl(
-            minBufferDuration: Duration(minutes: 10),
-            maxBufferDuration: Duration(minutes: 15),
-            bufferForPlaybackDuration: Duration(seconds: 5),
-            bufferForPlaybackAfterRebufferDuration: Duration(seconds: 10),
-          ),
-          darwinLoadControl: DarwinLoadControl(
-            preferredForwardBufferDuration: Duration(minutes: 10),
-          ),
-        ),
+        audioLoadConfiguration: kAudioLoadConfiguration,
       );
     }
 

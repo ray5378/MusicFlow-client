@@ -69,8 +69,8 @@ StreamLoadStuckLevel classifyStreamLoadStuck({
   return StreamLoadStuckLevel.none;
 }
 
-/// 服务端「整曲缓冲·首字节有界等待」上限（`STREAM_BUFFER_HEAD_WAIT_MS` 默认值，
-/// 权威定义见服务端 `backend/src/routes/rest/index.ts`）。
+/// 服务端「整曲缓冲·首字节有界等待」上限的**客户端镜像**（权威定义见服务端
+/// `backend/src/routes/rest/index.ts` 的 `STREAM_BUFFER_HEAD_WAIT_MS`）。
 ///
 /// **跨仓契约（ADR-4 相邻项）**：服务端在冷启动整曲缓冲时最多挂起本时长，之后回退
 /// 直通（首字节优先）。因此客户端在「平台未接管音源(idle)」一档的判死上界
@@ -78,7 +78,11 @@ StreamLoadStuckLevel classifyStreamLoadStuck({
 /// 客户端已抢先判死并触发 reload/跳歌（无谓重载、且会拆掉在途请求让服务端重开窗口）。
 /// 两侧由各自单测断言此不变式（客户端见 `b50g_watchdog_queue_policy_test.dart`，
 /// 服务端见 `tests/source/bufferHeadWait.test.ts`）。
-const int kServerStreamBufferHeadWaitMs = 6000;
+///
+/// 2026-10-13（起播缓冲标定）：服务端分两档——总大小已知 8s / 未知（chunked）6s，
+/// 另对慢源做投影早退（观测 ≥1.2s 且 ≥256KB，推算整曲超上界即提前回退直通）。
+/// 本镜像取**已知档 8000**（= 服务端可能的最长合法等待）；改服务端常量必须同步改这里。
+const int kServerStreamBufferHeadWaitMs = 8000;
 
 /// 「平台未接管音源(idle)」档的判死上界默认值（ms）——宿主可经
 /// `debugStreamLoadIdleStuckCeilingMs` 覆写。
