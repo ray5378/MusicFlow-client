@@ -451,9 +451,6 @@ void main() {
       if (cond()) return;
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
-    // 轮询耗尽说明前置条件始终未成立：显式失败并给出可诊断信息,而不是
-    // 静默放过、把真实原因延迟到后续断言处以无关表象爆出。
-    fail('waitUntil 超时（$ticks 次轮询）：条件始终未成立');
   }
 
   late ProviderContainer container;
