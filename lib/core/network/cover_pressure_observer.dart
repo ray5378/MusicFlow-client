@@ -100,8 +100,12 @@ class CoverPressureObserver {
   static Duration _hold = signalTtl;
 
   /// 安装全局拦截（幂等；重复安装只是重复包装，无副作用但没必要）。
+  ///
+  /// **保留既有全局覆盖**：安装前先捕获 [HttpOverrides.current] 作为内层工厂
+  /// 委派下去（与 dart:io `_HttpOverridesScope` 同一姿势）。否则直接赋值会把
+  /// 别处已装的覆盖（代理/测试桩）无声顶掉。
   static void install() {
-    HttpOverrides.global = _CoverPressureHttpOverrides();
+    HttpOverrides.global = _CoverPressureHttpOverrides(HttpOverrides.current);
   }
 
   /// 记录一组响应头（小写/大写均可，内部归一）。
@@ -147,11 +151,22 @@ class CoverPressureObserver {
 
 /// 全局 `HttpOverrides`：把每个 `HttpClient()` 换成只 tap 封面头的透明包装。
 class _CoverPressureHttpOverrides extends HttpOverrides {
-  _CoverPressureHttpOverrides();
+  _CoverPressureHttpOverrides(this._base);
+
+  /// 安装前已生效的全局覆盖（可能为 null）；有则委派，无则走父类真实工厂。
+  final HttpOverrides? _base;
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return _CoverPressureHttpClient(super.createHttpClient(context));
+    final inner =
+        _base?.createHttpClient(context) ?? super.createHttpClient(context);
+    return _CoverPressureHttpClient(inner);
+  }
+
+  @override
+  String findProxyFromEnvironment(Uri url, Map<String, String>? environment) {
+    return _base?.findProxyFromEnvironment(url, environment) ??
+        super.findProxyFromEnvironment(url, environment);
   }
 }
 
