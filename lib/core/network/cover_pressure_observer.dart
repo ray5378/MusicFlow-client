@@ -87,11 +87,15 @@ bool isCoverArtUrl(Uri uri) {
 class CoverPressureObserver {
   CoverPressureObserver._();
 
-  /// 信号有效期：饱和是瞬时状态，过期作废，避免陈旧信号长期压制封面加载。
+  /// 信号有效期兜底：服务端未给 `Retry-After`（或非法）时的默认退避窗；
+  /// 有合法 `Retry-After` 时以它为准（服务端建议多久就等多久，不过度压制）。
   static const Duration signalTtl = Duration(seconds: 30);
 
   static CoverPressureSignal _signal = CoverPressureSignal.none;
   static DateTime? _signalAt;
+
+  /// 当前这枚信号的生效时长：`Retry-After` 合法（>0）时按其秒数，否则 [signalTtl]。
+  static Duration _hold = signalTtl;
 
   /// 安装全局拦截（幂等；重复安装只是重复包装，无副作用但没必要）。
   static void install() {
@@ -104,6 +108,10 @@ class CoverPressureObserver {
     if (signal == CoverPressureSignal.none) return;
     _signal = signal;
     _signalAt = DateTime.now();
+    // 生效时长按服务端建议：Retry-After 秒数优先，缺失/非法才回落兜底 TTL。
+    _hold = signal.retryAfterSeconds > 0
+        ? Duration(seconds: signal.retryAfterSeconds)
+        : signalTtl;
   }
 
   /// 当前有效信号（过期返回 none）。
@@ -111,7 +119,7 @@ class CoverPressureObserver {
     final at = _signalAt;
     if (at == null) return CoverPressureSignal.none;
     final now0 = now ?? DateTime.now();
-    if (now0.difference(at) > signalTtl) return CoverPressureSignal.none;
+    if (now0.difference(at) > _hold) return CoverPressureSignal.none;
     return _signal;
   }
 
@@ -123,7 +131,7 @@ class CoverPressureObserver {
     final at = _signalAt;
     if (at == null) return 0;
     final now0 = now ?? DateTime.now();
-    final remaining = signalTtl.inMilliseconds - now0.difference(at).inMilliseconds;
+    final remaining = _hold.inMilliseconds - now0.difference(at).inMilliseconds;
     return remaining > 0 ? remaining : 0;
   }
 
@@ -131,6 +139,7 @@ class CoverPressureObserver {
   static void resetForTest() {
     _signal = CoverPressureSignal.none;
     _signalAt = null;
+    _hold = signalTtl;
   }
 }
 
