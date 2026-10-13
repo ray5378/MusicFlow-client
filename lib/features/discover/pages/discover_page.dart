@@ -178,7 +178,12 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       // (失败分区不应阻塞屏外预取),逐个吞掉错误。
       pending.add(prefetch(ref).then((_) {}, onError: (Object _) {}));
     }
-    await Future.wait(pending);
+    // 活性能兜底：首屏分区若有请求悬挂永不落地,屏外预取不能被它无限期拖住
+    // (15s 后照常按排版序补齐;悬挂 future 继续在后台跑,不影响后续流程)。
+    await Future.wait(pending).timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => const <void>[],
+    );
     if (!mounted) return;
     for (final entry in keys.indexed) {
       final key = entry.$2;
