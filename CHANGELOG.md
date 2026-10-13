@@ -6,7 +6,7 @@
 
 ### 修复
 
-- **封面背压消费（ADR-4）逐项复核修复（C1/C2/C3/C4/C5/C6/C7/C9；C8 复核后判定不改）**：对 v5.8.5 引入的背压消费及相关批次做代码复核并逐项落地：① 信号生效时长由固定 30s 改为**按服务端 `Retry-After` 决定**（合法秒数优先，缺失/非法才回落 30s），不再无条件压制封面加载；② 饱和窗口观察定时器由「每 500ms 轮询」改为**按信号剩余时长精确到期**（原实现在 `remainingMs==0` 边界会多等一个 500ms 周期）；③ 发现页屏外预取对「首屏各分区 future」的等待**加 15s 活性能兜底**（首屏请求悬挂不再无限期拖住屏外补齐）；④ `CoverPressureObserver.install()` **保留并委派既有 `HttpOverrides.current`** 且补 `findProxyFromEnvironment`（不再把别处已装的全局覆盖无声顶掉，姿势同 dart:io `_HttpOverridesScope`）；⑤ 手机迷你播放条流转按钮补 `iconSize: 20`（与同排播放/暂停一致）；⑥ 修正 `player_provider.dart` 中「服务端首字节等待默认 6s」的过时注释（现为 8s）；⑦ 饱和标记解析改**白名单**（仅 `1`/`true` 判饱和，`false` 等一律不饱和）；⑧ b50h 组 B 增 `debugNetworkImageHttpClientProvider` 的 `addTearDown` 兜底。经复核**不改**：**C8**（`waitUntil` 轮询耗尽改硬失败会让 b29a 8 个用例由绿转红——该助手本就是刻意的最尽力等待，真定时器负载下允许放弃，耗尽并非前置条件失败的可靠信号）、C10、S8 与服务端 S2（均为设计取舍/文档项，改动收益低于回归风险），理由见架构分析报告 [l10]。
+- **封面背压消费（ADR-4）逐项复核修复（C1/C2/C3/C4/C5/C6/C7/C9；C8 复核后判定不改）**：对 v5.8.5 引入的背压消费及相关批次做代码复核并逐项落地：① 信号生效时长由固定 30s 改为**按服务端 `Retry-After` 决定**（合法秒数优先、且以 30s 为上限——只能缩短不能放大，缺失/非法才回落 30s），不再无条件压制封面加载；② 饱和窗口观察定时器由「每 500ms 轮询」改为**按信号剩余时长精确到期**（原实现在 `remainingMs==0` 边界会多等一个 500ms 周期）；③ 发现页屏外预取对「首屏各分区 future」的等待**加 15s 活性能兜底**（首屏请求悬挂不再无限期拖住屏外补齐）；④ `CoverPressureObserver.install()` **保留并委派既有 `HttpOverrides.current`** 且补 `findProxyFromEnvironment`（不再把别处已装的全局覆盖无声顶掉，姿势同 dart:io `_HttpOverridesScope`）；⑤ 手机迷你播放条流转按钮补 `iconSize: 20`（与同排播放/暂停一致）；⑥ 修正 `player_provider.dart` 中「服务端首字节等待默认 6s」的过时注释（现为 8s）；⑦ 饱和标记解析改**白名单**（仅 `1`/`true` 判饱和，`false` 等一律不饱和）；⑧ b50h 组 B 增 `debugNetworkImageHttpClientProvider` 的 `addTearDown` 兜底。经复核**不改**：**C8**（`waitUntil` 轮询耗尽改硬失败会让 b29a 8 个用例由绿转红——该助手本就是刻意的最尽力等待，真定时器负载下允许放弃，耗尽并非前置条件失败的可靠信号）、C10、S8 与服务端 S2（均为设计取舍/文档项，改动收益低于回归风险），理由见架构分析报告 [l10]。
 
 ## [5.8.7] - 2026-10-13
 
