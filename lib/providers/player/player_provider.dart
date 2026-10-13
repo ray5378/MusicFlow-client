@@ -1153,6 +1153,14 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       // 整曲缓冲 3 次（240 日志实证），用户感知为进度条在跑却没声音。
       final resumeOffset = initialPosition ?? Duration.zero;
       final resumeOffsetSec = resumeOffset.inSeconds;
+      // [D-063 补遗] 偏移首载落位宽限：与 _reloadStreamForSeek 对称，给带
+      // timeOffset 的首载流同样的落位宽限，避免 Windows(media_kit) 慢起播期间
+      // source 位置恒在 0 被 0 秒卡死看门狗误判为卡死 → 无谓 reload（重载又会
+      // 落回从头，是「接收端总是从头播」的另一条路径）。仅在有偏移时设，
+      // 普通起播语义不变。
+      if (resumeOffset > Duration.zero) {
+        _seekSettleUntil = DateTime.now().add(const Duration(seconds: 15));
+      }
       final streamUrl = _buildStreamUrlOrThrow(
         song.id,
         session: debugSession,
