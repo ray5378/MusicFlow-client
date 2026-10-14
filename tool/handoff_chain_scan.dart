@@ -117,9 +117,10 @@ void checkHandoffMainChannel(File cast) {
 int _firstMatchIndex(String source, RegExp pattern) =>
     pattern.firstMatch(source)?.start ?? -1;
 
-void checkOriginPersisted(File payload, File session) {
+void checkOriginPersisted(File payload, File session, File host) {
   final p = payload.readAsStringSync();
   final s = session.readAsStringSync();
+  final h = host.readAsStringSync();
 
   // 三件事必须同时成立，缺一即链路断（常量定义 ≠ 真的在用）：
   //   (a) 常量有定义；
@@ -142,14 +143,22 @@ void checkOriginPersisted(File payload, File session) {
   // 容忍 `session!`(恢复路径里 session 为可空,非空断言是正常写法)。
   if (!RegExp('$sessionOriginReader\\(session!?\\)').hasMatch(s)) {
     fail(
-      '会话契约回归：player_playback_session 恢复时未读取队列来源。',
+      '会话契约回归：player_session_persister 恢复时未读取队列来源。',
     );
   }
-  if (!RegExp('queueOriginProvider\\.notifier\\)\\.state\\s*=').hasMatch(s)) {
+  if (!RegExp('host\\.queueOrigin\\s*=').hasMatch(s)) {
     fail(
-      '会话契约回归：player_playback_session 恢复时未向 queueOriginProvider 回填来源。\n'
+      '会话契约回归：player_session_persister 恢复时未把来源交回宿主。\n'
       '    _restorePlaybackSession 绕过 playEffectiveQueue，必须显式回填，\n'
       '    否则重启 App 后大歌单搬移退化为整队推送。',
+    );
+  }
+  if (!RegExp('queueOriginProvider\\.notifier\\)\\.state\\s*=').hasMatch(h)) {
+    fail(
+      '会话契约回归：player_provider 的 queueOrigin setter 未向 '
+      'queueOriginProvider 回填来源。\n'
+      '    恢复链路：persister 读来源 → host.queueOrigin → provider；\n'
+      '    任一环缺失都会让重启 App 后的大歌单搬移退化为整队推送。',
     );
   }
 }
@@ -178,9 +187,11 @@ void main(List<String> args) {
 
   final cast = File('$root/providers/cast/cast_peer_provider.dart');
   final payload = File('$root/core/player/playback_payload.dart');
-  final session = File('$root/providers/player/player_playback_session.dart');
+  final persister =
+      File('$root/providers/player/player_session_persister.dart');
+  final host = File('$root/providers/player/player_provider.dart');
 
-  for (final f in <File>[cast, payload, session]) {
+  for (final f in <File>[cast, payload, persister, host]) {
     if (!f.existsSync()) {
       stderr.writeln('目标文件不存在: ${f.path}');
       exit(2);
@@ -188,7 +199,7 @@ void main(List<String> args) {
   }
 
   checkHandoffMainChannel(cast);
-  checkOriginPersisted(payload, session);
+  checkOriginPersisted(payload, persister, host);
   checkGateRationale(cast);
 
   if (failures.isEmpty) {
