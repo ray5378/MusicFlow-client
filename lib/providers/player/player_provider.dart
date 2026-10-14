@@ -48,12 +48,13 @@ import 'package:musicflow_client/providers/player/player_seek_policy.dart';
 import 'package:musicflow_client/providers/player/player_watchdog_policy.dart';
 import 'package:musicflow_client/providers/player/player_queue_policy.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
+import 'package:musicflow_client/providers/player/player_session_persister.dart'
+    show PlaybackSessionPersister, PlaybackSessionPersisterHost;
 import 'package:musicflow_client/providers/player/transcoded_stream_seek.dart';
 part 'player_platform_helpers.dart';
 part 'player_stream_source.dart';
 part 'player_playback_helpers.dart';
 part 'player_crossfade.dart';
-part 'player_playback_session.dart';
 part 'player_shuffle_queue.dart';
 part 'player_seek.dart';
 part 'player_position_polling.dart';
@@ -81,7 +82,8 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
 });
 
 /// 播放器状态管理器
-abstract class PlayerNotifier extends StateNotifier<PlayerState> {
+abstract class PlayerNotifier extends StateNotifier<PlayerState>
+    implements PlaybackSessionPersisterHost {
   final Ref _ref;
 
   /// 权威收藏列表缓存。由 playerProvider 主体对 starredProvider 的持久
@@ -265,99 +267,47 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _loggedDurationMismatchForSong = false;
   Timer? _fadeTimer;
   Completer<void>? _fadeCompleter;
-  // 播放会话落盘节流：仅当序列本质上变化时才重新序列化整张队列，避免每次
-  // position tick 都全量 toJson + jsonEncode（大队列会在大屏旋转封面时周期卡顿）。
-  // 由 2s 放宽到 5s：降频 2.5 倍，崩溃续播最多损失 ~5s 进度，与主流播放器一致。
-  Timer? _playbackSessionPersistTimer;
   Timer? _volumePersistTimer;
-  /// 落盘进行中标记 —— 用「租约起点时间戳」而非布尔量实现。
-  ///
-  /// 布尔量的致命缺陷：它靠 `_persistPlaybackSession` 的 finally 复位，一旦
-  /// 某个 await 永久挂起（Windows 上 tmp.rename 覆盖已存在文件时若被杀软/
-  /// 索引服务占用会**阻塞等待**而非抛错），finally 永不执行 → 标记永久 true
-  /// → **此后所有播放会话落盘被静默跳过**。
-  /// 实测症状：playback_session_v1.json 停在某个时刻再不更新，而同目录其它
-  /// key 正常写入，于是每次重启都恢复成同一首旧歌。
-  /// 改用时间戳租约后，即使超时兜底也失效，过期即强制放行：宁可并发写一次，
-  /// 也不能再也不写。
-  int? _persistingSinceMs;
 
-  /// 上一轮落盘**进行中**时又有新的落盘请求 → 标记为脏，等这轮写完自动补一次。
-  ///
-  /// 旧实现是直接 `return` 丢弃：丢掉的那次若是「清空/销毁后的空会话」，
-  /// 磁盘上就留着清空前的旧会话 —— 重启后已销毁的歌原地复活。
-  bool _persistDirty = false;
+  // ── 播放会话落盘/恢复协作者（ADR-2 阶段 2b）────────────────────────────
+  // 防抖 Timer、写租约、脏标记、在途写、会话代际、恢复租约与测试钩子全部
+  // 收拢在协作者（player_session_persister.dart）里；宿主只在生命周期点
+  // 调用：state setter、_init 恢复、_finishSessionTeardown、dispose、
+  // persistPlaybackStateNow。
+  late final PlaybackSessionPersister sessionPersister;
 
-  /// 正在落地的那一轮写。退出（persistPlaybackStateNow）前要等它，
-  /// 否则本次写会被当作「进行中」跳过，磁盘留旧会话。
-  Future<void>? _persistInFlight;
-
-  /// 会话代际：每次「整份会话归零」（清空队列 / 移除当前曲）自增。
-  ///
-  /// 用来让**进行中的恢复**作废：恢复是异步长流程（读盘 → 探服务端 →
-  /// getAutoPlayOnLaunch → playSong），期间用户完全可能已经把本机销毁。
-  /// 若不自增比对，恢复流程照旧 playSong，就把刚销毁的会话又挂回当前曲 ——
-  /// 用户视角就是「销毁没生效，Mini 播放器一会儿又冒出歌名」。
-  int _sessionGeneration = 0;
-
-  /// 测试注入点：每轮落盘**真正写盘之前**的挂起点。单测用它把一轮写人为拉长，
-  /// 稳定复现「写完前状态又变了 → 旧实现静默丢弃这次写入」的竞态。
+  /// 测试注入点转发（零逻辑门面）：既有测试族（playback_session_persist /
+  /// b38a3 / session_teardown 等）对 `notifier.debugBeforePersistWrite` 的
+  /// 访问面保持不变。
   @visibleForTesting
-  Future<void> Function()? debugBeforePersistWrite;
-
-  /// 测试注入点：恢复流程「即将起播」之前的挂起点（见
-  /// [_restorePlaybackSession]）。单测用它把恢复卡在竞态窗口内，稳定复现
-  /// 「恢复到一半，本机被销毁」。
+  Future<void> Function()? get debugBeforePersistWrite =>
+      sessionPersister.debugBeforePersistWrite;
   @visibleForTesting
-  Future<void> Function()? debugBeforeRestoreResume;
+  set debugBeforePersistWrite(Future<void> Function()? value) =>
+      sessionPersister.debugBeforePersistWrite = value;
+
+  @visibleForTesting
+  Future<void> Function()? get debugBeforeRestoreResume =>
+      sessionPersister.debugBeforeRestoreResume;
+  @visibleForTesting
+  set debugBeforeRestoreResume(Future<void> Function()? value) =>
+      sessionPersister.debugBeforeRestoreResume = value;
 
   /// 测试观察点：代际守卫拦下恢复的次数（正常恢复恒为 0）。
-  ///
-  /// 为什么需要它：守卫放行之后那一步是 `playSong(...)`，它要碰离线缓存、音源
-  /// 加载、网络——在单测里既不收敛也不稳。而「守卫有没有误杀正常恢复」这件事
-  /// 只需要看这个计数，不必等 playSong 跑完（见 session_teardown_test 的 C2）。
   @visibleForTesting
-  int debugRestoreAbortCount = 0;
-
-  /// 会话恢复租约起点（替代布尔量 `_isRestoringPlaybackSession`）。
-  ///
-  /// 与落盘租约同理:恢复流程里有 `await playSong(...)`,而 playSong 会对
-  /// 当前曲做 setUrl 加载 —— 死链/慢源下该 await 可能**永久不返回**,恢复
-  /// 标志就永远为 true,此后所有播放会话落盘在入口被静默跳过,本地会话
-  /// 文件整体陈旧,每次重启都恢复同一首旧歌(v4.3.49 实测症状)。改成时间
-  /// 戳租约:超时即视为恢复已结束,强制放行落盘 —— 宁可恢复窗口被提前
-  /// 关闭,也不能让本地留存再也不写。
-  int? _restoreStartedAtMs;
-
-  /// 恢复租约时长:正常恢复(含一次源加载尝试)远小于此值;超时只可能是
-  /// 某个 await 挂死了。
-  static const int _restoreLeaseMs = 20000;
-
-  /// 恢复是否进行中。带租约上限:超时强制视为已结束。
-  bool get _isRestoringPlaybackSession {
-    final since = _restoreStartedAtMs;
-    if (since == null) return false;
-    final heldMs = DateTime.now().millisecondsSinceEpoch - since;
-    if (heldMs <= _restoreLeaseMs) return true;
-    Logger.warnWithTag(
-      _playerLogTag,
-      'playback session restore lease expired, forcing persist path open '
-      '(heldMs=$heldMs)',
-    );
-    _restoreStartedAtMs = null;
-    return false;
-  }
-
+  int get debugRestoreAbortCount => sessionPersister.debugRestoreAbortCount;
   /// 测试观察点：恢复流程是否仍在进行中（含租约判定）。
   ///
   /// 恢复跑在 `_init()` 的异步尾巴上，测试要等它落地只能靠轮询；没有这个
   /// 观察点就只能靠 `Future.delayed` 猜时长 —— 那正是 flaky 的来源。
   @visibleForTesting
-  bool get debugIsRestoringPlaybackSession => _isRestoringPlaybackSession;
+  bool get debugIsRestoringPlaybackSession =>
+      sessionPersister.isRestoringPlaybackSession;
 
   /// 恢复是否进行中(生产消费方:启动自动选中等待恢复落定后再切控制目标,
   /// 见 cast_peer_provider._autoSelectFirstPlaying)。
-  bool get isRestoringPlaybackSession => _isRestoringPlaybackSession;
+  bool get isRestoringPlaybackSession =>
+      sessionPersister.isRestoringPlaybackSession;
 
   // 队列序列化缓存：queue 未变化时直接复用序列化结果，避免每 tick 重序列化整队。
   // 队列序列化缓存移入 _payloadEncoder(PlaybackPayloadEncoder)。
@@ -399,8 +349,28 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   MusicRepository get _musicRepository =>
       _ref.read(musicRepositoryProvider) ?? MusicRepository(_apiClient);
 
+  // ── PlaybackSessionPersisterHost 窄接口实现（ADR-2 阶段 2b）──────────────
+  // 协作者触达宿主的最小面；cast / queueOrigin 依赖在此转发，
+  // 协作者库因此不需要 import cast_peer_provider / queue_origin_provider。
+  @override
+  PlaybackPayloadEncoder get payloadEncoder => _payloadEncoder;
+
+  @override
+  QueueOrigin? get queueOrigin => _ref.read(queueOriginProvider);
+
+  @override
+  set queueOrigin(QueueOrigin? origin) =>
+      _ref.read(queueOriginProvider.notifier).state = origin;
+
+  @override
+  Future<Map<String, dynamic>?> fetchLocalQueueForRestore() =>
+      _ref.read(castPeerControllerProvider.notifier).fetchLocalQueueForRestore();
+
+  @override
+  Future<void> syncLocalQueueNow() =>
+      _ref.read(castPeerControllerProvider.notifier).syncLocalQueueNow();
+
   Future<void> _applyPendingSeekIfNeeded(); // ignore: unused_element, unused_element_parameter
-  Map<String, dynamic>? _buildPlaybackSessionPayload(); // ignore: unused_element, unused_element_parameter
   String _buildStreamUrlOrThrow( String songId, { required int session, required String source, int? maxBitRate, String? format, int? timeOffset, }); // ignore: unused_element, unused_element_parameter
   void _cancelFade(); // ignore: unused_element, unused_element_parameter
   void _clearForcedNext(); // ignore: unused_element, unused_element_parameter
@@ -424,9 +394,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   int _normalizeBitRateKbps(int? bitRate); // ignore: unused_element, unused_element_parameter
   Duration _normalizeSeekPosition(Duration position); // ignore: unused_element, unused_element_parameter
   int _parseBitRateFromText(String? text); // ignore: unused_element, unused_element_parameter
-  List<Song> _parsePlaybackSessionQueue(Object? rawQueue); // ignore: unused_element, unused_element_parameter
-  int? _parseStoredInt(Object? value); // ignore: unused_element, unused_element_parameter
-  Future<void> _persistPlaybackSession(); // ignore: unused_element, unused_element_parameter
   Future<void> _probeUpcoming(); // ignore: unused_element, unused_element_parameter
   void _maybeProbeNearEnd(); // ignore: unused_element
   bool _probeFresh(String songId); // ignore: unused_element, unused_element_parameter
@@ -442,11 +409,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   void _resetShuffleHistory();
   int _resolveCurrentBitRateKbps({ required Song song, required AudioQualityLevel quality, required PlaybackSource source, int? maxBitRate, }); // ignore: unused_element, unused_element_parameter
   int? _resolveForcedNextIndex(); // ignore: unused_element, unused_element_parameter
-  int _resolveRestoredQueueIndex({ required List<Song> queue, required int preferredIndex, required String? currentSongId, }); // ignore: unused_element, unused_element_parameter
   Song? _resolveUpcomingSongForCache(); // ignore: unused_element, unused_element_parameter
-  Future<void> _restorePlaybackSession(); // ignore: unused_element, unused_element_parameter
   void _schedulePendingSeekIfReady(); // ignore: unused_element, unused_element_parameter
-  void _schedulePersistPlaybackSession({bool immediate = false}); // ignore: unused_element, unused_element_parameter
   void _scheduleSongRemoteRefresh(Song song, int session); // ignore: unused_element, unused_element_parameter
   Future<void> _seekWithFallback( Duration target, { required String songId, required bool Function() isCurrentSeek, required bool Function() ownsSource, }); // ignore: unused_element, unused_element_parameter
   void _setSourcePositionOffset(Duration offset); // ignore: unused_element, unused_element_parameter
@@ -461,6 +425,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   int? _takeLastValidForwardHistoryIndex(); // ignore: unused_element, unused_element_parameter
 
   PlayerNotifier(this._ref) : super(PlayerState()) {
+    sessionPersister = PlaybackSessionPersister(this);
     _favoriteHandler = FavoriteScrobbleHandler(_ref);
     _initConnectivityRetryHandling();
     _init();
@@ -514,7 +479,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   @override
   set state(PlayerState value) {
     super.state = value;
-    _schedulePersistPlaybackSession();
+    sessionPersister.schedulePersist();
   }
 
   /// 初始化播放器
@@ -796,7 +761,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
     });
 
     await _restorePlaybackMode();
-    await _restorePlaybackSession();
+    await sessionPersister.restorePlaybackSession();
   }
 
   void _initConnectivityRetryHandling() {
@@ -924,6 +889,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// 播放单曲
+  @override
   Future<void> playSong(
     Song song, {
     List<Song>? queue,
@@ -1856,17 +1822,22 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 试听歌曲可以先作为普通队列项加入；真正轮到播放时再补齐临时 URL。
   ///
   /// 注意：临时签名 URL（网易/QQ 等）通常分钟级就过期，**不能跨进程复用**。
-  /// 会话恢复（_isRestoringPlaybackSession）时为上次进程内下发的 URL 早已失效，
+  /// 会话恢复（isRestoringPlaybackSession）时为上次进程内下发的 URL 早已失效，
   /// 必须强制重新解析一次；只有同进程内正在播放（未经过重启）才可复用已有 URL。
   Future<Song> _resolvePreviewSongForPlayback(Song song) async {
     final existingUrl = song.previewStreamUrl?.trim() ?? '';
-    if (existingUrl.isNotEmpty && !_isRestoringPlaybackSession) return song;
+    if (existingUrl.isNotEmpty &&
+        !sessionPersister.isRestoringPlaybackSession) {
+      return song;
+    }
 
     final source = song.previewSource?.trim() ?? '';
     final trackId = song.previewTrackId?.trim() ?? '';
     // 恢复进程内旧临时 URL 已过期：若可重新解析则强制重解析；缺 source/trackId
     // 无法重解析时退回既有 URL（尽力而为，避免把会话恢复成死歌）。
-    if (_isRestoringPlaybackSession && source.isNotEmpty && trackId.isNotEmpty) {
+    if (sessionPersister.isRestoringPlaybackSession &&
+        source.isNotEmpty &&
+        trackId.isNotEmpty) {
       // fallthrough 到下方 resolveSongUrl
     } else if (existingUrl.isNotEmpty) {
       return song;
@@ -1909,7 +1880,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 设置本机播放音量（0.0~1.0，对齐主项目前端 setVolume）。
   /// 立即作用于 just_audio，持久化改为**延迟批量**写入（防抖），
   /// 避免滑杆松手时同步 IO / 平台通道写入阻塞 UI（Windows 上会假死数秒）。
-  /// 会话周期（_persistPlaybackSession）也会顺带落盘音量，双保险兜底。
+  /// 会话周期（persistPlaybackSession）也会顺带落盘音量，双保险兜底。
   Future<void> setVolume(double volume) async {
     final clamped = volume.clamp(0.0, 1.0).toDouble();
     if (mounted) {
@@ -2414,6 +2385,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 「切了之后又回退」。这里按点击顺序串起来，保证最后一次点击赢。
   Future<void> _modeApplyChain = Future<void>.value();
 
+  @override
   Future<void> setPlaybackMode(PlaybackMode mode, {bool persist = true}) async {
     // ==================== ① 状态乐观先行 ====================
     // cyclePlaybackMode 是**基于当前 playbackMode 算下一档**的。原先 state 要等
@@ -2586,9 +2558,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   ///    默认落盘有 5 秒防抖，若此刻退出或被强杀，磁盘上留着的仍是清空前的
   ///    旧会话 → 下次启动把已销毁的歌复活，看起来「销毁根本没生效」。
   void _finishSessionTeardown() {
-    _sessionGeneration++;
+    sessionPersister.bumpSessionGeneration();
     _ref.read(queueOriginProvider.notifier).state = null;
-    _schedulePersistPlaybackSession(immediate: true);
+    sessionPersister.schedulePersist(immediate: true);
   }
 
   /// 从队列移除
@@ -2811,9 +2783,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
 
   @override
   void dispose() {
-    _playbackSessionPersistTimer?.cancel();
+    sessionPersister.cancelPersistTimer();
     _volumePersistTimer?.cancel();
-    unawaited(_persistPlaybackSession());
+    unawaited(sessionPersister.persistPlaybackSession());
     _positionPollTimer?.cancel();
     _cancelFade();
     _networkTypeSubscription?.cancel();
@@ -2833,17 +2805,16 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
   /// 进程 —— 因为直接结束进程时 Dart 的 dispose 不执行,防抖 Timer 也来不及
   /// 触发,最近一次进度/音量会丢失(shared_preferences 还可能被写坏)。
   Future<void> persistPlaybackStateNow() async {
-    _playbackSessionPersistTimer?.cancel();
-    _playbackSessionPersistTimer = null;
+    sessionPersister.cancelPersistTimer();
     _volumePersistTimer?.cancel();
     _volumePersistTimer = null;
     // 先把「正在写」的那一轮等掉。不等的话本次写会被当作并发写跳过
-    // （见 _persistPlaybackSession 的脏标记逻辑只在进程还活着时才补得回来，
+    // （见 persistPlaybackSession 的脏标记逻辑只在进程还活着时才补得回来，
     // 而这里正是进程即将结束的时刻）→ 磁盘上留的是**上一轮**的状态，
     // 清空/销毁后的空会话丢失，重启即复活。
-    await _awaitInFlightPersist();
+    await sessionPersister.awaitInFlightPersist();
     try {
-      await _persistPlaybackSession();
+      await sessionPersister.persistPlaybackSession();
     } catch (e) {
       Logger.warnWithTag(
         _playerLogTag,
@@ -2857,31 +2828,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState> {
       Logger.warnWithTag(_playerLogTag, 'exit persist volume failed', e);
     }
   }
-
-  /// 等掉正在落地的那一轮写，**以落盘租约为上限**。
-  ///
-  /// 上限不能省：Windows 上 tmp.rename 可能被杀软/索引服务占用而永久阻塞
-  /// （见 [_persistingSinceMs] 的注释），无上限就是「退出时卡死」——
-  /// 那比丢一次落盘更糟。超时后照常往下走，由租约强制放行下一次写。
-  Future<void> _awaitInFlightPersist() async {
-    final inflight = _persistInFlight;
-    if (inflight == null) return;
-
-    final deadline = Completer<void>();
-    final timer = Timer(_persistLease, () {
-      if (!deadline.isCompleted) deadline.complete();
-    });
-    try {
-      await Future.any<void>(<Future<void>>[
-        inflight.catchError((Object _) {}),
-        deadline.future,
-      ]);
-    } finally {
-      // 必须显式 cancel：否则这颗 15s 定时器会在测试里悬着（fakeAsync 的
-      // 「A Timer is still pending」断言），生产里也无谓占一颗 Timer。
-      timer.cancel();
-    }
-  }
 }
 
 /// 具体实现：所有内部职责 mixin 在此组装。
@@ -2890,7 +2836,6 @@ class _PlayerNotifierImpl extends PlayerNotifier
         PlayerStreamSourceInternals,
         PlayerPlaybackInternals,
         PlayerCrossfadeInternals,
-        PlayerPlaybackSessionInternals,
         PlayerShuffleQueueInternals,
         PlayerSeekInternals,
         PlayerPositionPollingInternals {
