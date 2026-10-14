@@ -331,10 +331,15 @@ class _NoopOfflineCacheDaemon extends OfflineCacheDaemon {
 /// 可写淡入淡出时长的桩 notifier（踩坑 #189-D）。
 ///
 /// 只能 `extends CrossfadeNotifier`：`crossfadeDurationMsProvider` 是
-/// `StateNotifierProvider<CrossfadeNotifier, int>`，`overrideWith` 的返回类型被钉死成
+/// `NotifierProvider<CrossfadeNotifier, int>`，`overrideWith` 的返回类型被钉死成
 /// `CrossfadeNotifier`，自己另写一个 `Notifier<int>` 编译不过。
 class _FakeCrossfade extends CrossfadeNotifier {
-  _FakeCrossfade() : super();
+  _FakeCrossfade(this._initial);
+
+  final int _initial;
+
+  @override
+  int build() => _initial;
 }
 
 /// Subsonic 客户端替身（沿用 #177-D：接管流地址生成）。
@@ -418,9 +423,8 @@ void main() {
           offlineCacheDaemonProvider.overrideWith(
             (ref) => _NoopOfflineCacheDaemon(ref),
           ),
-          crossfadeDurationMsProvider.overrideWith((ref) {
-            cf = _FakeCrossfade();
-            cf!.state = cfMs;
+          crossfadeDurationMsProvider.overrideWith(() {
+            cf = _FakeCrossfade(cfMs);
             return cf!;
           }),
           starredProvider.overrideWith(

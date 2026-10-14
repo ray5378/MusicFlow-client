@@ -6,13 +6,15 @@ import 'package:musicflow_client/providers/api/api_provider.dart';
 
 /// 音质设置状态 Provider
 final audioQualitySettingsProvider =
-    StateNotifierProvider<AudioQualitySettingsNotifier, AudioQualitySettings>(
-      (ref) => AudioQualitySettingsNotifier(),
+    NotifierProvider<AudioQualitySettingsNotifier, AudioQualitySettings>(
+      AudioQualitySettingsNotifier.new,
     );
 
-class AudioQualitySettingsNotifier extends StateNotifier<AudioQualitySettings> {
-  AudioQualitySettingsNotifier() : super(const AudioQualitySettings()) {
+class AudioQualitySettingsNotifier extends Notifier<AudioQualitySettings> {
+  @override
+  AudioQualitySettings build() {
     _load();
+    return const AudioQualitySettings();
   }
 
   Future<void> _load() async {

@@ -48,7 +48,6 @@ Song _song() => Song(
 
 /// 录制桩：只记 start/cancel，不起 periodic Timer。
 class _RecSleepTimer extends SleepTimerNotifier {
-  _RecSleepTimer(super.ref);
 
   final List<Duration> starts = <Duration>[];
   int cancelCalls = 0;
@@ -134,7 +133,7 @@ void main() {
             (ref) => _FakeCastPeerController(ref),
           ),
           sleepTimerProvider.overrideWith(
-            (ref) => sleepTimer = _RecSleepTimer(ref),
+            () => sleepTimer = _RecSleepTimer(),
           ),
         ],
         child: MaterialApp(

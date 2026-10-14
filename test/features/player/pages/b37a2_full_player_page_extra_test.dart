@@ -106,7 +106,6 @@ class _RecDlna extends DlnaCastNotifier {
 }
 
 class _RecSleepTimer extends SleepTimerNotifier {
-  _RecSleepTimer(super.ref);
 }
 
 /// 歌词源：由用例注入（抛错即走 error 出口）。
@@ -128,7 +127,7 @@ Widget providerApp({
         (Ref ref) => cast = _RecCast(ref),
       ),
       dlnaCastProvider.overrideWith((Ref ref) => _RecDlna(ref)),
-      sleepTimerProvider.overrideWith((Ref ref) => _RecSleepTimer(ref)),
+      sleepTimerProvider.overrideWith(() => _RecSleepTimer()),
     ],
     child: MaterialApp(
       navigatorKey: rootNavigatorKey,

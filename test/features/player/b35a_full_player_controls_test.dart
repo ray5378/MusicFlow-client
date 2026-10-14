@@ -150,7 +150,6 @@ class _RecDlna extends DlnaCastNotifier {
 
 /// 定时暂停录制桩：不起真实 Timer，只记录 start/cancel。
 class _RecSleepTimer extends SleepTimerNotifier {
-  _RecSleepTimer(super.ref);
 
   final List<Duration> starts = <Duration>[];
   int cancelCalls = 0;
@@ -203,7 +202,7 @@ Widget providerApp({
       dlnaCastProvider.overrideWith(
         (Ref ref) => dlna = _RecDlna(ref, casting: dlnaCasting),
       ),
-      sleepTimerProvider.overrideWith((Ref ref) => sleepTimer = _RecSleepTimer(ref)),
+      sleepTimerProvider.overrideWith(() => sleepTimer = _RecSleepTimer()),
     ],
     child: MaterialApp(
       navigatorKey: rootNavigatorKey,

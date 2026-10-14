@@ -17,22 +17,27 @@ import 'package:musicflow_client/providers/cast/dlna_provider.dart';
 /// - **本机 / 链路 B（DLNA 直投）**：客户端本地倒计时，到点路由到对应目标暂停。
 ///
 final sleepTimerProvider =
-    StateNotifierProvider<SleepTimerNotifier, Duration?>((ref) {
-  return SleepTimerNotifier(ref);
-});
+    NotifierProvider<SleepTimerNotifier, Duration?>(SleepTimerNotifier.new);
 
 /// 定时停止（暂停）状态管理器。
 ///
 /// [state] 为 `Duration?`：非 null 为倒计时剩余时长（每秒刷新），null 为未开启。
-class SleepTimerNotifier extends StateNotifier<Duration?> {
-  SleepTimerNotifier(this._ref) : super(null);
-
-  final Ref _ref;
-
+class SleepTimerNotifier extends Notifier<Duration?> {
   Timer? _timer;
   DateTime? _deadline;
   // 是否为链路 A（服务器计时）。此时到点由服务器暂停,客户端不重复暂停。
   bool _serverTracked = false;
+
+  @override
+  Duration? build() {
+    // 全局 provider 被 invalidate/容器销毁时清掉倒计时，避免 Timer 泄漏
+    // （原 StateNotifier.dispose() override 的等价迁移，ADR-23 阶段 3）。
+    ref.onDispose(() {
+      _timer?.cancel();
+      _timer = null;
+    });
+    return null;
+  }
 
   /// 是否在倒计时中。
   bool get isActive => _timer != null;
@@ -44,8 +49,8 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
   /// 本机/链路 B 由本 Provider 暂停）。
   Future<void> start(Duration duration) async {
     _cancelTimer();
-    final castCtrl = _ref.read(castPeerControllerProvider.notifier);
-    final isCast = _ref.read(castPeerControllerProvider).activePeer != null;
+    final castCtrl = ref.read(castPeerControllerProvider.notifier);
+    final isCast = ref.read(castPeerControllerProvider).activePeer != null;
     _serverTracked = isCast;
     if (isCast) {
       // 链路 A：命令服务器自己计时。失败则回退为本地计时（至少 UI 可用）。
@@ -75,8 +80,8 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
   /// 取消已设置/已下发的定时。链路 A 同时取消服务器侧定时。
   Future<void> cancel() async {
     final wasServer = _serverTracked;
-    final castCtrl = _ref.read(castPeerControllerProvider.notifier);
-    final isCast = _ref.read(castPeerControllerProvider).activePeer != null;
+    final castCtrl = ref.read(castPeerControllerProvider.notifier);
+    final isCast = ref.read(castPeerControllerProvider).activePeer != null;
     _cancelTimer();
     if (wasServer || isCast) {
       try {
@@ -87,11 +92,11 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
 
   Future<void> _pauseLocal() async {
     // 链路 B 直投:指挥 DLNA 设备;否则经 cast_peer(无 activePeer 自动回退本机)。
-    if (_ref.read(dlnaCastProvider).isCasting) {
-      await _ref.read(dlnaCastProvider.notifier).pause();
+    if (ref.read(dlnaCastProvider).isCasting) {
+      await ref.read(dlnaCastProvider.notifier).pause();
       return;
     }
-    await _ref.read(castPeerControllerProvider.notifier).pause();
+    await ref.read(castPeerControllerProvider.notifier).pause();
   }
 
   void _cancelTimer() {
@@ -100,13 +105,5 @@ class SleepTimerNotifier extends StateNotifier<Duration?> {
     _deadline = null;
     _serverTracked = false;
     state = null;
-  }
-
-  @override
-  void dispose() {
-    // 全局 provider 被 invalidate/容器销毁时清掉倒计时，避免 Timer 泄漏。
-    _timer?.cancel();
-    _timer = null;
-    super.dispose();
   }
 }

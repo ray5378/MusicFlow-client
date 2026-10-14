@@ -279,7 +279,8 @@ class _FakeAddressPool extends AddressPool {
 
 /// 可写淡入淡出时长的桩 notifier。
 class _FakeCrossfade extends CrossfadeNotifier {
-  _FakeCrossfade() : super();
+  @override
+  int build() => 0;
 }
 
 /// 可控连通性监控替身：绕过真实平台探测，手动推送网络类型变化以驱动
@@ -423,9 +424,8 @@ void main() {
           isOfflineProvider.overrideWithValue(false),
           subsonicApiClientProvider.overrideWithValue(spy),
           musicRepositoryProvider.overrideWithValue(repo),
-          crossfadeDurationMsProvider.overrideWith((ref) {
+          crossfadeDurationMsProvider.overrideWith(() {
             _cf = _FakeCrossfade();
-            _cf!.state = 0;
             return _cf!;
           }),
           offlineCacheDaemonProvider.overrideWith(
