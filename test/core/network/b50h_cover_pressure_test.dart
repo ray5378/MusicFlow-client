@@ -307,9 +307,17 @@ void main() {
       debugNetworkImageHttpClientProvider = () => client;
 
       // 注入饱和信号（模拟观测器刚收到服务端饱和头）。
+      //
+      // 刻意不带 Retry-After：带值的饱和窗口按**真实**墙钟计时（观测器内部
+      // 用 DateTime.now），而 widget 测试的 tester.pump 只推进**假**时钟。
+      // 若给 Retry-After=1，窗口被压成 1s 真实时长，全量满负载下从注入到
+      // 建图(8 个封面)的真实耗时可能 >1s → 信号被判过期、闸门放行 → 4 个
+      // 封面拿到槽位并发 Image（frameBuilder 未出帧又各渲一副骨架）→ 本用例
+      // 偶发假红（隔离跑因真实耗时极小而不复现）。
+      // 改用缺省 TTL(30s)：与真实交付窗口一致，且远大于单用例真实耗时，
+      // 消除「真实时钟 vs 假时钟」竞态，断言恒为确定性。
       CoverPressureObserver.recordHeaders(const {
         'x-musicflow-cover-saturated': '1',
-        'retry-after': '1',
       });
 
       await tester.pumpWidget(

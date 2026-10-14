@@ -37,8 +37,14 @@ class OfflineCacheSettingsNotifier extends StateNotifier<OfflineCacheSettings> {
     final size = OfflineCacheSize.fromName(
       await LocalStorage.getOfflineCacheSizeName(),
     );
+    // 构造期发起的异步加载：期间 Provider 可能已被销毁（测试用例结束
+    // tearDown dispose、会话/库快速切换）。此后每次触碰 state/ref 前判活，
+    // 否则续体会读已销毁的 container →「Tried to read a provider from a
+    // ProviderContainer that was already disposed」型异步泄漏。
+    if (!mounted) return;
     state = OfflineCacheSettings(enabled: enabled, size: size);
     await _ref.read(offlineCacheReadyProvider.future);
+    if (!mounted) return;
     final manager = _ref.read(offlineCacheManagerProvider);
     manager.setEnabled(enabled);
     if (enabled) {
@@ -48,10 +54,13 @@ class OfflineCacheSettingsNotifier extends StateNotifier<OfflineCacheSettings> {
 
   /// 选择容量档位（隐含重新开启缓存）。
   Future<void> setSize(OfflineCacheSize size) async {
+    if (!mounted) return;
     state = OfflineCacheSettings(enabled: true, size: size);
     await LocalStorage.setOfflineCacheSizeName(size.name);
     await LocalStorage.setOfflineCacheEnabled(true);
+    if (!mounted) return;
     await _ref.read(offlineCacheReadyProvider.future);
+    if (!mounted) return;
     final manager = _ref.read(offlineCacheManagerProvider);
     manager.setEnabled(true);
     await manager.setMaxBytes(size.maxBytes);
@@ -59,9 +68,12 @@ class OfflineCacheSettingsNotifier extends StateNotifier<OfflineCacheSettings> {
 
   /// 关闭缓存：停止所有写入，并清空已有缓存（设置页先弹确认框再调本方法）。
   Future<void> disable() async {
+    if (!mounted) return;
     state = OfflineCacheSettings(enabled: false, size: state.size);
     await LocalStorage.setOfflineCacheEnabled(false);
+    if (!mounted) return;
     await _ref.read(offlineCacheReadyProvider.future);
+    if (!mounted) return;
     final manager = _ref.read(offlineCacheManagerProvider);
     manager.setEnabled(false);
     await manager.clearAll();

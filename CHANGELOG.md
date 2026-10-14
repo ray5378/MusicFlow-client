@@ -2,6 +2,12 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.10] - 2026-10-14
+
+### 修复
+
+- **客户端测试套件全量归零：修两处异步资源泄漏 + 两处测试抗抖动硬化**：全量 `flutter test` 遗留失败逐一定位根因并修复——① **发现页首屏就绪等待的残留定时器**（`discover_page.dart`）：`Future.timeout(15s)` 的内部定时器在 `State.dispose` 时**不可撤销**，首屏分区请求悬挂时该 15s 定时器会残留到测试结束，触发 widget test 的「Timer is still pending」判定并连带拖红 `widget_test` 等用例；改为**可取消**的 `Timer` + `Completer` + `Future.any`，`dispose` 时 cancel 定时器并放行挂起的等待（续体随后按 `mounted==false` 早退）。② **离线缓存设置 Provider 的异步续体读已销毁容器**（`offline_cache_settings_provider.dart`）：`_load` / `setSize` / `disable` 各 `await` 之后补 `if (!mounted) return;`，避免「构造期发起的加载在容器 dispose 后仍续跑 → 读 provider 抛 already-disposed」型异步泄漏。③ **b29a 位置轮询看门狗用例**（`b29a_pospoll_cov_test.dart`）：把「固定 30×500ms 预算后读一个『应该已发生』的状态」改为该文件既有约定的 `waitUntil(条件, ticks: 3500)` 轮询——连续两轮 0 秒卡死需约 2×12 tick（各 6s），满负载下固定预算不够，原写法偶发假红。④ **b50h 封面饱和窗口用例**（`b50h_cover_pressure_test.dart`）：饱和窗口按**真实**墙钟计时（观测器内部用 `DateTime.now`），而 widget 测试的 `tester.pump` 只推进**假**时钟；原用例给 `Retry-After=1` 把窗口压成 1s 真实时长，全量满负载下从注入信号到建图(8 个封面)的真实耗时 >1s 即判过期、闸门放行 → 偶发假红（隔离跑因真实耗时极小而不复现）。改为不携带 `Retry-After`（回落缺省 30s TTL），消除「真实时钟 vs 假时钟」竞态，断言恒为确定性。修复后全量 `flutter test` **0 失败**。
+
 ## [5.8.9] - 2026-10-14
 
 ### 修复

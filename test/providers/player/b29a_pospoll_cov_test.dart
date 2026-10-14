@@ -650,17 +650,13 @@ void main() {
         duration: const Duration(seconds: 200),
       );
 
-      var reached = false;
-      for (var i = 0; i < 30; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 500));
-        // ignore: avoid_print
-        print('T2 #$i load=${p.loadCount} seek=${p.seekCount} '
-            'play=${p.playCount} pos=${notifier.state.position} song=${notifier.state.currentSong?.id}');
-        if (notifier.state.currentSong?.id == 's2') {
-          reached = true;
-          break;
-        }
-      }
+      // 踩坑 #203-D：断言必须用 waitUntil 轮询条件，不能「固定时长 + 读一个
+      // 应该已经 happened 的状态」。连续两轮 0 秒卡死需 2×12 tick（各 6s），
+      // 满负载下 500ms 轮询周期会显著迟到；原固定 30×500ms=15s 预算在 CI
+      // 满负载下不够 → 偶发失败。这里给 3500 次 ×10ms 轮询（≈35s）预算，
+      // 条件一旦达成即返回，正常路径无额外耗时。
+      await waitUntil(() => notifier.state.currentSong?.id == 's2',
+          ticks: 3500);
       expect(notifier.state.currentSong?.id, 's2',
           reason: '连续两轮 0 秒卡死 ⇒ 放弃重载、走 _handlePlaybackError 跳下一首');
     });

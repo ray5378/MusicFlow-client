@@ -134,6 +134,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
   /// Timer,避免 widget test 判定「Timer is still pending」与孤儿回调。
   final List<Timer> _prefetchTimers = <Timer>[];
 
+  /// 首屏就绪等待的活性能兜底（见 [_prefetchAfterViewportSettled]）。
+  /// 用可取消的 Timer + Completer 取代 `Future.timeout`：后者内部的定时器
+  /// 无法在 State.dispose 时撤销，首屏分区请求悬挂时会残留到测试结束，
+  /// 触发 widget test 的「Timer is still pending」判定。
+  Timer? _prefetchLivenessTimer;
+  Completer<void>? _prefetchLivenessCompleter;
+
   /// 首帧后安排屏外分区预取(**首屏数据全部就绪后才启动**,v5.8.6)。
   ///
   /// 首帧内 SliverList 只构建视口 + cacheExtent 范围内的分区,这些分区在
@@ -180,10 +187,27 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
     }
     // 活性能兜底：首屏分区若有请求悬挂永不落地,屏外预取不能被它无限期拖住
     // (15s 后照常按排版序补齐;悬挂 future 继续在后台跑,不影响后续流程)。
-    await Future.wait(pending).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => const <void>[],
-    );
+    // 用可取消的 Timer + Completer 取代 `Future.timeout`：后者内部定时器
+    // 无法在 State.dispose 时取消,悬挂请求会残留 15s 定时器 → widget test 判定
+    // 「Timer is still pending」。dispose 时会 cancel 定时器并放行本等待。
+    final liveness = Completer<void>();
+    _prefetchLivenessCompleter = liveness;
+    _prefetchLivenessTimer?.cancel();
+    _prefetchLivenessTimer = Timer(const Duration(seconds: 15), () {
+      if (!liveness.isCompleted) liveness.complete();
+    });
+    try {
+      await Future.any(<Future<void>>[
+        Future.wait(pending),
+        liveness.future,
+      ]);
+    } finally {
+      _prefetchLivenessTimer?.cancel();
+      _prefetchLivenessTimer = null;
+      if (identical(_prefetchLivenessCompleter, liveness)) {
+        _prefetchLivenessCompleter = null;
+      }
+    }
     if (!mounted) return;
     for (final entry in keys.indexed) {
       final key = entry.$2;
@@ -211,6 +235,15 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
       timer.cancel();
     }
     _prefetchTimers.clear();
+    // 撤销首屏就绪等待的活性能兜底,并放行挂起的等待(续体随后 mounted 判假早退),
+    // 保证 dispose 后不残留 15s 定时器。
+    _prefetchLivenessTimer?.cancel();
+    _prefetchLivenessTimer = null;
+    final pendingLiveness = _prefetchLivenessCompleter;
+    _prefetchLivenessCompleter = null;
+    if (pendingLiveness != null && !pendingLiveness.isCompleted) {
+      pendingLiveness.complete();
+    }
     super.dispose();
   }
 
