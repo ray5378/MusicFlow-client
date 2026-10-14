@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,6 +76,13 @@ const Duration kQueueFetchBudget = Duration(seconds: 60);
 /// 长时间掩盖真实状态(超时后自动恢复采纳服务端值)。
 const int kCommandShadowWindowMs = 8000;
 
+/// 「鉴权被拒」(HTTP 401)后的抑制窗口。
+///
+/// 真 401(token 过期 / 服务端 JWT 密钥轮换)重试注定同样被拒,而心跳每 30s 都会
+/// 补注册一次 —— 不抑制就会把服务端日志刷满「认证失败」。窗口内停止补注册与心跳,
+/// 只留一条 warn;用户重新登录(registerAndHeartbeat)会立即解除。
+const Duration kAuthRejectedCooldown = Duration(minutes: 5);
+
 /// **主通道**（`POST /rest/api/v1/play`，服务端内容点播）的超时预算。
 ///
 /// 为什么不能像历史那样固定 15s：
@@ -95,6 +103,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   final Ref _ref;
 
+  /// 【测试钩子】绕开 `flutter test` 下「等凭证就绪」的短路,走真实等待路径。
+  /// 生产恒为 false:测试环境不装配凭证链,等待会空转,所以默认零等待;
+  /// 用它可以验证 Opt-2「首发注册前先等凭证就绪」的等待与顺序语义。
+  @visibleForTesting
+  static bool debugAwaitCredentials = false;
+
   Timer? _pollTimer;
   Timer? _tickTimer;
   Timer? _heartbeatTimer;
@@ -104,6 +118,10 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 避免会话中途擅自改控制目标。
   bool _autoTargetDone = false;
   String? _localPeerId;
+
+  /// 最近一次「鉴权被拒」(401)的时刻。冷却窗口内停止补注册与心跳,
+  /// 避免每 30s 把服务端日志刷满「认证失败」(见 [kAuthRejectedCooldown])。
+  DateTime? _authRejectedAt;
 
   /// 本机 peer 的对外 ID(`local:<uid>`,打码视图;真实实例 ID 只在服务端)。
   /// 播放器据此拉取服务端权威洗牌序列(SEE SPEC:洗牌序列唯一权威在服务端)。
@@ -195,6 +213,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 把本端与同账号的其它播放端(网页标签页 / 其它客户端)分开记账,对外返回的
   /// peerId 恒为 `local:<userId>`。
   Future<void> registerAndHeartbeat() async {
+    // 每次(重新)登录都清掉上一次的「鉴权被拒」抑制:新 token 值得再试一次。
+    _authRejectedAt = null;
     await _registerSelf();
     startHeartbeat();
     _watchLocalQueue();
@@ -204,11 +224,21 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 注册本端(不碰心跳/监听),供 registerAndHeartbeat 与心跳补注册复用。
   ///
   /// [attempt] 为就近重试计数：冷启动时注册是由 auth 状态翻转**立刻**触发的，
-  /// 而那一刻 API client 的 token 可能还没注入 → 必然 401。原先只能等 30s 后的
-  /// 下一次心跳补注册；后来改为固定 900ms 盲等后重试一次。现改为**事件驱动**:
-  /// 等「API client 凭证就绪」信号(见 apiCredentialsReadyProvider)一到立即重试,
-  /// 不再固定盲等,把冷启动的必然 900ms 延迟压到凭证注入所需的最短时间。
+  /// 而那一刻 API client 的 token 可能还没注入 → 必然 401。演进：等 30s 心跳补注册
+  /// → 固定 900ms 盲等后重试一次 → **事件驱动**等「API client 凭证就绪」信号
+  /// (见 apiCredentialsReadyProvider)。如今再把它**前置到首发之前**：首发直接等
+  /// 信号，正常冷启动连那一次 401 都不再产生（Opt-2）；信号在预算内未到才退化为
+  /// 「首发 + 一次重试」的兜底。真 401（凭证就绪仍被拒）不在此列，见 [_noteAuthRejected]。
   Future<void> _registerSelf({int attempt = 0}) async {
+    // Opt-2:首发前先等「凭证就绪」信号。
+    // 注册由 auth 状态翻转**立刻**触发,而那一刻 subsonicApiClient 的 token 往往
+    // 还没随活跃库重建注入(setLibrary)→ 首发必然 401,也就是服务端日志里那条
+    // 「认证失败」。等信号到再发,正常冷启动不再产生 401;凭证早已就绪则零等待。
+    // 放在首次尝试**之前**而不是失败之后重试:重试只能事后补救,请求已经白打一次。
+    if (attempt == 0) {
+      await _waitForApiCredentialsReady();
+      if (!mounted) return;
+    }
     final client = _ref.read(subsonicApiClientProvider);
     try {
       final resp = await client.postRaw(
@@ -237,7 +267,15 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           _ref.read(peerRemoteControlProvider.notifier).noteSelfPeerId(pid);
         }
       }
+      // 注册成功:清掉可能残留的「鉴权被拒」抑制。
+      _authRejectedAt = null;
     } catch (e) {
+      if (_statusCodeOf(e) == 401) {
+        // 真 401:凭证已就绪仍被拒 ⇒ token 真的过期 / 服务端 JWT 密钥已轮换。
+        // 重试注定同样被拒 ⇒ 不再盲目重试,进入冷却抑制,避免 30s 心跳每拍刷一次。
+        _noteAuthRejected();
+        return;
+      }
       // 冷启动的 token 竞态：等「凭证就绪」信号一到立即重试一次(凭证早已
       // 就绪则零等待),仍失败就交给 30s 心跳周期补注册。
       if (attempt < 1) {
@@ -258,7 +296,12 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ///   不会死等;
   /// - 测试环境客户端被整体 override、凭证链不装配 → 直接零等待重试。
   Future<void> _waitForApiCredentialsReady() async {
-    if (Platform.environment['FLUTTER_TEST'] != null) return;
+    // `flutter test` 下凭证链不装配,等待会空转到预算上限 → 默认直接放行。
+    // 用例可用 [debugAwaitCredentials] 打开真实等待路径,验证 Opt-2 的等待语义。
+    if (!debugAwaitCredentials &&
+        Platform.environment['FLUTTER_TEST'] != null) {
+      return;
+    }
     const budget = Duration(seconds: 2);
     try {
       await _ref
@@ -268,6 +311,35 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 信号源在当前环境不可用(链路异常):不阻塞重试路径。
       Logger.debugWithTag('CAST-PEER', 'wait for api credentials failed: $e');
     }
+  }
+
+  /// 取失败响应的 HTTP 状态码;非 Dio 失败响应(超时/连接错误等)返回 null。
+  /// 用来把「真 401(鉴权被拒)」与「网络失败」分开:两者都该重试是错的 ——
+  /// 401 重试注定同样被拒,只会把服务端日志刷满。
+  static int? _statusCodeOf(Object e) =>
+      e is DioException ? e.response?.statusCode : null;
+
+  /// 记录一次「鉴权被拒」:冷却窗口内抑制补注册/心跳,且只打一条 warn。
+  void _noteAuthRejected() {
+    final now = DateTime.now();
+    final last = _authRejectedAt;
+    _authRejectedAt = now;
+    if (last != null && now.difference(last) < kAuthRejectedCooldown) return;
+    Logger.warnWithTag(
+      'CAST-PEER',
+      'peer register unauthorized(401): token expired or server secret '
+      'rotated;pausing register/heartbeat for '
+      '${kAuthRejectedCooldown.inMinutes}min, recovers after re-login',
+    );
+  }
+
+  /// 「鉴权被拒」抑制是否仍然有效(冷却窗口内);窗口过期即自动解除。
+  bool get _authRejectedActive {
+    final at = _authRejectedAt;
+    if (at == null) return false;
+    if (DateTime.now().difference(at) < kAuthRejectedCooldown) return true;
+    _authRejectedAt = null;
+    return false;
   }
 
   /// 本端设备名片:platform(平台)+ model(电脑名)。
@@ -304,6 +376,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   void startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      // 已知鉴权被拒(真 401,冷却窗口内):补注册与心跳都会被同样拒掉,
+      // 静默跳过,避免每 30s 往服务端刷一条「认证失败」。
+      if (_authRejectedActive) return;
       if (_localPeerId == null || _localPeerId!.isEmpty) {
         unawaited(_registerSelf());
         return;

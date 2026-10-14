@@ -8,6 +8,7 @@
 // 的 TestPlayerNotifier 子类（基类不录 pause/seek/playSong，见文末踩坑 #20）。
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
@@ -125,6 +126,15 @@ class _Req {
   @override
   String toString() => '$method $path $data';
 }
+
+/// 造一个「服务端 401 鉴权失败」的 Dio 失败响应（`postRaw` 对非 2xx 会抛 DioException）。
+DioException _unauthorized(String path) => DioException(
+      requestOptions: RequestOptions(path: path),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: path),
+        statusCode: 401,
+      ),
+    );
 
 void main() {
   late MockSubsonicApiClient client;
@@ -279,6 +289,7 @@ void main() {
   setUp(() {
     reqs = <_Req>[];
     onCall = null;
+    CastPeerController.debugAwaitCredentials = false;
     client = MockSubsonicApiClient();
     player = _RecPlayer(PlayerState());
     container = ProviderContainer(
@@ -325,6 +336,20 @@ void main() {
           as Map<String, dynamic>;
     });
   });
+
+  /// 需要替换额外 provider(如「凭证就绪」信号)的用例:重建 container/ctrl。
+  /// 原 container 先 dispose,tearDown 负责收尾当前这个。
+  void rebuildContainer({List<Override> extra = const <Override>[]}) {
+    container.dispose();
+    container = ProviderContainer(
+      overrides: <Override>[
+        subsonicApiClientProvider.overrideWithValue(client),
+        playerProvider.overrideWith((ref) => player),
+        ...extra,
+      ],
+    );
+    ctrl = container.read(castPeerControllerProvider.notifier);
+  }
 
   tearDown(() async {
     // 先停心跳（cancel 定时器），再排空仍在飞的 unawaited 异步，最后 dispose。
@@ -394,6 +419,77 @@ void main() {
       async.flushMicrotasks();
       expect(ctrl.localPeerId, isNull);
     });
+  });
+
+  // ==================== 一之二、鉴权：Opt-2 前置等待 + 真 401 抑制 ====================
+  //
+  // 背景（报告 `[l8]` 旁路观察 / `docs/startup-connect-latency.md` Opt-2）：
+  // 生产日志里出现过 `/peers/register` 鉴权失败。根因是注册由 auth 翻转**立刻**触发，
+  // 那一刻 API client 的 token 还没随活跃库注入 → 首发必然 401。修法=首发前先等
+  // 「凭证就绪」信号（零等待时无额外延迟）。真 401（token 过期/密钥轮换）不在此列：
+  // 重试注定同样被拒，靠 30s 心跳反复重试只会把服务端日志刷满。
+
+  test('首发注册前先等「凭证就绪」信号（Opt-2：冷启动不再产生 401）', () async {
+    CastPeerController.debugAwaitCredentials = true;
+    addTearDown(() => CastPeerController.debugAwaitCredentials = false);
+
+    final ready = Completer<void>();
+    rebuildContainer(extra: <Override>[
+      apiCredentialsReadyProvider.overrideWith((ref) => ready.future),
+    ]);
+
+    final pending = ctrl.registerAndHeartbeat();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    // 凭证未就绪 → 一个注册请求都不该发出去（这正是服务端「认证失败」的来源）。
+    expect(postsMatching('/register'), isEmpty);
+
+    ready.complete();
+    await pending;
+    expect(postsMatching('/register'), hasLength(1));
+    expect(ctrl.localPeerId, 'local-7');
+  });
+
+  test('注册被真 401 拒绝：不盲目重试，且心跳周期被抑制（不刷屏）', () {
+    fakeAsync((async) {
+      var tries = 0;
+      onCall = (m, p, d, q) {
+        if (p.endsWith('/register')) {
+          tries += 1;
+          throw _unauthorized(p);
+        }
+        return defaultCall(m, p, d, q);
+      };
+
+      unawaited(ctrl.registerAndHeartbeat());
+      async.flushMicrotasks();
+      expect(tries, 1); // 真 401：不再盲目重试第二次
+
+      // 心跳每 30s 一拍：抑制生效后这几拍都不该再打 /register。
+      async.elapse(const Duration(seconds: 95));
+      async.flushMicrotasks();
+      expect(tries, 1);
+      expect(ctrl.localPeerId, isNull);
+    });
+  });
+
+  test('重新登录（registerAndHeartbeat）解除 401 抑制并恢复注册', () async {
+    var tries = 0;
+    onCall = (m, p, d, q) {
+      if (p.endsWith('/register')) {
+        tries += 1;
+        if (tries == 1) throw _unauthorized(p);
+        return <String, dynamic>{'peer': <String, dynamic>{'peerId': 'local-7'}};
+      }
+      return defaultCall(m, p, d, q);
+    };
+
+    await ctrl.registerAndHeartbeat();
+    expect(tries, 1);
+    expect(ctrl.localPeerId, isNull); // 首次 401 → 未注册成功
+
+    await ctrl.registerAndHeartbeat(); // 重新登录：清抑制 → 再试一次
+    expect(tries, 2);
+    expect(ctrl.localPeerId, 'local-7');
   });
 
   test('本机在播时上报 PLAYING 并带 songId', () async {
