@@ -70,6 +70,10 @@ class _FakeDlnaServer {
   final List<bool> setMuteCalls = <bool>[];
   final Set<String> sawActions = <String>{};
 
+  /// GetTransportInfo 的累计调用次数：每轮状态轮询帧只读一次，
+  /// 供 [P3] 暂停降频用例做确定性计数（不依赖墙钟推算）。
+  int transportInfoCalls = 0;
+
   String _currentUri = '';
   DateTime? _playStartAt;
 
@@ -105,6 +109,7 @@ class _FakeDlnaServer {
 
       switch (action) {
         case 'GetTransportInfo':
+          transportInfoCalls += 1;
           if (faulted) {
             await _respondFault(req, action);
             return;
@@ -947,6 +952,38 @@ void main() {
       await manager.resume();
       expect(server.sawActions.contains('Play'), isTrue);
       expect(seen.last, 'PLAYING');
+    });
+
+    test('[P3] 用户暂停后状态轮询降频，恢复播放后回到每拍轮询', () async {
+      // 长曲(600s)：观测窗内不会命中任何续播/停滞分支，计数只反映轮询节拍。
+      await manager.startCast(_controlled(), _tracks(duration: 600));
+      // 播放中 4.4s：按 2s 基础节拍应至少真轮询两帧。
+      await Future<void>.delayed(const Duration(milliseconds: 4400));
+      final playingPolls = server.transportInfoCalls;
+      expect(
+        playingPolls,
+        greaterThanOrEqualTo(2),
+        reason: '播放中每 2s 拍都应真轮询（曲末/停滞检测需实时）',
+      );
+
+      await manager.pause();
+      final atPause = server.transportInfoCalls;
+      // 暂停降频到 ~14s 抽稀窗：5s 窗口（远小于抽稀窗）内不应再产生任何轮询帧。
+      await Future<void>.delayed(const Duration(milliseconds: 5000));
+      expect(
+        server.transportInfoCalls,
+        atPause,
+        reason: '[P3] 用户暂停后应按 _idlePollEveryNTicks 降频，5s 内不再轮询',
+      );
+
+      // 恢复播放：_userPaused 复位，下一拍即回到每拍轮询。
+      await manager.resume();
+      await Future<void>.delayed(const Duration(milliseconds: 4400));
+      expect(
+        server.transportInfoCalls,
+        greaterThanOrEqualTo(atPause + 2),
+        reason: '恢复播放后应恢复每 2s 拍轮询，降频不得粘滞',
+      );
     });
 
     test('设备的 Pause 返回 SOAP 错误时被吞掉，不冒泡给调用方', () async {

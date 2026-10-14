@@ -35,6 +35,16 @@ class DlnaManager {
   /// 自动续播推进互相覆盖。
   bool _polling = false;
 
+  /// [P3] 状态轮询基础节拍（秒）：每拍都轮询时保证曲末/停滞检测实时。
+  static const int _pollTickSeconds = 2;
+
+  /// [P3] 空闲/已暂停时的降频倍数：用户主动暂停后设备侧进度不再变化，
+  /// 按此倍数抽稀（2s × 7 = 14s），降低长时投屏的 SOAP 往返与唤醒开销。
+  static const int _idlePollEveryNTicks = 7;
+
+  /// 距上次实际轮询经过的节拍数：暂停态攒够 [_idlePollEveryNTicks] 才放行一帧。
+  int _pollTicksSinceLast = 0;
+
   /// 串行化「切歌/重放」：多个调用方（UI 快速连点、看门狗续播、SetNext 对齐）
   /// 可能在极短时间内对同一/相邻曲目并发下发 SetAVTransportURI，重叠的在途
   /// 切换会让正在建立的流被中断(实测 `Connection aborted`/`PlayerInterrupted`)。
@@ -905,15 +915,29 @@ class DlnaManager {
   /// 启动状态轮询
   void _startStatusPolling() {
     _stopStatusPolling();
-    _statusTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      _pollStatus();
-    });
+    _pollTicksSinceLast = 0;
+    _statusTimer = Timer.periodic(
+      const Duration(seconds: _pollTickSeconds),
+      (_) => _onStatusPollTick(),
+    );
   }
 
   /// 停止状态轮询
   void _stopStatusPolling() {
     _statusTimer?.cancel();
     _statusTimer = null;
+  }
+
+  /// [P3] 轮询节拍：播放中每拍都轮询；用户暂停后设备侧进度不再变化，按
+  /// [_idlePollEveryNTicks] 抽稀（2s × 7 = 14s），其间直接返回省掉无谓的
+  /// GetTransportInfo/GetPositionInfo 往返；[_userPaused] 复位后（resume/切歌）
+  /// 下一拍即恢复每拍轮询，曲末/停滞检测不受影响。
+  void _onStatusPollTick() {
+    _pollTicksSinceLast++;
+    final every = _userPaused ? _idlePollEveryNTicks : 1;
+    if (_pollTicksSinceLast < every) return;
+    _pollTicksSinceLast = 0;
+    _pollStatus();
   }
 
   /// 轮询设备状态
