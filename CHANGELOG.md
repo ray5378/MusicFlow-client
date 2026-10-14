@@ -2,6 +2,17 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.11] - 2026-10-14
+
+### 优化
+
+- **DLNA 直投状态轮询降频**：用户主动暂停/空闲期间，直投状态轮询由 2s 抽稀至 14s，长时投屏不再每 2s 空转打满网络与设备；恢复播放立即回到密集轮询。新增轮询守卫用例锁定降频/恢复行为。
+- **投屏冷启动鉴权加固**：`/peers/register` 首发前先等服务端凭证就绪（消除启动竞态导致的必然 401）；凭证下发后仍被拒（真 401）才冷却抑制重试，「凭证就绪即重试」语义保留，Boot Latency Guard 适配首发等待。
+
+### 重构
+
+- **ADR-2 播放内核结构化拆分（行为零变化）**：巨型 `player_provider` 按职责逐步拆分为独立协作者库——① 投屏状态判定纯策略外提 `cast_peer_policy.dart`（阶段 2a，控制器改委托）；② 会话落盘/恢复抽 `player_session_persister.dart` + `PlaybackSessionPersisterHost` 窄接口（阶段 2b-1）；③ 位置轮询/三道看门狗驱动抽 `player_position_polling.dart`（阶段 2b-2，27 成员窄接口刻意不含 Ref，阈值常量随库迁移并保测试 import 兼容）；④ 音质/淡入淡出/定时停止三 provider 由 `StateNotifierProvider` 迁移 `NotifierProvider`（阶段 3a，mounted 语义经 onDispose 仿真）。`playerProvider` 主迁移经 invalidate 重建语义审查（同实例重跑 vs 整体重建）后判定延期至阶段 3b，阻塞项已在架构报告 [l19] 记录。全量回归 0 失败，新增 b51a/b52a 专项测试。
+
 ## [5.8.10] - 2026-10-14
 
 ### 修复
