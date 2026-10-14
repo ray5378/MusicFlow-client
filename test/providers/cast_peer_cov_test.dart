@@ -421,13 +421,15 @@ void main() {
     });
   });
 
-  // ==================== 一之二、鉴权：Opt-2 前置等待 + 真 401 抑制 ====================
+  // ==================== 一之二、鉴权：Opt-2 前置等待 + 401 重试一次再抑制 ====================
   //
   // 背景（报告 `[l8]` 旁路观察 / `docs/startup-connect-latency.md` Opt-2）：
   // 生产日志里出现过 `/peers/register` 鉴权失败。根因是注册由 auth 翻转**立刻**触发，
   // 那一刻 API client 的 token 还没随活跃库注入 → 首发必然 401。修法=首发前先等
-  // 「凭证就绪」信号（零等待时无额外延迟）。真 401（token 过期/密钥轮换）不在此列：
-  // 重试注定同样被拒，靠 30s 心跳反复重试只会把服务端日志刷满。
+  // 「凭证就绪」信号（零等待时无额外延迟）。首发前的等待有 2s 预算上限，凭证迟到时
+  // 首发仍会 401 → 401 首拒仍按 Fix-2「凭证就绪即重试」补一次；重试**仍**被拒才判定
+  // 为真 401（token 过期/密钥轮换）进入冷却抑制 —— 靠 30s 心跳反复硬试只会把
+  // 服务端日志刷满。重新登录解除抑制。
 
   test('首发注册前先等「凭证就绪」信号（Opt-2：冷启动不再产生 401）', () async {
     CastPeerController.debugAwaitCredentials = true;
@@ -449,7 +451,7 @@ void main() {
     expect(ctrl.localPeerId, 'local-7');
   });
 
-  test('注册被真 401 拒绝：不盲目重试，且心跳周期被抑制（不刷屏）', () {
+  test('注册被真 401 拒绝：先按 Fix-2 重试一次，重试仍拒才抑制心跳（不刷屏）', () {
     fakeAsync((async) {
       var tries = 0;
       onCall = (m, p, d, q) {
@@ -462,12 +464,12 @@ void main() {
 
       unawaited(ctrl.registerAndHeartbeat());
       async.flushMicrotasks();
-      expect(tries, 1); // 真 401：不再盲目重试第二次
+      expect(tries, 2, reason: '401 首拒仍按 Fix-2「凭证就绪即重试」补一次（凭证已就绪 → 零等待当场重试）');
 
-      // 心跳每 30s 一拍：抑制生效后这几拍都不该再打 /register。
+      // 重试仍 401 → 进入冷却抑制：心跳每 30s 一拍，这几拍都不该再打 /register。
       async.elapse(const Duration(seconds: 95));
       async.flushMicrotasks();
-      expect(tries, 1);
+      expect(tries, 2, reason: '重试仍被拒 → 冷却抑制，心跳不再补注册');
       expect(ctrl.localPeerId, isNull);
     });
   });
@@ -477,18 +479,19 @@ void main() {
     onCall = (m, p, d, q) {
       if (p.endsWith('/register')) {
         tries += 1;
-        if (tries == 1) throw _unauthorized(p);
+        // 第一轮（首发 + Fix-2 重试）两拒 → 进入冷却抑制；第二轮放行。
+        if (tries <= 2) throw _unauthorized(p);
         return <String, dynamic>{'peer': <String, dynamic>{'peerId': 'local-7'}};
       }
       return defaultCall(m, p, d, q);
     };
 
     await ctrl.registerAndHeartbeat();
-    expect(tries, 1);
-    expect(ctrl.localPeerId, isNull); // 首次 401 → 未注册成功
+    expect(tries, 2, reason: '首发 401 → Fix-2 重试一次；重试仍拒 → 未注册成功');
+    expect(ctrl.localPeerId, isNull);
 
     await ctrl.registerAndHeartbeat(); // 重新登录：清抑制 → 再试一次
-    expect(tries, 2);
+    expect(tries, 3);
     expect(ctrl.localPeerId, 'local-7');
   });
 

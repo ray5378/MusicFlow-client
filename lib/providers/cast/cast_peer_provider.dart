@@ -214,7 +214,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// → 固定 900ms 盲等后重试一次 → **事件驱动**等「API client 凭证就绪」信号
   /// (见 apiCredentialsReadyProvider)。如今再把它**前置到首发之前**：首发直接等
   /// 信号，正常冷启动连那一次 401 都不再产生（Opt-2）；信号在预算内未到才退化为
-  /// 「首发 + 一次重试」的兜底。真 401（凭证就绪仍被拒）不在此列，见 [_noteAuthRejected]。
+  /// 「首发 + 一次重试」的兜底。401 也走这一条重试（Fix-2 契约）；重试**仍**被拒
+  /// 才判定为真 401 进入冷却抑制，见 [_noteAuthRejected]。
   Future<void> _registerSelf({int attempt = 0}) async {
     // Opt-2:首发前先等「凭证就绪」信号。
     // 注册由 auth 状态翻转**立刻**触发,而那一刻 subsonicApiClient 的 token 往往
@@ -256,20 +257,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 注册成功:清掉可能残留的「鉴权被拒」抑制。
       _authRejectedAt = null;
     } catch (e) {
-      if (_statusCodeOf(e) == 401) {
-        // 真 401:凭证已就绪仍被拒 ⇒ token 真的过期 / 服务端 JWT 密钥已轮换。
-        // 重试注定同样被拒 ⇒ 不再盲目重试,进入冷却抑制,避免 30s 心跳每拍刷一次。
-        _noteAuthRejected();
-        return;
-      }
-      // 冷启动的 token 竞态：等「凭证就绪」信号一到立即重试一次(凭证早已
-      // 就绪则零等待),仍失败就交给 30s 心跳周期补注册。
+      // 401 也先走一次「凭证就绪即重试」(Fix-2 契约):首发前的等待有 2s 预算上限,
+      // 凭证迟到(慢盘读库等)时首发仍会 401,等信号一到重试即可落地;凭证早已
+      // 就绪则零等待当场重试。重试**仍**被 401 拒 ⇒ token 真的过期 / 服务端
+      // JWT 密钥已轮换 ⇒ 进入冷却抑制(见 _noteAuthRejected),避免 30s 心跳
+      // 每拍刷服务端「认证失败」日志。
       if (attempt < 1) {
         await _waitForApiCredentialsReady();
         if (mounted) return _registerSelf(attempt: attempt + 1);
         return;
       }
-      // 注册失败不阻塞登录;下个心跳周期自动补注册(见 startHeartbeat)。
+      if (_statusCodeOf(e) == 401) _noteAuthRejected();
+      // 注册失败不阻塞登录;冷却窗口过期后由 30s 心跳周期补注册(见 startHeartbeat)。
       Logger.debugWithTag('CAST-PEER', 'register self peer failed: $e');
     }
   }

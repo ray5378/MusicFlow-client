@@ -329,25 +329,22 @@ void main() {
       });
     });
 
-    test('注册 401 后：只推进 100ms 就出现第二次注册（旧写法要盲等 900ms）', () {
+    test('注册 401 后：凭证就绪即重试，首拍（零等待）即完成第二次注册（旧写法要盲等 900ms）', () {
       failFirstRegister = true;
 
       fakeAsync((async) {
         var completed = false;
         unawaited(ctrl.registerAndHeartbeat().then((_) => completed = true));
 
-        // 首拍同步发出（mock 的 route 在调用当拍即计数）。
-        expect(registerTries, 1, reason: '第一拍 register 应已发出');
-
-        // 只推进 100ms：事件驱动下「凭证就绪」即重试（flutter_test 下零等待），
-        // 历史写法的 900ms 定时器此刻还没到点。
-        async.elapse(const Duration(milliseconds: 100));
+        // Opt-2 后首发前有一次「凭证就绪」await（测试环境零等待但仍异步）；
+        // 重试的「凭证就绪即重试」同样零等待 —— flush 微任务后首发与重试都应
+        // 已完成。若有人退回历史 900ms 定时器盲等，此刻定时器远未到点，
+        // registerTries 只会是 1（且 completed=false），本断言即判红。
         async.flushMicrotasks();
-
         expect(
           registerTries,
           2,
-          reason: '凭证就绪即重试：100ms 内必须已发出第二次 register（旧写法 900ms 盲等）',
+          reason: '首发 + 凭证就绪即重试（零等待）都应在首拍内发出，旧写法 900ms 盲等做不到',
         );
         expect(completed, isTrue);
       });
