@@ -3,17 +3,16 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
+    show defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 export 'package:musicflow_client/providers/cast/cast_peer_state.dart';
+import 'package:musicflow_client/providers/cast/cast_peer_policy.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_state.dart';
 import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dart';
 import 'package:musicflow_client/data/models/song.dart';
-import 'package:musicflow_client/features/player/peer_display_order.dart'
-    show peerKindRank;
 import 'package:musicflow_client/data/sources/local_storage.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
@@ -68,13 +67,8 @@ Duration queueTransferBudget(int itemCount) =>
 /// 拉取队列快照时的保守预算（规模未知，按最坏 5000 首量级给）。
 const Duration kQueueFetchBudget = Duration(seconds: 60);
 
-/// 「命令影子」保护窗口:本端下发控制命令后,在该窗口内忽略**采样早于命令**的
-/// 滞后上报字段(音量 / 静音 / 进度)。
-///
-/// 取值依据:远端客户端的状态上报周期实测约 4s(见 `_projectPolledPosition`),
-/// 取 8s = 一个上报周期 + 一倍余量,既覆盖最坏延迟,又不会在命令真的没生效时
-/// 长时间掩盖真实状态(超时后自动恢复采纳服务端值)。
-const int kCommandShadowWindowMs = 8000;
+/// （「命令影子」保护窗口常量 `kCommandShadowWindowMs` 已随判定逻辑一并外提到
+/// `cast_peer_policy.dart`，见 [kCommandShadowWindowMs]。）
 
 /// 「鉴权被拒」(HTTP 401)后的抑制窗口。
 ///
@@ -193,16 +187,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Duration _pollInterval = const Duration(seconds: 2);
 
   /// 平滑进度插值间隔:桌面 500ms(降低 Windows 高频重建),手机 250ms。
-  int get _progressTickMs {
-    if (kIsWeb) return 250;
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.windows ||
-      TargetPlatform.macOS ||
-      TargetPlatform.linux =>
-        500,
-      _ => 250,
-    };
-  }
+  int get _progressTickMs =>
+      resolveProgressTickMs(isWeb: kIsWeb, platform: defaultTargetPlatform);
 
   // ==================== 注册与保活 ====================
 
@@ -726,20 +712,14 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // continuation 才恢复执行），必须提前退出 —— 否则下面访问 state 会抛
     // "Tried to use CastPeerController after `dispose` was called"。
     if (!mounted) return;
-    final visible = peers.where((p) => p.available || p.self).toList();
+    final visible = visiblePeers(peers);
     if (visible.isEmpty) return; // 服务端还没报上来任何端,等下一轮再评估
     _autoTargetDone = true;
     if (state.activePeer != null) return; // 用户已手动选过目标
     if (_ref.read(playerProvider).isPlaying) return; // 本机在播 = 最高优先
-    // 本机自身(self)不进候选:有队列但不在播时它天然排在所有在播端之后,
-    // 即「无在播端则保持本机」;真在播早已被上面 isPlaying 早退兜住。
-    final candidates =
-        visible.where((p) => p.queueActive && p.available && !p.self).toList()
-          ..sort((a, b) {
-            final k = peerKindRank(a) - peerKindRank(b);
-            if (k != 0) return k;
-            return a.name.compareTo(b.name);
-          });
+    // 候选目标（有活跃队列、可用、非本机自身）按「类别序 → 名称」排序，
+    // 见 [selectAutoSelectCandidates]。
+    final candidates = selectAutoSelectCandidates(visible);
     if (candidates.isEmpty) return;
     unawaited(_autoSelectFirstPlaying(candidates));
   }
@@ -2019,19 +1999,11 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ///
   /// 边界:**只有客户端实例的 status 带 reportedAt** —— DLNA / AirPlay / Sendspin /
   /// 群组的 status 走各自实时查询,没有该字段 → 原样返回,设备型链路行为完全不变。
-  double _projectPolledPosition(PeerStatus s) {
-    if (!s.playing) return s.positionSeconds;
-    final at = s.reportedAtMs;
-    if (at == null || at <= 0) return s.positionSeconds;
-    final ageSec = (DateTime.now().millisecondsSinceEpoch - at) / 1000.0;
-    // 上报过旧(>30s,见服务端 local-status TTL)或时钟异常
-    // (本端时钟落后/超前服务端 → age 为负或过大)→ 原样,不做外推。
-    if (ageSec <= 0 || ageSec > 30) return s.positionSeconds;
-    final projected = s.positionSeconds + ageSec;
-    return s.durationSeconds > 0
-        ? projected.clamp(0.0, s.durationSeconds)
-        : projected;
-  }
+  double _projectPolledPosition(PeerStatus s) =>
+      projectPolledPosition(
+        status: s,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+      );
 
   /// 把「本端刚下发的**音量类**命令」叠加到滞后上报上。
   ///
@@ -2046,27 +2018,18 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   ///
   /// 判据:采样时刻(`reportedAt`)早于命令下发时刻,且仍在保护窗口内。
   /// 无 `reportedAt`(设备型 peer 走实时查询)→ 恒 false,设备链路不受影响。
-  bool _isStaleSample(PeerStatus s, int commandAtMs) {
-    final at = s.reportedAtMs;
-    if (at == null || commandAtMs <= 0) return false;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - commandAtMs > kCommandShadowWindowMs) return false;
-    return at < commandAtMs;
-  }
+  bool _isStaleSample(PeerStatus s, int commandAtMs) => isStaleSample(
+        status: s,
+        commandAtMs: commandAtMs,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+      );
 
-  PeerStatus _applyVolumeShadow(PeerStatus s) {
-    if (!_isStaleSample(s, _volumeCommandAtMs)) return s;
-    final cur = state.status;
-    return PeerStatus(
-      state: s.state,
-      positionSeconds: s.positionSeconds,
-      durationSeconds: s.durationSeconds,
-      volume: cur.volume,
-      muted: cur.muted,
-      active: s.active,
-      reportedAtMs: s.reportedAtMs,
-    );
-  }
+  PeerStatus _applyVolumeShadow(PeerStatus s) => applyVolumeShadow(
+        incoming: s,
+        current: state.status,
+        commandAtMs: _volumeCommandAtMs,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+      );
 
   /// 播放/暂停(传输类)命令的影子,与音量同因。
   ///
@@ -2074,27 +2037,21 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 本地乐观置位,还会触发 `_tick` 里的 `advancing` 自愈(「position 在前进 → 判在播」)
   /// 把 PAUSED **强制改回 PLAYING**,表现为「点了暂停没反应 / 自己又播起来」。
   /// 故在窗口内:沿用在地状态,并停用 advancing 自愈(见 `_tick`)。
-  PeerStatus _applyTransportShadow(PeerStatus s) {
-    if (!_isStaleSample(s, _transportCommandAtMs)) return s;
-    final cur = state.status;
-    return PeerStatus(
-      state: cur.state,
-      positionSeconds: s.positionSeconds,
-      durationSeconds: s.durationSeconds,
-      volume: s.volume,
-      muted: s.muted,
-      active: cur.active,
-      reportedAtMs: s.reportedAtMs,
-    );
-  }
+  PeerStatus _applyTransportShadow(PeerStatus s) => applyTransportShadow(
+        incoming: s,
+        current: state.status,
+        commandAtMs: _transportCommandAtMs,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+      );
 
   /// 平滑进度插值:播放中按 tick 递增,轮询结果回写修正。
   void _advanceSmooth() {
     final st = state;
-    final status = st.status;
-    if (!status.playing || status.durationSeconds <= 0) return;
-    final next = (st.smoothPositionSeconds + _progressTickMs / 1000)
-        .clamp(0.0, status.durationSeconds);
+    final next = nextSmoothPosition(
+      smoothPositionSeconds: st.smoothPositionSeconds,
+      status: st.status,
+      tickMs: _progressTickMs,
+    );
     if (next == st.smoothPositionSeconds) return;
     state = st.copyWith(smoothPositionSeconds: next);
   }
