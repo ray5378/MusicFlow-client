@@ -1,8 +1,49 @@
-part of 'player_provider.dart';
+// ADR-2 阶段 2b-2（[l18]）：位置轮询 / 看门狗驱动从 `PlayerNotifier` 家族的
+// `PlayerPositionPollingInternals` mixin（原 player_provider.dart 的 part）抽成
+// **独立协作者库**。
+//
+// 与旧 part mixin（共享整个 PlayerNotifier 库私有命名空间）不同，本驱动：
+//   * 独立 Dart 库，只通过窄接口 [PlaybackPositionPollingHost] 触达宿主
+//     （刻意不含 `Ref` 与任何 provider 直接依赖，可见性读取经宿主转发）；
+//   * 全部轮询状态（轮询 Timer、上次轮询位置、停滞 / 0 秒卡死 / 近末尾 /
+//     重载连击计数、不可见抽稀计数）收拢在本 mixin，宿主只在三个生命周期
+//     点调用（startPositionPolling / stopPositionPolling / resetPositionTracking）；
+//   * 看门狗纯判定沿用阶段 1 外提的 player_watchdog_policy.dart。
+//
+// ⚠️ 逻辑零改动：轮询体从 mixin 逐字搬运，只改成员访问方式
+// （_ref.read→host.readIsRenderingActive、state 读写→host.state、
+// 库私有方法→host 公开转发、跨流程字段→host 读写器）。
+// 行为契约（500ms 基准周期、不可见 4 倍抽稀加权、停滞 10 tick、0 秒卡死
+// 12 tick + 两级上界、近末尾 5 tick、重载容错 2 次）全部保持原样，
+// 回归网是既有 b29a / b50e 轮询测试族 + 新增协作者窄接线测试。
+import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
+import 'package:just_audio/just_audio.dart' hide PlayerState;
+import 'package:musicflow_client/data/models/song.dart';
+import 'package:musicflow_client/providers/player/player_state.dart';
+import 'package:musicflow_client/providers/player/player_watchdog_policy.dart';
+
+/// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
+/// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
 const int _stagnantSkipThresholdTicks = 10;
+
+/// 0 秒卡死兜底阈值：播放意图存在且位置持续卡在起点(loading/buffering
+/// 或 position 长期 <=0)，连续达到该 tick 数(每 500ms) 即重载当前曲目，
+/// 模拟「切下一首再切回」的效果。12 tick = 6 秒。
 const int _startupStuckSkipThresholdTicks = 12;
+
+/// 0 秒卡死「连续重载」容错上限：同一首曲因卡在起点被看门狗连续重载达到
+/// 该次数仍无任何进展(位置始终不前进)，判定为「后端确无可播源」而非
+/// 瞬时挂起，转入既有失败跳歌逻辑(handlePlaybackError)标记死歌并跳下一首，
+/// 避免对一首永远无法起播的歌无限重载原地空转。0 秒卡死重载走的是模拟
+/// 「切下一首再切回」路径，瞬时可恢复的挂起在 1 次重载后即会推进位置并
+/// 清零本计数；因此容错设为 2：允许 1 次自愈重试，若第 2 次连续重载仍无
+/// 进展则判死跳歌。
 const int _startupReloadTolerance = 2;
+
+/// Windows 专项近末尾兜底计数阈值。5 tick ≈ 2.5s。
 const int _nearEndStuckTicksThreshold = 5;
 
 /// 位置轮询的**基准**周期（可见态）。
@@ -23,20 +64,140 @@ const Duration kPositionPollBaseInterval = Duration(milliseconds: 500);
 @visibleForTesting
 const int kHiddenPollDecimation = 4;
 
-mixin PlayerPositionPollingInternals on PlayerNotifier {
+/// 宿主窄接口：位置轮询驱动触达播放器宿主的**最小面**。
+///
+/// 刻意不含 `Ref` 与任何 provider 直接依赖（可见性真值经宿主
+/// [readIsRenderingActive] 转发），既断开库间耦合，也让本驱动可以用一个
+/// 几十行的 fake host 独立构造单测。
+///
+/// 跨流程字段（seek 落位宽限、自动播放意图、在途流加载标记、完成处理重入
+/// 标记）的真值仍归宿主所有——它们同时被 seek / 播放 / 完成等其它流程读写；
+/// 本驱动仅按原轮询体的读写面暴露（标记为只读或读写的成员即原访问面）。
+abstract class PlaybackPositionPollingHost {
+  /// 播放状态读写（轮询体读 currentSong/position/duration/queue/currentIndex，
+  /// drift≥250 时写回 position）。
+  PlayerState get state;
+  set state(PlayerState value);
+
+  /// StateNotifier.mounted 透传：dispose 后轮询 tick 直接早退。
+  bool get mounted;
+
   /// 渲染可见性真值（前台激活且未隐藏到托盘）。
   ///
-  /// 容器未就绪等异常按「可见」处理：宁可按原 500ms 轮询，也不因一次读取
-  /// 失败把看门狗拖慢。
-  bool _isRenderingActive() {
-    try {
-      return _ref.read(isRenderingActiveProvider);
-    } catch (_) {
-      return true;
-    }
+  /// 宿主实现需保证：容器未就绪等异常按「可见」处理——宁可按原 500ms
+  /// 轮询，也不因一次读取失败把看门狗拖慢。
+  bool readIsRenderingActive();
+
+  /// 源位置 → 逻辑位置换算（流转/续播 timeOffset 场景）。
+  Duration logicalPlayerPosition(Duration sourcePosition);
+
+  /// seek 位置保护期（pendingSeek 未落位）期间轮询早退。
+  bool shouldPreserveSeekPosition();
+
+  /// seek 落位宽限窗（宿主所有、seek 流程写；轮询体读 + 到期清空）。
+  DateTime? get seekSettleUntil;
+  set seekSettleUntil(DateTime? value);
+
+  /// 期望正在自动播放的意图标记（宿主所有；轮询体读 + 起播后清除）。
+  bool get expectingAutoplay;
+  set expectingAutoplay(bool value);
+
+  /// 在途网络流加载标记（宿主所有、seek/加载流程写；轮询体读 + 超界清空）。
+  int? get streamLoadInFlightGeneration;
+  set streamLoadInFlightGeneration(int? value);
+  String? get streamLoadInFlightSongId;
+  set streamLoadInFlightSongId(String? value);
+  int? get streamLoadInFlightSinceMs;
+  set streamLoadInFlightSinceMs(int? value);
+
+  /// 当前源的流偏移（轮询体只读：保位重载换算用）。
+  Duration get sourcePositionOffset;
+
+  /// 标记「近末尾看门狗已接管完成处理」（完成处理重入守卫，宿主字段）。
+  void markCompletionHandling(String songId);
+
+  /// 抗断网延后三级上界的可调试配置（宿主可写字段，@visibleForTesting）。
+  int get debugStreamLoadLoadingCeilingMs;
+  int get debugStreamLoadIdleStuckCeilingMs;
+  int get debugStreamLoadNoProgressCeilingMs;
+
+  /// 播放调试日志。
+  void playDbg(String message);
+
+  /// seek/完成调试日志。
+  void seekDbg(String message);
+
+  /// 播放指定曲目（0 秒卡死看门狗的保位重载出口）。
+  Future<void> playSong(
+    Song song, {
+    List<Song>? queue,
+    int? index,
+    Duration? initialPosition,
+  });
+
+  /// 跳下一首（停滞看门狗自愈出口）。
+  Future<void> next();
+
+  /// 按播完处理当前曲（近末尾看门狗出口，尊重随机/单曲循环/顺序）。
+  Future<void> onSongCompleted(String completedSongId);
+
+  /// 播放失败路径（0 秒卡死判死歌后的跳歌出口）。
+  void handlePlaybackError(String? songId);
+}
+
+/// 位置轮询 / 看门狗驱动：`Timer.periodic(500ms)` 驱动的看门狗集合。
+///
+/// 宿主（PlayerNotifier 家族）`with` 本 mixin 并实现
+/// [PlaybackPositionPollingHost]；轮询状态全部内聚于此。
+mixin PlaybackPositionPollingDriver on PlaybackPositionPollingHost {
+  /// 位置轮询定时器。随 [startPositionPolling] 重建、[stopPositionPolling] 释放。
+  Timer? _positionPollTimer;
+  Duration _lastPolledPlayerPosition = Duration.zero;
+  int _stagnantPositionTicks = 0;
+
+  /// 不可见降频用的物理 tick 计数（见 [kHiddenPollDecimation]）：
+  /// 每累计 [kHiddenPollDecimation] 个基准 tick 才做一次完整轮询。
+  int _hiddenPollCounter = 0;
+
+  /// 0 秒卡死兜底计数：播放意图存在但长时间卡在 loading/buffering 且
+  /// 位置无进展时累计；一旦离开该状态或超出阈值即清零/reset。
+  int _startupStuckTicks = 0;
+
+  /// 当前正在被 0 秒卡死看门狗重载的曲目 id 与该曲的连续重载次数。
+  /// 用于区分「瞬时挂起可自愈」与「真无可播源应放弃」。
+  String? _startupStuckSongId;
+  int _startupReloadStreak = 0;
+
+  /// Windows 专项近末尾兜底计数阈值。
+  ///
+  /// Android 正常播完时 just_audio 会上报 completed，走常规完成流程；但
+  /// Windows(just_audio 走 media_kit 后端)对部分容器的表现是：解码到字节末
+  /// 后 position 顶到接近/等于声明的 duration，而 processing 却进入 buffering
+  /// 而非 completed——于是 `isReadyPlaying`(要求 processing==ready)恒为 false，
+  /// 导致上面的 `_stagnantPositionTicks` 每个 tick 都被清零，近末尾守卫与停滞
+  /// 看门狗对 Windows 全部失效 → 「某一首歌固定的末尾卡死」。
+  ///
+  /// 专用于本守卫的计数不与 processing 绑定：只要「确实在播(player.playing)
+  /// + 位置落在末段窗口内不再前进」就累计，到阈值即按播完处理(尊重随机/单曲
+  /// 循环/顺序)。进程真正比播放引擎更可靠地表达“用户还在播但要结束了”。
+  /// 5 tick ≈ 2.5s。暂停/前进/离开末段任一情况都会清零，避免误判。
+  int _nearEndStuckTicks = 0;
+
+  /// 起播/切歌时重置轮询基线：上次轮询位置对齐到本次起播进度、停滞计数清零。
+  ///
+  /// （原 playSong / 预览起播路径的两行内联重置，抽驱动后收拢为本入口。）
+  void resetPositionTracking(Duration lastPolledPosition) {
+    _lastPolledPlayerPosition = lastPolledPosition;
+    _stagnantPositionTicks = 0;
   }
 
-  void _startPositionPolling(AudioPlayer player) {
+  /// 释放轮询定时器（宿主 dispose 等终止点调用）。
+  void stopPositionPolling() {
+    _positionPollTimer?.cancel();
+    _positionPollTimer = null;
+  }
+
+  void startPositionPolling(AudioPlayer player) {
     _positionPollTimer?.cancel();
     _hiddenPollCounter = 0;
     _positionPollTimer = Timer.periodic(kPositionPollBaseInterval, (_) {
@@ -44,7 +205,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 不可见降频：抽稀掉的物理 tick 直接返回，不读取位置、不写回 UI。
       // 完整轮询用 tickWeight 加权累计，保持看门狗墙钟阈值不变。
       int tickWeight = 1;
-      if (!_isRenderingActive()) {
+      if (!readIsRenderingActive()) {
         _hiddenPollCounter += 1;
         if (_hiddenPollCounter < kHiddenPollDecimation) return;
         _hiddenPollCounter = 0;
@@ -53,12 +214,12 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         _hiddenPollCounter = 0;
       }
       if (state.currentSong == null) return;
-      if (_shouldPreserveSeekPosition()) {
+      if (shouldPreserveSeekPosition()) {
         return;
       }
 
       final sourcePlayerPos = player.position;
-      final playerPos = _logicalPlayerPosition(sourcePlayerPos);
+      final playerPos = logicalPlayerPosition(sourcePlayerPos);
       final processing = player.processingState;
       final isReadyPlaying =
           player.playing && processing == ProcessingState.ready;
@@ -66,10 +227,10 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // seek 落位宽限:宽限内 source 未前进不算卡死/不计近末尾完成;source 一旦
       // 前进过 1500ms 或宽限到期即自动解除,真卡死仍由看门狗接力。
       bool inSeekSettle = false;
-      if (_seekSettleUntil != null) {
-        if (DateTime.now().isAfter(_seekSettleUntil!) ||
+      if (seekSettleUntil != null) {
+        if (DateTime.now().isAfter(seekSettleUntil!) ||
             sourcePlayerPos > const Duration(milliseconds: 1500)) {
-          _seekSettleUntil = null;
+          seekSettleUntil = null;
         } else {
           inSeekSettle = true;
         }
@@ -94,7 +255,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       // 0 秒卡死独立计数：播放意图存在但卡在起点(loading/buffering 或位置
       // 长期 <=0)且位置无进展时累计；一旦真的开始播/位置前进/暂停即清零。
       // just_audio 在 buffering/loading 时 player.playing 仍保持 true。
-      // 播放意图 = playing 或「尚未真正开始播放但期望自动播放」(_expectingAutoplay)：
+      // 播放意图 = playing 或「尚未真正开始播放但期望自动播放」(expectingAutoplay)：
       // 源加载本身若挂起不返回,player.playing 恒为 false,仅凭 playing 会漏判。
       final atStart =
           sourcePlayerPos <= const Duration(milliseconds: 1500) ||
@@ -102,8 +263,8 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
       final hasNoProgress = deltaFromLast <= 150 ||
           (processing == ProcessingState.loading ||
               processing == ProcessingState.buffering);
-      final wantsPlaying = player.playing || _expectingAutoplay;
-      // 判定外提（ADR-2 阶段 1，[nextStartupStuckTicks]）：只搬运计数转移，字段仍在本类。
+      final wantsPlaying = player.playing || expectingAutoplay;
+      // 判定外提（ADR-2 阶段 1，[nextStartupStuckTicks]）：只搬运计数转移，字段仍在驱动内。
       _startupStuckTicks = nextStartupStuckTicks(
         current: _startupStuckTicks,
         tickWeight: tickWeight,
@@ -111,12 +272,12 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         atStart: atStart,
         hasNoProgress: hasNoProgress,
         inSeekSettle: inSeekSettle,
-        preserveSeekPosition: _shouldPreserveSeekPosition(),
+        preserveSeekPosition: shouldPreserveSeekPosition(),
       );
       // 一旦位置确有前进(迈出起点)，视为已恢复，清空期望意图标记与计数，
       // 避免后续看门狗仅凭旧标记误判。
       if (hasLeftStartup(sourcePlayerPos)) {
-        _expectingAutoplay = false;
+        expectingAutoplay = false;
         // 真正开始播放：清零「连续重载」计数与标记，同曲后续再停滞从 1 重新计，
         // 不会因历史卡死而被立刻判死。
         if (_startupReloadStreak > 0 || _startupStuckSongId != null) {
@@ -180,7 +341,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         // 并让服务端重开整个重试窗口，也是无节流紧凑重试）也不得跳歌。
         // 清零计数延迟介入，等服务端窗口落定：成功则位置前进自然解除；
         // 显式失败则 setUrl 抛错，照常走播放失败路径（转码重试 →
-        // _handlePlaybackError 自动跳歌），客户端不抢在服务端之前掐断。
+        // handlePlaybackError 自动跳歌），客户端不抢在服务端之前掐断。
         // 仅守卫「流加载在途」本身：真正起播后仍卡死（服务端已响应但源坏）
         // 的场景不受影响，计数从零重新累计、看门狗照常接力。
         //
@@ -195,8 +356,8 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         //     · `idle` + 仍有播放意图 + 位置≈0 + duration=0：平台未接管，判为
         //       真实起播失败 —— 用短上限(10s)超界即**清在途标记**（只是不再拿它
         //       当挡箭牌，并不拆掉在途 HTTP 请求）→ 既有升级链
-        //       （reload 当前曲 → 连续达容错上限判死歌 → _handlePlaybackError 跳歌）。
-        final inFlightSongId = _streamLoadInFlightSongId;
+        //       （reload 当前曲 → 连续达容错上限判死歌 → handlePlaybackError 跳歌）。
+        final inFlightSongId = streamLoadInFlightSongId;
         final loadInFlight =
             inFlightSongId != null && inFlightSongId == state.currentSong?.id;
         final playerDuration = player.duration;
@@ -226,7 +387,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         //     · `idle` + 播放意图 + 位置≈0：平台压根没接管 → 短上限(idle 档 10s)。
         //     · `loading` + 播放意图 + 位置**零前进**：平台已接管但等不到数据
         //       → 中上限(loading 档 30s)。超界**同样**清在途标记 → 交给既有升级链
-        //       （reload 当前曲 → 连续达容错上限判死歌 → _handlePlaybackError 跳歌），
+        //       （reload 当前曲 → 连续达容错上限判死歌 → handlePlaybackError 跳歌），
         //       不新增第二套恢复逻辑。
         //     · 其余：兜底 30min 安全网（真实服务端重试窗口 ≤30min 内必然落定）。
         //   30s 依据：合法冷启动最坏 ≈ membuf 18s 硬顶 + ffmpeg 起播，实测正常
@@ -267,14 +428,14 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           loadingNoProgressMs: debugStreamLoadNoProgressCeilingMs,
           fallbackMs: debugStreamLoadLoadingCeilingMs,
         );
-        final inFlightMs = loadInFlight && _streamLoadInFlightSinceMs != null
+        final inFlightMs = loadInFlight && streamLoadInFlightSinceMs != null
             ? DateTime.now().millisecondsSinceEpoch -
-                _streamLoadInFlightSinceMs!
+                streamLoadInFlightSinceMs!
             : 0;
         final deferInFlight = loadInFlight && inFlightMs < ceilingMs;
         if (deferInFlight) {
           _startupStuckTicks = 0;
-          _playDbg(
+          playDbg(
             'startup_stuck_watchdog deferred: stream load in flight '
             'song=$inFlightSongId inFlightMs=$inFlightMs ceilingMs=$ceilingMs '
             'idleStuck=$platformNeverTookSource '
@@ -285,10 +446,10 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           if (loadInFlight) {
             // 自愈：无论 setUrl 的 Future 是否完成，在途标记都不得永久为真。
             // 仅停止「当挡箭牌」，不拆在途请求（请求终态由平台自理）。
-            _streamLoadInFlightGeneration = null;
-            _streamLoadInFlightSongId = null;
-            _streamLoadInFlightSinceMs = null;
-            _playDbg(
+            streamLoadInFlightGeneration = null;
+            streamLoadInFlightSongId = null;
+            streamLoadInFlightSinceMs = null;
+            playDbg(
               'startup_stuck_watchdog defer ceiling exceeded -> act '
               'song=$inFlightSongId inFlightMs=$inFlightMs ceilingMs=$ceilingMs '
               'idleStuck=$platformNeverTookSource '
@@ -303,7 +464,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           _startupStuckTicks = 0;
           // 区分「瞬时挂起」(重载一次即恢复)与「真无可播源」(重载仍卡 0 秒):
           // 同一首连续达到重载容错上限仍无进展,判定为不可播,转入既有失败跳歌
-          // 逻辑(_handlePlaybackError)标记死歌并跳下一首,而非无限重载同一首
+          // 逻辑(handlePlaybackError)标记死歌并跳下一首,而非无限重载同一首
           // 原地空转——若后端确无可播源,重载多少次都无济于事。
           if (stuckSongId != null && _startupStuckSongId == stuckSongId) {
             _startupReloadStreak += 1;
@@ -313,17 +474,17 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           }
           if (stuckSongId != null &&
               _startupReloadStreak >= _startupReloadTolerance) {
-            _playDbg(
+            playDbg(
               'startup_stuck_watchdog GIVE_UP reload_streak=$_startupReloadStreak '
               'song=$stuckSongId ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
               'processing=${processing.name} — judged unplayable, skip to next',
             );
             _startupStuckSongId = null;
             _startupReloadStreak = 0;
-            _handlePlaybackError(stuckSongId);
+            handlePlaybackError(stuckSongId);
             return;
           }
-          _playDbg(
+          playDbg(
             'startup_stuck_watchdog reload song=$stuckSongId '
             'reload_streak=$_startupReloadStreak/$_startupReloadTolerance '
             'ticks=$startTicks sourcePlayerPos=$sourcePlayerPos '
@@ -342,7 +503,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
                 queue: state.queue,
                 index: state.currentIndex,
                 initialPosition:
-                    _sourcePositionOffset > Duration.zero ? playerPos : null,
+                    sourcePositionOffset > Duration.zero ? playerPos : null,
               ),
             );
             return;
@@ -374,14 +535,13 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
         final hasPartialStuckTicks = _nearEndStuckTicks;
         if (doneSongId != null) {
           _nearEndStuckTicks = 0;
-          _isHandlingCompletion = true;
-          _completionHandlingSongId = doneSongId;
-          _seekDbg(
+          markCompletionHandling(doneSongId);
+          seekDbg(
             'near-end(win) stuck -> treat as completed song=$doneSongId '
             'pos=${state.position} dur=${state.duration} '
             'ticks=$hasPartialStuckTicks processing=${processing.name}',
           );
-          unawaited(this._onSongCompleted(doneSongId));
+          unawaited(onSongCompleted(doneSongId));
           return;
         }
       }
@@ -395,7 +555,7 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
           _stagnantPositionTicks >= _stagnantSkipThresholdTicks) {
         final stuckTicks = _stagnantPositionTicks;
         _stagnantPositionTicks = 0;
-        _playDbg(
+        playDbg(
           'stall_watchdog skip_to_next song=${state.currentSong?.id} '
           'ticks=$stuckTicks sourcePlayerPos=$sourcePlayerPos '
           'statePos=${state.position} '
@@ -407,5 +567,4 @@ mixin PlayerPositionPollingInternals on PlayerNotifier {
 
     });
   }
-
 }

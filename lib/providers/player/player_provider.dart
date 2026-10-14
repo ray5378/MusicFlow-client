@@ -40,6 +40,9 @@ import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
 export 'package:musicflow_client/providers/player/player_state.dart';
 export 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
+// ADR-2 阶段 2b-2：轮询契约常量随驱动迁至独立库，此处转发保持既有 import 兼容。
+export 'package:musicflow_client/providers/player/player_position_polling.dart'
+    show kPositionPollBaseInterval, kHiddenPollDecimation;
 import 'package:musicflow_client/providers/player/player_state.dart';
 import 'package:musicflow_client/providers/player/shuffle_history.dart';
 import 'package:musicflow_client/providers/player/favorite_scrobble_handler.dart';
@@ -50,6 +53,7 @@ import 'package:musicflow_client/providers/player/player_queue_policy.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 import 'package:musicflow_client/providers/player/player_session_persister.dart'
     show PlaybackSessionPersister, PlaybackSessionPersisterHost;
+import 'package:musicflow_client/providers/player/player_position_polling.dart';
 import 'package:musicflow_client/providers/player/transcoded_stream_seek.dart';
 part 'player_platform_helpers.dart';
 part 'player_stream_source.dart';
@@ -57,7 +61,6 @@ part 'player_playback_helpers.dart';
 part 'player_crossfade.dart';
 part 'player_shuffle_queue.dart';
 part 'player_seek.dart';
-part 'player_position_polling.dart';
 
 
 /// 播放器 Provider
@@ -83,7 +86,9 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
 
 /// 播放器状态管理器
 abstract class PlayerNotifier extends StateNotifier<PlayerState>
-    implements PlaybackSessionPersisterHost {
+    implements
+        PlaybackSessionPersisterHost,
+        PlaybackPositionPollingHost {
   final Ref _ref;
 
   /// 权威收藏列表缓存。由 playerProvider 主体对 starredProvider 的持久
@@ -95,6 +100,78 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   void cacheAuthoritativeStarred(StarredResult? result) {
     _authoritativeStarred = result;
   }
+
+  // ── 位置轮询驱动宿主转发（ADR-2 阶段 2b-2）───────────────────────────
+  // PlaybackPositionPollingHost 窄接口实现：把库私有成员以稳定命名转发给
+  // player_position_polling.dart 的驱动 mixin。逻辑不在此处，仅做访问接线。
+
+  @override
+  bool readIsRenderingActive() {
+    try {
+      return _ref.read(isRenderingActiveProvider);
+    } catch (_) {
+      // 容器未就绪等异常按「可见」处理：宁可按原 500ms 轮询，也不因一次
+      // 读取失败把看门狗拖慢。
+      return true;
+    }
+  }
+
+  @override
+  Duration logicalPlayerPosition(Duration sourcePosition) =>
+      _logicalPlayerPosition(sourcePosition);
+
+  @override
+  bool shouldPreserveSeekPosition() => _shouldPreserveSeekPosition();
+
+  @override
+  DateTime? get seekSettleUntil => _seekSettleUntil;
+  @override
+  set seekSettleUntil(DateTime? value) => _seekSettleUntil = value;
+
+  @override
+  bool get expectingAutoplay => _expectingAutoplay;
+  @override
+  set expectingAutoplay(bool value) => _expectingAutoplay = value;
+
+  @override
+  int? get streamLoadInFlightGeneration => _streamLoadInFlightGeneration;
+  @override
+  set streamLoadInFlightGeneration(int? value) =>
+      _streamLoadInFlightGeneration = value;
+
+  @override
+  String? get streamLoadInFlightSongId => _streamLoadInFlightSongId;
+  @override
+  set streamLoadInFlightSongId(String? value) =>
+      _streamLoadInFlightSongId = value;
+
+  @override
+  int? get streamLoadInFlightSinceMs => _streamLoadInFlightSinceMs;
+  @override
+  set streamLoadInFlightSinceMs(int? value) =>
+      _streamLoadInFlightSinceMs = value;
+
+  @override
+  Duration get sourcePositionOffset => _sourcePositionOffset;
+
+  @override
+  void markCompletionHandling(String songId) {
+    _isHandlingCompletion = true;
+    _completionHandlingSongId = songId;
+  }
+
+  @override
+  void playDbg(String message) => _playDbg(message);
+
+  @override
+  void seekDbg(String message) => _seekDbg(message);
+
+  @override
+  Future<void> onSongCompleted(String completedSongId) =>
+      _onSongCompleted(completedSongId);
+
+  @override
+  void handlePlaybackError(String? songId) => _handlePlaybackError(songId);
 
   AudioPlayer? _audioPlayer;
   MusicFlowAudioHandler? _audioHandler;
@@ -133,18 +210,6 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   ProcessingState? _lastProcessingStateForDebug;
   bool _isHandlingCompletion = false;
   String? _completionHandlingSongId;
-  Timer? _positionPollTimer;
-  Duration _lastPolledPlayerPosition = Duration.zero;
-  int _stagnantPositionTicks = 0;
-
-  /// 不可见降频用的物理 tick 计数（见 player_position_polling.dart）：
-  /// 每累计 [kHiddenPollDecimation] 个基准 tick 才做一次完整轮询。
-  int _hiddenPollCounter = 0;
-
-  /// 0 秒卡死兜底计数：播放意图存在但长时间卡在 loading/buffering 且
-  /// 位置无进展时累计；一旦离开该状态或超出阈值即清零/reset。
-  int _startupStuckTicks = 0;
-
   /// seek 落位宽限:reload-stream 重拉成功后,新源 source 从余数(<1s)起步,
   /// 0 秒卡死看门狗会误判「卡在起点」而 playSong 从头重载(再犯则 next 跳歌),
   /// 近末尾守卫也可能把「刚 seek 到尾段 + 尾包未到」当完成切歌。
@@ -192,6 +257,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   /// 必然落定（成功出流或显式失败），故取 30min 作为**安全网**——既不改变
   /// batch44 的实际行为，又保证在途标记不会「永久」为真。
   @visibleForTesting
+  @override
   int debugStreamLoadLoadingCeilingMs = kStreamLoadFallbackCeilingMs;
 
   /// 「平台未接管音源」判定的**短上限**（idle 停滞情形）。
@@ -207,6 +273,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   /// 跨仓契约：必须严格大于服务端首字节等待 [kServerStreamBufferHeadWaitMs]（默认 8s）
   /// 并留 ≥[kStreamLoadHeadWaitAlignmentMarginMs] 余量，否则会抢在服务端合法缓冲窗口内判死。
   @visibleForTesting
+  @override
   int debugStreamLoadIdleStuckCeilingMs = kStreamLoadIdleCeilingMs;
 
   /// 「平台已接管音源但等不到数据」判定的**中上限**（loading 停滞、位置零前进）。
@@ -225,42 +292,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   /// ⚠ 判别**只看位置零前进**（`sourcePlayerPos <= 1.5s`），**不看** `duration == 0`：
   /// libmpv/flac 一打开就带总时长，`duration` 很快非 0，若当必要条件看门狗会被解除。
   @visibleForTesting
+  @override
   int debugStreamLoadNoProgressCeilingMs = kStreamLoadNoProgressCeilingMs;
 
-  /// 停滞看门狗阈值：进度在播放状态下持续卡住达到该 tick 数(每 500ms 一 tick)
-  /// 即自动跳下一首，避免「进度一直不走却无自愈」。10 tick = 5 秒。
-
-  /// 0 秒卡死兜底阈值：播放意图存在且位置持续卡在起点(loading/buffering
-  /// 或 position 长期 <=0)，连续达到该 tick 数(每 500ms) 即重载当前曲目，
-  /// 模拟「切下一首再切回」的效果。12 tick = 6 秒。
-
-  /// 0 秒卡死「连续重载」容错上限：同一首曲因卡在起点被看门狗连续重载达到
-  /// 该次数仍无任何进展(位置始终不前进)，判定为「后端确无可播源」而非
-  /// 瞬时挂起，转入既有失败跳歌逻辑(_handlePlaybackError)标记死歌并跳下一首，
-  /// 避免对一首永远无法起播的歌无限重载原地空转。0 秒卡死重载走的是模拟
-  /// 「切下一首再切回」路径，瞬时可恢复的挂起在 1 次重载后即会推进位置并
-  /// 清零本计数；因此容错设为 2：允许 1 次自愈重试，若第 2 次连续重载仍无
-  /// 进展则判死跳歌。
-
-  /// 当前正在被 0 秒卡死看门狗重载的曲目 id 与该曲的连续重载次数。
-  /// 用于区分「瞬时挂起可自愈」与「真无可播源应放弃」。
-  String? _startupStuckSongId;
-  int _startupReloadStreak = 0;
-
-  /// Windows 专项近末尾兜底计数阈值。
-  ///
-  /// Android 正常播完时 just_audio 会上报 completed，走常规完成流程；但
-  /// Windows(just_audio 走 media_kit 后端)对部分容器的表现是：解码到字节末
-  /// 后 position 顶到接近/等于声明的 duration，而 processing 却进入 buffering
-  /// 而非 completed——于是 `isReadyPlaying`(要求 processing==ready)恒为 false，
-  /// 导致上面的 `_stagnantPositionTicks` 每个 tick 都被清零，近末尾守卫与停滞
-  /// 看门狗对 Windows 全部失效 → 「某一首歌固定的末尾卡死」。
-  ///
-  /// 专用于本守卫的计数不与 processing 绑定：只要「确实在播(player.playing)
-  /// + 位置落在末段窗口内不再前进」就累计，到阈值即按播完处理(尊重随机/单曲
-  /// 循环/顺序)。进程真正比播放引擎更可靠地表达“用户还在播但要结束了”。
-  /// 5 tick ≈ 2.5s。暂停/前进/离开末段任一情况都会清零，避免误判。
-  int _nearEndStuckTicks = 0;
   int _playDebugSession = 0;
   bool _loggedDurationUnavailableForSong = false;
   /// 元数据时长与实时流上报时长明显不符的留痕标记（每首只打一次，避免刷屏）。
@@ -416,8 +450,14 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   void _setSourcePositionOffset(Duration offset); // ignore: unused_element, unused_element_parameter
   void _setStreamContext({ required String songId, required String? format, required int? maxBitRate, required bool seekByReloadStream, Duration sourcePositionOffset = Duration.zero, }); // ignore: unused_element, unused_element_parameter
   bool _shouldPreserveSeekPosition(); // ignore: unused_element, unused_element_parameter
+
+  // 位置轮询驱动入口（ADR-2 阶段 2b-2）：实现在 _PlayerNotifierImpl 的
+  // PlaybackPositionPollingDriver mixin 上，此处抽象声明供 abstract 基类内
+  // 的调用点（_init / playSong / 预览起播 / dispose）可见。
+  void startPositionPolling(AudioPlayer player);
+  void resetPositionTracking(Duration lastPolledPosition);
+  void stopPositionPolling();
   Duration _sourceSeekPosition(Duration logicalPosition); // ignore: unused_element, unused_element_parameter
-  void _startPositionPolling(AudioPlayer player); // ignore: unused_element, unused_element_parameter
   ServerAddress? _syncImmediateActiveAddress({ required int session, required String reason, }); // ignore: unused_element, unused_element_parameter
   void _syncShuffleHistoryBeforeSongChange({ required Song nextSong, required List<Song> nextQueue, required int nextIndex, required bool recordHistory, required bool clearForwardHistory, }); // ignore: unused_element, unused_element_parameter
   void _syncShuffleHistoryState(); // ignore: unused_element, unused_element_parameter
@@ -564,7 +604,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       // 空会话守卫：清空队列后 just_audio 仍持有**已加载的源**（它没有公开的
       // 卸源 API，stop() 不卸载），其 position/duration 会继续 emit。不拦就会
       // 把刚清掉的进度写回来 —— 迷你条上出现「显示未在播放、进度环却停在
-      // 销毁那一刻」的幽灵。约定同 _startPositionPolling 的同类守卫。
+      // 销毁那一刻」的幽灵。约定同 startPositionPolling 的同类守卫。
       if (state.currentSong == null) return;
 
       // A queued seek is the user's latest intent. While the next source is
@@ -592,7 +632,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       // 正常听完一首(3~5min)判定早已过期 → 死链预跳失效。见 §8.3 时效修复。
       _maybeProbeNearEnd();
     });
-    _startPositionPolling(player);
+    startPositionPolling(player);
 
     // 监听缓冲进度
     player.bufferedPositionStream.listen((buffered) {
@@ -974,8 +1014,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       _invalidateLoadedSource(reason: 'play_song_started');
       _invalidateSeekRequests();
       _clearStreamContext();
-      _lastPolledPlayerPosition = initialPosition ?? Duration.zero;
-      _stagnantPositionTicks = 0;
+      resetPositionTracking(initialPosition ?? Duration.zero);
       _loggedDurationUnavailableForSong = false;
       _loggedDurationMismatchForSong = false;
 
@@ -1721,8 +1760,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     _clearForcedNext();
     _isHandlingCompletion = false;
     _completionHandlingSongId = null;
-    _lastPolledPlayerPosition = Duration.zero;
-    _stagnantPositionTicks = 0;
+    resetPositionTracking(Duration.zero);
     _loggedDurationUnavailableForSong = false;
     _loggedDurationMismatchForSong = false;
 
@@ -2064,6 +2102,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   }
 
   /// 下一首
+  @override
   Future<void> next() async {
     // 入口留痕(同 previous):"没点就切歌"是误触发主诉,先记变迁。
     _seekDbg(
@@ -2786,7 +2825,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     sessionPersister.cancelPersistTimer();
     _volumePersistTimer?.cancel();
     unawaited(sessionPersister.persistPlaybackSession());
-    _positionPollTimer?.cancel();
+    stopPositionPolling();
     _cancelFade();
     _networkTypeSubscription?.cancel();
     _smtc?.dispose();
@@ -2838,6 +2877,6 @@ class _PlayerNotifierImpl extends PlayerNotifier
         PlayerCrossfadeInternals,
         PlayerShuffleQueueInternals,
         PlayerSeekInternals,
-        PlayerPositionPollingInternals {
+        PlaybackPositionPollingDriver {
   _PlayerNotifierImpl(Ref ref) : super(ref);
 }
