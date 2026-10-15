@@ -2,6 +2,18 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.12] - 2026-10-16
+
+### 重构
+
+- **ADR-2 阶段 3b：cast 域迁移 `NotifierProvider` + `cast_peer_provider` 结构级拆分（行为零变化）**：`CastPeerController` / `DlnaDevicesNotifier` / `DlnaCastNotifier` / `PeerRemoteControlNotifier` 四个 provider 由 `StateNotifierProvider` 迁移 `NotifierProvider`；原 1525 行单文件按职责拆为三段 `part`——发现 `cast_peer_discovery.dart` / 会话 `cast_peer_session.dart` / 队列 `cast_peer_queue.dart`，采用「抽象基类 `CastPeerControllerBase extends Notifier<CastPeerState>` + 三个 `on` 基类的 mixin + 具体类装配」结构，兼容既有 88 个 `extends CastPeerController` 的测试 fake 与门禁脚本的单文件文本锚定；`dispose()` 语义改由 `build()` 内 `ref.onDispose` 仿真（`_mounted` 守卫 + 定时器/心跳清理）。
+- **ADR-2 阶段 3c：`playerProvider` 主迁移 `StateNotifierProvider`→`NotifierProvider`（行为零变化）**：riverpod 2.6 下 `NotifierProvider` 的 `ref.invalidate` 会**复用同一实例只重跑 `build()`**（不同于 `StateNotifierProvider` 的整体重建），故引入逐 run 生命周期设施——`_mounted` + `ref.onDispose` 仿真、`_runGeneration` 世代令牌判活（`_isRunCurrent`）、显式断流 `_playerSubscriptions`、`_tearingDown`/`_stateMirror` 规避拆卸期读 `state` 触发重入 `build`、`PlaybackSessionPersister` 逐 run 重建并标死旧协作者；`ref.listen(starredProvider)` 迁入 `build()`。4 处 `ref.invalidate(playerProvider)` 调用点（抽屉 / 编辑音乐库 / 设置）语义对齐，并新增 `player_invalidate_semantics_test` 与 b53a 专项用例锁定「invalidate 释放旧 run 资源、新 run 干净重建、在途恢复不写新 run state」。
+
+### 修复
+
+- **离线缓存孤儿回收（T07）**：`OfflineCacheManager.init()` 载入索引后，以索引为准扫描各 kind 目录，清掉「有文件无索引」的数据文件与 `.part` 中间产物（孤儿成因：索引损坏清空重建、写完文件 1s 去抖落盘前被杀、删条目后文件删除失败），并按 `safeName()` 对齐键名避免误删；索引正常时零副作用。新增 b53a 离线孤儿回收 5 例（含歌词目录与非法字符键）。
+- **seek 落位魔法数抽命名常量并纳入回归（T08）**：`player_seek.dart` 的 220ms 稳定观察窗、120ms 重试收尾、2000ms 漂移容忍、15s 落位宽限窗抽为 `_kSeek*` 命名常量，行为不变；新增 b53a 常量回归 6 例钉死取值与阈值内外边界。
+
 ## [5.8.11] - 2026-10-14
 
 ### 优化
