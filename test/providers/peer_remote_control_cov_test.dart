@@ -15,7 +15,7 @@ import '../helpers/mocks.dart';
 ///
 /// 本机作为被遥控方时,服务端只推两类消息:`peer_command`(立即执行的传输指令)
 /// 与 `peer_queue_changed`(权威队列变更 → 内容比对后跟随)。本文件把 PlayerNotifier
-/// 换成可录调用的桩、把 SubsonicApiClient 换成可回放快照的桩,直接构造
+/// 桩、把 SubsonicApiClient 换成可回放快照的桩,再从 ProviderContainer 取
 /// [PeerRemoteControlNotifier] 打这两个入口,把状态迁移的每条分支跑一遍。
 ///
 /// 桩说明:[_RecPlayerNotifier] 继承现成的 TestPlayerNotifier(补上 play /
@@ -47,11 +47,13 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         subsonicApiClientProvider.overrideWithValue(client),
-        playerProvider.overrideWith((ref) => player),
+        playerProvider.overrideWith(() => player),
       ],
     );
-    // ProviderContainer 只实现 Ref<Object>,本文件要的是 Ref<Object?> —— 套一层转发。
-    ctl = PeerRemoteControlNotifier(_ContainerRef(container));
+    // ADR-2 阶段 3b：PeerRemoteControlNotifier 已由 StateNotifier 迁到 Notifier，
+    // ref 改为框架在挂载时注入（不再支持 `PeerRemoteControlNotifier(ref)` 直接构造），
+    // 故从容器取 notifier 实例（内部同样只走 ref.read，语义等价）。
+    ctl = container.read(peerRemoteControlProvider.notifier);
   });
 
   tearDown(() {
@@ -708,22 +710,6 @@ void main() {
       expect(player.calls, isEmpty, reason: '模式没变 → 整条广播应被自回声跳过');
     });
   });
-}
-
-/// 把 ProviderContainer 适配成 `Ref<Object?>`，供纯容器测试驱动
-/// [PeerRemoteControlNotifier](内部只调 `ref.read`)。
-class _ContainerRef implements Ref<Object?> {
-  _ContainerRef(this.container);
-
-  @override
-  final ProviderContainer container;
-
-  @override
-  T read<T>(ProviderListenable<T> provider) => container.read(provider);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnsupportedError('_ContainerRef.${invocation.memberName}');
 }
 
 /// 可录调用的播放器桩:在 TestPlayerNotifier 之上补 play / playQueue /

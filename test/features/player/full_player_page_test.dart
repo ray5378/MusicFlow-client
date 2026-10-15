@@ -91,7 +91,7 @@ void main() {
     final resolvedVisuals = visuals ?? MusicFlowMediaVisuals.fallback();
     return ProviderScope(
       overrides: [
-        playerProvider.overrideWith((ref) => notifier),
+        playerProvider.overrideWith(() => notifier),
         currentSongPaletteProvider.overrideWith((ref) async => null),
         resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
           resolvedVisuals,

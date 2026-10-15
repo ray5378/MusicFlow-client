@@ -74,11 +74,11 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 class _FakeMusicRepository extends MusicRepository {
@@ -159,9 +159,9 @@ class _Harness {
           fetchCount += 1;
           return fetched;
         }),
-        playerProvider.overrideWith((ref) => player),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => player),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
       ],
     );
     return UncontrolledProviderScope(

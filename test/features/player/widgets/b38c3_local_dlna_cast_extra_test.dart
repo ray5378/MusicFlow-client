@@ -34,9 +34,17 @@ import '../test_player_notifier.dart';
 late AppLocalizations loc;
 
 class _FakeCastNotifier extends DlnaCastNotifier {
-  _FakeCastNotifier(super.ref, DlnaCastState initial, {this.startOk = true}) {
-    state = initial;
+  final DlnaCastState initial;
+
+  _FakeCastNotifier(this.initial, {this.startOk = true});
+
+  @override
+  DlnaCastState build() {
+    super.build();
+
+    return initial;
   }
+
 
   final bool startOk;
   final List<String> starts = <String>[];
@@ -60,8 +68,14 @@ class _FakeCastNotifier extends DlnaCastNotifier {
 }
 
 class _FakeDevicesNotifier extends DlnaDevicesNotifier {
-  _FakeDevicesNotifier(super.ref, DlnaDevicesState initial) {
-    state = initial;
+  _FakeDevicesNotifier(this.initial);
+
+  final DlnaDevicesState initial;
+
+  @override
+  DlnaDevicesState build() {
+    super.build();
+    return initial;
   }
 
   @override
@@ -89,17 +103,16 @@ Widget _app({
   return ProviderScope(
     overrides: <Override>[
       if (player != null)
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(player)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(player)),
       currentSongPaletteProvider.overrideWith((ref) async => null),
       resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
         MusicFlowMediaVisuals.fallback(),
       ),
       currentLyricsProvider.overrideWith((ref) async => null),
       dlnaCastHttpBaseProvider.overrideWithValue('http://192.168.1.5:4533'),
-      dlnaCastProvider.overrideWith(
-        (ref) => _FakeCastNotifier(ref, cast, startOk: startOk),
+      dlnaCastProvider.overrideWith(() => _FakeCastNotifier( cast, startOk: startOk),
       ),
-      dlnaDevicesProvider.overrideWith((ref) => _FakeDevicesNotifier(ref, devices)),
+      dlnaDevicesProvider.overrideWith(() => _FakeDevicesNotifier(devices)),
     ],
     child: MaterialApp(
       theme: AppTheme.dark(),

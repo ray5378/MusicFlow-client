@@ -49,11 +49,11 @@ class _FakePlaylistRepository extends PlaylistRepository {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 const String kAlbumId = 'al-1';
@@ -111,9 +111,9 @@ class _Harness {
         ),
         musicRepositoryProvider.overrideWithValue(_FakeMusicRepository()),
         playlistRepositoryProvider.overrideWithValue(_FakePlaylistRepository()),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
-        castPeerControllerProvider.overrideWith((ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         albumDetailProvider.overrideWith((ref, String id) async => detail),
       ],
     );

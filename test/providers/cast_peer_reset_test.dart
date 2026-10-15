@@ -92,7 +92,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         subsonicApiClientProvider.overrideWithValue(client),
-        playerProvider.overrideWith((ref) => playerNotifier),
+        playerProvider.overrideWith(() => playerNotifier),
       ],
     );
     controller = container.read(castPeerControllerProvider.notifier);

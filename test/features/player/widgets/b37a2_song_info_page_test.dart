@@ -69,8 +69,7 @@ Future<void> pumpInfo(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith(
-          (ref) => TestPlayerNotifier(
+        playerProvider.overrideWith(() => TestPlayerNotifier(
             PlayerState(
               currentSong: song,
               currentBitRateKbps: currentBitRateKbps,

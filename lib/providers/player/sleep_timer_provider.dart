@@ -31,7 +31,7 @@ class SleepTimerNotifier extends Notifier<Duration?> {
   @override
   Duration? build() {
     // 全局 provider 被 invalidate/容器销毁时清掉倒计时，避免 Timer 泄漏
-    // （原 StateNotifier.dispose() override 的等价迁移，ADR-23 阶段 3）。
+    // （原 同步通知基类.dispose() override 的等价迁移，ADR-23 阶段 3）。
     ref.onDispose(() {
       _timer?.cancel();
       _timer = null;

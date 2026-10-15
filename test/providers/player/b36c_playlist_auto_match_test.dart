@@ -53,7 +53,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith((ref) => player),
+          playerProvider.overrideWith(() => player),
           ...overrides,
         ],
         child: Consumer(

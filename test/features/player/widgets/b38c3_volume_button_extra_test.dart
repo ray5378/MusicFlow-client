@@ -39,11 +39,18 @@ class _VolPlayer extends TestPlayerNotifier {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；不调 super.build() 避开真实接线副作用。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 Future<void> settle(WidgetTester tester, {int frames = 8}) async {
@@ -68,11 +75,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith((Ref ref) => player),
-          castPeerControllerProvider.overrideWith((Ref ref) {
-            return _StubCastPeer(ref)..state = const CastPeerState();
-          }),
-          dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+          playerProvider.overrideWith(() => player),
+          castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+          dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,

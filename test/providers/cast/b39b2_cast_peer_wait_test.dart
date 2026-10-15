@@ -30,7 +30,7 @@ void main() {
       container = ProviderContainer(
         overrides: <Override>[
           subsonicApiClientProvider.overrideWithValue(MockSubsonicApiClient()),
-          playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+          playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         ],
       );
       ctrl = container.read(castPeerControllerProvider.notifier);

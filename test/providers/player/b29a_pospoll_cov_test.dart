@@ -330,7 +330,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
 /// `castPeerControllerProvider` 的替身：轮询体不打 cast 路径，给个空壳即可，
 /// 但类型得像（踩坑 #200-D：必须 extends 才能过 override 的类型检查）。
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 
   @override
   String? get localPeerId => null;
@@ -378,8 +378,8 @@ void main() {
           offlineCacheDaemonProvider.overrideWith(
             (ref) => _NoopOfflineCacheDaemon(ref),
           ),
-          castPeerControllerProvider.overrideWith((ref) {
-            return _FakeCastPeerController(ref);
+          castPeerControllerProvider.overrideWith(() {
+            return _FakeCastPeerController();
           }),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

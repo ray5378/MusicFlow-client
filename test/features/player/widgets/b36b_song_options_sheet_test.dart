@@ -79,9 +79,16 @@ class RecordingPlayer extends TestPlayerNotifier {
 }
 
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref, {PeerInfo? peer}) {
+  final PeerInfo? peer;
+
+  StubCastPeer({this.peer});
+
+  @override
+  CastPeerState build() {
+    final s = super.build();
+
     if (peer != null) {
-      state = state.copyWith(
+      return s.copyWith(
         activePeer: peer,
         castQueue: <Map<String, dynamic>>[
           <String, dynamic>{'songId': 'other', 'title': 'x'},
@@ -89,7 +96,9 @@ class StubCastPeer extends CastPeerController {
         castIndex: 0,
       );
     }
+    return s;
   }
+
 
   final List<dynamic> enqueueCalls = <dynamic>[];
 
@@ -100,11 +109,20 @@ class StubCastPeer extends CastPeerController {
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref, {bool casting = false}) {
+  final bool casting;
+
+  StubDlnaCast({this.casting= false});
+
+  @override
+  DlnaCastState build() {
+    final s = super.build();
+
     if (casting) {
-      state = DlnaCastState(isCasting: true);
+      return DlnaCastState(isCasting: true);
     }
+    return s;
   }
+
 
   final List<Song> enqueueCalls = <Song>[];
 
@@ -176,12 +194,10 @@ class SheetHarness {
     return UncontrolledProviderScope(
       container: container = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith((Ref ref) => player),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => cast = StubCastPeer(ref),
+          playerProvider.overrideWith(() => player),
+          castPeerControllerProvider.overrideWith(() => cast = StubCastPeer(),
           ),
-          dlnaCastProvider.overrideWith(
-            (Ref ref) => dlna = StubDlnaCast(ref),
+          dlnaCastProvider.overrideWith(() => dlna = StubDlnaCast(),
           ),
           playlistRepositoryProvider.overrideWith(
             (Ref ref) => FakePlaylistRepository(),

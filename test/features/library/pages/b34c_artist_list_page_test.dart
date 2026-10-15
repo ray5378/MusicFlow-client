@@ -52,11 +52,11 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 class _FakeMusicRepository extends MusicRepository {
@@ -132,11 +132,10 @@ Widget _build({
         (ref) async =>
             const LibraryCounts(artistCount: 2, albumCount: 3, songCount: 30),
       ),
-      playerProvider.overrideWith((ref) => _RecordingPlayer()),
-      castPeerControllerProvider.overrideWith(
-        (Ref ref) => _StubCastPeer(ref),
+      playerProvider.overrideWith(() => _RecordingPlayer()),
+      castPeerControllerProvider.overrideWith(() => _StubCastPeer(),
       ),
-      dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+      dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
       if (artistDetail != null)
         artistDetailProvider.overrideWith(
           (ref, String artistId) async => artistDetail,

@@ -101,9 +101,16 @@ class _FakeManager extends DlnaManager {
 
 /// 假投屏控制器:记录 pause / setSleepTimer 调用, 可选注入 activePeer 模拟链路 A。
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref, {bool cast = false}) {
+  final bool cast;
+
+  _FakeCastPeerController({this.cast= false});
+
+  @override
+  CastPeerState build() {
+    final s = super.build();
+
     if (cast) {
-      state = state.copyWith(
+      return s.copyWith(
         activePeer: const PeerInfo(
           peerId: 'p',
           name: 'n',
@@ -112,7 +119,9 @@ class _FakeCastPeerController extends CastPeerController {
         ),
       );
     }
+    return s;
   }
+
 
   bool pauseCalled = false;
   Duration? lastSetSleepTimer;
@@ -136,11 +145,9 @@ class _FakeCastPeerController extends CastPeerController {
 ProviderContainer _container({bool cast = false}) => ProviderContainer(
       overrides: <Override>[
         dlnaManagerProvider.overrideWith((ref) => _FakeManager()),
-        playerProvider.overrideWith(
-          (ref) => TestPlayerNotifier(PlayerState()),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState()),
         ),
-        castPeerControllerProvider.overrideWith(
-          (ref) => _FakeCastPeerController(ref, cast: cast),
+        castPeerControllerProvider.overrideWith(() => _FakeCastPeerController( cast: cast),
         ),
       ],
     );

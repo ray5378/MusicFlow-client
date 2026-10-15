@@ -123,7 +123,7 @@ Future<void> pumpStarred(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith((Ref ref) => player ?? RecordingPlayer()),
+        playerProvider.overrideWith(() => player ?? RecordingPlayer()),
         starredProvider.overrideWith(
           (Ref ref) async => starred ?? _filledStarred(),
         ),

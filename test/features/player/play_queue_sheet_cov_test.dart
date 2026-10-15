@@ -133,12 +133,12 @@ final List<Song> kSongs = <Song>[
 /// #121-D 的同类坑：`TestPlayerNotifier` 只 override 了播放器那几个入口，
 /// 队列操作（`skipToQueueItem` / `clearQueue` / `removeFromQueue`）落的是基类实现。
 /// 这里把「链路 A 队列编辑」四个入口全 override 成只记调用。
-// #141-D：`TestPlayerNotifier` 是 `extends StateNotifier<PlayerState> implements PlayerNotifier`
-//         （poller 见 test_player_notifier.dart），构造收 **state** 不碰真 audio handler；
-//         真 `PlayerNotifier` 的构造是 `PlayerNotifier(Ref ref) : super(PlayerState())`
-//         （player_provider.dart:392）且 `_init`/`dispose` 会调 `_logicalPlayerPosition` /
-//         `_persistPlaybackSession`，extends 它会直接 NoSuchMethodError。所以桩继承
-//         `TestPlayerNotifier`，只补队列三入口的额外记录。
+// #141-D：`TestPlayerNotifier` 是 `extends Notifier<PlayerState> implements PlayerNotifier`
+//         （poller 见 test_player_notifier.dart），构造收 **初始 state** 不碰真 audio handler；
+//         真 `PlayerNotifier` 走 `NotifierProvider` 零参工厂 `_PlayerNotifierImpl.new`，
+//         逐 run 初始化在 `build()` 里且 `_init`/`_teardownRun` 会调
+//         `_logicalPlayerPosition` / `_persistPlaybackSession`，extends 它会直接
+//         NoSuchMethodError。所以桩继承 `TestPlayerNotifier`，只补队列三入口的额外记录。
 class RecordingPlayerNotifier extends TestPlayerNotifier {
   RecordingPlayerNotifier(super.state);
 
@@ -165,7 +165,14 @@ class RecordingPlayerNotifier extends TestPlayerNotifier {
 
 /// 链路 A controller 桩：只记调用（#87-D 同款）。
 class RecordingCastPeer extends CastPeerController {
-  RecordingCastPeer(super.ref);
+  RecordingCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；链路 A 老构造体无副作用，故不调 super.build()。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 
   final List<String> calls = <String>[];
 
@@ -192,7 +199,17 @@ class RecordingCastPeer extends CastPeerController {
 
 /// DLNA 直投 notifier 桩：只记调用（#87-D 同款）。
 class RecordingDlnaCast extends DlnaCastNotifier {
-  RecordingDlnaCast(super.ref);
+  RecordingDlnaCast([this.initial = const DlnaCastState()]);
+
+  // ADR-2 阶段 3b：种子态由 build() 返回；链路 B 老构造体含真实接线副作用，
+  // 故先调 super.build() 保留接线，再覆盖为种子态。
+  final DlnaCastState initial;
+
+  @override
+  DlnaCastState build() {
+    super.build();
+    return initial;
+  }
 
   final List<String> calls = <String>[];
 
@@ -267,13 +284,13 @@ class QueueHarness {
   }) {
     final container = ProviderContainer(
       overrides: <Override>[
-        playerProvider.overrideWith((Ref ref) => RecordingPlayerNotifier(state)),
-        castPeerControllerProvider.overrideWith((Ref ref) {
-          final c = RecordingCastPeer(ref)..state = castState;
+        playerProvider.overrideWith(() => RecordingPlayerNotifier(state)),
+        castPeerControllerProvider.overrideWith(() {
+          final c = RecordingCastPeer(castState);
           return c;
         }),
-        dlnaCastProvider.overrideWith((Ref ref) {
-          final d = RecordingDlnaCast(ref)..state = dlnaState;
+        dlnaCastProvider.overrideWith(() {
+          final d = RecordingDlnaCast(dlnaState);
           return d;
         }),
         resolvedCurrentSongMediaVisualsProvider.overrideWith(
@@ -285,7 +302,7 @@ class QueueHarness {
     // #125-D / #126-D：建完立刻 read 把三个桩实例确定性落定，不依赖 widget 树
     // 走到哪条 provider 分支（`WidgetTester` 上没有 `readProviderElement`）。
     // #126-D：必须走 **`.notifier`** —— `container.read(provider)` 对
-    // `StateNotifierProvider` 返回的是**状态**而不是 notifier。
+    // `同步通知 Provider` 返回的是**状态**而不是 notifier。
     player = container.read(playerProvider.notifier) as RecordingPlayerNotifier;
     cast = container.read(castPeerControllerProvider.notifier)
         as RecordingCastPeer;

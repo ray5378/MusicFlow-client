@@ -63,11 +63,11 @@ class _B31bPlayer extends TestPlayerNotifier {
 }
 
 class _B31bCastPeer extends CastPeerController {
-  _B31bCastPeer(super.ref);
+  _B31bCastPeer();
 }
 
 class _B31bDlnaCast extends DlnaCastNotifier {
-  _B31bDlnaCast(super.ref);
+  _B31bDlnaCast();
 }
 
 SearchArtist _artist({String avatar = 'ar-1'}) => SearchArtist(
@@ -179,9 +179,9 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         searchRepositoryProvider.overrideWith((ref) => repo),
-        playerProvider.overrideWith((ref) => playerOverride ?? player),
-        castPeerControllerProvider.overrideWith((Ref ref) => _B31bCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _B31bDlnaCast(ref)),
+        playerProvider.overrideWith(() => playerOverride ?? player),
+        castPeerControllerProvider.overrideWith(() => _B31bCastPeer()),
+        dlnaCastProvider.overrideWith(() => _B31bDlnaCast()),
         // 避免真实 SubsonicApiClient 链（networkManagerProvider → HealthChecker
         // 30s 周期 Timer）在用例结束时留下 pending timer。
         subsonicApiClientProvider.overrideWithValue(api),

@@ -309,7 +309,7 @@ class _CtlMonitor extends ConnectivityMonitor {
 _FakeCrossfade? _cf;
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 }
 
 class _SpySubsonicApiClient extends SubsonicApiClient {
@@ -435,8 +435,7 @@ void main() {
           offlineCacheReadyProvider.overrideWith((ref) async {}),
           dlnaManagerProvider.overrideWithValue(dlnaManager),
           addressPoolProvider.overrideWithValue(pool),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

@@ -257,9 +257,16 @@ class _NoopOfflineCacheDaemon extends OfflineCacheDaemon {
 }
 
 class _RecordingCastPeerController extends CastPeerController {
-  _RecordingCastPeerController(super.ref, {required bool active}) {
+  final bool active;
+
+  _RecordingCastPeerController({required this.active});
+
+  @override
+  CastPeerState build() {
+    final s = super.build();
+
     if (active) {
-      state = CastPeerState(
+      return CastPeerState(
         activePeer: PeerInfo(
           peerId: 'peer-9',
           name: '客厅设备',
@@ -275,7 +282,9 @@ class _RecordingCastPeerController extends CastPeerController {
         smoothPositionSeconds: 7.5,
       );
     }
+    return s;
   }
+
 
   final calls = <String>[];
   bool contentOk = true;
@@ -347,9 +356,16 @@ class _RecordingCastPeerController extends CastPeerController {
 class _FakeDlnaManager extends DlnaManager {}
 
 class _RecordingDlnaCastNotifier extends DlnaCastNotifier {
-  _RecordingDlnaCastNotifier(super.ref, {required bool casting}) {
+  final bool casting;
+
+  _RecordingDlnaCastNotifier({required this.casting});
+
+  @override
+  DlnaCastState build() {
+    final s = super.build();
+
     if (casting) {
-      state = DlnaCastState(
+      return DlnaCastState(
         isCasting: true,
         smoothPositionSeconds: 12.5,
         status: const DlnaDeviceStatus(
@@ -360,7 +376,9 @@ class _RecordingDlnaCastNotifier extends DlnaCastNotifier {
         ),
       );
     }
+    return s;
   }
+
 
   final calls = <String>[];
 
@@ -500,13 +518,13 @@ void main() {
         offlineCacheDaemonProvider.overrideWith(
           (ref) => _NoopOfflineCacheDaemon(ref),
         ),
-        castPeerControllerProvider.overrideWith((ref) {
-          cast = _RecordingCastPeerController(ref, active: castActive);
+        castPeerControllerProvider.overrideWith(() {
+          cast = _RecordingCastPeerController( active: castActive);
           return cast;
         }),
         dlnaManagerProvider.overrideWith((ref) => _FakeDlnaManager()),
-        dlnaCastProvider.overrideWith((ref) {
-          dlna = _RecordingDlnaCastNotifier(ref, casting: dlnaCasting);
+        dlnaCastProvider.overrideWith(() {
+          dlna = _RecordingDlnaCastNotifier( casting: dlnaCasting);
           return dlna;
         }),
         starredProvider.overrideWith(

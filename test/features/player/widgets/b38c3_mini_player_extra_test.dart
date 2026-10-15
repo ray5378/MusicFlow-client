@@ -76,7 +76,14 @@ class _StubFrozenLyricLine extends FrozenLyricLineNotifier {
 
 /// 记录调用并可控返回值的链路 A 桩。
 class MiniCastPeer extends CastPeerController {
-  MiniCastPeer(super.ref);
+  MiniCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；不调 super.build() 避开真实接线副作用。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 
   final List<String> calls = <String>[];
   bool transferOk = true;
@@ -111,7 +118,7 @@ class MiniCastPeer extends CastPeerController {
 }
 
 class MiniDlnaCast extends DlnaCastNotifier {
-  MiniDlnaCast(super.ref);
+  MiniDlnaCast();
 }
 
 Future<void> settle(WidgetTester tester, {int frames = 8}) async {
@@ -197,16 +204,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (Ref ref) => TestPlayerNotifier(
+          playerProvider.overrideWith(() => TestPlayerNotifier(
               PlayerState(currentSong: _song('晨光曲')),
             ),
           ),
-          castPeerControllerProvider.overrideWith((Ref ref) {
-            cast = MiniCastPeer(ref)..state = const CastPeerState();
+          castPeerControllerProvider.overrideWith(() {
+            cast = MiniCastPeer();
             return cast;
           }),
-          dlnaCastProvider.overrideWith((Ref ref) => MiniDlnaCast(ref)),
+          dlnaCastProvider.overrideWith(() => MiniDlnaCast()),
           effectiveIsPlayingProvider.overrideWith((Ref ref) => false),
           effectiveDurationProvider.overrideWith(
             (Ref ref) => const Duration(minutes: 3),
@@ -262,17 +268,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (Ref ref) => TestPlayerNotifier(
+          playerProvider.overrideWith(() => TestPlayerNotifier(
               PlayerState(currentSong: _song('晨光曲')),
             ),
           ),
-          castPeerControllerProvider.overrideWith((Ref ref) {
-            cast = MiniCastPeer(ref)
-              ..state = const CastPeerState(activePeer: kSelf);
+          castPeerControllerProvider.overrideWith(() {
+            cast = MiniCastPeer(const CastPeerState(activePeer: kSelf));
             return cast;
           }),
-          dlnaCastProvider.overrideWith((Ref ref) => MiniDlnaCast(ref)),
+          dlnaCastProvider.overrideWith(() => MiniDlnaCast()),
           effectiveIsPlayingProvider.overrideWith((Ref ref) => false),
           effectiveDurationProvider.overrideWith(
             (Ref ref) => const Duration(minutes: 3),

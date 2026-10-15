@@ -62,11 +62,11 @@ class _PlaylistRepository extends Mock implements PlaylistRepository {}
 class _RecommendRepository extends Mock implements RecommendRepository {}
 
 class _CastPeer extends CastPeerController {
-  _CastPeer(super.ref);
+  _CastPeer();
 }
 
 class _Dlna extends DlnaCastNotifier {
-  _Dlna(super.ref);
+  _Dlna();
 }
 
 List<Override> _coreOverrides() => <Override>[
@@ -80,9 +80,9 @@ List<Override> _coreOverrides() => <Override>[
           priority: 0,
         ),
       ),
-      playerProvider.overrideWith((ref) => _RecPlayer(PlayerState())),
-      castPeerControllerProvider.overrideWith((Ref ref) => _CastPeer(ref)),
-      dlnaCastProvider.overrideWith((Ref ref) => _Dlna(ref)),
+      playerProvider.overrideWith(() => _RecPlayer(PlayerState())),
+      castPeerControllerProvider.overrideWith(() => _CastPeer()),
+      dlnaCastProvider.overrideWith(() => _Dlna()),
       effectiveIsPlayingProvider.overrideWith((ref) => false),
       playlistRepositoryProvider.overrideWith((ref) => _PlaylistRepository()),
       recommendRepositoryProvider.overrideWith((ref) => _RecommendRepository()),

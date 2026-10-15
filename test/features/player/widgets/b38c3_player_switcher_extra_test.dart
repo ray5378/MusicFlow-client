@@ -25,7 +25,7 @@ late AppLocalizations loc;
 _CastFake? _lastFake;
 
 class _CastFake extends CastPeerController {
-  _CastFake(super.ref);
+  _CastFake();
 
   List<PeerInfo> peers = const <PeerInfo>[];
   bool pushOk = true;
@@ -64,8 +64,7 @@ PeerNowPlaying _playing(String title) => PeerNowPlaying(
       artist: '周杰伦',
     );
 
-Override _playerOverride(int queueLength) => playerProvider.overrideWith(
-      (ref) => TestPlayerNotifier(
+Override _playerOverride(int queueLength) => playerProvider.overrideWith(() => TestPlayerNotifier(
         PlayerState(
           queue: List<Song>.generate(
             queueLength,
@@ -94,8 +93,8 @@ Future<void> _pumpRow(
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
       _playerOverride(2),
-      castPeerControllerProvider.overrideWith((ref) {
-        final c = _CastFake(ref);
+      castPeerControllerProvider.overrideWith(() {
+        final c = _CastFake();
         c.peers = <PeerInfo>[peer];
         _lastFake = c;
         return c;
@@ -202,8 +201,8 @@ Future<void> _pumpSheet(WidgetTester tester, {required PeerInfo playingPeer}) as
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
       _playerOverride(1),
-      castPeerControllerProvider.overrideWith((ref) {
-        final c = _CastFake(ref)..peers = <PeerInfo>[playingPeer];
+      castPeerControllerProvider.overrideWith(() {
+        final c = _CastFake()..peers = <PeerInfo>[playingPeer];
         _lastFake = c;
         return c;
       }),

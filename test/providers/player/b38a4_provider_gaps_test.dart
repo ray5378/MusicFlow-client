@@ -176,15 +176,17 @@ const _peer = PeerInfo(
 
 /// CastPeerController 替身：可控投屏态 + 记录 setSleepTimer/setVolume。
 class _FakeCastPeer extends CastPeerController {
-  _FakeCastPeer(
-    super.ref, {
-    this.active = true,
-    this.throwOnSetSleepTimer = false,
-  }) {
-    state = active
+  _FakeCastPeer({this.active = true, this.throwOnSetSleepTimer = false});
+
+  @override
+  CastPeerState build() {
+    super.build();
+
+    return active
         ? const CastPeerState(activePeer: _peer, status: PeerStatus())
         : const CastPeerState();
   }
+
 
   final bool active;
   final bool throwOnSetSleepTimer;
@@ -312,7 +314,7 @@ void main() {
   late _FakeDlnaManager dlnaManager;
 
   List<Override> baseOverrides({
-    CastPeerController Function(Ref)? castPeer,
+    CastPeerController Function()? castPeer,
   }) =>
       <Override>[
         activeLibraryProvider.overrideWithValue(
@@ -345,7 +347,7 @@ void main() {
         offlineCacheReadyProvider.overrideWith((ref) async {}),
         dlnaManagerProvider.overrideWithValue(dlnaManager),
         castPeerControllerProvider.overrideWith(
-          (ref) => (castPeer ?? (r) => _FakeCastPeer(r))(ref),
+          castPeer ?? () => _FakeCastPeer(),
         ),
         starredProvider.overrideWith(
           (ref) async => StarredResult(
@@ -392,8 +394,8 @@ void main() {
     test('链路 A 服务器计时失败 → 回退本地(55)', () async {
       final c = ProviderContainer(
         overrides: baseOverrides(
-          castPeer: (r) =>
-              _FakeCastPeer(r, active: true, throwOnSetSleepTimer: true),
+          castPeer: () =>
+              _FakeCastPeer(active: true, throwOnSetSleepTimer: true),
         ),
       );
       final n = c.read(sleepTimerProvider.notifier);
@@ -406,7 +408,7 @@ void main() {
 
     test('本机倒计时每秒回填剩余时长(70)', () async {
       final c = ProviderContainer(
-        overrides: baseOverrides(castPeer: (r) => _FakeCastPeer(r, active: false)),
+        overrides: baseOverrides(castPeer: () => _FakeCastPeer(active: false)),
       );
       final n = c.read(sleepTimerProvider.notifier);
       await n.start(const Duration(seconds: 3));
@@ -419,7 +421,7 @@ void main() {
 
     test('到点且 DLNA 直投 → 命令设备暂停(91)', () async {
       final c = ProviderContainer(
-        overrides: baseOverrides(castPeer: (r) => _FakeCastPeer(r, active: false)),
+        overrides: baseOverrides(castPeer: () => _FakeCastPeer(active: false)),
       );
       // 置为 DLNA 直投态：_pauseLocal 走 90-91 的 dlna 分支。
       final dlna = c.read(dlnaCastProvider.notifier);
@@ -443,7 +445,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: baseOverrides(
-          castPeer: (r) => _FakeCastPeer(r, active: true),
+          castPeer: () => _FakeCastPeer(active: true),
         ),
         child: Consumer(
           builder: (context, ref, _) {

@@ -91,11 +91,10 @@ Widget _build() {
         (ref) async =>
             const LibraryCounts(artistCount: 1, albumCount: 3, songCount: 30),
       ),
-      playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
-      castPeerControllerProvider.overrideWith(
-        (Ref ref) => _StubCastPeer(ref),
+      playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+      castPeerControllerProvider.overrideWith(() => _StubCastPeer(),
       ),
-      dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+      dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
       // 详情 provider 直接抛错：修复前 unawaited(_playLocalArtist) 会把该
       // 异常漏成 unhandled async error，guarded 测试 zone 直接判负。
       artistDetailProvider.overrideWith(
@@ -169,9 +168,9 @@ void main() {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }

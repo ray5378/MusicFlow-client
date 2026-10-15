@@ -54,7 +54,8 @@ abstract class PlaybackSessionPersisterHost {
   /// 播放状态快照（只读：落盘序列化与音量写盘的取值来源）。
   PlayerState get state;
 
-  /// StateNotifier.mounted 透传：dispose 后停止调度新的落盘。
+  /// 宿主逐 run 存活标记（`Notifier` 迁移后用宿主自持的 `mounted` 等价物提供）：
+  /// 拆卸后停止调度新的落盘。
   bool get mounted;
 
   /// 队列序列化编码器（内部带「队列未变化复用上次序列化」缓存，必须与
@@ -218,6 +219,26 @@ class PlaybackSessionPersister {
     _persistTimer?.cancel();
     _persistTimer = null;
   }
+
+  /// 本协作者是否已被宿主逐 run 拆卸（见 [dispose]）。
+  ///
+  /// 为什么需要它：`NotifierProvider` 复用 notifier 实例重跑 `build()`，宿主每轮
+  /// 都会换一个新的 persister；旧 persister 的 `restorePlaybackSession` 可能还挂
+  /// 在某个 await 上。若不加这个标记，旧流程醒来后会照旧 `playSong` 把「上一轮
+  /// 已拆掉的会话」重挂到新 run 上（旧 `同步通知基类` 模型靠整体换实例天然避免）。
+  bool _disposed = false;
+
+  /// 逐 run 拆卸（宿主 `_teardownRun` 调用）：标死本协作者。
+  ///
+  /// 只标死、不取消 Timer —— 调用方（宿主）已在同一拆卸流程里先调
+  /// [cancelPersistTimer]；此处专注一件事：让在途恢复优先于后续任何写动作早退。
+  void dispose() => _disposed = true;
+
+  /// 测试观察点：本协作者是否已被宿主逐 run 拆卸。
+  ///
+  /// 「invalidate 有没有真的释放旧 run 资源」靠它取证（旧同步通知模型
+  /// 换实例即等价于这里置真）。
+  bool get debugDisposed => _disposed;
 
   /// 序列化队列，队列未变化时复用上次结果（避免每次落盘都全量 toJson 整队，
   /// 那是大屏旋转封面"定时卡顿"的周期性主线程分配源）。
@@ -423,11 +444,16 @@ class PlaybackSessionPersister {
       // 会话又挂回当前曲 —— 用户看到的正是「销毁了，Mini 播放器一会儿又冒出
       // 歌名、进度还接着走」。销毁是**终结语义**，恢复没有资格把它复活。
       await debugBeforeRestoreResume?.call();
-      if (generation != _sessionGeneration) {
+      // 两个作废条件，任一命中就整段丢弃：
+      //   * 宿主已逐 run 拆卸（`_disposed`，Notifier 迁移新增：宿主换的是实例里
+      //     的对象而非 notifier 本身，光靠代际比对拦不住「同一实例重跑 build」）；
+      //   * 会话代际已变（用户清空 / 销毁本机）。
+      // 不拦的话，旧流程会 playSong 把已结束的会话重挂到新 run 上。
+      if (_disposed || generation != _sessionGeneration) {
         Logger.infoWithTag(
           _logTag,
           'restore aborted: session torn down while restoring '
-          '(gen=$generation now=$_sessionGeneration)',
+          '(gen=$generation now=$_sessionGeneration disposed=$_disposed)',
         );
         aborted = true;
         debugRestoreAbortCount++;

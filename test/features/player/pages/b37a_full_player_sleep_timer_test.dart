@@ -68,7 +68,7 @@ class _RecSleepTimer extends SleepTimerNotifier {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 }
 
 class _RootScreen extends StatelessWidget {
@@ -121,16 +121,14 @@ void main() {
 
   Widget providerApp() => ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (ref) => TestPlayerNotifier(PlayerState(currentSong: _song())),
+          playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState(currentSong: _song())),
           ),
           currentSongPaletteProvider.overrideWith((ref) async => null),
           resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
             MusicFlowMediaVisuals.fallback(),
           ),
           currentLyricsProvider.overrideWith((ref) async => null),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
           ),
           sleepTimerProvider.overrideWith(
             () => sleepTimer = _RecSleepTimer(),

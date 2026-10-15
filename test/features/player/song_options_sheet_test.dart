@@ -44,7 +44,7 @@ void main() {
       ProviderScope(
         overrides: [
           libraryRepositoryProvider.overrideWithValue(libraryRepository),
-          playerProvider.overrideWith((ref) => notifier),
+          playerProvider.overrideWith(() => notifier),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -99,7 +99,7 @@ void main() {
         ProviderScope(
           overrides: [
             libraryRepositoryProvider.overrideWithValue(libraryRepository),
-            playerProvider.overrideWith((ref) => notifier),
+            playerProvider.overrideWith(() => notifier),
           ],
           child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,

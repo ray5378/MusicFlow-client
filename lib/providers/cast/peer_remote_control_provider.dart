@@ -40,10 +40,24 @@ class PeerRemoteControlState {
 ///
 /// 注意:本仓库已有「本端作为遥控器去遥控别人」(cast_peer_provider 的
 /// playQueueOnPeer 等);本类是其**反向** —— 本端作为**被遥控方**。
-class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
-  PeerRemoteControlNotifier(this._ref) : super(const PeerRemoteControlState());
+class PeerRemoteControlNotifier extends Notifier<PeerRemoteControlState> {
+  // ADR-2 阶段 3b：StateNotifier → Notifier 迁移（cast 域迁移的一部分）。
+  // 为什么改用继承来的 `ref` getter：`NotifierProvider(PeerRemoteControlNotifier.new)`
+  // 要求零参 create，原「单参 Ref 构造」的类型 `Function(Ref)` 不可赋给
+  // `Function()`，保留老构造函数会直接编译不过。
+  // 「存活」语义用 `_mounted` + ref.onDispose 仿真（对齐 cast_peer_provider.dart /
+  // crossfade_provider.dart 的 ADR-2 阶段 3b 先例）。2.6 的 Notifier 不透出
+  // StateNotifier.mounted；本类原无 dispose 覆写（StateNotifier 的 super.dispose
+  // 仅清空监听），故 onDispose 只置 _mounted，无其它资源需要释放。
+  bool _mounted = true;
 
-  final Ref _ref;
+  @override
+  PeerRemoteControlState build() {
+    _mounted = true;
+    ref.onDispose(() => _mounted = false);
+    return const PeerRemoteControlState();
+  }
+
   static const _tag = 'PEER-REMOTE';
 
   /// 本端实例的对外 peerId(打码形式,注册成功时由 cast_peer_provider 注入)。
@@ -93,7 +107,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     final payload = raw is Map
         ? raw.cast<String, dynamic>()
         : const <String, dynamic>{};
-    final player = _ref.read(playerProvider.notifier);
+    final player = ref.read(playerProvider.notifier);
     try {
       switch (action) {
         case 'play':
@@ -120,7 +134,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
           Logger.debugWithTag(_tag, 'unknown remote command: $action');
           return;
       }
-      if (mounted) {
+      if (_mounted) {
         state = PeerRemoteControlState(
           lastAction: action,
           lastAt: DateTime.now(),
@@ -162,7 +176,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     }
     // 判定留痕:跟随一旦触发就会在本机 playQueue/playSong(出声!),必须能回答
     // "这次跟随是谁触发的". items/total/index/mode 四件套全打出来。
-    final local = _ref.read(playerProvider);
+    final local = ref.read(playerProvider);
     final total = _asInt(queue['total']);
     final index = _asInt(queue['currentIndex']);
     final mode = queue['playMode']?.toString();
@@ -234,7 +248,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       // playMode / currentIndex 照常在。此前这里整条 return,连带把权威播放模式
       // 一起丢掉,于是「Web 端切了随机/顺序,客户端毫无反应」(用户 2026-09-15 实测)。
       Logger.debugWithTag(_tag, 'queue truncated (total=$total), apply outer fields only');
-      final localLength = _ref.read(playerProvider).queue.length;
+      final localLength = ref.read(playerProvider).queue.length;
       await _applyOuterFields(queue, localLength: localLength);
       // 长度对不上 → 服务端换的是**另一份队列**(Web 端点了别的歌单/整列表)。
       // 摘要里没有 items,不主动拉全队的话客户端会一直播着旧队列,表现为
@@ -244,7 +258,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       }
       return;
     }
-    final local = _ref.read(playerProvider);
+    final local = ref.read(playerProvider);
     if (items.isNotEmpty && _sameSongIds(items, local.queue)) {
       // 同一份歌单:差异只可能在外层(播放模式 / 游标)。绝不能走下面的整队重建 ——
       // 那会把正在播的这首歌从头重启(「切一下随机就重头放」)。只套外层。
@@ -256,10 +270,10 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     for (final it in items) {
       if (it is Map) songs.add(queueItemToSong(it.cast<String, dynamic>()));
     }
-    final player = _ref.read(playerProvider.notifier);
+    final player = ref.read(playerProvider.notifier);
     if (songs.isEmpty) {
       Logger.infoWithTag(_tag, 'remote cleared the queue');
-      if (mounted) {
+      if (_mounted) {
         state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
       }
       // 远端清空 = 全清 + 停止(与 DLNA 清队列语义一致)。不能用默认的
@@ -285,7 +299,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       initialPosition: _startPositionOf(queue),
     );
     await _applyPlayMode(queue);
-    if (mounted) {
+    if (_mounted) {
       state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
     }
   }
@@ -307,7 +321,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     if (_adoptingQueue) return;
     _adoptingQueue = true;
     try {
-      final client = _ref.read(subsonicApiClientProvider);
+      final client = ref.read(subsonicApiClientProvider);
       final data = await client
           .getRaw(
             '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue',
@@ -332,7 +346,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
         'adopting remote queue (${songs.length} items, index=$index, expected=$expectedTotal) '
         '→ playQueue audible, target=${songs[index].id}',
       );
-      await _ref.read(playerProvider.notifier).playQueue(
+      await ref.read(playerProvider.notifier).playQueue(
         songs,
         startIndex: index,
         // 服务端 startPosition 是一次性的（localPlayFrom 广播后即删，其后任何
@@ -341,7 +355,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
         initialPosition: broadcastStartPosition ?? _startPositionOf(snap),
       );
       await _applyPlayMode(snap);
-      if (mounted) {
+      if (_mounted) {
         state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
       }
     } catch (e) {
@@ -366,7 +380,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     final startPos = _startPositionOf(queue);
     final total = _asInt(queue['total']) ?? -1;
     final index = _asInt(queue['currentIndex']) ?? -1;
-    final player = _ref.read(playerProvider);
+    final player = ref.read(playerProvider);
     // 流转带过来的起点:游标不变(同一首)时不能走「index == currentIndex 就返回」——
     // 那正好是「同队同曲、只是进度不同」的场景,必须本机 seek 落位。
     if (startPos != null &&
@@ -379,8 +393,8 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
         'apply transferred start position '
         '${startPos.inMilliseconds}ms on index=$index (cursor unchanged)',
       );
-      await _ref.read(playerProvider.notifier).seek(startPos);
-      if (mounted) {
+      await ref.read(playerProvider.notifier).seek(startPos);
+      if (_mounted) {
         state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
       }
       return;
@@ -399,13 +413,13 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
     // 会把这 3000+ 首的队列就地清成一首 —— 而且 `_watchLocalQueue` 会以 full:true 把
     // 这个「一首歌的队列」镜像回服务端,权威队列随之塌成 1 首,连带把别端也带崩。
     // (2026-09-15 真机实测到该坍缩:queueLen 3217 → 1。)
-    await _ref.read(playerProvider.notifier).playSong(
+    await ref.read(playerProvider.notifier).playSong(
           player.queue[index],
           queue: player.queue,
           index: index,
           initialPosition: startPos,
         );
-    if (mounted) {
+    if (_mounted) {
       state = PeerRemoteControlState(lastAction: 'queue', lastAt: DateTime.now());
     }
   }
@@ -415,9 +429,9 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
   Future<void> _applyPlayMode(Map<String, dynamic> queue) async {
     final mode = _parsePlayMode(queue['playMode']?.toString());
     if (mode == null) return;
-    if (_ref.read(playerProvider).playbackMode == mode) return;
+    if (ref.read(playerProvider).playbackMode == mode) return;
     Logger.infoWithTag(_tag, 'apply authoritative play mode: ${queue['playMode']}');
-    await _ref.read(playerProvider.notifier).setPlaybackMode(mode);
+    await ref.read(playerProvider.notifier).setPlaybackMode(mode);
   }
 
   /// 服务端快照里的「本次起播起点」(秒)。只在流转 / 带进度起播时**一次性**下发
@@ -442,7 +456,7 @@ class PeerRemoteControlNotifier extends StateNotifier<PeerRemoteControlState> {
       };
 }
 
-final peerRemoteControlProvider = StateNotifierProvider<
+final peerRemoteControlProvider = NotifierProvider<
     PeerRemoteControlNotifier, PeerRemoteControlState>(
-  (ref) => PeerRemoteControlNotifier(ref),
+  PeerRemoteControlNotifier.new,
 );

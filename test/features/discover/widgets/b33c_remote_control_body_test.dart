@@ -87,9 +87,17 @@ class RecordingPlayer extends TestPlayerNotifier {
 
 /// 链路 A 投屏桩：记录控制命令；无投屏时这些命令兜底到本机。
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref, {PeerInfo? peer, bool idleQueue = false}) {
+  final PeerInfo? peer;
+  final bool idleQueue;
+
+  StubCastPeer({this.peer, this.idleQueue= false});
+
+  @override
+  CastPeerState build() {
+    final s = super.build();
+
     if (peer != null) {
-      state = state.copyWith(
+      return s.copyWith(
         activePeer: peer,
         castQueue: idleQueue ? const <Map<String, dynamic>>[] : <Map<String, dynamic>>[
           <String, dynamic>{'songId': 's1', 'title': '测试曲目'},
@@ -97,7 +105,9 @@ class StubCastPeer extends CastPeerController {
         castIndex: idleQueue ? -1 : 0,
       );
     }
+    return s;
   }
+
 
   int toggleCalls = 0;
   int previousCalls = 0;
@@ -139,7 +149,7 @@ class StubCastPeer extends CastPeerController {
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 StructuredLyrics _syncedLyrics() => StructuredLyrics(
@@ -183,10 +193,8 @@ class _BodyHarness {
     return UncontrolledProviderScope(
       container: container = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith((Ref ref) => player),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => cast = StubCastPeer(
-              ref,
+          playerProvider.overrideWith(() => player),
+          castPeerControllerProvider.overrideWith(() => cast = StubCastPeer(
               peer: activePeer == null
                   ? null
                   : PeerInfo(
@@ -198,7 +206,7 @@ class _BodyHarness {
               idleQueue: idleQueue,
             ),
           ),
-          dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+          dlnaCastProvider.overrideWith(() => StubDlnaCast()),
           remoteControlTargetsProvider.overrideWith(
             (Ref ref) => const <PeerInfo>[kSelf, kRemote],
           ),

@@ -52,19 +52,39 @@ const PeerInfo kRemote = PeerInfo(
 );
 
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref, {PeerInfo? peer, String mode = 'all'}) {
+  final PeerInfo? peer;
+  final String mode;
+
+  StubCastPeer({this.peer, this.mode= 'all'});
+
+  @override
+  CastPeerState build() {
+    final s = super.build();
+
     if (peer != null || mode != 'all') {
-      state = state.copyWith(activePeer: peer, playMode: mode);
+      return s.copyWith(activePeer: peer, playMode: mode);
     }
+    return s;
   }
+
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref, {bool casting = false, String mode = 'all'}) {
+  final bool casting;
+  final String mode;
+
+  StubDlnaCast({this.casting= false, this.mode= 'all'});
+
+  @override
+  DlnaCastState build() {
+    final s = super.build();
+
     if (casting) {
-      state = DlnaCastState(isCasting: true, playMode: mode);
+      return DlnaCastState(isCasting: true, playMode: mode);
     }
+    return s;
   }
+
 }
 
 class _Harness {
@@ -81,16 +101,13 @@ class _Harness {
     return UncontrolledProviderScope(
       container: container = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (Ref ref) => TestPlayerNotifier(
+          playerProvider.overrideWith(() => TestPlayerNotifier(
               PlayerState(currentSong: kSong, queue: <Song>[kSong]),
             ),
           ),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => StubCastPeer(ref, peer: activePeer, mode: mode),
+          castPeerControllerProvider.overrideWith(() => StubCastPeer( peer: activePeer, mode: mode),
           ),
-          dlnaCastProvider.overrideWith(
-            (Ref ref) => StubDlnaCast(ref, casting: dlnaCasting, mode: mode),
+          dlnaCastProvider.overrideWith(() => StubDlnaCast( casting: dlnaCasting, mode: mode),
           ),
           remoteControlTargetsProvider.overrideWith(
             (Ref ref) => const <PeerInfo>[kSelf, kRemote],

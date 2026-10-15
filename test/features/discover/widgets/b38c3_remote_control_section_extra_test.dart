@@ -25,7 +25,14 @@ import 'package:musicflow_client/providers/offline/offline_provider.dart';
 import 'package:musicflow_client/providers/ui/home_remote_control_provider.dart';
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；不调 super.build() 避开真实接线副作用。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 }
 
 late AppLocalizations loc;
@@ -52,10 +59,9 @@ void main() {
           remoteControlTargetsProvider
               .overrideWith((Ref ref) => <PeerInfo>[]),
           isOfflineProvider.overrideWithValue(false),
-          castPeerControllerProvider.overrideWith((Ref ref) {
-            return _StubCastPeer(ref)
-              ..state = const CastPeerState(offline: true);
-          }),
+          castPeerControllerProvider.overrideWith(
+            () => _StubCastPeer(const CastPeerState(offline: true)),
+          ),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,

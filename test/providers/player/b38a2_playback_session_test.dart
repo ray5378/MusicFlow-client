@@ -321,7 +321,7 @@ class _CastCfg {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref, this.cfg);
+  _FakeCastPeerController( this.cfg);
 
   final _CastCfg cfg;
 
@@ -409,8 +409,7 @@ void main() {
             _FakeCacheManager(cache),
           ),
           offlineCacheReadyProvider.overrideWith((ref) async {}),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref, castCfg),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController( castCfg),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

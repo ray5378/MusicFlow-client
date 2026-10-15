@@ -81,11 +81,11 @@ class FakeConnectivityMonitor implements ConnectivityMonitor {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 /// 可抛错 / 可返回数据的音乐仓库桩（四个列表页共用）。
@@ -233,9 +233,9 @@ class _Harness {
           (ref) async =>
               const LibraryCounts(albumCount: 3, artistCount: 2, songCount: 30),
         ),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         searchResultsProvider.overrideWith(
           (Ref ref, SearchRequest req) async => SearchOutcome(),
         ),

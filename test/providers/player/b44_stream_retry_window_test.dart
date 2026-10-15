@@ -429,7 +429,7 @@ class _FakeCacheManager extends OfflineCacheManager {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 }
 
 /// 地址池替身:probeAll 即刻返回 ok 线路,避免播放失败路径
@@ -498,8 +498,7 @@ void main() {
         ),
         offlineCacheManagerProvider.overrideWithValue(_FakeCacheManager()),
         offlineCacheReadyProvider.overrideWith((ref) async {}),
-        castPeerControllerProvider.overrideWith(
-          (ref) => _FakeCastPeerController(ref),
+        castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
         ),
         starredProvider.overrideWith(
           (ref) async => StarredResult(

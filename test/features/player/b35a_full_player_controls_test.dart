@@ -75,32 +75,36 @@ class _RootScreen extends StatelessWidget {
 
 /// 链路 A 投屏控制桩：可配置 activePeer/playMode + 记录传输与队列命令。
 class _RecCast extends CastPeerController {
-  _RecCast(super.ref, {this.casting = false});
+  _RecCast({this.casting = false, this.playMode = 'all'});
 
   final bool casting;
+  final String playMode;
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回——Notifier 在 build() 前写 state
+  // （老写法 `_RecCast(..)..apply(..)`）会因框架尚未注入 element 而抛
+  // LateInitializationError；链路 A 老构造体无副作用，故不调 super.build()。
+  @override
+  CastPeerState build() {
+    if (!casting) return const CastPeerState();
+    return const CastPeerState(
+      activePeer: PeerInfo(
+        peerId: 'peer-1',
+        name: '客厅音箱',
+        kind: 'player',
+        available: true,
+      ),
+      castQueue: <Map<String, dynamic>>[
+        <String, dynamic>{'songId': 'current', 'title': 'x'},
+      ],
+      castIndex: 0,
+    ).copyWith(playMode: playMode);
+  }
 
   final List<Duration> seeks = <Duration>[];
   int toggleCalls = 0;
   int nextCalls = 0;
   int previousCalls = 0;
   int cycleCalls = 0;
-
-  void apply({String playMode = 'all'}) {
-    if (!casting) return;
-    state = state.copyWith(
-      activePeer: const PeerInfo(
-        peerId: 'peer-1',
-        name: '客厅音箱',
-        kind: 'player',
-        available: true,
-      ),
-      castQueue: const <Map<String, dynamic>>[
-        <String, dynamic>{'songId': 'current', 'title': 'x'},
-      ],
-      castIndex: 0,
-      playMode: playMode,
-    );
-  }
 
   @override
   Future<void> toggle() async {
@@ -130,15 +134,24 @@ class _RecCast extends CastPeerController {
 
 /// 链路 B 直投桩：可配置 casting 态 + 记录模式切换。
 class _RecDlna extends DlnaCastNotifier {
-  _RecDlna(super.ref, {bool casting = false}) {
+  final bool casting;
+
+  _RecDlna({this.casting= false});
+
+  @override
+  DlnaCastState build() {
+    final s = super.build();
+
     if (casting) {
-      state = const DlnaCastState(
+      return const DlnaCastState(
         isCasting: true,
         currentIndex: 0,
         playMode: 'all',
       );
     }
+    return s;
   }
+
 
   int cycleCalls = 0;
 
@@ -188,19 +201,16 @@ Widget providerApp({
 }) {
   return ProviderScope(
     overrides: <Override>[
-      playerProvider.overrideWith((ref) => player),
+      playerProvider.overrideWith(() => player),
       currentSongPaletteProvider.overrideWith((ref) async => null),
       resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
         MusicFlowMediaVisuals.fallback(),
       ),
       currentLyricsProvider.overrideWith((ref) async => null),
-      castPeerControllerProvider.overrideWith((Ref ref) {
-        final notifier = _RecCast(ref, casting: castCasting)
-          ..apply(playMode: castPlayMode);
-        return cast = notifier;
+      castPeerControllerProvider.overrideWith(() {
+        return cast = _RecCast(casting: castCasting, playMode: castPlayMode);
       }),
-      dlnaCastProvider.overrideWith(
-        (Ref ref) => dlna = _RecDlna(ref, casting: dlnaCasting),
+      dlnaCastProvider.overrideWith(() => dlna = _RecDlna( casting: dlnaCasting),
       ),
       sleepTimerProvider.overrideWith(() => sleepTimer = _RecSleepTimer()),
     ],

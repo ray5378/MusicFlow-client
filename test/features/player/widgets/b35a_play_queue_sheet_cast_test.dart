@@ -52,7 +52,7 @@ List<Map<String, dynamic>> castQueue() => const <Map<String, dynamic>>[
 
 /// 链路 A 投屏控制桩：可配置队列快照 + 记录队列操作。
 class _RecCast extends CastPeerController {
-  _RecCast(super.ref);
+  _RecCast();
 
   final List<int> jumps = <int>[];
   final List<int> removes = <int>[];
@@ -100,15 +100,24 @@ class _RecCast extends CastPeerController {
 
 /// 链路 B 直投控制桩。
 class _RecDlna extends DlnaCastNotifier {
-  _RecDlna(super.ref, {bool casting = false}) {
+  final bool casting;
+
+  _RecDlna({this.casting= false});
+
+  @override
+  DlnaCastState build() {
+    final s = super.build();
+
     if (casting) {
-      state = const DlnaCastState(
+      return const DlnaCastState(
         isCasting: true,
         currentIndex: 0,
         playMode: 'all',
       );
     }
+    return s;
   }
+
 
   final List<int> playAts = <int>[];
   final List<int> removes = <int>[];
@@ -222,12 +231,10 @@ class SheetHarness {
     return UncontrolledProviderScope(
       container: container = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith((Ref ref) => playerNotifier),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => cast = _RecCast(ref),
+          playerProvider.overrideWith(() => playerNotifier),
+          castPeerControllerProvider.overrideWith(() => cast = _RecCast(),
           ),
-          dlnaCastProvider.overrideWith(
-            (Ref ref) => dlna = _RecDlna(ref, casting: dlnaCasting),
+          dlnaCastProvider.overrideWith(() => dlna = _RecDlna( casting: dlnaCasting),
           ),
           resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
             MusicFlowMediaVisuals.fallback(),

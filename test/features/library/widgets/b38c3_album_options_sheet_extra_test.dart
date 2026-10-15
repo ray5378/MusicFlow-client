@@ -65,11 +65,11 @@ class FakeMusicRepository extends MusicRepository {
 }
 
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref);
+  StubCastPeer();
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 class _RefProbe extends ConsumerWidget {
@@ -129,9 +129,9 @@ class SheetHarness {
         playlistsLoadFailedProvider.overrideWith(
           (Ref ref) => playlistsLoadFailed,
         ),
-        playerProvider.overrideWith((Ref ref) => TestPlayerNotifier(PlayerState())),
-        castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => StubDlnaCast()),
       ],
     );
     _container = container;

@@ -53,7 +53,7 @@ class _Harness {
   Widget build() {
     container = ProviderContainer(
       overrides: <Override>[
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         hotSearchTermsProvider.overrideWith((ref) async => <String>[]),
         searchResultsProvider.overrideWith((ref, req) async {
           requests.add(req);

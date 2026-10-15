@@ -67,7 +67,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         hotSearchTermsProvider.overrideWith((ref) async => <String>[]),
         ...overrides,
       ],

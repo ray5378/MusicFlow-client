@@ -38,7 +38,7 @@ Song _song() => Song(
 Widget _app(PlayerState state) {
   return ProviderScope(
     overrides: <Override>[
-      playerProvider.overrideWith((ref) => TestPlayerNotifier(state)),
+      playerProvider.overrideWith(() => TestPlayerNotifier(state)),
       currentSongPaletteProvider.overrideWith((ref) async => null),
       resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
         MusicFlowMediaVisuals.fallback(),

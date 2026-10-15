@@ -22,7 +22,7 @@
 //        StatusLyricsController` 的桩（`app_settings_page_cov_test.dart` 同款）。
 //        真 controller 一构造就起一堆 provider 监听 + 拉 LocalStorage，
 //        会让用例挂着一堆 pending timer。
-// #30C-4 `playerProvider` 必须用 `playerProvider.overrideWith((ref) => notifier)`
+// #30C-4 `playerProvider` 必须用 `playerProvider.overrideWith(() => notifier)`
 //        塞 `TestPlayerNotifier` 的子类（见 #86-D）：`overrideWithValue` 塞进去
 //        的是裸 StateNotifier，`ref.read(playerProvider.notifier).xxx()` 会
 //        NoSuchMethodError。另外 `persistPlaybackStateNow()` 在 PlayerNotifier
@@ -93,7 +93,7 @@ class FakeStatusLyricsController extends Mock
 
 /// 全链路 Cast peer 桩：只记调用（#87-D 同款）。
 class RecordingCastPeer extends CastPeerController {
-  RecordingCastPeer(super.ref);
+  RecordingCastPeer();
 
   final List<String> calls = <String>[];
 
@@ -120,7 +120,7 @@ class RecordingCastPeer extends CastPeerController {
 
 /// DLNA 直投桩：只保 `isCasting == false`，让所有路由落到本机/投屏分支。
 class RecordingDlnaCast extends DlnaCastNotifier {
-  RecordingDlnaCast(super.ref);
+  RecordingDlnaCast();
 
   final List<String> calls = <String>[];
 
@@ -237,11 +237,10 @@ class MainScaffoldBench {
           ),
         ),
         connectivityMonitorProvider.overrideWithValue(connectivity),
-        playerProvider.overrideWith((ref) => B30cPlayerNotifier(PlayerState())),
-        castPeerControllerProvider.overrideWith(
-          (Ref ref) => RecordingCastPeer(ref),
+        playerProvider.overrideWith(() => B30cPlayerNotifier(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => RecordingCastPeer(),
         ),
-        dlnaCastProvider.overrideWith((Ref ref) => RecordingDlnaCast(ref)),
+        dlnaCastProvider.overrideWith(() => RecordingDlnaCast()),
         statusLyricsControllerProvider.overrideWithValue(localLyrics),
       ],
     );

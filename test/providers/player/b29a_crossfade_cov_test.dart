@@ -24,7 +24,7 @@
 //      发生在 `_startPlayback` **之前**，此刻 `player.playing` 恒为 false，
 //        ⇒ 想进淡出主体必须先 `playSong(autoPlay:false)` 装源 + `play()` 顶起 playing，
 //          再发起第二次 `playSong()`。
-// #189-D `crossfadeDurationMsProvider` 是 `StateNotifierProvider`，`overrideWithValue`
+// #189-D `crossfadeDurationMsProvider` 是 `同步通知 Provider`，`overrideWithValue`
 //       塞不进可变的时长 ⇒ 用 `overrideWith((ref) { final n = _FakeCrossfade();
 //       n.state = cfMs; return n; })`，值在工厂里读闭包变量，测试中途改 `cfMs` 不影响
 //       已建好的 notifier（换容器即换值）。

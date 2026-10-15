@@ -143,7 +143,7 @@ void main() {
     container = ProviderContainer(
       overrides: [
         dlnaManagerProvider.overrideWith((ref) => manager),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(_playerState(sourceSongs))),
+        playerProvider.overrideWith(() => TestPlayerNotifier(_playerState(sourceSongs))),
       ],
     );
     notifier = container.read(dlnaCastProvider.notifier);

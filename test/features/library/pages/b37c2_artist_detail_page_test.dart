@@ -96,11 +96,11 @@ class _RecPlayer extends TestPlayerNotifier {
 
 
 class _CastPeer extends CastPeerController {
-  _CastPeer(super.ref);
+  _CastPeer();
 }
 
 class _Dlna extends DlnaCastNotifier {
-  _Dlna(super.ref);
+  _Dlna();
 }
 
 Song _song(String id, String title, {int duration = 180}) => Song(
@@ -204,9 +204,9 @@ void main() {
       overrides: <Override>[
         connectivityMonitorProvider.overrideWithValue(monitor),
         subsonicApiClientProvider.overrideWithValue(api),
-        playerProvider.overrideWith((ref) => activePlayer),
-        castPeerControllerProvider.overrideWith((Ref ref) => _CastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _Dlna(ref)),
+        playerProvider.overrideWith(() => activePlayer),
+        castPeerControllerProvider.overrideWith(() => _CastPeer()),
+        dlnaCastProvider.overrideWith(() => _Dlna()),
         musicRepositoryProvider.overrideWithValue(repo),
         ensureActiveAddressProvider.overrideWith(
           (ref) async => const ServerAddress(

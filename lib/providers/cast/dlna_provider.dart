@@ -151,28 +151,33 @@ class DlnaDevicesState {
 
 /// DLNA 设备列表 Provider
 final dlnaDevicesProvider =
-    StateNotifierProvider<DlnaDevicesNotifier, DlnaDevicesState>((ref) {
-  return DlnaDevicesNotifier(ref);
-});
+    NotifierProvider<DlnaDevicesNotifier, DlnaDevicesState>(
+  DlnaDevicesNotifier.new,
+);
 
-class DlnaDevicesNotifier extends StateNotifier<DlnaDevicesState> {
-  final Ref _ref;
-
-  DlnaDevicesNotifier(this._ref) : super(const DlnaDevicesState()) {
+class DlnaDevicesNotifier extends Notifier<DlnaDevicesState> {
+  // ADR-2 阶段 3b：StateNotifier → Notifier 迁移（cast 域迁移的一部分）。
+  // 为什么：NotifierProvider 要求零参 create，原「单参 Ref 构造」类型 Function(Ref)
+  // 不可赋给 Function()；改用继承来的 ref getter。原构造体里读 manager 接线
+  // onDevicesChanged 有副作用，故整体迁入 build()（invalidate 重跑 build() 时
+  // 会重新接线，天然幂等；本类无 Timer / 监听需要释放，无需 onDispose）。
+  @override
+  DlnaDevicesState build() {
     // 监听管理器的设备变化
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     manager.onDevicesChanged = (devices) {
       state = state.copyWith(devices: devices);
     };
+    return const DlnaDevicesState();
   }
 
   /// 扫描设备
   Future<void> scan() async {
-    await ensureDlnaManagerReady(_ref);
+    await ensureDlnaManagerReady(ref);
     await acquireMulticastLock();
     state = state.copyWith(isScanning: true);
     try {
-      await _ref.read(dlnaManagerProvider).scanDevices();
+      await ref.read(dlnaManagerProvider).scanDevices();
     } finally {
       state = state.copyWith(isScanning: false);
       await releaseMulticastLock();
@@ -181,17 +186,17 @@ class DlnaDevicesNotifier extends StateNotifier<DlnaDevicesState> {
 
   /// 设置设备别名
   void setAlias(String deviceId, String alias) {
-    _ref.read(dlnaManagerProvider).setDeviceAlias(deviceId, alias);
+    ref.read(dlnaManagerProvider).setDeviceAlias(deviceId, alias);
   }
 
   /// 禁用/启用设备
   void setDisabled(String deviceId, bool disabled) {
-    _ref.read(dlnaManagerProvider).setDeviceDisabled(deviceId, disabled);
+    ref.read(dlnaManagerProvider).setDeviceDisabled(deviceId, disabled);
   }
 
   /// 删除设备
   void remove(String deviceId) {
-    _ref.read(dlnaManagerProvider).removeDevice(deviceId);
+    ref.read(dlnaManagerProvider).removeDevice(deviceId);
   }
 }
 
@@ -256,12 +261,9 @@ class DlnaCastState {
 
 /// DLNA 投屏状态 Provider（链路 B）
 final dlnaCastProvider =
-    StateNotifierProvider<DlnaCastNotifier, DlnaCastState>((ref) {
-  return DlnaCastNotifier(ref);
-});
+    NotifierProvider<DlnaCastNotifier, DlnaCastState>(DlnaCastNotifier.new);
 
-class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
-  final Ref _ref;
+class DlnaCastNotifier extends Notifier<DlnaCastState> {
 
   /// 平滑进度插值 tick:播放中按现实时间递增,设备轮询回写修正(对齐链路 A)。
   Timer? _tickTimer;
@@ -277,16 +279,21 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 最近一次预约的唤醒时刻(毫秒)：用于去抖，避免 status 每 2s 更新时反复重设闹钟。
   int _lastHeartbeatTrigger = 0;
 
-  DlnaCastNotifier(this._ref) : super(const DlnaCastState()) {
-    final manager = _ref.read(dlnaManagerProvider);
+  // ADR-2 阶段 3b：StateNotifier → Notifier 迁移。原构造函数副作用（读 manager、
+  // 注册 onDispose、绑定音频 handler、接线 manager 回调）迁入 build()：NotifierProvider
+  // 只接受零参 create，不能再把 ref 当构造形参；且 build() 重跑（invalidate，复用同一
+  // 实例）会先触发上一轮 onDispose，清理时机与旧 dispose 等价。
+  @override
+  DlnaCastState build() {
+    final manager = ref.read(dlnaManagerProvider);
 
     // provider 被 invalidate/容器销毁时停掉轮询与曲末 Timer（全局 provider
     // 正常路径 stopCast/detach 已清理，这里兜底热重载/测试场景的泄漏）。
-    _ref.onDispose(_disposeTimers);
+    ref.onDispose(_disposeTimers);
 
     // 用户手动清理 App（划掉任务）时释放客户端保活：由音频 handler 的
     // onTaskRemoved 触发，避免划掉后仍在后台轮询/持唤醒锁/自动切歌。
-    final handler = _ref.read(playerProvider.notifier).audioHandler;
+    final handler = ref.read(playerProvider.notifier).audioHandler;
     if (handler != null) {
       handler.onTaskRemovedCallback = detachOnAppRemoved;
     }
@@ -319,6 +326,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       _disableNotificationCast();
       releaseCastWakeLock();
     };
+    return const DlnaCastState();
   }
 
   /// 将投屏进度同步给系统播控中心（通知/锁屏进度条）：本机已暂停，
@@ -326,7 +334,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   void _syncNotificationCast() {
     final st = state;
     if (!st.isCasting || st.currentDevice == null) return;
-    _ref.read(playerProvider.notifier).updateNotificationCastProgress(
+    ref.read(playerProvider.notifier).updateNotificationCastProgress(
           active: true,
           playing: st.status.state == 'PLAYING',
           position: Duration(seconds: st.smoothPositionSeconds.round()),
@@ -335,7 +343,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 退出投屏态时让播控中心回到本机播放器驱动。
   void _disableNotificationCast() {
-    _ref.read(playerProvider.notifier).updateNotificationCastProgress(
+    ref.read(playerProvider.notifier).updateNotificationCastProgress(
           active: false,
           playing: false,
           position: Duration.zero,
@@ -350,7 +358,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     _cancelHeartbeat();
     releaseCastWakeLock();
     _disableNotificationCast();
-    _ref.read(dlnaManagerProvider).detachClientKeepalive();
+    ref.read(dlnaManagerProvider).detachClientKeepalive();
   }
 
   /// 把当前投屏队列/游标镜像进 playerProvider,让全屏页的曲目/封面/歌词
@@ -361,7 +369,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     if (queue == null || queue.isEmpty) return;
     final index = state.currentIndex.clamp(0, queue.length - 1);
     final items = queue.map(songToQueueItem).toList();
-    _ref.read(playerProvider.notifier).syncQueueForCast(items, index);
+    ref.read(playerProvider.notifier).syncQueueForCast(items, index);
   }
 
   void _startTick() {
@@ -481,16 +489,16 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     List<DlnaCastTrack> tracks, {
     int startIndex = 0,
   }) async {
-    await ensureDlnaManagerReady(_ref);
+    await ensureDlnaManagerReady(ref);
     await acquireMulticastLock();
-    final sourceQueue = List<Song>.of(_ref.read(playerProvider).queue);
+    final sourceQueue = List<Song>.of(ref.read(playerProvider).queue);
     _sourceQueue = sourceQueue;
     state = state.copyWith(
       isCasting: true,
       queue: List.unmodifiable(tracks),
       currentIndex: startIndex,
     );
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     final success = await manager.startCast(
       device,
       tracks,
@@ -512,7 +520,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       // 直投进行中，本机退化为「遥控器」：暂停本地播放（不出声），
       // 队列/索引保留，停止投屏时从投屏进度续播。
       // 仅投屏成功后暂停，失败则不打断本机播放。
-      await _ref.read(playerProvider.notifier).pause();
+      await ref.read(playerProvider.notifier).pause();
     } else {
       _sourceQueue = null;
       state = state.copyWith(
@@ -529,14 +537,14 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 切到队列某首
   Future<void> playAt(int index) async {
     if (index < 0 || index >= state.queue.length) return;
-    await _ref.read(dlnaManagerProvider).playAt(index);
+    await ref.read(dlnaManagerProvider).playAt(index);
     state = state.copyWith(currentIndex: index);
     _mirrorCastToLocal();
   }
 
   /// 下一首
   Future<void> next() async {
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     await manager.next();
     if (state.currentIndex != manager.castQueueIndex) {
       state = state.copyWith(currentIndex: manager.castQueueIndex);
@@ -546,7 +554,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 上一首
   Future<void> previous() async {
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     await manager.previous();
     if (state.currentIndex != manager.castQueueIndex) {
       state = state.copyWith(currentIndex: manager.castQueueIndex);
@@ -556,7 +564,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 设置投屏播放模式(对齐链路 A cast.setPlayMode)。
   Future<void> setPlayMode(String mode) async {
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     manager.setPlayMode(mode);
     state = state.copyWith(playMode: mode);
   }
@@ -586,7 +594,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       currentIndex: start,
       smoothPositionSeconds: 0,
     );
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     final success = await manager.startCast(device, tracks, startIndex: start);
     if (success) {
       state = state.copyWith(
@@ -599,7 +607,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
       _mirrorCastToLocal();
       _startTick();
       _syncNotificationCast();
-      await _ref.read(playerProvider.notifier).pause();
+      await ref.read(playerProvider.notifier).pause();
     } else {
       _sourceQueue = null;
       state = state.copyWith(
@@ -639,7 +647,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   Future<void> enqueueSongs(List<Song> songs) async {
     if (songs.isEmpty || !state.isCasting) return;
     final tracks = songs.map(dlnaCastTrackFromSong).toList(growable: false);
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     await manager.enqueueSongs(tracks);
     final src = _sourceQueue;
     _sourceQueue = (src == null ? List<Song>.of(songs) : [...src, ...songs]);
@@ -650,7 +658,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 投屏中从队列移除指定下标（播放保持连贯，对齐链路 A cast.removeQueueItem）。
   Future<void> removeQueueItem(int index) async {
     if (!state.isCasting) return;
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     await manager.removeQueueItem(index);
     final queue = List<DlnaCastTrack>.of(state.queue);
     if (index >= 0 && index < queue.length) queue.removeAt(index);
@@ -668,7 +676,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
   /// 投屏队列拖拽排序 from → to（对齐链路 A cast.reorderQueue）。
   Future<void> reorderQueue(int from, int to) async {
     if (!state.isCasting) return;
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     // [D-030] 语义已确认（2026-10-07 用户拍板）：`to` 为 Flutter
     // ReorderableListView 标准间隙下标，`insert(to > from ? to - 1 : to)`
     // 是标准写法，现状正确，不修。
@@ -703,7 +711,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 投屏静音开关。
   Future<void> setMuted(bool muted) async {
-    final manager = _ref.read(dlnaManagerProvider);
+    final manager = ref.read(dlnaManagerProvider);
     if (muted != manager.isMuted) {
       await manager.toggleMute();
     }
@@ -719,7 +727,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     final castIndex = state.currentIndex;
     final castPosition = state.status.position;
 
-    await _ref.read(dlnaManagerProvider).stopCast();
+    await ref.read(dlnaManagerProvider).stopCast();
     state = state.copyWith(
       clearDevice: true,
       isCasting: false,
@@ -735,8 +743,8 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
     int castIndex = -1,
     int position = 0,
   }) async {
-    final playerNotifier = _ref.read(playerProvider.notifier);
-    final localQueue = _ref.read(playerProvider).queue;
+    final playerNotifier = ref.read(playerProvider.notifier);
+    final localQueue = ref.read(playerProvider).queue;
     if (localQueue.isEmpty) return;
 
     if (castIndex >= 0 && castIndex < localQueue.length) {
@@ -766,7 +774,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         status: state.status.copyWith(state: 'PAUSED'),
       );
     }
-    await _ref.read(dlnaManagerProvider).pause();
+    await ref.read(dlnaManagerProvider).pause();
   }
 
   /// 恢复
@@ -776,7 +784,7 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
         status: state.status.copyWith(state: 'PLAYING'),
       );
     }
-    await _ref.read(dlnaManagerProvider).resume();
+    await ref.read(dlnaManagerProvider).resume();
   }
 
   /// 播放/暂停(对齐链路 A 的 toggle,供全屏播放控件统一路由)。
@@ -790,16 +798,16 @@ class DlnaCastNotifier extends StateNotifier<DlnaCastState> {
 
   /// 跳转
   Future<void> seek(int seconds) async {
-    await _ref.read(dlnaManagerProvider).seek(seconds);
+    await ref.read(dlnaManagerProvider).seek(seconds);
   }
 
   /// 设置音量
   Future<void> setVolume(int volume) async {
-    await _ref.read(dlnaManagerProvider).setVolume(volume);
+    await ref.read(dlnaManagerProvider).setVolume(volume);
   }
 
   /// 静音
   Future<void> toggleMute() async {
-    await _ref.read(dlnaManagerProvider).toggleMute();
+    await ref.read(dlnaManagerProvider).toggleMute();
   }
 }

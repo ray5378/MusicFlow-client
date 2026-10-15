@@ -292,7 +292,7 @@ class _NoopOfflineCacheDaemon extends OfflineCacheDaemon {
 }
 
 class _CastPeerControllerWithPeer extends CastPeerController {
-  _CastPeerControllerWithPeer(super.ref, this.peerId);
+  _CastPeerControllerWithPeer( this.peerId);
 
   final String? peerId;
 
@@ -356,8 +356,7 @@ void main() {
               return daemonInstance!;
             },
           ),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _CastPeerControllerWithPeer(ref, localPeerId),
+          castPeerControllerProvider.overrideWith(() => _CastPeerControllerWithPeer( localPeerId),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

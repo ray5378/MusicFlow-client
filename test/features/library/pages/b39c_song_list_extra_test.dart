@@ -109,11 +109,10 @@ class _Harness {
           libraryCountsProvider.overrideWith(
             (Ref ref) async => const LibraryCounts(songCount: 3),
           ),
-          playerProvider.overrideWith((Ref ref) => player),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => CastPeerController(ref),
+          playerProvider.overrideWith(() => player),
+          castPeerControllerProvider.overrideWith(() => CastPeerController(),
           ),
-          dlnaCastProvider.overrideWith((Ref ref) => DlnaCastNotifier(ref)),
+          dlnaCastProvider.overrideWith(() => DlnaCastNotifier()),
           searchRepositoryProvider.overrideWith((Ref ref) => null),
         ],
       ),

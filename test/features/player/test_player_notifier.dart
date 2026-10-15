@@ -4,11 +4,48 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 
-/// Lightweight StateNotifier that satisfies playerProvider's concrete type
+/// Lightweight Notifier that satisfies playerProvider's concrete type
 /// without constructing AudioService or AudioPlayer in widget tests.
-class TestPlayerNotifier extends StateNotifier<PlayerState>
-    implements PlayerNotifier {
-  TestPlayerNotifier(super.state);
+///
+/// ADR-2 阶段 3c：`playerProvider` 由 `同步通知 Provider` 迁到
+/// `NotifierProvider`，本桩随之改为 `extends Notifier<PlayerState>`。
+/// 必须 `extends`（不能只 `implements PlayerNotifier`）：`NotifierProviderElement`
+/// 会做 `(notifier as Notifier<T>).build()`，只 implements 的类型过不了这层 cast。
+///
+/// 初始态没有 `同步通知基类` 那种 `super(initial)` 通道，改为构造参数存入、
+/// 由 `build()` 返回。`build()` 同时标记「已挂到 provider element」—— 未挂载时
+/// 读写 `state` 会落到本地镜像，兼容既有「先造桩、后 override」的写法。
+class TestPlayerNotifier extends Notifier<PlayerState> implements PlayerNotifier {
+  TestPlayerNotifier(PlayerState initial) : _mirror = initial;
+
+  /// 状态镜像：既是构造注入的初始态，也是脱容器（未挂到 element）时的读写落点。
+  ///
+  /// 为什么不能只靠 `super.state`：`Notifier.state` 依赖 provider element，未挂载
+  /// 时读写会抛 LateInitializationError；而迁移前 `同步通知基类` 自持 `_state`，
+  /// 大量既有用例是「先造桩、后 override，期间读写 state」。这里兜住这条老路径。
+  PlayerState _mirror;
+
+  /// 是否已挂到 provider element（由 `build()` 置真）。
+  bool _attached = false;
+
+  @override
+  PlayerState build() {
+    _attached = true;
+    return _mirror;
+  }
+
+  /// 保持旧 `同步通知基类.mounted` 语义：widget 测试里这个桩恒为「存活」。
+  @override
+  bool get mounted => true;
+
+  @override
+  PlayerState get state => _attached ? super.state : _mirror;
+
+  @override
+  set state(PlayerState value) {
+    _mirror = value;
+    if (_attached) super.state = value;
+  }
 
   int toggleCount = 0;
   int previousCount = 0;

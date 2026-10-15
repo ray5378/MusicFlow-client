@@ -18,6 +18,10 @@ import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 
+part 'cast_peer_discovery.dart';
+part 'cast_peer_session.dart';
+part 'cast_peer_queue.dart';
+
 /// 「流转播放」控制器 —— 对齐主项目前端 stores/player.ts 的 peer 机制:
 /// - 面板列出 `GET /rest/api/v1/peers`(本机 + DLNA/AirPlay/群组);
 /// - **流转播放 = 纯 UI 控制目标切换**(对齐前端 switchPeer):只改控制目标,
@@ -92,25 +96,95 @@ const Duration kAuthRejectedCooldown = Duration(minutes: 5);
 Duration contentPlayBudget(int itemCount) =>
     queueTransferBudget(itemCount);
 
-class CastPeerController extends StateNotifier<CastPeerState> {
-  CastPeerController(this._ref) : super(const CastPeerState());
+/// 控制器基类：持**全部共享字段**、`build()` 与 `ref.onDispose` 清理，
+/// 以及门禁/守卫锚定必须留在本文件的实现（`_registerSelf` / `_waitForLocalPeerId` /
+/// `fetchLocalQueueForRestore` / `pushLocalToPeer` / `_tick`）与其私有闭包、
+/// 跨段编排收尾（`_resetPeer` / `_abandonLocalSession` / `_clearSourceQueue`）。
+///
+/// 为什么要有这一层：`mixin X on CastPeerController` 与 `class CastPeerController
+/// with X` 是自引用继承（编译期 recursive_interface_inheritance），而 cast 域约 85 个
+/// 测试 fake 都写 `extends CastPeerController`，具体类不能下沉。故照抄仓库先例
+/// （lib/providers/player/player_provider.dart + player_seek.dart）：
+/// 抽象基类 + `on` 基类的 mixin + 具体子类装配。
+///
+/// 门禁为什么钉在这里：tool/check-boot-latency.mjs 与 tool/handoff_chain_scan.dart
+/// 都只读 `cast_peer_provider.dart` 单文件文本（前者要 `_registerSelf` 调用
+/// `_waitForApiCredentialsReady`、`_waitForLocalPeerId` 调用 `_ensurePeerIdReady` +
+/// `kPeerIdWaitBudget`、`fetchLocalQueueForRestore` 调用 `_waitForLocalPeerId`，
+/// 后者要 `pushLocalToPeer` 体里主通道优先 + `Lucky WAF` 闸门说明），
+/// 故这些实现与其传递依赖只能留在主文件。
+abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
+  // ==================== 跨段接口（实现分散在 discovery / session / queue 三个 part）====================
+  // 为什么声明在这里：Dart 里 mixin 的 `this` 只看得见它的 `on` 类型；
+  // 而 Dart 的 `mixin X on CastPeerController` + `class CastPeerController with X`
+  // 是自引用（recursive_interface_inheritance），编译不过。故本库采用仓库既有先例
+  // （见 lib/providers/player/player_provider.dart + player_seek.dart）：
+  // 抽象基类持共享字段与跨段契约，三个 mixin `on` 该基类，具体类只做装配。
+  // 这些声明让「发现段调会话段 switchTo」「基类调队列段 playContentOnPeer」可见；
+  // 实现仍在各自分段文件里，归属不被打散。
+  void stopHeartbeat();
+  Future<bool> switchTo(PeerInfo peer);
+  Future<void> backToLocal({bool resumeLocal = false});
+  Future<void> stopCasting();
+  void _watchLocalQueue();
+  Future<bool> playContentOnPeer({
+    required String type,
+    required String id,
+    String? songId,
+    int? startIndex,
+    List<Map<String, dynamic>>? localItems,
+    int? localStartIndex,
+    /// 流转场景:目标端应落的**起始位置**(秒)。服务端起播后自行 seek,回执里
+    /// 用 `position` 回报实际落点。0 / null = 从头播(既有行为)。
+    double? positionSeconds,
+  });
+  Future<bool> _pushQueueAndPlay(
+    String peerId,
+    List<Map<String, dynamic>> items,
+    int startIndex, {
+    /// 流转场景:目标端应落的起始位置(秒)。cast 目标由服务端起播后 seek;
+    /// local 目标由服务端把起点塞进当次队列快照(startPosition),客户端自行落位。
+    double? positionSeconds,
+  });
 
-  final Ref _ref;
+  // ADR-2 阶段 3b：StateNotifier → Notifier 迁移（cast 域迁移的一部分）。
+  // 为什么改用继承来的 `ref` getter：`NotifierProvider(CastPeerController.new)`
+  // 要求零参 create，原「单参 Ref 构造」的类型 `Function(Ref)` 不可赋给
+  // `Function()`，保留老构造函数会直接编译不过。
+  //
+  // 「存活」语义用 `_mounted` + ref.onDispose 仿真（对齐 crossfade_provider.dart 的
+  // ADR-23 阶段 3 先例）。为什么不沿用 StateNotifier 的已挂载 getter/可覆写 dispose：
+  // 2.6 的 Notifier 两者都不透出；且 invalidate 会 **复用同一实例重跑 build()**
+  // （StateNotifier 是新建实例），原来挂在 dispose 里的 Timer/心跳清理若不改挂到
+  // ref.onDispose，重跑 build() 就会残留旧 Timer，造成重复轮询与资源泄漏。故这里把
+  // 清理逐 run 绑定到 onDispose，与旧 dispose 的释放时机等价。
+  bool _mounted = true;
 
-  /// 【测试钩子】绕开 `flutter test` 下「等凭证就绪」的短路,走真实等待路径。
-  /// 生产恒为 false:测试环境不装配凭证链,等待会空转,所以默认零等待;
-  /// 用它可以验证 Opt-2「首发注册前先等凭证就绪」的等待与顺序语义。
-  @visibleForTesting
-  static bool debugAwaitCredentials = false;
+  @override
+  CastPeerState build() {
+    _mounted = true;
+    ref.onDispose(() {
+      _mounted = false;
+      _stopTimers();
+      _peersTimer?.cancel();
+      _peersTimer = null;
+      stopHeartbeat();
+    });
+    return const CastPeerState();
+  }
 
   Timer? _pollTimer;
+
   Timer? _tickTimer;
+
   Timer? _heartbeatTimer;
+
   Timer? _peersTimer;
 
   /// 启动自动选中(#5)只评估一次:首次拉到非空播放端列表后置位,
   /// 避免会话中途擅自改控制目标。
   bool _autoTargetDone = false;
+
   String? _localPeerId;
 
   /// 最近一次「鉴权被拒」(401)的时刻。冷却窗口内停止补注册与心跳,
@@ -120,11 +194,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   /// 本机 peer 的对外 ID(`local:<uid>`,打码视图;真实实例 ID 只在服务端)。
   /// 播放器据此拉取服务端权威洗牌序列(SEE SPEC:洗牌序列唯一权威在服务端)。
   String? get localPeerId => _localPeerId;
-
-  /// 等待注册落地的预算:超过即放弃等待(恢复流程回退本地会话)。
-  /// 正常情况注册在几十 ms 内完成,该预算只是异常路径(服务端不可达 / 未登录)
-  /// 的兜底上限 —— 把历史 4s 空转轮询的「最坏等待」压到事件驱动的最短必要等待。
-  static const Duration kPeerIdWaitBudget = Duration(milliseconds: 1500);
 
   /// 注册完成信号:[_registerSelf] 拿到 peerId 落地时 complete(值为 peerId)。
   /// [fetchLocalQueueForRestore] 用它替换历史上的 100ms 空转轮询 —— 注册一落地
@@ -147,28 +216,35 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   /// 上次轮询读到的 position(用于「position 真实前进」播放态自愈判定)。
   double _lastPollPosition = -1;
+
   /// 最近一次本端发起 seek 的时刻(ms)。用于丢弃「seek 之前采样」的上报 ——
   /// 远端客户端要等下一个上报周期(~4s)才回新位置,期间轮询读到的仍是旧采样,
   /// 采纳它会把刚拖好的进度条拽回 seek 之前(与 HA 卡片 `_seekIssuedAt` 同款)。
   int _seekIssuedAtMs = 0;
+
   /// seek REST 响应返回时刻(ms)。服务端 seek 同步语义:响应返回 = 位置锚点已落位,
   /// 故「在此之前发起」的状态拉取数据可能早于 seek → 丢弃(MA 因果判定,无固定窗口)。
   int _seekAckAtMs = 0;
+
   /// 最近一次 seek 的目标位置(秒):重投间隙设备报 TRANSITIONING-0 是"还没开始播",
   /// 不是"回到开头" —— ack 后窗口内这类 0 采样一律屏蔽,保持乐观值(见 pollOnce)。
   /// 落位(采纳到目标附近)/换歌/超时即清除。
   double? _seekTargetSeconds;
+
   /// 最近一次状态轮询的发起时刻(ms):与 [_seekAckAtMs] 比较判因果。
   int _pollStartedAtMs = 0;
+
   /// 乱序令牌(对齐 HA 卡片 vSeq):每次 [_tick] 启动自增,响应落地时序号不匹配
   /// 即说明已有更新一轮 tick 启动 → 本轮结果作废。命令点频繁 `unawaited(pollOnce)`
   /// 与 2s 周期轮询并发,无令牌时旧响应后到会把新状态(position/曲目/播放态)
   /// 整个覆盖回去,表现为「操作后 UI 短暂跳回旧值再恢复」。
   int _tickSeq = 0;
+
   /// 最近一次本端下发**音量类命令**(volume / mute)的时刻(ms)。
   /// 与 seek 同因:远端客户端的音量也是周期上报的,连续拖动时(20→50→30)
   /// 上报回来的可能还是上一拍的 50,会把手上的 30 顶掉。
   int _volumeCommandAtMs = 0;
+
   /// 最近一次本端下发**传输类命令**(play / pause)的时刻(ms)。
   /// 远端上报滞后会让刚点的暂停被顶回「播放中」(详见 _applyTransportShadow)。
   int _transportCommandAtMs = 0;
@@ -190,23 +266,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   int get _progressTickMs =>
       resolveProgressTickMs(isWeb: kIsWeb, platform: defaultTargetPlatform);
 
-  // ==================== 注册与保活 ====================
-
-  /// 登录后注册本机 peer(名称留给后端默认 username)并启动 30s 心跳,
-  /// 同时开始把本机队列镜像到服务端。对齐前端 registerLocalPeer;best-effort。
-  ///
-  /// 服务端按请求头 `x-mf-client-id`(本安装的临时端 ID,见 LocalStorage.getClientId)
-  /// 把本端与同账号的其它播放端(网页标签页 / 其它客户端)分开记账,对外返回的
-  /// peerId 恒为 `local:<userId>`。
-  Future<void> registerAndHeartbeat() async {
-    // 每次(重新)登录都清掉上一次的「鉴权被拒」抑制:新 token 值得再试一次。
-    _authRejectedAt = null;
-    await _registerSelf();
-    startHeartbeat();
-    _watchLocalQueue();
-    _startLocalStatusReporting();
-  }
-
   /// 注册本端(不碰心跳/监听),供 registerAndHeartbeat 与心跳补注册复用。
   ///
   /// [attempt] 为就近重试计数：冷启动时注册是由 auth 状态翻转**立刻**触发的，
@@ -224,9 +283,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 放在首次尝试**之前**而不是失败之后重试:重试只能事后补救,请求已经白打一次。
     if (attempt == 0) {
       await _waitForApiCredentialsReady();
-      if (!mounted) return;
+      if (!_mounted) return;
     }
-    final client = _ref.read(subsonicApiClientProvider);
+    final client = ref.read(subsonicApiClientProvider);
     try {
       final resp = await client.postRaw(
         '/rest/api/v1/peers/register',
@@ -251,7 +310,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           }
           // 同一个 peerId 也是 WS 广播里 peer_id 的形式(maskLocalPeerId 的输出),
           // 本端据此识别「这条队列变更广播是发给我的」,见 peer_remote_control_provider。
-          _ref.read(peerRemoteControlProvider.notifier).noteSelfPeerId(pid);
+          ref.read(peerRemoteControlProvider.notifier).noteSelfPeerId(pid);
         }
       }
       // 注册成功:清掉可能残留的「鉴权被拒」抑制。
@@ -264,7 +323,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       // 每拍刷服务端「认证失败」日志。
       if (attempt < 1) {
         await _waitForApiCredentialsReady();
-        if (mounted) return _registerSelf(attempt: attempt + 1);
+        if (_mounted) return _registerSelf(attempt: attempt + 1);
         return;
       }
       if (_statusCodeOf(e) == 401) _noteAuthRejected();
@@ -283,13 +342,13 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   Future<void> _waitForApiCredentialsReady() async {
     // `flutter test` 下凭证链不装配,等待会空转到预算上限 → 默认直接放行。
     // 用例可用 [debugAwaitCredentials] 打开真实等待路径,验证 Opt-2 的等待语义。
-    if (!debugAwaitCredentials &&
+    if (!CastPeerController.debugAwaitCredentials &&
         Platform.environment['FLUTTER_TEST'] != null) {
       return;
     }
     const budget = Duration(seconds: 2);
     try {
-      await _ref
+      await ref
           .read(apiCredentialsReadyProvider)
           .timeout(budget, onTimeout: () {});
     } catch (e) {
@@ -355,45 +414,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
   }
 
-  /// 开始心跳保活(对齐前端 30s 间隔)。
-  /// 心跳同时承担**自动注册**:服务端重启 / 网络恢复 / 首轮注册失败后,
-  /// 只要还没拿到本端 peerId,就在心跳周期内补注册一次,直到成功。
-  void startHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      // 已知鉴权被拒(真 401,冷却窗口内):补注册与心跳都会被同样拒掉,
-      // 静默跳过,避免每 30s 往服务端刷一条「认证失败」。
-      if (_authRejectedActive) return;
-      if (_localPeerId == null || _localPeerId!.isEmpty) {
-        unawaited(_registerSelf());
-        return;
-      }
-      unawaited(_sendHeartbeat());
-    });
-    unawaited(_sendHeartbeat());
-  }
-
-  Future<void> _sendHeartbeat() async {
-    final pid = _localPeerId;
-    if (pid == null || pid.isEmpty) return;
-    final client = _ref.read(subsonicApiClientProvider);
-    try {
-      await client.postRaw(
-        '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/heartbeat',
-      );
-    } catch (e) {
-      // 心跳失败忽略,下个周期再试。
-      Logger.debugWithTag('CAST-PEER', 'heartbeat failed: $e');
-    }
-  }
-
-  void stopHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-    // 登出 / dispose:状态上报与心跳同生命周期(都是「本端还在线」的证据)。
-    _stopLocalStatusReporting();
-  }
-
   // ==================== 本机播放状态上报(供别的播放端遥控时镜像)====================
   //
   // 本机播放的传输状态(是否在播 / 播到第几秒 / 音量)权威在本地 just_audio,服务端
@@ -406,59 +426,8 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   // 播放中再按 4s 周期补报刷新进度;服务端侧 TTL 30s(见 PeerManager.getLocalStatusReport)。
   // 投屏中(本端只是遥控器、本地不出声)如实上报 STOPPED。
   Timer? _statusTimer;
+
   bool _statusWatcherOn = false;
-
-  /// 启动状态上报:事件监听 + 周期补报。停止由 [stopHeartbeat] 统一收尾。
-  void _startLocalStatusReporting() {
-    if (_statusWatcherOn) return;
-    _statusWatcherOn = true;
-    // 只关心「播/停切换」与「切歌」;position 变化由周期补报覆盖,
-    // 避免每次进度 tick 都发一次请求(position polling 频率很高)。
-    _ref.listen<PlayerState>(playerProvider, (prev, next) {
-      if (prev?.isPlaying == next.isPlaying &&
-          prev?.currentSong?.id == next.currentSong?.id) {
-        return;
-      }
-      unawaited(_pushLocalStatus());
-    });
-    _statusTimer ??= Timer.periodic(const Duration(seconds: 4), (_) {
-      unawaited(_pushLocalStatus());
-    });
-    unawaited(_pushLocalStatus());
-  }
-
-  void _stopLocalStatusReporting() {
-    _statusTimer?.cancel();
-    _statusTimer = null;
-  }
-
-  /// 上报一次本机播放状态。失败静默(下个周期再试)。
-  Future<void> _pushLocalStatus() async {
-    final pid = _localPeerId;
-    if (pid == null || pid.isEmpty) return;
-    final s = _ref.read(playerProvider);
-    // 投屏中本端不出声(只是遥控器)→ 如实报 STOPPED,不冒充在播。
-    final casting = state.activePeer != null;
-    final songId = casting ? null : s.currentSong?.id;
-    final String playState = (songId == null || songId.isEmpty)
-        ? 'STOPPED'
-        : (s.isPlaying ? 'PLAYING' : 'PAUSED_PLAYBACK');
-    final client = _ref.read(subsonicApiClientProvider);
-    try {
-      await client.postRaw(
-        '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/local-status',
-        data: <String, dynamic>{
-          'state': playState,
-          'position': casting ? 0.0 : s.position.inMilliseconds / 1000.0,
-          'duration': s.duration.inMilliseconds / 1000.0,
-          'volume': (s.volume * 100).clamp(0, 100),
-          if (songId != null && songId.isNotEmpty) 'songId': songId,
-        },
-      );
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'local status report failed: $e');
-    }
-  }
 
   // ==================== 本机队列上报(服务端隔离账本) ====================
   //
@@ -472,60 +441,14 @@ class CastPeerController extends StateNotifier<CastPeerState> {
   //
   // 投屏中不上报 —— 此时本机只是遥控器,界面镜像的队列归设备,写成本机队列是错的。
   Timer? _localQueueTimer;
+
   bool _localQueueWatcherOn = false;
 
   /// 最近一次已上报的队列长度:用于「空队列不主动擦掉服务端」的判定
   /// (App 启动/切歌空窗期本机队列可能瞬时为空,不应把服务端队列清掉)。
   int _lastPushedLocalCount = 0;
+
   String? _lastPushedLocalMode;
-
-  /// 订阅本机播放状态:队列 / 游标 / 播放模式变化 → 防抖上报。
-  void _watchLocalQueue() {
-    if (_localQueueWatcherOn) return;
-    _localQueueWatcherOn = true;
-    _ref.listen<PlayerState>(playerProvider, (prev, next) {
-      if (state.activePeer != null) return; // 投屏中:队列归设备,不写本机
-      final queue = next.queue;
-      final index = next.currentIndex;
-      final mode = mapLocalPlayMode(next.playbackMode);
-      final queueChanged = !identical(prev?.queue, queue);
-      final indexChanged = prev?.currentIndex != index;
-      final modeChanged = prev == null || mapLocalPlayMode(prev.playbackMode) != mode;
-      if (!queueChanged && !indexChanged && !modeChanged) return;
-      // 空队列且此前从未上报过内容 → 跳过(避免启动空窗擦队列)。
-      if (queue.isEmpty && _lastPushedLocalCount == 0) return;
-      _localQueueTimer?.cancel();
-      _localQueueTimer = Timer(const Duration(milliseconds: 600), () {
-        unawaited(_syncLocalQueue(queue, index, mode, full: queueChanged));
-      });
-    });
-  }
-
-  /// 会话恢复后立刻把本机队列镜像到服务端 —— 即「告诉服务端这是本次需要
-  /// 恢复的播放队列」。
-  ///
-  /// 日常队列/游标变化由 _watchLocalQueue 防抖上报,但**启动恢复这一下必须
-  /// 单独补**:恢复路径直接调 playSong,不经过常规播放入口,且此时服务端
-  /// 可能还留着上一次进程的旧队列。若本地落盘异常(曾出现会话文件停更,
-  /// 每次都恢复成同一首旧歌),还能顺手把陈旧队列推给服务端,两端一起陈旧
-  /// 但至少一致,不会再出现「界面一首、服务端另一首」。
-  Future<void> syncLocalQueueNow() async {
-    if (state.activePeer != null) return; // 投屏中:队列归设备,不写本机
-    // 未注册时**不**顺带触发注册:_registerSelf 会拉起心跳 Timer,而本方法
-    // 跑在会话恢复路径上(启动时),在 widget/单测环境里那颗 Timer 来不及被
-    // 取消,会撞上 flutter_test 的「Timer 不变量」断言。注册由既有流程负责,
-    // 注册成功后的下一次队列变化自然会补齐镜像(见 _watchLocalQueue)。
-    final pid = _localPeerId;
-    if (pid == null || pid.isEmpty) return;
-    final s = _ref.read(playerProvider);
-    if (s.queue.isEmpty) return;
-    await _syncLocalQueue(
-      s.queue,
-      s.currentIndex,
-      mapLocalPlayMode(s.playbackMode),
-      full: true,
-    );
-  }
 
   /// 拉取服务端的本机队列快照(启动恢复「新鲜度竞速」用,见
   /// _restorePlaybackSession)。
@@ -544,7 +467,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 恢复窗口预算必须短:快照拉不到就回退本地会话,不能拖住启动。
     const budget = Duration(seconds: 5);
     try {
-      final client = _ref.read(subsonicApiClientProvider);
+      final client = ref.read(subsonicApiClientProvider);
       final data = await client
           .getRaw(
             '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/queue',
@@ -570,7 +493,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     final pid = _localPeerId;
     if (pid != null && pid.isNotEmpty) return pid;
     try {
-      final ready = await _ensurePeerIdReady().future.timeout(kPeerIdWaitBudget);
+      final ready = await _ensurePeerIdReady()
+          .future
+          .timeout(CastPeerController.kPeerIdWaitBudget);
       if (ready.isNotEmpty) return ready;
     } on TimeoutException {
       // 预算内注册未落地:恢复流程不等了,回退本地会话。
@@ -579,396 +504,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       Logger.debugWithTag('CAST-PEER', 'wait for local peer id failed: $e');
     }
     return _localPeerId;
-  }
-
-  /// 仅供测试的行为锁入口:纯转发 [_waitForLocalPeerId],**不改任何行为**。
-  ///
-  /// 为什么需要它:该等待路径在 `flutter test` 下无法从公开 API 驱动 ——
-  /// 唯一调用方 [fetchLocalQueueForRestore] 在 `FLUTTER_TEST` 存在时直接短路,
-  /// 而该变量由 flutter 工具注入、`Platform.environment` 只读;私有方法又不能
-  /// 跨库访问(dynamic 调用抛 NoSuchMethodError)。为了让「注册落地即刻唤醒 /
-  /// 1.5s 预算后放弃」这两条不变量有**运行时**回归保护(而不是只靠源码文本
-  /// 守卫),这里开一个零逻辑转发入口给 test/ 使用。生产代码请勿调用。
-  @visibleForTesting
-  Future<String?> waitForLocalPeerIdForTest() => _waitForLocalPeerId();
-
-  /// 把本机队列/游标/模式镜像到服务端。失败静默(下个变化点再试)。
-  Future<void> _syncLocalQueue(
-    List<Song> queue,
-    int index,
-    String mode, {
-    required bool full,
-  }) async {
-    // 遥控远端期间不写本机队列(与 _watchLocalQueue / syncLocalQueueNow 同口径)。
-    // 防抖定时器可能在 switchTo 落地后才触发,此处兜底拦截 —— 否则会把恢复中的
-    // 中间态推给服务端,回环广播被本端误采纳后在本机强制起播(见
-    // peer_remote_control_provider._handleQueueChanged,v5.1.8 启动竞态实测)。
-    if (state.activePeer != null) return;
-    // 还没注册成功(服务端重启 / 断线) → 先补注册拿到本端 peerId。
-    if (_localPeerId == null || _localPeerId!.isEmpty) {
-      await _registerSelf();
-    }
-    final pid = _localPeerId;
-    if (pid == null || pid.isEmpty) return;
-    final client = _ref.read(subsonicApiClientProvider);
-    final items = queue.map(songToQueueItem).toList();
-    try {
-      if (full) {
-        // 整队替换:超时预算随队列规模缩放(与投屏同一公式)。
-        final budget = queueTransferBudget(items.length);
-        await client
-            .postRaw(
-              '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/queue/play',
-              data: <String, dynamic>{
-                'items': items,
-                'startIndex': index < 0 ? 0 : index,
-              },
-              receiveTimeout: budget,
-            )
-            .timeout(budget);
-        // queue/play 会把服务端模式重置为 order,必须随后补发当前模式
-        // (与投屏 _pushQueueAndPlay 同款收尾)。
-        await client.postRaw(
-          '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/play-mode',
-          data: <String, dynamic>{'mode': mode},
-        );
-      } else {
-        if (_lastPushedLocalMode != mode) {
-          await client.postRaw(
-            '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/play-mode',
-            data: <String, dynamic>{'mode': mode},
-          );
-        }
-        await client.postRaw(
-          '/rest/api/v1/peers/${Uri.encodeComponent(pid)}/queue/index',
-          data: <String, dynamic>{'index': index},
-        );
-      }
-      _lastPushedLocalCount = items.length;
-      _lastPushedLocalMode = mode;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'local queue sync failed: $e');
-    }
-  }
-
-  // ==================== 播放器列表 ====================
-
-  Future<List<PeerInfo>> loadPeers() async {
-    final client = _ref.read(subsonicApiClientProvider);
-    state = state.copyWith(loadingPeers: true);
-    try {
-      final data = await client.getRaw('/rest/api/v1/peers') as Map<String, dynamic>;
-      final list = (data['peers'] as List? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .map(PeerInfo.fromJson)
-          .toList();
-      // 成功路径才起周期刷新/做启动自动选中(失败路径的 [] 不算数)。
-      _ensurePeersTimer();
-      unawaited(_maybeAutoSelectPlayingTarget(list));
-      return list;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'loadPeers failed: $e');
-      return const <PeerInfo>[];
-    } finally {
-      if (mounted) state = state.copyWith(loadingPeers: false);
-    }
-  }
-
-  /// 播放端列表周期刷新(#2):块/切换器 watch 的是 remoteControlPeersProvider
-  /// (一次性 Future),播放端上线/下线不会自动反映。这里每 10s 只递增
-  /// peersRev,让该 provider rebuild 重新 loadPeers。Timer 生命周期归控制器,
-  /// 仅在 dispose 取消(不进 _stopTimers —— 那是轮询周期的重置路径)。
-  void _ensurePeersTimer() {
-    _peersTimer ??= Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted) return;
-      state = state.copyWith(peersRev: state.peersRev + 1);
-    });
-  }
-
-  /// 启动自动选中(#5):首次成功拉到播放端列表时,若有「正在播放中」的目标,
-  /// 自动把控制目标切过去。优先级(v5.1.7 用户定稿):
-  ///   ① 本机正在播 → 保持本机(最高优先,不切);
-  ///   ② 正在播放中的其它端 → 按类别序 本机类别 > 群组 > 独立播放器
-  ///      (复用 peer_display_order.peerKindRank 唯一实现);
-  ///   ③ 本机有队列但不在播 → 排在所有在播端**之后**(即不切,保持本机)。
-  /// 「正在播放中」以各端实时 /status(state==PLAYING)为准 —— PeerInfo.queueActive
-  /// 只是「队列激活」,暂停时也为 true,区分不了在播/暂停。
-  /// 首次拿到非空列表即置位,之后不再自动切。
-  Future<void> _maybeAutoSelectPlayingTarget(List<PeerInfo> peers) async {
-    if (_autoTargetDone) return;
-    // 「默认控制当前客户端」（设置项，默认关闭）：开启时**不做**启动自动切目标，
-    // 保持控制本机；关闭时沿用历史行为（自动接管正在播放中的播放器）。
-    // 读取失败按 false 处理 —— 设置读取异常不应改变用户的既有默认语义。
-    if (await LocalStorage.getDefaultControlCurrentClient()) {
-      _autoTargetDone = true; // 只影响启动这一次，之后不再评估
-      Logger.debugWithTag(
-        'CAST-PEER',
-        'auto-select: default-control-current-client on, keep local',
-      );
-      return;
-    }
-    // await 之后控制器可能已被 dispose（页面销毁 / 测试 teardown 后异步
-    // continuation 才恢复执行），必须提前退出 —— 否则下面访问 state 会抛
-    // "Tried to use CastPeerController after `dispose` was called"。
-    if (!mounted) return;
-    final visible = visiblePeers(peers);
-    if (visible.isEmpty) return; // 服务端还没报上来任何端,等下一轮再评估
-    _autoTargetDone = true;
-    if (state.activePeer != null) return; // 用户已手动选过目标
-    if (_ref.read(playerProvider).isPlaying) return; // 本机在播 = 最高优先
-    // 候选目标（有活跃队列、可用、非本机自身）按「类别序 → 名称」排序，
-    // 见 [selectAutoSelectCandidates]。
-    final candidates = selectAutoSelectCandidates(visible);
-    if (candidates.isEmpty) return;
-    unawaited(_autoSelectFirstPlaying(candidates));
-  }
-
-  /// 并行读候选端实时状态,取类别序第一个真正 PLAYING 的端切过去;
-  /// 全都不在播(各端都只有暂停队列)则不动,保持本机。
-  Future<void> _autoSelectFirstPlaying(List<PeerInfo> candidates) async {
-    final playing = await Future.wait(
-      candidates.map((p) => _readPeerRealtimePlaying(p.peerId)),
-    );
-    final idx = playing.indexWhere((v) => v);
-    if (idx < 0) return;
-    // 等本机会话恢复落定再切(v5.1.8):恢复中途切走,快照会拍到空队列,且队列
-    // 镜像被抑制 → 服务端留陈旧队列,回环广播有误采纳风险。轮询最多等 10s
-    // (恢复租约 20s,正常恢复远小于此),超时放弃,保守保持本机。
-    final deadline = DateTime.now().add(const Duration(seconds: 10));
-    while (_ref.read(playerProvider.notifier).isRestoringPlaybackSession) {
-      if (!mounted || state.activePeer != null) return;
-      if (DateTime.now().isAfter(deadline)) {
-        Logger.debugWithTag(
-          'CAST-PEER',
-          'auto-select: restore settle timeout, give up',
-        );
-        return;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    }
-    if (!mounted || state.activePeer != null) return;
-    // 等待期间目标可能已停播,复验一次;不再在播则整轮放弃(保守)。
-    if (!await _readPeerRealtimePlaying(candidates[idx].peerId)) return;
-    await switchTo(candidates[idx]);
-  }
-
-  /// 读某播放端此刻是否正在播放(/status 的 state==PLAYING)。读不到 → false。
-  Future<bool> _readPeerRealtimePlaying(String peerId) async {
-    if (peerId.isEmpty) return false;
-    final client = _ref.read(subsonicApiClientProvider);
-    try {
-      final res = await client
-          .getRaw(
-            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/status',
-            receiveTimeout: const Duration(seconds: 4),
-          )
-          .timeout(const Duration(seconds: 4));
-      if (res is! Map) return false;
-      return (res['state'] ?? '').toString() == 'PLAYING';
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'readPeerRealtimePlaying failed: $e');
-      return false;
-    }
-  }
-
-  // ==================== 流转播放 ====================
-
-  /// 流转播放 = **纯 UI 控制目标切换**(对齐主项目前端 switchPeer):
-  /// 只改控制目标,不推本地队列、不自动投屏;
-  /// 选中远端 peer 时开始状态轮询,由轮询拉取其队列让 UI 镜像设备当前播放。
-  /// 之后在客户端点歌/专辑/歌单会走 [playQueueOnPeer]/[playSongOnPeer]
-  /// 命令**后端**在该设备播放,客户端此时仅是后端的远程遥控器。
-  ///
-  /// 离开本机时:保存本地状态快照并暂停本机(SPEC §3.1 本机播放与投屏互斥,
-  /// 避免双实例抢音频设备);回本机时经 [backToLocal] 恢复快照。
-  Future<bool> switchTo(PeerInfo peer) async {
-    // 只有「本端自己那条」才算回本机。其它本机播放端(另一台客户端)与 DLNA 设备
-    // 一样是**独立播放端**,走同一条遥控路径 —— 此前这里拿 kind=='local' 一刀切,
-    // 会把非自身的本机播放端误判回本机、控制不到对方(Web 端现已由服务端从客户端视角过滤掉)。
-    if (peer.isLocal && peer.self) {
-      await backToLocal(resumeLocal: true);
-      return true;
-    }
-    if (state.activePeer == null) {
-      // 离开本机:先冻结本地状态(快照),再暂停本机。
-      _saveLocalSnapshot();
-      await _ref.read(playerProvider.notifier).pause();
-    }
-    state = state.copyWith(
-      activePeer: peer,
-      status: const PeerStatus(state: 'BUFFERING'),
-      playMode: state.playMode,
-      smoothPositionSeconds: 0,
-      // 清掉上一目标的队列镜像:控制目标已切换,残留会让 Now 区在第一拍
-      // 轮询落地前显示上一目标的歌(targetIdle 派生为 true → 显示「未在播放」)。
-      castQueue: const <Map<String, dynamic>>[],
-      castIndex: -1,
-      offline: false,
-    );
-    // 通知被遥控方(WS 广播采纳仲裁用):本端进入遥控模式,期间本机队列镜像
-    // 已停写,服务端那份本机队列必然陈旧,不带起播起点的广播一律不采纳。
-    _ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(true);
-    _startPolling(peer.peerId);
-    // 不等周期 tick:_startPolling 首拍立即 _tick,且此时 castQueue 已被
-    // 上面清空 → 首拍必然走 needFull 全量拉取,新目标的真实状态即刻上屏
-    // (不要再显式 pollOnce,会重复拉状态破坏「status called(1)」契约)。
-    return true;
-  }
-
-  /// 回本机:仅切换控制目标(远端继续播放,对齐前端 switchPeer 纯 UI 切换),
-  /// 并恢复离开本机时保存的本地状态快照。
-  /// 不主动 stop 设备、不清空远端队列。
-  ///
-  /// [resumeLocal] 为 true 且快照当时在播放时,恢复后自动续播本机
-  /// (即用户主动选「本机播放」);false(如 stopCasting)则保持暂停。
-  Future<void> backToLocal({bool resumeLocal = false}) async {
-    _stopTimers();
-    final snapshot = _localSnapshot;
-    _localSnapshot = null;
-    if (snapshot != null) {
-      _restoreLocalSnapshot(snapshot, resume: resumeLocal);
-    }
-    state = state.copyWith(
-      clearActivePeer: true,
-      status: const PeerStatus(),
-      playMode: 'all',
-      smoothPositionSeconds: 0,
-      castQueue: const <Map<String, dynamic>>[],
-      castIndex: -1,
-      offline: false,
-    );
-    _ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(false);
-  }
-
-  /// 保存当前本机播放状态为快照(供回本机恢复)。
-  void _saveLocalSnapshot() {
-    final ps = _ref.read(playerProvider);
-    _localSnapshot = LocalPlaybackSnapshot(
-      queue: List<Song>.of(ps.queue),
-      currentIndex: ps.currentIndex,
-      currentSong: ps.currentSong,
-      position: ps.position,
-      isPlaying: ps.isPlaying,
-      loopMode: ps.loopMode,
-      shuffleEnabled: ps.shuffleEnabled,
-    );
-  }
-
-  /// 把快照恢复到本机播放器(不触碰远端)。
-  void _restoreLocalSnapshot(LocalPlaybackSnapshot snap, {required bool resume}) {
-    final notifier = _ref.read(playerProvider.notifier);
-    // 仅恢复队列/游标/播放模式,不动音频会话的加载源 ——
-    // 本机 just_audio 在离开时仅 pause(未卸载),恢复 currentSong 后 resume 即可续播。
-    notifier.restoreStateForCast(
-      queue: snap.queue,
-      currentIndex: snap.currentIndex,
-      currentSong: snap.currentSong,
-      position: snap.position,
-      loopMode: snap.loopMode,
-      shuffleEnabled: snap.shuffleEnabled,
-      isPlaying: resume && snap.isPlaying,
-    );
-  }
-
-  /// 停止投屏:通知后端停止设备并标记队列 inactive(队列保留待恢复),然后切回本机。
-  /// 区别于 backToLocal(仅切换控制目标);对齐前端 stopCast。
-  Future<void> stopCasting() async {
-    final peerId = state.activePeer?.peerId;
-    final client = _ref.read(subsonicApiClientProvider);
-    if (peerId != null) {
-      final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
-      _markUserCommand();
-      try {
-        await client.postRaw('$base/stop').timeout(const Duration(seconds: 8));
-      } catch (e) {
-        Logger.debugWithTag('CAST-PEER', 'stopCasting: stop failed: $e');
-      }
-      try {
-        await client.postRaw('$base/queue/deactivate').timeout(const Duration(seconds: 8));
-      } catch (e) {
-        Logger.debugWithTag('CAST-PEER', 'stopCasting: queue/deactivate failed: $e');
-      }
-    }
-    await backToLocal();
-  }
-
-  // ==================== 接续搬移（本机 ⇄ DLNA 设备） ====================
-
-  /// 拉取 peer 实时队列摘要：当前曲目（歌名/歌手）+ 游标 + 是否在播。
-  /// 供「流转播放」弹窗第二行展示与「接回本机」按钮可用性判断。
-  /// 请求失败（设备掉线/网络抖）返回 null，调用方按「未知」处理。
-  ///
-  /// **分页拉当前项（2026-09-17）**：原先一次拉整队 `queue`（3000+ 首 ≈ **1MB**），
-  /// 而 `peerNowPlayingProvider` 每 5s 对每台远端都轮询一次 —— 手机端这种高频
-  /// 大 payload 极易超时/掉包，`fetchPeerNowPlaying` 抛异常返回 null，流转页/弹窗
-  /// 就对端恒「未在播放」，而本机走本地 provider 反而正常（2026-09-17 实证：
-  /// 全量 1,043,789B/634ms vs 分页 size=1 15,601B/55ms）。现改为先拉 meta 页拿
-  /// `currentIndex`，再精确拉那一项（size=1）—— 30KB 内解决，极端缩小 ~35×。
-  Future<PeerNowPlaying?> fetchPeerNowPlaying(String peerId) async {
-    final client = _ref.read(subsonicApiClientProvider);
-    Future<Map<String, dynamic>> fetchPage(int offset, int size) async {
-      final raw = await client
-          .getRaw(
-            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue',
-            queryParameters: <String, dynamic>{'offset': offset, 'size': size},
-            receiveTimeout: kQueueFetchBudget,
-          )
-          .timeout(kQueueFetchBudget);
-      return raw as Map<String, dynamic>;
-    }
-
-    try {
-      // 先拉元数据页(极小):服务端的 `isActive / currentIndex / total / currentMedia`
-      // 恒在响应体里,不受分页影响。
-      final meta = await fetchPage(0, 1);
-      final isActive = meta['isActive'] == true;
-      final currentIndex = (meta['currentIndex'] as num?)?.toInt() ?? -1;
-      final total = (meta['total'] as num?)?.toInt() ?? 0;
-
-      // 当前项:需求只展示「在播的那一首」,绝不再整队拉 1MB。
-      Map<String, dynamic>? current;
-      if (isActive && currentIndex >= 0 && currentIndex < total) {
-        if (currentIndex == 0) {
-          final items0 = meta['items'];
-          if (items0 is List && items0.isNotEmpty) {
-            current = items0.first as Map<String, dynamic>?;
-          }
-        } else {
-          final page = await fetchPage(currentIndex, 1);
-          final its = page['items'];
-          if (its is List && its.isNotEmpty) {
-            current = its.first as Map<String, dynamic>?;
-          }
-        }
-      }
-
-      // 曲目第一来源:设备侧实时值(`currentMedia`)。`local`(安卓 / Windows 客户端)
-      // 恒为 undefined —— 这是「流转播放」里别的客户端行恒不显示的历史根因
-      // (2026-09-15 反馈)；因此标题/封面独立回落到队列当前项,以 `currentMedia`
-      // 优先、缺失再回落;唯一门控是「在播」,没在播不凑标题。
-      final media = meta['currentMedia'];
-      var title = media is Map ? '${media['title'] ?? ''}' : '';
-      var artist = media is Map ? (media['artist'] as String?) : null;
-      var coverArt = media is Map ? (media['coverArt'] as String?) : null;
-      if (current != null) {
-        if (title.isEmpty) title = '${current['title'] ?? ''}';
-        artist ??= current['artist'] as String?;
-        if (coverArt == null || coverArt.isEmpty) {
-          coverArt = current['coverArt'] as String?;
-        }
-      }
-      return PeerNowPlaying(
-        isActive: isActive,
-        currentIndex: currentIndex,
-        total: total,
-        title: title,
-        artist: artist,
-        coverArt: coverArt,
-      );
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'fetchPeerNowPlaying failed: $e');
-      return null;
-    }
   }
 
   /// 推到音箱：把**本机**的播放队列 + 当前进度推给 [peer]，从同一进度接续播放，
@@ -1023,7 +558,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 等于销毁根本没生效。
     _localSnapshot = null;
     try {
-      await _ref.read(playerProvider.notifier).clearQueue(keepCurrent: false);
+      await ref.read(playerProvider.notifier).clearQueue(keepCurrent: false);
     } catch (e) {
       Logger.debugWithTag('CAST-PEER', 'abandonLocalSession failed: $e');
     }
@@ -1045,7 +580,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       );
       return;
     }
-    final client = _ref.read(subsonicApiClientProvider);
+    final client = ref.read(subsonicApiClientProvider);
     try {
       await client
           .deleteRaw(
@@ -1079,7 +614,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     }
     // 用户主动触发的状态变更:先标记,免得轮询器把刚清掉的状态又盖回来。
     _markUserCommand();
-    final client = _ref.read(subsonicApiClientProvider);
+    final client = ref.read(subsonicApiClientProvider);
     final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
     try {
       final res = await client
@@ -1104,103 +639,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     return stopped;
   }
 
-  /// 销毁播放端（流转页底部「回收站」的落点动作）：
-  /// **彻底重置**该端 —— 停止播放 + 清空队列 + 清服务端运行态
-  /// （设备端媒体缓存 / 洗牌序列 / 定时暂停 / 预探测 / 本机状态上报）。
-  /// 本机额外抛弃内存会话。peer 本身**保留**在列表里，playMode 也保留。
-  ///
-  /// 切回本机的条件收窄：**只有被销毁的正是当前遥控对象**时才回本机
-  /// （backToLocal 不续播）；销毁别的播放器不影响当前遥控目标。
-  /// 失败尽力而为：stop 失败记为失败返回，清空队列永远 best-effort。
-  Future<bool> destroyPeer(PeerInfo peer) async {
-    final isSelfLocal = peer.isLocal && peer.self;
-    if (isSelfLocal) {
-      // 本机:先停音频 + 清内存队列;服务端那份权威队列与状态上报交给 _resetPeer。
-      await _abandonLocalSession();
-    }
-    // 彻底重置:停止 + 清队列 + 清服务端运行态(非本机的 stop 失败记为失败)。
-    final ok = await _resetPeer(peer.peerId);
-    if (ok && state.activePeer?.peerId == peer.peerId) {
-      await backToLocal(resumeLocal: false);
-    }
-    unawaited(pollOnce(fullQueue: true));
-    return ok;
-  }
-
-  /// 拉取全部播放器群组(供流转页「点群组 → 加减成员」用)。
-  /// 失败返回 null(调用方据此提示);成功返回原始 JSON 列表,
-  /// 每项含 id / name / memberIds(成员为命名空间写法:sendspin:`clientId` / 裸 id ≡ DLNA)。
-  Future<List<dynamic>?> fetchGroups() async {
-    final client = _ref.read(subsonicApiClientProvider);
-    try {
-      final res = await client.getRaw('/rest/api/v1/groups');
-      final groups = res is Map ? res['groups'] : null;
-      return groups is List ? groups : null;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'fetchGroups failed: $e');
-      return null;
-    }
-  }
-
-  /// 把设备加入/移出群组。[memberKey] 必须用服务端成员命名空间写法:
-  /// sendspin = `sendspin:<clientId>`;DLNA = 裸设备 id(历史数据约定,见 splitMemberId)。
-  /// 成功返回更新后的完整 memberIds;失败返回 null。
-  Future<List<String>?> setGroupMembership(
-    String groupId,
-    String memberKey, {
-    required bool join,
-  }) async {
-    final client = _ref.read(subsonicApiClientProvider);
-    final body = join
-        ? <String, dynamic>{'add': <String>[memberKey]}
-        : <String, dynamic>{'remove': <String>[memberKey]};
-    try {
-      final res = await client.postRaw(
-        '/rest/api/v1/groups/${Uri.encodeComponent(groupId)}/members',
-        data: body,
-      );
-      final group = res is Map ? res['group'] : null;
-      final ids = group is Map ? group['memberIds'] : null;
-      if (ids is List) return ids.map((e) => e.toString()).toList();
-      return null;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'setGroupMembership failed: $e');
-      return null;
-    }
-  }
-
-  Future<bool> transferQueue(PeerInfo from, PeerInfo to) async {    if (from.peerId == to.peerId) return false;
-    final fromIsSelf = from.isLocal && from.self;
-    final toIsSelf = to.isLocal && to.self;
-    if (fromIsSelf) return pushLocalToPeer(to);
-    if (toIsSelf) return pullPeerToLocal(from);
-
-    final client = _ref.read(subsonicApiClientProvider);
-    final base = '/rest/api/v1/peers/${Uri.encodeComponent(to.peerId)}';
-    try {
-      final res = await client
-          .postRaw(
-            '$base/queue/transfer-from',
-            data: <String, dynamic>{'from': from.peerId},
-            receiveTimeout: kQueueFetchBudget,
-          )
-          .timeout(kQueueFetchBudget);
-      if (!(res is Map && res['success'] == true)) return false;
-
-      // 源端收尾(搬移语义 = 搬走了,不是复制):**彻底重置** —— 停止 + 清队列 +
-      // 清服务端运行态(设备端媒体缓存 / 定时暂停 / 预探测 / 本机状态上报)。
-      // 原先只做 stop + DELETE /queue,运行态各留各的,源端虽空仍被报成「在播」。
-      // 失败均不影响流转本身 —— 队列已经搬完并在目标端起播。
-      await _resetPeer(from.peerId);
-      // 若目标端正是当前被遥控的那台,立即刷新镜像(队列/游标/模式都换了)。
-      unawaited(pollOnce(fullQueue: true));
-      return true;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'transferQueue failed: $e');
-      return false;
-    }
-  }
-
   Future<bool> pushLocalToPeer(PeerInfo peer) async {
     // 只排除「本端自己那条」(推给自己没有意义,与 switchTo 同一判据)。
     //
@@ -1211,7 +649,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // `/v1/play` 与 `/queue/play` 都已实现(写入目标实例的权威队列 → 目标客户端
     // 按 peer_queue_changed 跟随起播),与 DLNA 走的是**同一条链路**,故不应再特判。
     if (peer.isLocal && peer.self) return false;
-    final ps = _ref.read(playerProvider);
+    final ps = ref.read(playerProvider);
     if (ps.queue.isEmpty) return false;
     final items = ps.queue.map(songToQueueItem).toList(growable: false);
     final start = ps.currentIndex.clamp(0, items.length - 1);
@@ -1221,7 +659,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     // 本机队列的来源（播放该队列时写入；discover/search/other 的
     // serverContentType 为 null）。必须在 switchTo 之前读——切换只动控制目标，
     // 但提前取值语义更清晰，也不受后续状态变化影响。
-    final origin = _ref.read(queueOriginProvider);
+    final origin = ref.read(queueOriginProvider);
     final contentType = origin?.serverContentType;
     final contentId = origin?.id;
     final startSongId = start < items.length ? items[start]['songId'] as String? : null;
@@ -1263,701 +701,6 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       await _abandonLocalSession();
     }
     return pushed;
-  }
-
-  /// 读某个播放端**此刻**的实时进度(秒)。读不到(离线 / 旧服务端无该读数)→ null。
-  ///
-  /// 服务端 `/status` 是唯一统一口径:dlna 走 SOAP 实时值、group / airplay / sendspin
-  /// 由各自引擎给、local 取对端客户端的上报。流转必须在**停源端之前**取值(停完读数
-  /// 就归零/掉线),所以独立成方法,而不是复用轮询里的镜像值(那是上次轮询的旧值)。
-  Future<double?> _readPeerPositionSeconds(String peerId) async {
-    if (peerId.isEmpty) return null;
-    final client = _ref.read(subsonicApiClientProvider);
-    try {
-      final res = await client
-          .getRaw(
-            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/status',
-            receiveTimeout: const Duration(seconds: 8),
-          )
-          .timeout(const Duration(seconds: 8));
-      if (res is! Map) return null;
-      final pos = (res['position'] as num?)?.toDouble();
-      if (pos == null || !pos.isFinite || pos < 0) return null;
-      return pos;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'readPeerPositionSeconds failed: $e');
-      return null;
-    }
-  }
-
-  /// 接回本机：把 [peer] 的播放队列搬回本机，并**落到源端此刻的进度**上，
-  /// 设备停止（接续搬移语义：搬完原边停止）。
-  ///
-  /// 链路：GET queue(队列+游标) → 停设备 → 本机 playSong(同队同曲自动播)。
-  Future<bool> pullPeerToLocal(PeerInfo peer) async {
-    final client = _ref.read(subsonicApiClientProvider);
-    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peer.peerId)}';
-    final Map<String, dynamic> queueData;
-    try {
-      queueData = await client
-          .getRaw('$base/queue', receiveTimeout: kQueueFetchBudget)
-          .timeout(kQueueFetchBudget) as Map<String, dynamic>;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'pullPeerToLocal: queue failed: $e');
-      return false;
-    }
-    final rawItems = (queueData['items'] as List? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
-    if (rawItems.isEmpty) return false;
-    final songs =
-        rawItems.map(castQueueItemToSong).toList(growable: false);
-    var index = (queueData['currentIndex'] as num?)?.toInt() ?? 0;
-    if (index < 0 || index >= songs.length) index = 0;
-
-    // 源端此刻的进度:必须在下面停设备**之前**读(停完就归零/掉线)。
-    // 读不到 → null,退化为「从这首开头接续」(与改动前的行为一致,不会更差)。
-    final srcPos = await _readPeerPositionSeconds(peer.peerId);
-
-    // 先停设备(数据已到手):active 时走完整 stopCasting(停+失活+切回本机),
-    // 非 active 设备只尽力 stop,不影响当前投屏会话。
-    if (state.activePeer?.peerId == peer.peerId) {
-      await stopCasting();
-    } else {
-      _markUserCommand();
-      try {
-        await client.postRaw('$base/stop').timeout(const Duration(seconds: 8));
-      } catch (_) {}
-    }
-
-    // 本机从当前曲**同一进度**接续:initialPosition 走 playSong 既有的
-    // pendingSeek 管线,音源就绪后自动落位(不用等加载再补一次 seek)。
-    try {
-      await _ref.read(playerProvider.notifier).playSong(
-            songs[index],
-            queue: songs,
-            index: index,
-            autoPlay: true,
-            initialPosition: srcPos == null
-                ? null
-                : Duration(milliseconds: (srcPos * 1000).round()),
-          );
-      // 本机接续成功才算搬完:彻底重置源端 —— 停止 + 清队列 + 清服务端运行态
-      // (设备端媒体缓存 / 定时暂停 / 预探测 / 本机状态上报)。
-      await _resetPeer(peer.peerId);
-      return true;
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'pullPeerToLocal: local resume failed: $e');
-      return false;
-    }
-  }
-
-  // ==================== 传输控制 ====================
-
-  Future<void> toggle() async {
-    if (state.activePeer == null) {
-      await _ref.read(playerProvider.notifier).togglePlayPause();
-      return;
-    }
-    final target = !state.status.playing;
-    _transportCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    // [D-016 失败外显(2026-10-07)] _post 返回 null = 命令未送达服务端 →
-    // 清判定标记、不做乐观翻转（轮询以后端权威状态为准），warn 外显失败。
-    final res = await _post(target ? 'play' : 'pause');
-    if (res == null) {
-      _transportCommandAtMs = 0;
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[toggle] peer=${state.activePeer?.peerId} '
-            'action=${target ? 'play' : 'pause'} send failed '
-            '(post returned null), optimistic flip skipped',
-      );
-      return;
-    }
-    // 乐观置位(对齐前端 castTogglePlay):点击后按钮立即翻转,不依赖轮询/事件;
-    // 轮询随后以后端权威状态修正。
-    state = state.copyWith(
-      status: state.status.copyWith(
-        state: target ? 'PLAYING' : 'PAUSED_PLAYBACK',
-        active: true,
-      ),
-    );
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  /// 暂停（定时停止等场景显式暂停；投屏时下发远端 pause，本机走本地暂停）。
-  Future<void> pause() async {
-    if (state.activePeer == null) {
-      await _ref.read(playerProvider.notifier).pause();
-      return;
-    }
-    if (!state.status.playing) return;
-    _transportCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    // [D-016 失败外显(2026-10-07)] 同 toggle：null = 未送达，清标记不乐观翻转。
-    final res = await _post('pause');
-    if (res == null) {
-      _transportCommandAtMs = 0;
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[pause] peer=${state.activePeer?.peerId} send failed '
-            '(post returned null), optimistic flip skipped',
-      );
-      return;
-    }
-    state = state.copyWith(
-      status: state.status.copyWith(
-        state: 'PAUSED_PLAYBACK',
-        active: true,
-      ),
-    );
-    unawaited(pollOnce());
-  }
-
-  /// 服务器端定时暂停(链路 A 投屏/群组):由**服务器自己倒计时**并在到点暂停,
-  /// App 关闭/掉线后定时依然生效。传 null / 时长 <= 0 取消当前定时。
-  Future<void> setSleepTimer(Duration? duration) async {
-    final peerId = state.activePeer?.peerId;
-    final client = _ref.read(subsonicApiClientProvider);
-    if (peerId == null) return;
-    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
-    if (duration == null || duration <= Duration.zero) {
-      try {
-        await client.deleteRaw('$base/sleep-timer').timeout(const Duration(seconds: 8));
-      } catch (e) {
-        Logger.debugWithTag('CAST-PEER', 'setSleepTimer: delete failed: $e');
-      }
-      return;
-    }
-    // 后端不可达时暴露给调用方,避免'静默不生效'。
-    await client.postRaw(
-      '$base/sleep-timer',
-      data: <String, dynamic>{
-        'durationSeconds': duration.inSeconds,
-      },
-    ).timeout(const Duration(seconds: 8));
-  }
-
-  /// 查询服务器端定时剩余;未设置时返回 null。
-  Future<Duration?> getSleepTimerRemaining() async {
-    final peerId = state.activePeer?.peerId;
-    final client = _ref.read(subsonicApiClientProvider);
-    if (peerId == null) return null;
-    final base = '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}';
-    try {
-      final data = await client.getRaw('$base/sleep-timer').timeout(const Duration(seconds: 8)) as Map<String, dynamic>;
-      final ms = data['remainingMs'];
-      if (data['active'] == true && ms is num) return Duration(milliseconds: ms.round());
-    } catch (e) {
-      Logger.debugWithTag('CAST-PEER', 'getSleepTimerRemaining failed: $e');
-    }
-    return null;
-  }
-
-  Future<void> next() async {
-    if (state.activePeer == null) {
-      await _ref.read(playerProvider.notifier).next();
-      return;
-    }
-    // [D-016 失败外显(2026-10-07)] 下发失败（null）时 warn 外显并跳过本次补拉。
-    final res = await _post('next');
-    if (res == null) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[next] peer=${state.activePeer?.peerId} send failed (post returned null)',
-      );
-      return;
-    }
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  Future<void> previous() async {
-    if (state.activePeer == null) {
-      await _ref.read(playerProvider.notifier).previous();
-      return;
-    }
-    // [D-016 失败外显(2026-10-07)] 同 next。
-    final res = await _post('prev');
-    if (res == null) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[previous] peer=${state.activePeer?.peerId} send failed (post returned null)',
-      );
-      return;
-    }
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  Future<void> seek(Duration position) async {
-    if (state.activePeer == null) {
-      // 无活跃投屏 peer → 本机播放器自己 seek。
-      Logger.debugWithTag(
-        'CAST-PEER',
-        '[seek] local player (no cast) -> ${position.inMilliseconds}ms',
-      );
-      await _ref.read(playerProvider.notifier).seek(position);
-      return;
-    }
-    // 有投屏 peer → 命令下发到服务端,由服务端转给目标设备/客户端。
-    // 「拖了没反应」时先看这一行:有没有打出来(打到说明命令真的发出去了)、
-    // peerId 是不是你以为的那台设备。
-    final peerId = state.activePeer!.peerId;
-    final t0 = DateTime.now().millisecondsSinceEpoch;
-    Logger.debugWithTag(
-      'CAST-PEER',
-      '[seek] peer=$peerId target=${position.inSeconds}s '
-          '(${position.inMilliseconds}ms, truncation drops ${position.inMilliseconds - position.inSeconds * 1000}ms)',
-    );
-    // 先打点再下发:_seekIssuedAtMs = seek **下发**时刻(对齐 HA 卡片,响应后才置
-    // 会漏掉「下发与响应之间」的采样),供 sampleStale 判「采样早于 seek」。
-    _seekIssuedAtMs = DateTime.now().millisecondsSinceEpoch;
-    // [D-060 已修复] _post 对所有异常 catch 后返回 null（不抛），故用返回值区分成败：
-    // null = 命令未送达服务端 → 视为 seek 失败：清因果屏障标记、不做乐观对齐
-    // （旧位置上报依然有效，交周期轮询确认真实进度），并经日志通道上报失败。
-    final res = await _post('seek', data: <String, dynamic>{'seconds': position.inSeconds});
-    if (res == null) {
-      _seekIssuedAtMs = 0;
-      _seekAckAtMs = 0;
-      _seekTargetSeconds = null;
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[seek] peer=$peerId target=${position.inSeconds}s send failed '
-            '(post returned null) ${DateTime.now().millisecondsSinceEpoch - t0}ms, '
-            'guard cleared and optimistic alignment skipped',
-      );
-      return;
-    }
-    // 因果屏障:seek 响应返回 = 服务端锚点已落位,此后发起的轮询必含 seek 结果。
-    _seekAckAtMs = DateTime.now().millisecondsSinceEpoch;
-    _seekTargetSeconds = position.inSeconds.toDouble();
-    // 立即用目标位置对齐平滑进度,减少插值滞后。
-    state = state.copyWith(smoothPositionSeconds: position.inSeconds.toDouble());
-    Logger.debugWithTag(
-      'CAST-PEER',
-      '[seek] peer=$peerId target=${position.inSeconds}s send returned '
-          '${DateTime.now().millisecondsSinceEpoch - t0}ms, guard set and progress optimistically aligned',
-    );
-    // seek 后**不**立刻拉状态(对齐 HA 卡片):这次拉取在 ack 之后发起,fetchStale
-    // 挡不住;而设备型 peer 此刻仍在重锚,立即查询可能读到瞬态 0,把刚拖好的
-    // 进度条拽回开头 —— v5.0.23 真机仍偶发回退的元凶。交给周期轮询确认,
-    // 确认前平滑进度按乐观值自然推进。
-  }
-
-  Future<void> setVolume(int volume) async {
-    if (state.activePeer == null) return;
-    // 先打点再下发:上报是周期性的(~4s),连续拖动时回传的可能是上一拍的值。
-    _volumeCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    // [D-016 失败外显(2026-10-07)] null = 未送达：清标记（不抑制旧值回传）、
-    // 不做乐观回写，warn 外显。
-    final res = await _post('volume', data: <String, dynamic>{'volume': volume});
-    if (res == null) {
-      _volumeCommandAtMs = 0;
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[setVolume] peer=${state.activePeer?.peerId} volume=$volume '
-            'send failed (post returned null), optimistic writeback skipped',
-      );
-      return;
-    }
-    final nextStatus = state.status.copyWith(volume: volume);
-    state = state.copyWith(status: nextStatus);
-  }
-
-  /// 静音开关(投屏设备;群组/端到端由后端分发)。
-  Future<void> setMuted(bool muted) async {
-    if (state.activePeer == null) return;
-    // 与 setVolume 同理:静音态同样来自远端周期上报。
-    _volumeCommandAtMs = DateTime.now().millisecondsSinceEpoch;
-    // [D-016 失败外显(2026-10-07)] 同 setVolume。
-    final res = await _post('mute', data: <String, dynamic>{'muted': muted});
-    if (res == null) {
-      _volumeCommandAtMs = 0;
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[setMuted] peer=${state.activePeer?.peerId} muted=$muted '
-            'send failed (post returned null), optimistic writeback skipped',
-      );
-      return;
-    }
-    final nextStatus = state.status.copyWith(muted: muted);
-    state = state.copyWith(status: nextStatus);
-  }
-
-  // ==================== 播放模式同步 ====================
-
-  /// 下发投屏播放模式(order|one|all|shuffle)。
-  Future<void> setPlayMode(String mode) async {
-    if (state.activePeer == null) return;
-    // [D-016 失败外显(2026-10-07)] null = 未送达：不乐观写回播放模式。
-    final res = await _post('play-mode', data: <String, dynamic>{'mode': mode});
-    if (res == null) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[setPlayMode] peer=${state.activePeer?.peerId} mode=$mode '
-            'send failed (post returned null), optimistic writeback skipped',
-      );
-      return;
-    }
-    state = state.copyWith(playMode: mode);
-    unawaited(pollOnce());
-  }
-
-  /// 循环切换投屏播放模式:order → one → all → shuffle(对齐前端 castCyclePlayMode)。
-  Future<void> cyclePlayMode() async {
-    const modes = <String>['order', 'one', 'all', 'shuffle'];
-    final idx = modes.indexOf(state.playMode);
-    final next = modes[(idx + 1) % modes.length];
-    await setPlayMode(next);
-  }
-
-  // ==================== 投屏队列操作 ====================
-
-  /// **服务端内容点播**（投屏主通道，遥控器语义）：
-  /// 只把「内容类型 + 内容 ID + 起始歌曲 ID」交给后端，由后端自行
-  /// `resolveContentSongs(type, id)` 查库 → `songsToQueueItems` → 按 songId
-  /// 定位起点 → `playFrom` 落库并投屏。客户端**一个字节的歌曲数据都不上传**。
-  ///
-  /// [type] = 服务端能自行解析的内容种类：playlist / album / artist / song / genre。
-  /// （`song` 即「只播这一首」——服务端解析出的队列就只有它一首；这不代表
-  /// 「歌单里只有一首」，后者应传 `type=playlist`。）
-  ///
-  /// 相比 [playQueueOnPeer]（整队推送）的优势：
-  /// - 5000 首歌单的起播从「拉 25 页 + 推 2MB」压缩成**一个几百字节的请求**，
-  ///   彻底没有大 body 超时问题（安卓弱网推流失败的真正根因）；
-  /// - 服务端解析出的队列带完整元数据（track/discNumber/albumArtist/year/genre），
-  ///   且享有服务端的多源优选与本地源失效回退（客户端推的是本地快照，没有这些）。
-  ///
-  /// **[songId] 是定位起点的方式（身份，非行号）**：服务端在解析出的队列里
-  /// `findIndex(songId)`，与两侧排序无关。历史用 `startIndex`（本地列表行号）
-  /// 定位时，因服务端/客户端排序不同源而静默播错歌，客户端不得不加「投后拉队列
-  /// 比对槽位、不一致就回落推 2MB」的补丁——补丁比问题本身更糟，已随 songId
-  /// 定位一并移除。传了 songId 但服务端队列里没有 → 服务端返 404，此处返回 false。
-  ///
-  /// [localItems]/[localStartIndex] 仅用于成功后的**乐观镜像**（调用方手上已有
-  /// 列表时直接跟随，省一次轮询）；没有则只置起播态，队列由轮询回写后端权威。
-  /// 失败返回 false，调用方应回落到 [playQueueOnPeer]。
-  Future<bool> playContentOnPeer({
-    required String type,
-    required String id,
-    String? songId,
-    int? startIndex,
-    List<Map<String, dynamic>>? localItems,
-    int? localStartIndex,
-    /// 流转场景:目标端应落的**起始位置**(秒)。服务端起播后自行 seek,回执里
-    /// 用 `position` 回报实际落点。0 / null = 从头播(既有行为)。
-    double? positionSeconds,
-  }) async {
-    final peerId = state.activePeer?.peerId;
-    if (peerId == null || type.isEmpty || id.isEmpty) return false;
-    final client = _ref.read(subsonicApiClientProvider);
-    _markUserCommand();
-    final sw = Stopwatch()..start();
-    // 超时随队列规模缩放：大歌单后端解析+投递慢，固定 15s 会误判失败并触发
-    // 回落重推 2MB 整队（见 contentPlayBudget 文档）。预算同时下发给 Dio。
-    final budget = contentPlayBudget(localItems?.length ?? 0);
-    try {
-      final resp = await client
-          .postRaw(
-            '/rest/api/v1/play',
-            data: <String, dynamic>{
-              'peerId': peerId,
-              'type': type,
-              'id': id,
-              if (songId != null && songId.isNotEmpty) 'songId': songId,
-              if (songId == null || songId.isEmpty)
-                'startIndex': startIndex ?? 0,
-              if (positionSeconds != null && positionSeconds > 0)
-                'position': positionSeconds,
-            },
-            receiveTimeout: budget,
-          )
-          .timeout(budget);
-      if (resp is! Map || resp['success'] != true) return false;
-
-      // 起点以服务端回执为准（它按 songId 定位出的真实下标），不用本地行号。
-      final queueStart = localStartIndex ?? startIndex ?? 0;
-
-      final items = localItems;
-      if (items != null && items.isNotEmpty) {
-        // 本地也按 songId 对齐游标：服务端按身份定位，本地镜像跟随同一身份，
-        // 避免两边按各自行号算导致高亮/进度指向不同曲目。
-        final idx = songId != null && songId.isNotEmpty
-            ? items.indexWhere((e) => e['songId'] == songId)
-            : -1;
-        final start = idx >= 0 ? idx : queueStart.clamp(0, items.length - 1);
-        _ref.read(playerProvider.notifier).syncQueueForCast(items, start);
-        _lastPollPosition = -1;
-        // 乐观进度也要落在带过来的起点上:否则按钮已显示播放、进度条却从 0
-        // 爬起来,直到下一次轮询才被拉回(观感就是「跳了一下」)。
-        state = state.copyWith(
-          castQueue: items,
-          castIndex: start,
-          smoothPositionSeconds: positionSeconds ?? 0,
-          offline: false,
-          status: state.status.copyWith(
-            state: 'PLAYING',
-            active: true,
-            positionSeconds: positionSeconds ?? 0,
-          ),
-        );
-      } else {
-        _lastPollPosition = -1;
-        state = state.copyWith(
-          smoothPositionSeconds: positionSeconds ?? 0,
-          offline: false,
-          status: state.status.copyWith(
-            state: 'PLAYING',
-            active: true,
-            positionSeconds: positionSeconds ?? 0,
-          ),
-        );
-      }
-      unawaited(pollOnce());
-      return true;
-    } catch (e) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        'playContentOnPeer($type:$id) failed after '
-        '${sw.elapsedMilliseconds}ms: $e',
-      );
-      return false;
-    }
-  }
-
-  /// 投屏中播放专辑/歌单/列表:命令**后端**以该队列在设备上播放(对齐前端 castPlayQueue)。
-  /// 客户端此时是后端的远程遥控器,不在本机播放。
-  ///
-  /// 这是**兜底通道**：把客户端手上的整队推给服务端。仅有主通道
-  /// [playContentOnPeer] 不可用时才走（服务端无从解析的来源 discover/search/other、
-  /// 内容已删、旧版服务端 404、以及主通道回落的场景）。
-  Future<bool> playQueueOnPeer(
-    List<Song> songs, {
-    int startIndex = 0,
-  }) async {
-    final peerId = state.activePeer?.peerId;
-    if (peerId == null || songs.isEmpty) return false;
-    final items = songs.map(songToQueueItem).toList();
-    final start = startIndex.clamp(0, items.length - 1);
-    return _pushQueueAndPlay(peerId, items, start);
-  }
-
-  /// 投屏中点歌(无队列上下文):对齐前端 castPlaySong ——
-  /// 已在该设备队列则跳播,否则追加并播放。
-  Future<bool> playSongOnPeer(
-    Song song, {
-    List<Song>? queue,
-    int? index,
-  }) async {
-    final peerId = state.activePeer?.peerId;
-    if (peerId == null) return false;
-
-    final List<Map<String, dynamic>> items;
-    final int start;
-    if (queue != null && queue.isNotEmpty) {
-      // 携带队列上下文(如列表页点击某行)按整队播放。
-      items = queue.map(songToQueueItem).toList();
-      start = (index ?? 0).clamp(0, items.length - 1);
-    } else {
-      final existing = state.castQueue;
-      final found = existing.indexWhere((it) => it['songId'] == song.id);
-      if (found >= 0) {
-        items = existing;
-        start = found;
-      } else {
-        items = <Map<String, dynamic>>[...existing, songToQueueItem(song)];
-        start = items.length - 1;
-      }
-    }
-    return _pushQueueAndPlay(peerId, items, start);
-  }
-
-  /// 把队列交给后端 queue/play 并在该设备开始播放;成功后乐观镜像队列/游标。
-  Future<bool> _pushQueueAndPlay(
-    String peerId,
-    List<Map<String, dynamic>> items,
-    int startIndex, {
-    /// 流转场景:目标端应落的起始位置(秒)。cast 目标由服务端起播后 seek;
-    /// local 目标由服务端把起点塞进当次队列快照(startPosition),客户端自行落位。
-    double? positionSeconds,
-  }) async {
-    final client = _ref.read(subsonicApiClientProvider);
-    _markUserCommand();
-    // 超时随队列规模缩放(见 queueTransferBudget):800 首 ≈ 39s、5000 首 ≈ 165s。
-    // 必须同时下发给 Dio——全局 receiveTimeout 30s 会先于外层 Future 触发。
-    final budget = queueTransferBudget(items.length);
-    final sw = Stopwatch()..start();
-    try {
-      final resp = await client
-          .postRaw(
-            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue/play',
-            data: <String, dynamic>{
-              'items': items,
-              'startIndex': startIndex,
-              if (positionSeconds != null && positionSeconds > 0)
-                'position': positionSeconds,
-            },
-            receiveTimeout: budget,
-          )
-          .timeout(budget);
-      final success = resp is Map && resp['success'] == true;
-      if (!success) return false;
-
-      // 同步该设备播放模式(队列替换后保持设备当前模式,对齐 pushCastQueueToBackend)。
-      final mode = state.playMode;
-      try {
-        await client.postRaw(
-          '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/play-mode',
-          data: <String, dynamic>{'mode': mode},
-        );
-      } catch (e) {
-        Logger.debugWithTag('CAST-PEER', '_pushQueueAndPlay: sync play-mode failed: $e');
-      }
-
-      // 乐观镜像:本地队列/游标立即跟随设备,不等轮询回写;
-      // 同时乐观置 PLAYING(对齐前端 startCastPlayback):点击播放后按钮立即显示
-      // 「暂停」,进度由插值 tick 驱动、轮询回写修正。
-      _ref.read(playerProvider.notifier).syncQueueForCast(items, startIndex);
-      _lastPollPosition = -1;
-      state = state.copyWith(
-        castQueue: items,
-        castIndex: startIndex,
-        smoothPositionSeconds: positionSeconds ?? 0,
-        offline: false,
-        status: state.status.copyWith(
-          state: 'PLAYING',
-          active: true,
-          positionSeconds: positionSeconds ?? 0,
-        ),
-      );
-      unawaited(pollOnce());
-      return true;
-    } catch (e) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '_pushQueueAndPlay failed after ${sw.elapsedMilliseconds}ms '
-        '(budget=${budget.inMilliseconds}ms, items=${items.length}): $e',
-      );
-      return false;
-    }
-  }
-
-  /// 投屏中加歌:追加到后端队列(不影响当前播放)。
-  Future<void> enqueueSongs(List<dynamic> songs) async {
-    final peerId = state.activePeer?.peerId;
-    if (peerId == null || songs.isEmpty) return;
-    final items = songs.map(songToQueueItem).toList();
-    // [D-016 失败外显(2026-10-07)] 加歌未送达时 warn 外显并跳过补拉。
-    final res = await _post(
-      'queue/enqueue',
-      data: <String, dynamic>{'items': items},
-      budget: queueTransferBudget(items.length),
-    );
-    if (res == null) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[enqueueSongs] peer=${state.activePeer?.peerId} '
-            'items=${items.length} send failed (post returned null)',
-      );
-      return;
-    }
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  /// 点歌:跳播到指定索引(即使随机模式也尊重 index,对齐后端 queue/jump)。
-  Future<void> jumpTo(int index) async {
-    final peerId = state.activePeer?.peerId;
-    if (peerId == null) return;
-    // [D-016 失败外显(2026-10-07)] 点歌未送达时 warn 外显并跳过补拉。
-    final res = await _post('queue/jump', data: <String, dynamic>{'index': index});
-    if (res == null) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[jumpTo] peer=${state.activePeer?.peerId} index=$index '
-            'send failed (post returned null)',
-      );
-      return;
-    }
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  /// 从投屏队列移除指定索引(播放保持连贯,对齐前端 castRemoveFromQueue)。
-  Future<void> removeQueueItem(int index) async {
-    final peerId = state.activePeer?.peerId;
-    final client = _ref.read(subsonicApiClientProvider);
-    if (peerId == null) return;
-    try {
-      await client
-          .deleteRaw(
-            '/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue/$index',
-          )
-          .timeout(const Duration(seconds: 8));
-    } catch (e) {
-      // [D-016 失败外显(2026-10-07)] 删歌失败从 debug 升级为 warn。
-      Logger.warnWithTag('CAST-PEER', 'removeQueueItem failed: $e');
-    }
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  /// 队列拖拽排序(from → to,对齐前端 castReorderQueue)。
-  Future<void> reorderQueue(int from, int to) async {
-    final peerId = state.activePeer?.peerId;
-    if (peerId == null) return;
-    // [D-016 失败外显(2026-10-07)] 重排未送达时 warn 外显并跳过补拉。
-    final res = await _post('queue/reorder', data: <String, dynamic>{'from': from, 'to': to});
-    if (res == null) {
-      Logger.warnWithTag(
-        'CAST-PEER',
-        '[reorderQueue] peer=${state.activePeer?.peerId} from=$from to=$to '
-            'send failed (post returned null)',
-      );
-      return;
-    }
-    unawaited(pollOnce(fullQueue: true));
-  }
-
-  /// 清空投屏队列并停止轮询、切回本机(对齐前端 castClearQueue)。
-  Future<void> clearCastQueue() async {
-    final peerId = state.activePeer?.peerId;
-    final client = _ref.read(subsonicApiClientProvider);
-    if (peerId != null) {
-      _markUserCommand();
-      try {
-        await client
-            .deleteRaw('/rest/api/v1/peers/${Uri.encodeComponent(peerId)}/queue')
-            .timeout(const Duration(seconds: 8));
-      } catch (e) {
-        // [D-016 失败外显(2026-10-07)] 清队失败从 debug 升级为 warn。
-        Logger.warnWithTag('CAST-PEER', 'clearCastQueue failed: $e');
-      }
-    }
-    await backToLocal();
-  }
-
-  // ==================== 轮询与平滑进度 ====================
-
-  void _startPolling(String peerId) {
-    _stopTimers();
-    _failureCount = 0;
-    _pollInterval = const Duration(seconds: 2);
-    _wasActivePlaying = false;
-    _userCommandSincePlaying = false;
-    unawaited(_tick(peerId));
-    _schedulePoll(peerId);
-    _tickTimer = Timer.periodic(
-      Duration(milliseconds: _progressTickMs),
-      (_) => _advanceSmooth(),
-    );
-  }
-
-  /// 自适应轮询:失败翻倍(上限 15s),成功回落 2s(对齐前端 P2 退避)。
-  void _schedulePoll(String peerId) {
-    _pollTimer?.cancel();
-    _pollTimer = Timer(_pollInterval, () async {
-      await _tick(peerId);
-      if (!mounted) return;
-      // 控制目标已切换/回本机:停止该轮询链,避免孤儿定时器持续空转。
-      if (state.activePeer?.peerId != peerId) return;
-      _schedulePoll(peerId);
-    });
   }
 
   void _stopTimers() {
@@ -2043,21 +786,9 @@ class CastPeerController extends StateNotifier<CastPeerState> {
         nowMs: DateTime.now().millisecondsSinceEpoch,
       );
 
-  /// 平滑进度插值:播放中按 tick 递增,轮询结果回写修正。
-  void _advanceSmooth() {
-    final st = state;
-    final next = nextSmoothPosition(
-      smoothPositionSeconds: st.smoothPositionSeconds,
-      status: st.status,
-      tickMs: _progressTickMs,
-    );
-    if (next == st.smoothPositionSeconds) return;
-    state = st.copyWith(smoothPositionSeconds: next);
-  }
-
   Future<void> _tick(String peerId, {bool fullQueue = false}) async {
-    final client = _ref.read(subsonicApiClientProvider);
-    if (!mounted) return;
+    final client = ref.read(subsonicApiClientProvider);
+    if (!_mounted) return;
     // 轮询期间用户可能已切换/回本机:控制目标不再是该 peer 时,本次结果作废。
     // 若不加此守卫,回本机恢复本地快照后,仍在途的轮询响应会把后端队列/状态再次
     // 镜像到 playerProvider,导致 UI 显示后端播放态而本机实际在播另一首歌。
@@ -2070,7 +801,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       final next = PeerStatus.fromJson((st as Map).cast<String, dynamic>());
       // R1+R2 双保险:await 期间已有更新一轮 tick 启动(乱序),或用户已切换
       // peer/回本机 → 本轮响应作废,不回写(对齐卡片 await 后的丢弃判定)。
-      if (!mounted || seq != _tickSeq || state.activePeer?.peerId != peerId) {
+      if (!_mounted || seq != _tickSeq || state.activePeer?.peerId != peerId) {
         return;
       }
 
@@ -2207,7 +938,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
           idx = si;
           // 后端权威:镜像队列 + 游标到本地,迷你条/歌词/相邻关系跟随设备。
           // 投屏期间本地保持暂停,不触发本地播放。
-          _ref.read(playerProvider.notifier).syncQueueForCast(items, si);
+          ref.read(playerProvider.notifier).syncQueueForCast(items, si);
         } else {
           // 目标空闲(无活跃队列):游标置 -1 → targetIdle 派生为 true,
           // Now 区显示「未在播放」,不残留上一首歌/上一目标的镜像。
@@ -2219,7 +950,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
       _failureCount = 0;
       _pollInterval = const Duration(seconds: 2);
       // 队列补拉又是数秒 await:落地前再验一次令牌与控制目标,过期作废。
-      if (!mounted || seq != _tickSeq || state.activePeer?.peerId != peerId) {
+      if (!_mounted || seq != _tickSeq || state.activePeer?.peerId != peerId) {
         return;
       }
       // MA 对齐(2026-09-22 去掉固定 6s 窗,与 HA 卡片同款):位置陈旧只用两个精确判据 ——
@@ -2328,7 +1059,7 @@ class CastPeerController extends StateNotifier<CastPeerState> {
     Duration? budget,
   }) async {
     final peerId = state.activePeer?.peerId;
-    final client = _ref.read(subsonicApiClientProvider);
+    final client = ref.read(subsonicApiClientProvider);
     if (peerId == null) return null;
     _markUserCommand();
     final timeout = budget ?? const Duration(seconds: 8);
@@ -2348,20 +1079,30 @@ class CastPeerController extends StateNotifier<CastPeerState> {
 
   /// 标记「客户端发出过传输命令」,抑制队列自然播完的误判。
   void _markUserCommand() => _userCommandSincePlaying = true;
+}
 
-  @override
-  void dispose() {
-    _stopTimers();
-    _peersTimer?.cancel();
-    stopHeartbeat();
-    super.dispose();
-  }
+/// 具体实现类：装配三个分段 mixin（发现 / 会话 / 队列），并承载**静态入口**。
+///
+/// 静态成员（[debugAwaitCredentials] / [kPeerIdWaitBudget]）必须声明在本类自身：
+/// Dart 的静态成员不继承，测试里 `CastPeerController.kPeerIdWaitBudget` 这类经子类名
+/// 的访问只认「声明在本类的静态」—— 声明在基类会得到 CFE `Member not found`
+/// （flutter analyze 不报，但 flutter test 编译期必炸）。
+class CastPeerController extends CastPeerControllerBase
+    with CastPeerDiscovery, CastPeerSession, CastPeerQueue {
+  /// 【测试钩子】绕开 `flutter test` 下「等凭证就绪」的短路,走真实等待路径。
+  /// 生产恒为 false:测试环境不装配凭证链,等待会空转,所以默认零等待;
+  /// 用它可以验证 Opt-2「首发注册前先等凭证就绪」的等待与顺序语义。
+  @visibleForTesting
+  static bool debugAwaitCredentials = false;
+
+  /// 等待注册落地的预算:超过即放弃等待(恢复流程回退本地会话)。
+  /// 正常情况注册在几十 ms 内完成,该预算只是异常路径(服务端不可达 / 未登录)
+  /// 的兜底上限 —— 把历史 4s 空转轮询的「最坏等待」压到事件驱动的最短必要等待。
+  static const Duration kPeerIdWaitBudget = Duration(milliseconds: 1500);
 }
 
 final castPeerControllerProvider =
-    StateNotifierProvider<CastPeerController, CastPeerState>((ref) {
-  return CastPeerController(ref);
-});
+    NotifierProvider<CastPeerController, CastPeerState>(CastPeerController.new);
 
 /// 当前控制目标名称(本机 / 设备名),供迷你条与全屏反馈。
 final castTargetNameProvider = Provider<String>((ref) {

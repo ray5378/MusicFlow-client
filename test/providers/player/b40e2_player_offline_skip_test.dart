@@ -306,7 +306,7 @@ class _FakeCacheManager extends OfflineCacheManager {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 }
 
 void main() {
@@ -355,8 +355,7 @@ void main() {
         ),
         offlineCacheManagerProvider.overrideWithValue(cache),
         offlineCacheReadyProvider.overrideWith((ref) async {}),
-        castPeerControllerProvider.overrideWith(
-          (ref) => _FakeCastPeerController(ref),
+        castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
         ),
         starredProvider.overrideWith(
           (ref) async => StarredResult(

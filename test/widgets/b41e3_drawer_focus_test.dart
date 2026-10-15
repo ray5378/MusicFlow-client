@@ -57,7 +57,7 @@ class _FakeStatusLyricsController extends Mock
 class _NoopRandomSongsPush extends Fake implements RandomSongsPushClient {}
 
 class _RecordingCastPeer extends CastPeerController {
-  _RecordingCastPeer(super.ref);
+  _RecordingCastPeer();
 
   @override
   Future<void> toggle() async {}
@@ -73,7 +73,7 @@ class _RecordingCastPeer extends CastPeerController {
 }
 
 class _RecordingDlnaCast extends DlnaCastNotifier {
-  _RecordingDlnaCast(super.ref);
+  _RecordingDlnaCast();
 
   @override
   Future<void> toggle() async {}
@@ -228,11 +228,10 @@ void main() {
       authStateProvider.overrideWith((ref) => _StaticAuthNotifier()),
       activeAddressProvider.overrideWith((ref) => null),
       connectivityMonitorProvider.overrideWithValue(connectivity),
-      playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
-      castPeerControllerProvider.overrideWith(
-        (Ref ref) => _RecordingCastPeer(ref),
+      playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+      castPeerControllerProvider.overrideWith(() => _RecordingCastPeer(),
       ),
-      dlnaCastProvider.overrideWith((Ref ref) => _RecordingDlnaCast(ref)),
+      dlnaCastProvider.overrideWith(() => _RecordingDlnaCast()),
       statusLyricsControllerProvider.overrideWithValue(
         _FakeStatusLyricsController(),
       ),

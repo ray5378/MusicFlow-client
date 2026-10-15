@@ -51,11 +51,17 @@ class _FakeMonitor extends ConnectivityMonitor {
 
 /// CastPeerController 替身：可控制是否处于投屏态，并记录关键调用。
 class _FakeCastPeer extends CastPeerController {
-  _FakeCastPeer(super.ref, {this.active = true}) {
-    state = active
+  _FakeCastPeer({this.active = true});
+
+  @override
+  CastPeerState build() {
+    super.build();
+
+    return active
         ? const CastPeerState(activePeer: _peer, status: PeerStatus())
         : const CastPeerState();
   }
+
   final bool active;
   int setVolumeCalls = 0;
   int setSleepTimerCalls = 0;
@@ -181,7 +187,7 @@ void main() {
     test('投屏态 start/cancel → 经服务器 setSleepTimer(55,91)', () async {
       final c = ProviderContainer(
         overrides: [
-          castPeerControllerProvider.overrideWith((r) => _FakeCastPeer(r)),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeer()),
         ],
       );
       final n = c.read(sleepTimerProvider.notifier);
@@ -199,7 +205,7 @@ void main() {
       final c = ProviderContainer(
         overrides: [
           castPeerControllerProvider
-              .overrideWith((r) => _FakeCastPeer(r, active: false)),
+              .overrideWith(() => _FakeCastPeer( active: false)),
         ],
       );
       final n = c.read(sleepTimerProvider.notifier);

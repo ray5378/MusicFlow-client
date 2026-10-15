@@ -298,7 +298,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
 /// 投屏控制器替身：吐一份「服务端队列快照」，让恢复流程能走到起播前的挂起点
 /// （本机无会话文件时，只有服务端快照胜出才会继续往下走）。
 class _SnapCastPeerController extends CastPeerController {
-  _SnapCastPeerController(super.ref, this.snap);
+  _SnapCastPeerController( this.snap);
 
   final Map<String, dynamic>? snap;
 
@@ -415,8 +415,7 @@ void main() {
     JustAudioPlatform.instance = platform;
     container = buildContainer(
       extra: <Override>[
-        castPeerControllerProvider.overrideWith(
-          (ref) => _SnapCastPeerController(ref, snap),
+        castPeerControllerProvider.overrideWith(() => _SnapCastPeerController( snap),
         ),
       ],
     );

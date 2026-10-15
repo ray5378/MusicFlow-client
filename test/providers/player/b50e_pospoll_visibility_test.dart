@@ -268,7 +268,7 @@ class _NoopOfflineCacheDaemon extends OfflineCacheDaemon {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 
   @override
   String? get localPeerId => null;
@@ -325,8 +325,7 @@ void main() {
           offlineCacheDaemonProvider.overrideWith(
             (ref) => _NoopOfflineCacheDaemon(ref),
           ),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

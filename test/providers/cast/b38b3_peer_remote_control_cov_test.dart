@@ -24,7 +24,7 @@ void main() {
     player = TestPlayerNotifier(PlayerState());
     container = ProviderContainer(
       overrides: <Override>[
-        playerProvider.overrideWith((ref) => player),
+        playerProvider.overrideWith(() => player),
       ],
     );
     remote = container.read(peerRemoteControlProvider.notifier);

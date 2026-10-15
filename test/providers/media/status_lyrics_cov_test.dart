@@ -48,7 +48,7 @@ class _Call {
 /// 会录调用的投屏控制器桩：`status_lyrics_provider` 只读它的
 /// activePeer / playMode / castQueue / castIndex / offline，只调几个明确方法。
 class _FakeCastPeer extends CastPeerController {
-  _FakeCastPeer(super.ref);
+  _FakeCastPeer();
 
   final List<String> calls = <String>[];
   List<PeerInfo> loadedPeers = <PeerInfo>[];
@@ -146,7 +146,7 @@ class _FakeCastPeer extends CastPeerController {
 /// DLNA 直投链路桩：只暴露 `status_lyrics_provider` 用到的 isCasting /
 /// playMode / currentIndex（与 playAt）。
 class _FakeDlnaCast extends DlnaCastNotifier {
-  _FakeDlnaCast(super.ref);
+  _FakeDlnaCast();
 
   final List<int> playAtCalls = <int>[];
 
@@ -188,13 +188,13 @@ void main() {
   ProviderContainer buildContainer(
       {String? lyricLine = '<line>', TestPlayerNotifier? playerNotifier}) {
     return ProviderContainer(overrides: <Override>[
-      playerProvider.overrideWith((ref) => playerNotifier ?? player),
-      castPeerControllerProvider.overrideWith((ref) {
-        cast = _FakeCastPeer(ref);
+      playerProvider.overrideWith(() => playerNotifier ?? player),
+      castPeerControllerProvider.overrideWith(() {
+        cast = _FakeCastPeer();
         return cast;
       }),
-      dlnaCastProvider.overrideWith((ref) {
-        dlna = _FakeDlnaCast(ref);
+      dlnaCastProvider.overrideWith(() {
+        dlna = _FakeDlnaCast();
         return dlna;
       }),
       effectiveIsPlayingProvider.overrideWithValue(true),

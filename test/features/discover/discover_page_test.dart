@@ -586,7 +586,7 @@ Future<void> _pumpDiscover(
         priority: 0,
       ),
     ),
-    playerProvider.overrideWith((ref) => player ?? _RecordingPlayerNotifier()),
+    playerProvider.overrideWith(() => player ?? _RecordingPlayerNotifier()),
     // 分区清单默认空 → 首页回落默认顺序(五个分区照常渲染),保持其余用例确定性。
     homeSectionsProvider.overrideWith((ref) async => const <HomeSection>[]),
     if (extraOverrides.isEmpty) ...<Override>[

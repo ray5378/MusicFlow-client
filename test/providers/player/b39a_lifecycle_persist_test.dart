@@ -278,7 +278,7 @@ class _FakeCacheManager extends OfflineCacheManager {
 }
 
 class _NoopCastPeerController extends CastPeerController {
-  _NoopCastPeerController(super.ref);
+  _NoopCastPeerController();
 
   @override
   Future<Map<String, dynamic>?> fetchLocalQueueForRestore() async => null;
@@ -383,8 +383,7 @@ void main() {
           ),
           offlineCacheManagerProvider.overrideWithValue(_FakeCacheManager(null)),
           offlineCacheReadyProvider.overrideWith((ref) async {}),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _NoopCastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => _NoopCastPeerController(),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

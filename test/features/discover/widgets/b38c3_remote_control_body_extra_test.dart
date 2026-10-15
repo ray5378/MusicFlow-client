@@ -51,7 +51,14 @@ const PeerInfo kDlna = PeerInfo(
 );
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；不调 super.build() 避开真实接线副作用。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 
   final List<String> calls = <String>[];
   bool transferOk = true;
@@ -81,7 +88,7 @@ class _StubCastPeer extends CastPeerController {
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 Song _song(String title) => Song(id: 's1', title: title, artist: '歌手');
@@ -116,14 +123,13 @@ class _Harness {
     addTearDown(tester.view.resetPhysicalSize);
     return ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith(
-          (Ref ref) => TestPlayerNotifier(PlayerState(currentSong: _song('晨光曲'))),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState(currentSong: _song('晨光曲'))),
         ),
-        castPeerControllerProvider.overrideWith((Ref ref) {
-          cast = _StubCastPeer(ref)..state = const CastPeerState(activePeer: kSelf);
+        castPeerControllerProvider.overrideWith(() {
+          cast = _StubCastPeer(const CastPeerState(activePeer: kSelf));
           return cast;
         }),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         effectiveIsPlayingProvider.overrideWith((Ref ref) => false),
         resolvedCurrentSongMediaVisualsProvider.overrideWith(
           (Ref ref) => MusicFlowMediaVisuals.fallback(),

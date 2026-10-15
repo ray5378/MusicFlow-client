@@ -107,7 +107,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith((ref) => player),
+          playerProvider.overrideWith(() => player),
           // 热门词固定,避免测试环境触碰收藏/网络链路。
           hotSearchTermsProvider.overrideWith((ref) async => <String>[]),
           ...overrides,

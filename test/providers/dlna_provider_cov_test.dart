@@ -371,7 +371,7 @@ void main() {
     }
     final overrides = <Override>[
       dlnaManagerProvider.overrideWith((ref) => manager),
-      playerProvider.overrideWith((ref) => rec),
+      playerProvider.overrideWith(() => rec),
       subsonicApiClientProvider.overrideWithValue(api),
       effectiveQualityProvider.overrideWithValue(AudioQualityLevel.original),
     ];
@@ -1062,8 +1062,7 @@ void main() {
       final emptyContainer = ProviderContainer(
         overrides: [
           dlnaManagerProvider.overrideWith((ref) => manager),
-          playerProvider.overrideWith(
-            (ref) => _RecPlayer(_playerState(const <Song>[])),
+          playerProvider.overrideWith(() => _RecPlayer(_playerState(const <Song>[])),
           ),
           effectiveQualityProvider.overrideWithValue(AudioQualityLevel.original),
         ],

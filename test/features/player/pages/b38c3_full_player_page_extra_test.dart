@@ -43,13 +43,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (ref) => TestPlayerNotifier(PlayerState(currentSong: _song())),
+          playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState(currentSong: _song())),
           ),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => CastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => CastPeerController(),
           ),
-          dlnaCastProvider.overrideWith((Ref ref) => DlnaCastNotifier(ref)),
+          dlnaCastProvider.overrideWith(() => DlnaCastNotifier()),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),

@@ -66,11 +66,11 @@ class _B32aPlayer extends TestPlayerNotifier {
 class _B32aMusicRepository extends Mock implements MusicRepository {}
 
 class _B32aCastPeer extends CastPeerController {
-  _B32aCastPeer(super.ref);
+  _B32aCastPeer();
 }
 
 class _B32aDlna extends DlnaCastNotifier {
-  _B32aDlna(super.ref);
+  _B32aDlna();
 }
 
 Song _song(String id, String title, {int duration = 180}) => Song(
@@ -184,11 +184,10 @@ void main() {
           ConnectivityMonitor(AddressPool(Dio())),
         ),
         subsonicApiClientProvider.overrideWithValue(api),
-        playerProvider.overrideWith((ref) => activePlayer),
-        castPeerControllerProvider.overrideWith(
-          (Ref ref) => _B32aCastPeer(ref),
+        playerProvider.overrideWith(() => activePlayer),
+        castPeerControllerProvider.overrideWith(() => _B32aCastPeer(),
         ),
-        dlnaCastProvider.overrideWith((Ref ref) => _B32aDlna(ref)),
+        dlnaCastProvider.overrideWith(() => _B32aDlna()),
         musicRepositoryProvider.overrideWithValue(repo),
         ensureActiveAddressProvider.overrideWith(
           (ref) async => const ServerAddress(

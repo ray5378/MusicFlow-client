@@ -153,7 +153,7 @@ Future<void> _pumpPage(
       overrides: <Override>[
         connectivityMonitorProvider.overrideWithValue(connectivityMonitor),
         libraryRepositoryProvider.overrideWithValue(libraryRepository),
-        playerProvider.overrideWith((ref) => player),
+        playerProvider.overrideWith(() => player),
         playlistRepositoryProvider.overrideWithValue(playlistRepository),
         ensureActiveAddressProvider.overrideWith(
           (ref) async => ServerAddress(

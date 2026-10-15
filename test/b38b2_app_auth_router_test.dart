@@ -56,7 +56,7 @@ void main() {
       overrides: <Override>[
         authStateProvider.overrideWith((ref) => auth),
         subsonicApiClientProvider.overrideWithValue(client),
-        playerProvider.overrideWith((ref) => player),
+        playerProvider.overrideWith(() => player),
       ],
     );
 

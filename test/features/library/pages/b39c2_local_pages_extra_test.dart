@@ -63,11 +63,11 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 class _FakeSearchRepo extends SearchRepository {
@@ -158,9 +158,9 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         searchRepositoryProvider.overrideWithValue(repo),
-        playerProvider.overrideWith((ref) => _RecordingPlayer(PlayerState())),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => _RecordingPlayer(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
       ],
     );
     addTearDown(container.dispose);
@@ -217,9 +217,9 @@ void main() {
           (ref) async =>
               const LibraryCounts(albumCount: 3, artistCount: 2, songCount: 30),
         ),
-        playerProvider.overrideWith((ref) => _RecordingPlayer(PlayerState())),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => _RecordingPlayer(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         searchResultsProvider.overrideWith(
           (Ref ref, SearchRequest req) async => SearchOutcome(),
         ),

@@ -77,11 +77,11 @@ class _B35aPlayer extends TestPlayerNotifier {
 class _B35aPlaylistRepository extends Mock implements PlaylistRepository {}
 
 class _B35aCastPeer extends CastPeerController {
-  _B35aCastPeer(super.ref);
+  _B35aCastPeer();
 }
 
 class _B35aDlna extends DlnaCastNotifier {
-  _B35aDlna(super.ref);
+  _B35aDlna();
 }
 
 Song _song(String id, String title, int duration) => Song(
@@ -207,11 +207,10 @@ void main() {
           ConnectivityMonitor(AddressPool(Dio())),
         ),
         subsonicApiClientProvider.overrideWithValue(api),
-        playerProvider.overrideWith((ref) => activePlayer),
-        castPeerControllerProvider.overrideWith(
-          (Ref ref) => _B35aCastPeer(ref),
+        playerProvider.overrideWith(() => activePlayer),
+        castPeerControllerProvider.overrideWith(() => _B35aCastPeer(),
         ),
-        dlnaCastProvider.overrideWith((Ref ref) => _B35aDlna(ref)),
+        dlnaCastProvider.overrideWith(() => _B35aDlna()),
         playlistRepositoryProvider.overrideWith(
           (ref) => repoFn == null ? repo : repoFn(),
         ),

@@ -34,7 +34,7 @@ Widget _wrap(OfflineCacheManager cache) {
     overrides: <Override>[
       offlineCacheManagerProvider.overrideWithValue(cache),
       offlineCacheReadyProvider.overrideWith((ref) async {}),
-      playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+      playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
     ],
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,

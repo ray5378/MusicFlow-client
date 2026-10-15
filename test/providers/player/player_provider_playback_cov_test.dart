@@ -601,13 +601,13 @@ void main() {
       container.dispose();
 
       // 踩坑 #61：dispose 之后**连读 `notifier.state` 都会抛**
-      // （StateNotifier 的 _debugIsMounted），所以这里只能查 mounted 标志本身。
+      // （同步通知基类 的 _debugIsMounted），所以这里只能查 mounted 标志本身。
       // dispose 里 `unawaited(_persistPlaybackSession())` 是异步的，给它跑完的时间。
       for (var i = 0; i < 40; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 15));
       }
       // 行为断言（不只是 mounted 标志位）：dispose 之后再碰 state 必须抛
-      // —— StateNotifier 的 `_debugIsMounted` 守卫。QA 判这条「只查标志位、没真调」
+      // —— 同步通知基类 的 `_debugIsMounted` 守卫。QA 判这条「只查标志位、没真调」
       // 属于空牙，这里改成真去读一次 state。
       expect(notifier.mounted, isFalse);
       var threw = false;

@@ -37,11 +37,11 @@ import 'package:musicflow_client/widgets/song_list_item.dart';
 import '../../player/test_player_notifier.dart';
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 /// TestPlayerNotifier 未实现 playQueue（noSuchMethod 返回 null → 类型错误），
@@ -89,9 +89,9 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith((ref) => _RecordingPlayer()),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => _RecordingPlayer()),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         ...overrides,
       ],
       child: MaterialApp(

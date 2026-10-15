@@ -27,7 +27,14 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import '../test_player_notifier.dart';
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；不调 super.build() 避开真实接线副作用。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 
   final List<String> calls = <String>[];
 
@@ -38,7 +45,7 @@ class _StubCastPeer extends CastPeerController {
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 class _StubFrozenPosition extends FrozenPositionNotifier {
@@ -81,14 +88,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (Ref ref) => TestPlayerNotifier(PlayerState()),
+          playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState()),
           ),
-          castPeerControllerProvider.overrideWith((Ref ref) {
-            cast = _StubCastPeer(ref)..state = const CastPeerState();
+          castPeerControllerProvider.overrideWith(() {
+            cast = _StubCastPeer();
             return cast;
           }),
-          dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+          dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
           frozenPositionProvider.overrideWith(
             () => _StubFrozenPosition(() => const Duration(milliseconds: 500)),
           ),

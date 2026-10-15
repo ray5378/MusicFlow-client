@@ -77,8 +77,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          playerProvider.overrideWith(
-            (Ref ref) => TestPlayerNotifier(
+          playerProvider.overrideWith(() => TestPlayerNotifier(
               PlayerState(currentSong: song),
             ),
           ),

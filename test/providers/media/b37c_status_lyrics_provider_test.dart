@@ -39,7 +39,7 @@ import '../../features/player/test_player_notifier.dart';
 /// 可变更的投屏桩：暴露 status_lyrics_provider 读到的 activePeer/playMode/
 /// castQueue/castIndex/offline。
 class _FakeCastPeer extends CastPeerController {
-  _FakeCastPeer(super.ref);
+  _FakeCastPeer();
 
   List<PeerInfo> peers = <PeerInfo>[];
   bool emptyNowPlaying = false;
@@ -72,7 +72,7 @@ class _FakeCastPeer extends CastPeerController {
 
 /// 可变更的 DLNA 直投桩。
 class _FakeDlnaCast extends DlnaCastNotifier {
-  _FakeDlnaCast(super.ref);
+  _FakeDlnaCast();
 
   void setCasting({required bool casting, String playMode = 'one'}) {
     state =
@@ -103,9 +103,9 @@ void main() {
       currentIndex: 0,
     ));
     container = ProviderContainer(overrides: <Override>[
-      playerProvider.overrideWith((ref) => player),
-      castPeerControllerProvider.overrideWith((ref) => cast = _FakeCastPeer(ref)),
-      dlnaCastProvider.overrideWith((ref) => dlna = _FakeDlnaCast(ref)),
+      playerProvider.overrideWith(() => player),
+      castPeerControllerProvider.overrideWith(() => cast = _FakeCastPeer()),
+      dlnaCastProvider.overrideWith(() => dlna = _FakeDlnaCast()),
       currentLyricLineProvider.overrideWith((ref) => ref.watch(_lyricLine)),
     ]);
     // 控制器构造期会 read 开关；桩要显式 read 一次装配，避免旧容器脏桩。

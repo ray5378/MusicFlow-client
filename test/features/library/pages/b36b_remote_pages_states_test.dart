@@ -111,7 +111,7 @@ Future<void> _pump(
     ProviderScope(
       overrides: <Override>[
         searchRepositoryProvider.overrideWithValue(repo),
-        playerProvider.overrideWith((Ref ref) => player ?? TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => player ?? TestPlayerNotifier(PlayerState())),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),

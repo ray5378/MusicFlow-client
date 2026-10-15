@@ -225,7 +225,7 @@ void main() {
             daemon = RecordingDaemon(ref);
             return daemon!;
           }),
-          playerProvider.overrideWith((Ref ref) => player),
+          playerProvider.overrideWith(() => player),
         ],
       );
 
@@ -262,7 +262,7 @@ void main() {
           recentPlaylistsProvider.overrideWith(
             (Ref ref) async => <Playlist>[_pl('无库歌单')],
           ),
-          playerProvider.overrideWith((Ref ref) => player),
+          playerProvider.overrideWith(() => player),
         ],
       );
 
@@ -284,7 +284,7 @@ void main() {
             (Ref ref) async => <Playlist>[_pl('空歌单')],
           ),
           playlistRepositoryProvider.overrideWithValue(plRepo),
-          playerProvider.overrideWith((Ref ref) => player),
+          playerProvider.overrideWith(() => player),
         ],
       );
 
@@ -497,7 +497,7 @@ void main() {
           ),
           recommendRepositoryProvider.overrideWithValue(recRepo),
           playlistRepositoryProvider.overrideWithValue(plRepo),
-          playerProvider.overrideWith((Ref ref) => player),
+          playerProvider.overrideWith(() => player),
         ],
       );
 
@@ -545,7 +545,7 @@ void main() {
             AsyncValue<String>.data('netease'),
           ),
           recommendRepositoryProvider.overrideWithValue(recRepo),
-          playerProvider.overrideWith((Ref ref) => player),
+          playerProvider.overrideWith(() => player),
         ],
       );
 
@@ -584,7 +584,7 @@ void main() {
                 priority: 0,
               ),
             ),
-            playerProvider.overrideWith((Ref ref) => RecordingPlayer()),
+            playerProvider.overrideWith(() => RecordingPlayer()),
             homeSectionsProvider.overrideWith(
               (Ref ref) async => const <HomeSection>[],
             ),

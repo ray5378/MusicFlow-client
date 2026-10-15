@@ -49,11 +49,11 @@ const PeerInfo kSelf = PeerInfo(
 final Song kSong = Song(id: 's1', title: '测试曲目', artist: '歌手', duration: 200);
 
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref);
+  StubCastPeer();
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 class _Harness {
@@ -70,9 +70,9 @@ class _Harness {
     final player = TestPlayerNotifier(PlayerState(currentSong: kSong, queue: <Song>[kSong]));
     container = ProviderContainer(
       overrides: <Override>[
-        playerProvider.overrideWith((Ref ref) => player),
-        castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => player),
+        castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => StubDlnaCast()),
         currentLyricsProvider.overrideWith((Ref ref) async => null),
         effectivePositionProvider.overrideWith((Ref ref) => Duration.zero),
         remoteControlTargetsProvider.overrideWith((Ref ref) => targets),
@@ -127,10 +127,10 @@ void main() {
       UncontrolledProviderScope(
         container: ProviderContainer(
           overrides: <Override>[
-            playerProvider.overrideWith((Ref ref) =>
+            playerProvider.overrideWith(() =>
                 TestPlayerNotifier(PlayerState(currentSong: kSong, queue: <Song>[kSong]))),
-            castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-            dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+            castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+            dlnaCastProvider.overrideWith(() => StubDlnaCast()),
             currentLyricsProvider.overrideWith((Ref ref) async => null),
             effectivePositionProvider.overrideWith((Ref ref) => Duration.zero),
             remoteControlTargetsProvider.overrideWith((Ref ref) => const <PeerInfo>[]),
@@ -229,9 +229,9 @@ ProviderContainer _alertContainer(RemoteControlAlert alert) {
       TestPlayerNotifier(PlayerState(currentSong: kSong, queue: <Song>[kSong]));
   final c = ProviderContainer(
     overrides: <Override>[
-      playerProvider.overrideWith((Ref ref) => player),
-      castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-      dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+      playerProvider.overrideWith(() => player),
+      castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+      dlnaCastProvider.overrideWith(() => StubDlnaCast()),
       currentLyricsProvider.overrideWith((Ref ref) async => null),
       effectivePositionProvider.overrideWith((Ref ref) => Duration.zero),
       remoteControlTargetsProvider.overrideWith((Ref ref) => const <PeerInfo>[kSelf]),

@@ -114,11 +114,11 @@ class RecordingPlayer extends TestPlayerNotifier {
 
 /// 链路 A / B 桩：无投屏设备 → playEffectiveQueue 落到本机 playerProvider。
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref);
+  StubCastPeer();
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 class _RefProbe extends ConsumerWidget {
@@ -170,9 +170,9 @@ class SheetHarness {
       overrides: <Override>[
         playlistRepositoryProvider.overrideWith((Ref ref) => repository),
         ensureActiveAddressProvider.overrideWith((Ref ref) async => kAddress),
-        playerProvider.overrideWith((Ref ref) => player),
-        castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => player),
+        castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => StubDlnaCast()),
       ],
     );
     this.container = container;

@@ -44,7 +44,14 @@ const PeerInfo kCastPeer = PeerInfo(
 );
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；链路 A 老构造体无副作用，故不调 super.build()。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 
   final List<String> calls = <String>[];
 
@@ -70,7 +77,17 @@ class _StubCastPeer extends CastPeerController {
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast([this.initial = const DlnaCastState()]);
+
+  // ADR-2 阶段 3b：种子态由 build() 返回；链路 B 老构造体含真实接线副作用，
+  // 故先调 super.build() 保留接线（与迁移前语义一致），再覆盖为种子态。
+  final DlnaCastState initial;
+
+  @override
+  DlnaCastState build() {
+    super.build();
+    return initial;
+  }
 
   final List<String> calls = <String>[];
 
@@ -129,15 +146,14 @@ class _Harness {
     addTearDown(tester.view.resetPhysicalSize);
     return ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith(
-          (Ref ref) => TestPlayerNotifier(playerState ?? PlayerState()),
+        playerProvider.overrideWith(() => TestPlayerNotifier(playerState ?? PlayerState()),
         ),
-        castPeerControllerProvider.overrideWith((Ref ref) {
-          cast = _StubCastPeer(ref)..state = castState ?? const CastPeerState();
+        castPeerControllerProvider.overrideWith(() {
+          cast = _StubCastPeer(castState ?? const CastPeerState());
           return cast;
         }),
-        dlnaCastProvider.overrideWith((Ref ref) {
-          dlna = _StubDlnaCast(ref)..state = dlnaState ?? const DlnaCastState();
+        dlnaCastProvider.overrideWith(() {
+          dlna = _StubDlnaCast(dlnaState ?? const DlnaCastState());
           return dlna;
         }),
         resolvedCurrentSongMediaVisualsProvider.overrideWith(

@@ -149,7 +149,7 @@ class _Harness {
         isOfflineProvider.overrideWithValue(false),
         offlineCacheManagerProvider.overrideWithValue(_StubOfflineCache()),
         offlineCacheReadyProvider.overrideWith((ref) async {}),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         albumDetailProvider.overrideWith((Ref ref, String id) async {
           albumLoads++;
           return albumDetail;

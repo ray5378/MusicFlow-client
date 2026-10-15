@@ -107,11 +107,11 @@ class RecordingPlayer extends TestPlayerNotifier {
 }
 
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref);
+  StubCastPeer();
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 /// 把树里的 WidgetRef / BuildContext 递出来给 showArtistOptionsSheet。
@@ -166,9 +166,9 @@ class SheetHarness {
           if (addressError != null) throw addressError!;
           return kAddress;
         }),
-        playerProvider.overrideWith((Ref ref) => player),
-        castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => player),
+        castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => StubDlnaCast()),
       ],
     );
     this.container = container;

@@ -60,7 +60,7 @@ const PeerInfo kWeb = PeerInfo(
 
 /// 所有产品侧 controller 调用的落地桩：记调用序列 + 可预设返回。
 class FakeCastPeer extends CastPeerController {
-  FakeCastPeer(Ref ref) : super(ref);
+  FakeCastPeer();
 
   final List<String> calls = <String>[];
 
@@ -68,6 +68,18 @@ class FakeCastPeer extends CastPeerController {
   Future<void>? loadGate;
   bool switchToOk = true;
   List<dynamic>? groups;
+
+  /// 预置态。**不能**在 `overrideWith` 工厂里写 `c.state = ...`：那一刻元素尚未
+  /// attach，`NotifierBase._element` 还是未初始化的 late 字段，赋值会抛
+  /// LateInitializationError（`Notifier` 语义，与 `StateNotifier` 不同）。
+  /// 种态统一从 `build()` 的返回值出。
+  CastPeerState? seed;
+
+  @override
+  CastPeerState build() {
+    super.build();
+    return seed ?? const CastPeerState();
+  }
 
   @override
   Future<List<PeerInfo>> loadPeers() async {
@@ -139,14 +151,13 @@ Future<void> pumpPage(
   transfers.clear();
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
-      castPeerControllerProvider.overrideWith((Ref ref) {
-        final c = FakeCastPeer(ref)
+      castPeerControllerProvider.overrideWith(() {
+        final c = FakeCastPeer()
           ..loaded = loaded
           ..loadGate = loadGate
-          ..groups = groups;
-        if (activePeer != null) {
-          c.state = CastPeerState(activePeer: activePeer);
-        }
+          ..groups = groups
+          ..seed =
+              activePeer == null ? null : CastPeerState(activePeer: activePeer);
         ctrl = c;
         return c;
       }),

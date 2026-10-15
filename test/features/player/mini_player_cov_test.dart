@@ -22,8 +22,8 @@
 // #85-D `pumpAndSettle` 在这批页面永远等不到「静」：封面外圈是
 //       `CircularProgressIndicator`（每帧请求新帧）+ 桌面档位的 `AnimatedOpacity`，
 //       实测直接 timeout。统一用固定帧 `settle()`。
-// #86-D `playerProvider` 是 `StateNotifierProvider`。用 `overrideWithValue`
-//       塞进去的是**裸 StateNotifier**，而 `MiniPlayer.build` 里
+// #86-D `playerProvider` 是 `同步通知 Provider`。用 `overrideWithValue`
+//       塞进去的是**裸 同步通知基类**，而 `MiniPlayer.build` 里
 //       `ref.read(playerProvider.notifier).previous()` 会在运行时 NoSuchMethodError。
 //       必须是 `implements PlayerNotifier` 的桩（复用 `test_player_notifier.dart`
 //       里的 `TestPlayerNotifier`）：`implements` 只校验**公开**成员，
@@ -222,7 +222,14 @@ void semanticSeek(WidgetTester tester, SemanticsAction action) {
 
 /// 只记调用序列的链路 A controller 桩（见 #87-D）。
 class RecordingCastPeer extends CastPeerController {
-  RecordingCastPeer(super.ref);
+  RecordingCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：种子态改由 build() 返回（Notifier 在 build() 前写 state 会
+  // 触发 LateInitializationError）；链路 A 老构造体无副作用，故不调 super.build()。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 
   final List<String> calls = <String>[];
 
@@ -257,7 +264,17 @@ class RecordingCastPeer extends CastPeerController {
 
 /// 只记调用序列的 DLNA 直投 notifier 桩（见 #87-D）。
 class RecordingDlnaCast extends DlnaCastNotifier {
-  RecordingDlnaCast(super.ref);
+  RecordingDlnaCast([this.initial = const DlnaCastState()]);
+
+  // ADR-2 阶段 3b：种子态由 build() 返回；链路 B 老构造体含真实接线副作用，
+  // 故先调 super.build() 保留接线，再覆盖为种子态。
+  final DlnaCastState initial;
+
+  @override
+  DlnaCastState build() {
+    super.build();
+    return initial;
+  }
 
   final List<String> calls = <String>[];
 
@@ -391,15 +408,14 @@ class MiniHarness {
   }) {
     final container = ProviderContainer(
       overrides: <Override>[
-        playerProvider.overrideWith(
-          (Ref ref) => RecordingPlayerNotifier(state),
+        playerProvider.overrideWith(() => RecordingPlayerNotifier(state),
         ),
-        castPeerControllerProvider.overrideWith((Ref ref) {
-          final c = RecordingCastPeer(ref)..state = castState;
+        castPeerControllerProvider.overrideWith(() {
+          final c = RecordingCastPeer(castState);
           return c;
         }),
-        dlnaCastProvider.overrideWith((Ref ref) {
-          final d = RecordingDlnaCast(ref)..state = dlnaState;
+        dlnaCastProvider.overrideWith(() {
+          final d = RecordingDlnaCast(dlnaState);
           return d;
         }),
         effectiveIsPlayingProvider.overrideWith((Ref ref) => playing),
@@ -425,7 +441,7 @@ class MiniHarness {
     _container = container;
     // #125-D / #126-D：把三个桩 provider 各 read 一次 —— 闭包就在这几行跑完，
     // `player` / `cast` / `dlna` 此后必定已初始化（不再依赖 widget 树走到哪条分支）。
-    // ⚠️ #126-D：这里必须走 **`.notifier`** —— `StateNotifierProvider` /
+    // ⚠️ #126-D：这里必须走 **`.notifier`** —— `同步通知 Provider` /
     // `NotifierProvider` 的 `container.read(provider)` 返回的是**状态**
     // （`PlayerState` 等）而不是 notifier 实例，直接 `as` 会
     // `TypeError: type 'PlayerState' is not a subtype of type 'RecordingPlayerNotifier'`。

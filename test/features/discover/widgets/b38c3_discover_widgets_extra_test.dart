@@ -27,11 +27,19 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import '../../player/test_player_notifier.dart';
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer([this.initial = const CastPeerState()]);
+
+  // ADR-2 阶段 3b：NotifierProvider 不再允许在 build() 前写 state
+  // （老 `_StubCastPeer()..state = ...` 会触发 LateInitializationError），
+  // 故种子态改由 build() 返回；不调 super.build() 以避开真实接线副作用。
+  final CastPeerState initial;
+
+  @override
+  CastPeerState build() => initial;
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 class _FakeHistory extends SearchHistoryController {
@@ -98,13 +106,10 @@ void main() {
         child: RemoteControlVolumePanel(metrics: RemoteControlMetrics.standard),
       ),
       overrides: <Override>[
-        playerProvider.overrideWith(
-          (Ref ref) => TestPlayerNotifier(PlayerState(volume: 0.5)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState(volume: 0.5)),
         ),
-        castPeerControllerProvider.overrideWith((Ref ref) {
-          return _StubCastPeer(ref)..state = const CastPeerState();
-        }),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
       ],
     ));
     await settle(tester);

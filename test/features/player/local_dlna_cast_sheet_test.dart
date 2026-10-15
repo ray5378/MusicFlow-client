@@ -19,9 +19,17 @@ import 'test_player_notifier.dart';
 
 /// 不触网假 notifier：渲染链路 B 面板无需走 SSDP/SOAP/中继。
 class _FakeCastNotifier extends DlnaCastNotifier {
-  _FakeCastNotifier(Ref ref, DlnaCastState initial) : super(ref) {
-    state = initial;
+  final DlnaCastState initial;
+
+  _FakeCastNotifier(this.initial);
+
+  @override
+  DlnaCastState build() {
+    super.build();
+
+    return initial;
   }
+
 
   @override
   Future<bool> startCast(
@@ -74,8 +82,14 @@ class _FakeCastNotifier extends DlnaCastNotifier {
 }
 
 class _FakeDevicesNotifier extends DlnaDevicesNotifier {
-  _FakeDevicesNotifier(Ref ref, DlnaDevicesState initial) : super(ref) {
-    state = initial;
+  _FakeDevicesNotifier(this.initial);
+
+  final DlnaDevicesState initial;
+
+  @override
+  DlnaDevicesState build() {
+    super.build();
+    return initial;
   }
 
   @override
@@ -110,15 +124,15 @@ Widget _app({
   return ProviderScope(
     overrides: [
       if (player != null)
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(player)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(player)),
       currentSongPaletteProvider.overrideWith((ref) async => null),
       resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
         MusicFlowMediaVisuals.fallback(),
       ),
       currentLyricsProvider.overrideWith((ref) async => null),
       dlnaCastHttpBaseProvider.overrideWithValue(castHttpBase),
-      dlnaCastProvider.overrideWith((ref) => _FakeCastNotifier(ref, cast)),
-      dlnaDevicesProvider.overrideWith((ref) => _FakeDevicesNotifier(ref, devices)),
+      dlnaCastProvider.overrideWith(() => _FakeCastNotifier( cast)),
+      dlnaDevicesProvider.overrideWith(() => _FakeDevicesNotifier(devices)),
     ],
     child: MaterialApp(
       theme: AppTheme.dark(),

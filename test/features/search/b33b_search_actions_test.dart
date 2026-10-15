@@ -22,7 +22,7 @@ import '../player/test_player_notifier.dart';
 /// 覆盖: 仓库缺失/来源未指定/空结果/异常/成功播放路径,以及入库触发-后台完成链路。
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 }
 
 class _FakeDlnaManager extends DlnaManager {
@@ -150,9 +150,8 @@ void main() {
             searchRepositoryProvider.overrideWithValue(repo)
           else
             searchRepositoryProvider.overrideWith((ref) => null),
-          playerProvider.overrideWith((ref) => player),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref),
+          playerProvider.overrideWith(() => player),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
           ),
           dlnaManagerProvider.overrideWith((ref) => _FakeDlnaManager()),
         ],

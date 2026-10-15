@@ -265,8 +265,7 @@ Future<void> _pumpStarredWithOverrides(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith(
-          (ref) => player ?? _RecordingPlayerNotifier(),
+        playerProvider.overrideWith(() => player ?? _RecordingPlayerNotifier(),
         ),
         ...overrides,
       ],

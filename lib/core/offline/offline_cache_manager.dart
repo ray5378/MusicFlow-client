@@ -116,6 +116,10 @@ class _CacheEntry {
 ///
 /// 归属规则：歌词、单曲封面「以歌曲为准」——歌曲存在才保留；`evictSong`
 /// 会连同该歌的歌词、以及**仅归属该歌**的封面一并删除，不留孤儿文件。
+///
+/// 孤儿回收：`init()` 载入索引后会以索引为准清掉各 kind 目录里「有文件无索引」
+/// 的数据文件与 `.part` 残留（见 `_sweepOrphans`）——索引是缓存的唯一权威，
+/// 缓存按定义可丢弃，因此不做反向收养。
 class OfflineCacheManager {
   static const String _indexName = 'index.json';
   static const int _defaultMaxBytes = 2 * 1024 * 1024 * 1024; // 2G 默认
@@ -195,8 +199,50 @@ class OfflineCacheManager {
       _kindDirs[kind] = dir;
     }
     await _loadIndex();
+    await _sweepOrphans();
     await _evictToFit();
     _init = true;
+  }
+
+  /// 孤儿回收：索引载入后扫各 kind 目录，删掉「有文件无索引」的数据文件。
+  ///
+  /// 孤儿有三个成因：① 索引损坏被 [_loadIndex] 清空重建（此刻全部数据文件都会
+  /// 变孤儿）；② 文件已落盘、1s debounce 未到进程被杀（`app_visibility_provider`
+  /// 已用 `flushIndexNow` 收窄该窗口，但无法根除）；③ [_removeEntry] 删条目后
+  /// 文件删除失败。此前只做了前两者的一半 —— 索引只管「跳过缺失文件」，没有
+  /// 反向清理，于是孤儿只涨不消（轻度磁盘泄漏，且 `covers` 是容量大头）。
+  ///
+  /// 方向是**以索引为准删文件**，不做反向收养：缓存按定义可丢弃；且收养会让
+  /// 封面条目丢掉 `owners` 归属，反而制造「歌曲已删、封面仍占容量」的新孤儿。
+  ///
+  /// `.part` 是原子写的中间产物，一律是垃圾，同样清掉。
+  Future<void> _sweepOrphans() async {
+    for (final kind in OfflineCacheKind.values) {
+      final dir = _kindDirs[kind];
+      if (dir == null || !await dir.exists()) continue;
+      // 先按 kind 收齐「索引认账的文件名」再来比对，避免对每个文件遍历一遍
+      // 全量索引（covers 单类可达数万文件，两两比对会退化成 O(n²)）。
+      final owned = <String>{
+        for (final e in _entries.values)
+          if (e.kind == kind) safeName(e.key),
+      };
+      final orphans = <File>[];
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (!name.endsWith('.part') && owned.contains(name)) continue;
+        orphans.add(entity);
+      }
+      // 先收齐再删：边遍历目录流边删文件在部分平台上会漏项/抛错。
+      for (final file in orphans) {
+        try {
+          await file.delete();
+        } catch (_) {
+          continue; // 删不掉（占用/权限）留待下次启动，不打断 init
+        }
+        Logger.infoWithTag('OFFLINE_CACHE', 'sweep orphan: ${p.basename(file.path)}');
+      }
+    }
   }
 
   Future<void> _loadIndex() async {

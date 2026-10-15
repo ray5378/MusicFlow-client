@@ -21,7 +21,7 @@
 //     （`Platform.environment['FLUTTER_TEST']` 短路），服务端快照竞速分支（含
 //     `useServer` / `playMode` 恢复 / `queueItemToSong` 转换）**必须**用
 //     `castPeerControllerProvider.overrideWith((ref) => 子类替身)` 才打得到。
-//     `CastPeerController` 是可继承的普通 StateNotifier（构造只有 `: super(const
+//     `CastPeerController` 是可继承的普通 同步通知基类（构造只有 `: super(const
 //     CastPeerState())`，无副作用体），子类化安全；构造函数形参是私有的 `_ref`，
 //     跨库只能用**位置参数** `super(ref)`，写 `super._ref` 编译不过。
 // #74 `playerProvider` 主体对 `starredProvider` 是 `ref.listen(..., fireImmediately: true)`
@@ -142,7 +142,7 @@ List<String> _ids(Iterable<Song> songs) =>
 /// 只改两个与会话恢复直接相关的入口，其余一律沿用真实现 —— 避免把「应该怎样」
 /// 写进替身。构造用位置参数 `super(ref)`（基类形参 `_ref` 是库私有名）。
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(Ref ref) : super(ref);
+  _FakeCastPeerController();
 
   /// `fetchLocalQueueForRestore()` 的返回值；null 表示「拉不到快照」。
   Map<String, dynamic>? snapshot;
@@ -275,8 +275,8 @@ void main() {
             ),
           ),
         ),
-        castPeerControllerProvider.overrideWith((ref) {
-          final c = _FakeCastPeerController(ref);
+        castPeerControllerProvider.overrideWith(() {
+          final c = _FakeCastPeerController();
           c.snapshot = serverSnapshot;
           c.snapshotError = serverSnapshotError;
           c.mirrorThrows = mirrorThrows;
@@ -353,7 +353,7 @@ void main() {
       h.disposed = true;
       expect(h.notifier.mounted, isFalse, reason: '前置：notifier 已卸装');
 
-      // mounted 守卫一旦去掉，下面这行就是 StateNotifier 的 used-after-dispose。
+      // mounted 守卫一旦去掉，下面这行就是 同步通知基类 的 used-after-dispose。
       expect(() => h.notifier.syncQueueForCast(<Map<String, dynamic>>[
             _castItem('c1'),
           ], 0), returnsNormally);

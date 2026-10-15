@@ -53,7 +53,7 @@ late AppLocalizations loc;
 _CastFake? lastFake;
 
 class _CastFake extends CastPeerController {
-  _CastFake(super.ref);
+  _CastFake();
 
   List<PeerInfo> peers = const <PeerInfo>[];
   bool switchOk = true;
@@ -68,13 +68,26 @@ class _CastFake extends CastPeerController {
   bool lastResumeLocal = false;
   int stopCastingCalls = 0;
 
+  /// 预置态。**不能**在 `overrideWith` 工厂里写 `c.state = ...`：那一刻元素尚未
+  /// attach，`NotifierBase._element` 还是未初始化的 late 字段，赋值会抛
+  /// LateInitializationError（`Notifier` 语义，与 `StateNotifier` 不同）。
+  /// 种态统一从 `build()` 的返回值出。
+  CastPeerState? seed;
+
+  @override
+  CastPeerState build() {
+    super.build();
+    return seed ?? const CastPeerState();
+  }
+
   /// 随便改状态就够了：弹窗只读 activePeer / loadingPeers / offline。
+  /// 本文件仅在两处 override 工厂闭包里调用（元素 attach 之前），故只种 `seed`。
   void apply({
     PeerInfo? activePeer,
     bool loadingPeers = false,
     bool offline = false,
   }) {
-    state = CastPeerState(
+    seed = CastPeerState(
       activePeer: activePeer,
       loadingPeers: loadingPeers,
       offline: offline,
@@ -143,8 +156,7 @@ List<Song> _queue(int length) => List<Song>.generate(
 );
 
 Override _playerOverride(int queueLength) =>
-    playerProvider.overrideWith(
-      (ref) => TestPlayerNotifier(PlayerState(queue: _queue(queueLength))),
+    playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState(queue: _queue(queueLength))),
     );
 
 Override _peerNowOverride(String peerId, PeerNowPlaying? now) =>
@@ -173,8 +185,8 @@ Future<void> _pumpRow(
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
       _playerOverride(localQueueLength),
-      castPeerControllerProvider.overrideWith((ref) {
-        final c = _CastFake(ref);
+      castPeerControllerProvider.overrideWith(() {
+        final c = _CastFake();
         c.apply(activePeer: activePeer ? peer : null);
         lastFake = c;
         return c;
@@ -251,8 +263,8 @@ Future<void> _pumpSheet(
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
       _playerOverride(localQueueLength),
-      castPeerControllerProvider.overrideWith((ref) {
-        final c = _CastFake(ref);
+      castPeerControllerProvider.overrideWith(() {
+        final c = _CastFake();
         c.peers = peers;
         c.switchOk = switchOk;
         c.pushOk = pushOk;

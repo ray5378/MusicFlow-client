@@ -66,7 +66,7 @@ void main() {
       final player = TestPlayerNotifier(PlayerState(currentSong: song));
       final container = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith((ref) => player),
+          playerProvider.overrideWith(() => player),
           // 用即时返回 null 的加载器替身：避免真实图片解码在测试环境挂起，
           // 同时完整执行 currentSongPaletteProvider 的请求与 await 分支。
           mediaPaletteLoaderProvider.overrideWithValue(

@@ -23,7 +23,7 @@
 // #200-D `_probeUpcoming` 的 shuffe 分支要 `_srvShuffleOrder` 非空，而它只能由
 //       `_refreshServerShuffleSeq()` 填，后者又要求 `castPeerControllerProvider`
 //       的 `localPeerId` 非空。得额外 override 一个 `CastPeerController` 替身
-//       （`castPeerControllerProvider` 是 `StateNotifierProvider<CastPeerController,
+//       （`castPeerControllerProvider` 是 `同步通知 Provider<CastPeerController,
 //       CastPeerState>`，替身必须 extends 它才能过 override 的类型检查）。
 // #201-D 空队列守卫（180 行）用 `playSong(song, queue: <Song>[])` 就能逼出来：
 //       此时 `state.currentSong` 非空而 `state.queue` 为空，正好只命中 `queue.isEmpty`。
@@ -359,7 +359,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
 
 /// `castPeerControllerProvider` 的替身（踩坑 #200-D）。
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 
   /// 置成非空后 `_refreshServerShuffleSeq()` 才会去打 `/queue/shuffle`。
   String? peerIdOverride;
@@ -411,8 +411,8 @@ void main() {
           offlineCacheDaemonProvider.overrideWith(
             (ref) => _NoopOfflineCacheDaemon(ref),
           ),
-          castPeerControllerProvider.overrideWith((ref) {
-            peer = _FakeCastPeerController(ref);
+          castPeerControllerProvider.overrideWith(() {
+            peer = _FakeCastPeerController();
             return peer;
           }),
           starredProvider.overrideWith(

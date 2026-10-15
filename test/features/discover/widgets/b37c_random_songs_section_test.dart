@@ -76,7 +76,7 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _MutableCastPeer extends CastPeerController {
-  _MutableCastPeer(super.ref);
+  _MutableCastPeer();
 
   final List<List<String>> enqueueCalls = <List<String>>[];
 
@@ -95,7 +95,7 @@ class _MutableCastPeer extends CastPeerController {
 }
 
 class _MutableDlnaCast extends DlnaCastNotifier {
-  _MutableDlnaCast(super.ref);
+  _MutableDlnaCast();
 
   final List<List<String>> enqueueCalls = <List<String>>[];
 
@@ -199,9 +199,9 @@ class _Harness {
           }
           return fetched;
         }),
-        playerProvider.overrideWith((ref) => player),
-        castPeerControllerProvider.overrideWith((ref) => cast = _MutableCastPeer(ref)),
-        dlnaCastProvider.overrideWith((ref) => dlna = _MutableDlnaCast(ref)),
+        playerProvider.overrideWith(() => player),
+        castPeerControllerProvider.overrideWith(() => cast = _MutableCastPeer()),
+        dlnaCastProvider.overrideWith(() => dlna = _MutableDlnaCast()),
       ],
     );
     return UncontrolledProviderScope(

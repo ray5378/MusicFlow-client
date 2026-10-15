@@ -57,14 +57,24 @@ class RecordingVolPlayer extends TestPlayerNotifier {
 
 /// 链路 B 直投桩：可配置 casting 态 + 记录 setMuted。
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref, {bool casting = false, int volume = 0}) {
+  final bool casting;
+  final int volume;
+
+  StubDlnaCast({this.casting= false, this.volume= 0});
+
+  @override
+  DlnaCastState build() {
+    final s = super.build();
+
     if (casting) {
-      state = DlnaCastState(
+      return DlnaCastState(
         isCasting: true,
         status: DlnaDeviceStatus(state: 'PLAYING', volume: volume),
       );
     }
+    return s;
   }
+
 
   final List<bool> setMutedCalls = <bool>[];
 
@@ -76,11 +86,20 @@ class StubDlnaCast extends DlnaCastNotifier {
 
 /// 链路 A 投屏桩：可配置 activePeer + 记录 setMuted。
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref, {PeerInfo? peer}) {
+  final PeerInfo? peer;
+
+  StubCastPeer({this.peer});
+
+  @override
+  CastPeerState build() {
+    final s = super.build();
+
     if (peer != null) {
-      state = state.copyWith(activePeer: peer);
+      return s.copyWith(activePeer: peer);
     }
+    return s;
   }
+
 
   final List<bool> setMutedCalls = <bool>[];
 
@@ -116,16 +135,13 @@ class _PanelHarness {
   Widget build() {
     final container = ProviderContainer(
       overrides: <Override>[
-        playerProvider.overrideWith((Ref ref) => player),
-        dlnaCastProvider.overrideWith(
-          (Ref ref) => _dlna = StubDlnaCast(
-            ref,
+        playerProvider.overrideWith(() => player),
+        dlnaCastProvider.overrideWith(() => _dlna = StubDlnaCast(
             casting: dlnaCasting,
             volume: dlnaVolume,
           ),
         ),
-        castPeerControllerProvider.overrideWith(
-          (Ref ref) => _cast = StubCastPeer(ref, peer: activePeer),
+        castPeerControllerProvider.overrideWith(() => _cast = StubCastPeer( peer: activePeer),
         ),
       ],
     );
@@ -353,7 +369,7 @@ void main() {
       var outsideTaps = 0;
       final container = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith((Ref ref) => RecordingVolPlayer()),
+          playerProvider.overrideWith(() => RecordingVolPlayer()),
         ],
       );
       addTearDown(container.dispose);

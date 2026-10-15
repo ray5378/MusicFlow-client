@@ -42,9 +42,17 @@ class _RecPlayer extends TestPlayerNotifier {
 }
 
 class _FakeDlna extends DlnaCastNotifier {
-  _FakeDlna(super.ref, DlnaCastState initial) {
-    state = initial;
+  final DlnaCastState initial;
+
+  _FakeDlna(this.initial);
+
+  @override
+  DlnaCastState build() {
+    super.build();
+
+    return initial;
   }
+
 }
 
 const Key sliderKey = Key('volume-vertical-slider');
@@ -66,9 +74,8 @@ Future<void> pumpButton(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith((ref) => player),
-        dlnaCastProvider.overrideWith(
-          (ref) => _FakeDlna(ref, const DlnaCastState()),
+        playerProvider.overrideWith(() => player),
+        dlnaCastProvider.overrideWith(() => _FakeDlna( const DlnaCastState()),
         ),
       ],
       child: host(VolumeButton(anchorTop: anchorTop)),

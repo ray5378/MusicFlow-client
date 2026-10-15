@@ -99,7 +99,7 @@ Future<void> _pumpDiscover(
             priority: 0,
           ),
         ),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         // 分区清单为空 → 回落默认顺序:
         // [remote-control, random-songs, recent-playlists, home-recommend,
         //  local-recommend, platform-recommend]

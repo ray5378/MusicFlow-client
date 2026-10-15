@@ -64,32 +64,34 @@ part 'player_seek.dart';
 
 
 /// 播放器 Provider
-
-// ...
-final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
-  ref,
-) {
-  // 不固定 apiClient/musicRepository 引用，PlayerNotifier 内部通过 ref.read 动态获取
-  // 这样既不建立 watch 依赖（不会被重建），又能始终拿到最新的实例
-  final notifier = _PlayerNotifierImpl(ref);
-  // 持久监听权威收藏列表并缓存到 notifier：starredProvider 是 autoDispose，
-  // 用 ref.read 一次性取值（无监听者）读完即被回收，valueOrNull 永远为 null，
-  // 投屏镜像的红心 enrichment 因此永远落空（v5.1.2 遗留）。由这里养住它，
-  // 库切换时 provider 重建也会自动带上新数据。
-  ref.listen<AsyncValue<StarredResult>>(
-    starredProvider,
-    (prev, next) => notifier.cacheAuthoritativeStarred(next.valueOrNull),
-    fireImmediately: true,
-  );
-  return notifier;
-});
+///
+/// ADR-2 阶段 3c：`同步通知 Provider` → `NotifierProvider`。
+///
+/// ⚠️ 两者的 `ref.invalidate` 语义**不同**（这正是本次迁移的核心）：
+///  · 旧的 `同步通知 Provider`：invalidate 会**整体重建 notifier 实例**，
+///    挂在构造函数里的音频播放器 / AudioHandler / SMTC / 订阅 / 定时器随
+///    `dispose()` 一起收掉，天然干净。
+///  · 现在的 `NotifierProvider`：invalidate **复用同一个 notifier 实例、只重跑
+///    `build()`**（见 riverpod 源码 `Notifier.build` 的注释：`Its instance will
+///    be preserved between executions of build`）。于是「逐 run 建立的资源」若不
+///    显式重建/拆卸，就会被旧实例继续持有，旧 run 的在途异步回调还可能往新 run
+///    的 state 里写脏数据 —— 上次这块整体回滚就是因为这个。
+/// 所以逐 run 资源一律在 [PlayerNotifier.build] 里重建，清理统一挂
+/// `ref.onDispose`（riverpod 会在重跑 build 前先跑上一轮的 dispose 监听），再用
+/// 世代令牌让上一轮启动的异步任务醒来即早退。详见 build() / _teardownRun()。
+final playerProvider = NotifierProvider<PlayerNotifier, PlayerState>(
+  _PlayerNotifierImpl.new,
+);
 
 /// 播放器状态管理器
-abstract class PlayerNotifier extends StateNotifier<PlayerState>
+abstract class PlayerNotifier extends Notifier<PlayerState>
     implements
         PlaybackSessionPersisterHost,
         PlaybackPositionPollingHost {
-  final Ref _ref;
+  /// `Ref` 别名转发：`Notifier` 基类自带 `ref`（内容等同于旧模型经构造函数
+  /// 注入的那个 `Ref`，指向同一个 provider element），这里换个名字保持全仓
+  /// 既有 `_ref.xxx` 调用面不变 —— 迁移只换生命周期模型，不动调用点。
+  Ref get _ref => ref;
 
   /// 权威收藏列表缓存。由 playerProvider 主体对 starredProvider 的持久
   /// ref.listen 持续刷新（fireImmediately + 库切换自动跟随）。autoDispose
@@ -216,6 +218,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   /// 置位后宽限 15s:期间不累计 _startupStuckTicks、不计近末尾完成;source
   /// 一旦前进过 1500ms 即提前解除;到期自动解除,真卡死仍由看门狗接力。
   /// 切歌(playSong/预览起播经 _clearStreamContext)即清除,不污染下一首。
+  /// 宽限时长见 `_kSeekSettleWindow`（T08 起由魔法数抽为命名常量）。
   DateTime? _seekSettleUntil;
 
   /// 期望正在自动播放（尚未被用户暂停）的意图标记。
@@ -303,12 +306,66 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   Completer<void>? _fadeCompleter;
   Timer? _volumePersistTimer;
 
+  // ── 逐 run 生命周期（ADR-2 阶段 3c：同步通知基类 → Notifier）──────────
+  // `Notifier` 没有 `同步通知基类.dispose()` / `mounted`，且 `ref.invalidate`
+  // 复用同一实例重跑 build()，所以这里自持一套等价设施：
+  //  · `_mounted`：build() 置真、onDispose 置假（上一轮 build 注册的 dispose
+  //    监听会在重跑前被 riverpod 调用）。置假期间读写 state 一律抛 —— 对齐旧
+  //    同步通知基类 的「used after dispose」，既有测试断言了这条。
+  //  · `_runGeneration`：build() 每轮自增，异步任务捕获后醒来判活；
+  //  · `_playerSubscriptions`：旧 run 挂在 just_audio 上的流订阅，拆卸时必须
+  //    显式 cancel，否则其残余事件会写进新 run 的 state。
+  bool _mounted = false;
+
+  /// 是否正处在「逐 run 拆卸」回调的执行中（onDispose 回调已进入、`_mounted`
+  /// 尚未置假的那个窗口）。
+  ///
+  /// 为什么需要它（实测：invalidate 直接炸）：`ref.invalidate` 走
+  /// `ProviderElementBase.invalidateSelf()`，它**先把** `_mustRecomputeState`
+  /// 置真、**再**调 `runOnDispose()` 遍历 onDispose 监听表。而
+  /// `Notifier.state` 的读值实现是 `_element.flush()`，一旦 `_mustRecomputeState`
+  /// 为真就会**就地重跑 build()** —— 新一轮 build 注册的 onDispose 回调会插进
+  /// 「正在被 forEach 的监听表」，抛 `Concurrent modification during iteration`
+  /// （拆卸回调里那次退出落盘要读 state，必然踩中）。所以拆卸期一律改读
+  /// [_stateMirror]，不触达元素：既躲开 flush 重入，也与旧 `同步通知基类`
+  /// 拆卸期读自身 `_state` 的行为一致（旧模型状态存在 notifier 自己身上，读值
+  /// 不碰任何容器设施）。
+  bool _tearingDown = false;
+
+  /// 最近一次状态的镜像：由 [build] 的初值、[state] setter 的每次赋值同步维护。
+  ///
+  /// 只在拆卸期作为读值来源（见 [_tearingDown]）；正常运行时 `state` 读写仍走
+  /// riverpod 元素，镜像只是同值副本，不参与任何业务判定。
+  PlayerState? _stateMirror;
+
+  int _runGeneration = 0;
+  final List<StreamSubscription<dynamic>> _playerSubscriptions =
+      <StreamSubscription<dynamic>>[];
+
+  /// 世代判活：既要求未拆卸，也要求仍是发起时刻的那个 run。
+  bool _isRunCurrent(int generation) =>
+      _mounted && generation == _runGeneration;
+
+  /// 测试观察点：逐 run 拆卸钩子被触发的次数（`ref.invalidate` 重跑 build 前
+  /// 与容器销毁时各 +1）。配合 debugAudioPlayer 用来证明 invalidate 真的拆掉了
+  /// 上一轮资源，而不是把旧实例原地续用。
+  @visibleForTesting
+  int debugRunTeardownCount = 0;
+
+  /// 测试观察点：当前 run 的 just_audio 播放器（逐 run 重建，拆卸后为 null）。
+  @visibleForTesting
+  AudioPlayer? get debugAudioPlayer => _audioPlayer;
+
   // ── 播放会话落盘/恢复协作者（ADR-2 阶段 2b）────────────────────────────
   // 防抖 Timer、写租约、脏标记、在途写、会话代际、恢复租约与测试钩子全部
   // 收拢在协作者（player_session_persister.dart）里；宿主只在生命周期点
-  // 调用：state setter、_init 恢复、_finishSessionTeardown、dispose、
+  // 调用：state setter、_init 恢复、_finishSessionTeardown、逐 run 拆卸、
   // persistPlaybackStateNow。
-  late final PlaybackSessionPersister sessionPersister;
+  //
+  // ⚠️ 由 `late final` 改为 `late`：Notifier 复用实例重跑 build()，每轮都要换
+  // 一个全新的协作者实例（旧的随 _teardownRun 被标死）。仍写 `late final` 会在
+  // 第二轮赋值时抛「already assigned」。
+  late PlaybackSessionPersister sessionPersister;
 
   /// 测试注入点转发（零逻辑门面）：既有测试族（playback_session_persist /
   /// b38a3 / session_teardown 等）对 `notifier.debugBeforePersistWrite` 的
@@ -374,7 +431,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   /// 预探测窗口大小：提前探测接下来几首。
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  late final FavoriteScrobbleHandler _favoriteHandler;
+  // 同 sessionPersister：逐 run 重建，故不能再是 `late final`。
+  late FavoriteScrobbleHandler _favoriteHandler;
 
   /// 动态获取最新的 API client
   SubsonicApiClient get _apiClient => _ref.read(subsonicApiClientProvider);
@@ -464,12 +522,10 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
   int? _takeLastValidBackHistoryIndex(); // ignore: unused_element, unused_element_parameter
   int? _takeLastValidForwardHistoryIndex(); // ignore: unused_element, unused_element_parameter
 
-  PlayerNotifier(this._ref) : super(PlayerState()) {
-    sessionPersister = PlaybackSessionPersister(this);
-    _favoriteHandler = FavoriteScrobbleHandler(_ref);
-    _initConnectivityRetryHandling();
-    _init();
-  }
+  // 构造函数已随迁移移除：`NotifierProvider` 收的是零参工厂
+  // `_PlayerNotifierImpl.new`，逐 run 的初始化全部下沉到 build()（见文件末尾
+  // 「生命周期」一节）。旧模型的构造期副作用（建协作者、订阅连接、_init）在
+  // Notifier 里必须跟着 build() 走，否则 invalidate 后不会被重跑。
 
   /// 服务端能力(P2-3):当前库的服务端是否全通道管道化。
   ///
@@ -516,21 +572,76 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
         'libVer=${lib?.serverVersion ?? "-"}';
   }
 
+  /// 旧模型 `同步通知基类.mounted` 的等价物：`_mounted` 由 build() 置真、
+  /// 由 ref.onDispose 置假。`PlaybackSessionPersisterHost` /
+  /// `PlaybackPositionPollingHost` 两个窄接口都靠它判活（协作者据此停止调度
+  /// 新的落盘 / 轮询 tick）。
+  @override
+  bool get mounted => _mounted;
+
+  /// Notifier 会复用实例重跑 build()，于是**没有** 同步通知基类 那种「dispose
+  /// 后 state 直接失效」的保护：拆卸后 `super.state` 仍返回上一轮的残留值。
+  /// 这里把失效语义补回来 —— 拆卸后（onDispose 已跑）读写 state 一律抛，与旧
+  /// 同步通知基类 行为一致。不补的话，上一轮漏网的异步回调会静默写进新 run
+  /// 的 state；且既有测试（player_provider_playback_cov_test）断言「容器销毁后
+  /// 读 state 必须抛」。
+  @override
+  PlayerState get state {
+    // 拆卸期优先走镜像：此刻元素的 `_mustRecomputeState` 已为真，`super.state`
+    // 会 flush 并**就地重跑 build()**，新注册的 onDispose 会插进正被 forEach
+    // 的监听表 → `Concurrent modification during iteration`。详见 [_tearingDown]。
+    if (_tearingDown) return _stateMirror!;
+    if (!_mounted) {
+      throw StateError('Tried to use $runtimeType after dispose was called.');
+    }
+    return super.state;
+  }
+
   @override
   set state(PlayerState value) {
+    if (!_mounted) {
+      throw StateError('Tried to use $runtimeType after dispose was called.');
+    }
+    // 镜像先行：无论走不走元素，退出落盘（拆卸期读镜像）都必须拿到最新值。
+    _stateMirror = value;
+    // 拆卸期不写元素也不排落盘：元素已在失效/重建路径上，写入会被丢弃，
+    // 而 schedulePersist 会留下一颗拆卸流程刚 cancel 掉的防抖 Timer。
+    // 退出落盘由 _teardownRun 自己发起一次，不需要这里的防抖。
+    if (_tearingDown) return;
     super.state = value;
     sessionPersister.schedulePersist();
   }
 
-  /// 初始化播放器
-  void _init() async {
+  /// 统一登记一条逐 run 的 just_audio 流订阅，`_teardownRun` 会显式 cancel。
+  ///
+  /// 为什么不只靠「旧 player.dispose() 会自动关闭订阅」：just_audio 的 dispose
+  /// 是异步的，且它自己会补发一次 `playing=false`；只靠 dispose + mounted 守卫，
+  /// 拆卸那一瞬的残余事件仍会写进 state。显式 cancel 才能保证拆卸即断流。
+  void _listenPlayer<T>(Stream<T> stream, void Function(T value) onData) {
+    _playerSubscriptions.add(stream.listen(onData));
+  }
+
+  /// 初始化播放器（逐 run）。
+  ///
+  /// [generation] 是 build() 发出的世代令牌：每个 await 回来先判活，一旦过期
+  /// （中途发生过 ref.invalidate）就把本轮**刚建出来的**资源就地收掉再早退。
+  /// 不判活会怎样：旧 run 的延后段会把局部新建的 handler / player 写进共享字段，
+  /// 直接顶掉新 run 刚装好的实例；旧模型靠「整体换实例」天然免疫，Notifier 复用
+  /// 实例之后这条保护就没了 —— 这正是上次回滚那个坑。
+  Future<void> _init(int generation) async {
     AudioPlayer player;
 
     // 初始化 AudioService（仅在移动平台，桌面端不支持且可能干扰播放）
     try {
       if (_isDesktopPlatform) throw UnsupportedError('Desktop platform');
-      _audioHandler = await initAudioService();
-      player = _audioHandler!.audioPlayer;
+      // 先落局部变量：过期 run 不允许把 handler 写进共享字段。
+      final handler = await initAudioService();
+      if (!_isRunCurrent(generation)) {
+        await handler.stop();
+        return;
+      }
+      _audioHandler = handler;
+      player = handler.audioPlayer;
       Logger.info('AudioService initialized');
 
       // 设置通知栏按钮回调
@@ -552,6 +663,12 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       );
     }
 
+    // 过期 run 建出来的 player 必须就地收掉，否则它会一直悬着：既没人用，
+    // 也不会出现在任何一轮 ref.onDispose 的拆卸清单里。
+    if (!_isRunCurrent(generation)) {
+      await player.dispose();
+      return;
+    }
     _audioPlayer = player;
 
     // Windows SMTC：桌面端不走 audio_service，用 smtc_windows 独立桥接
@@ -576,14 +693,23 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     // 跳过（否则每次重开都停在默认值、观感上"回到 100%"）。也保证任何播放
     // 源就绪前，real 引擎音量已是用户上次设置。
     await _restorePlayerVolume();
+    // 中途被 ref.invalidate 作废：本轮 player 可能已被新 run 顶掉，自己收掉，
+    // 免得留下一只没人管的 AudioPlayer（旧模型整体换实例，不存在悬空资源）。
+    if (!_isRunCurrent(generation)) {
+      if (_audioPlayer == player) _audioPlayer = null;
+      await player.dispose();
+      return;
+    }
 
     // 监听播放状态
-    player.playingStream.listen((isPlaying) {
-      // 先判活再读 state：dispose 之后仍会有残余事件到达（just_audio 的
-      // dispose 自己就会异步补发一次 playing=false），而下面的日志要读
-      // state.currentSong —— 不拦会抛 StateNotifier 的「used after dispose」。
-      // 与 loopModeStream / shuffleModeEnabledStream 两个监听同一姿势。
-      if (!mounted) return;
+    _listenPlayer(player.playingStream, (isPlaying) {
+      // 先判活再读 state：拆卸之后仍会有残余事件到达（just_audio 的 dispose
+      // 自己就会异步补发一次 playing=false），而下面的日志要读 state.currentSong
+      // —— 不拦会抛「used after dispose」。这里判活用**世代令牌**而非 mounted：
+      // Notifier 复用实例，invalidate 重跑 build 后 mounted 会重新为真，只有
+      // 世代令牌挡得住上一轮的残余事件。与 loopModeStream /
+      // shuffleModeEnabledStream 两个监听同一姿势。
+      if (!_isRunCurrent(generation)) return;
       _playDbg(
         'playingStream playing=$isPlaying '
         'processing=${player.processingState.name} '
@@ -598,8 +724,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     });
 
     // 监听播放进度
-    player.positionStream.listen((position) {
-      if (!mounted) return;
+    _listenPlayer(player.positionStream, (position) {
+      if (!_isRunCurrent(generation)) return;
 
       // 空会话守卫：清空队列后 just_audio 仍持有**已加载的源**（它没有公开的
       // 卸源 API，stop() 不卸载），其 position/duration 会继续 emit。不拦就会
@@ -635,8 +761,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     startPositionPolling(player);
 
     // 监听缓冲进度
-    player.bufferedPositionStream.listen((buffered) {
-      if (mounted) {
+    _listenPlayer(player.bufferedPositionStream, (buffered) {
+      if (_isRunCurrent(generation)) {
         // 空会话守卫：同 positionStream —— 已加载源的缓冲进度不该写进空会话。
         if (state.currentSong == null) return;
         if (_shouldPreserveSeekPosition()) return;
@@ -646,8 +772,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       }
     });
     // 监听总时长
-    player.durationStream.listen((duration) {
-      if (mounted) {
+    _listenPlayer(player.durationStream, (duration) {
+      if (_isRunCurrent(generation)) {
         // 空会话守卫：已加载源的时长会把 duration 顶回老歌长度，
         // 让「未在播放」的占位态还画出一段完整时长条。
         if (state.currentSong == null) return;
@@ -726,9 +852,9 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     });
 
     // 监听播放完成
-    player.playerStateStream.listen((playerState) {
-      // 同 playingStream：dispose 后的残余事件会读 state，必须先判活。
-      if (!mounted) return;
+    _listenPlayer(player.playerStateStream, (playerState) {
+      // 同 playingStream：拆卸后的残余事件会读 state，必须先判活（世代令牌）。
+      if (!_isRunCurrent(generation)) return;
       if (state.processingState != playerState.processingState) {
         state = state.copyWith(processingState: playerState.processingState);
       }
@@ -762,7 +888,8 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
         _completionHandlingSongId = null;
       }
 
-      if (mounted && playerState.processingState == ProcessingState.completed) {
+      if (_isRunCurrent(generation) &&
+          playerState.processingState == ProcessingState.completed) {
         final completedSongId = state.currentSong?.id;
         final shouldHandle =
             completedSongId != null &&
@@ -783,33 +910,44 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     });
 
     // 监听循环模式
-    player.loopModeStream.listen((loopMode) {
-      if (mounted) state = state.copyWith(loopMode: loopMode);
+    _listenPlayer(player.loopModeStream, (loopMode) {
+      if (_isRunCurrent(generation)) state = state.copyWith(loopMode: loopMode);
     });
 
     // 监听随机模式
-    player.shuffleModeEnabledStream.listen((enabled) {
+    _listenPlayer(player.shuffleModeEnabledStream, (enabled) {
+      // 世代判活：旧 run 的残余事件不许改写新 run 的随机模式 / 历史。
+      if (!_isRunCurrent(generation)) return;
       if (!enabled) {
         _resetShuffleHistory();
       }
-      if (mounted) {
-        state = state.copyWith(
-          shuffleEnabled: enabled,
-          shuffleHistoryCount: enabled ? state.shuffleHistoryCount : 0,
-        );
-      }
+      state = state.copyWith(
+        shuffleEnabled: enabled,
+        shuffleHistoryCount: enabled ? state.shuffleHistoryCount : 0,
+      );
     });
 
     await _restorePlaybackMode();
+    // 最后一个 await 出来再判一次：中途作废就自行收掉本轮 player，避免悬空。
+    if (!_isRunCurrent(generation)) {
+      if (_audioPlayer == player) _audioPlayer = null;
+      await player.dispose();
+      return;
+    }
     await sessionPersister.restorePlaybackSession();
   }
 
-  void _initConnectivityRetryHandling() {
+  void _initConnectivityRetryHandling(int generation) {
     final connectivityMonitor = _ref.read(connectivityMonitorProvider);
     _lastObservedNetworkType = connectivityMonitor.currentNetworkType;
     _networkTypeSubscription?.cancel();
     _networkTypeSubscription = connectivityMonitor.networkTypeStream.listen(
       (networkType) {
+        // 世代判活：旧 run 残留的网络变化事件不许驱动新 run 的重试流程。
+        // 订阅虽已在 _teardownRun 里 cancel，但「已 cancel」与「已入队待派发
+        // 的事件」之间存在竞态窗口，这里再兜一道，否则旧 run 会拿新 run 的
+        // 状态去触发一次多余的重试（旧模型靠换实例天然免疫）。
+        if (!_isRunCurrent(generation)) return;
         final previousType = _lastObservedNetworkType;
         _lastObservedNetworkType = networkType;
         if (networkType == NetworkType.none || previousType == networkType) {
@@ -1164,7 +1302,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       // 落回从头，是「接收端总是从头播」的另一条路径）。仅在有偏移时设，
       // 普通起播语义不变。
       if (resumeOffset > Duration.zero) {
-        _seekSettleUntil = DateTime.now().add(const Duration(seconds: 15));
+        _seekSettleUntil = DateTime.now().add(_kSeekSettleWindow);
       }
       final streamUrl = _buildStreamUrlOrThrow(
         song.id,
@@ -1962,7 +2100,7 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
       final saved = await LocalStorage.getPlayerVolume();
       // 不能加 `if (!mounted) return;`：桌面端 SharedPreferences 读取极快，
       // 常在第一个 widget 订阅前就完成，此时 mounted=false 会导致音量永远
-      // 停在默认 1.0（每次重开都是 100%）。StateNotifier 在无监听者时赋值
+      // 停在默认 1.0（每次重开都是 100%）。同步通知基类 在无监听者时赋值
       // 同样安全，后续监听者会拿到最新 state。
       state = state.copyWith(volume: saved);
       _audioPlayer?.setVolume(saved);
@@ -2820,22 +2958,102 @@ abstract class PlayerNotifier extends StateNotifier<PlayerState>
     }
   }
 
+  // ── 生命周期（ADR-2 阶段 3c：同步通知基类 → Notifier）──────────────────
+  //
+  // `NotifierProvider` 在 `ref.invalidate` / 容器销毁时**复用同一个 notifier
+  // 实例**，只重跑 `build()`；riverpod 会在重跑 build 之前先调用上一轮用
+  // `ref.onDispose` 注册的回调。因此逐 run 资源一律在这里重建、清理一律挂
+  // onDispose —— 等价于旧模型「换实例 → 旧实例 dispose()」的时序。
+  //
+  // ⚠️ 为什么不能沿用旧写法把初始化放在构造函数里：构造函数在 `Notifier` 里只
+  // 跑一次，invalidate 之后不会重跑；旧 run 的播放器 / 订阅 / 定时器会残留，
+  // 旧 run 的在途异步回调还会写脏新 run 的 state。这正是上次整体回滚的那个坑。
   @override
-  void dispose() {
+  PlayerState build() {
+    // 1) 世代令牌自增：作废上一轮所有在途异步流程。`_playDebugSession` 是全库
+    //    异步流程统一用来判活的令牌（起流 / 转码重试 / 元数据补齐等），这里再
+    //    自增一次即可复用同一套守卫，无需另造一套。
+    _runGeneration += 1;
+    final generation = _runGeneration;
+    _playDebugSession += 1;
+    _mounted = true;
+    _tearingDown = false;
+
+    // 逐 run 起始状态与镜像：镜像让拆卸期的读值（退出落盘）不触达元素，
+    // 见 [_tearingDown] / [_stateMirror] 的注释。
+    final initial = PlayerState();
+    _stateMirror = initial;
+
+    // 2) 逐 run 资源建立（等价旧构造期副作用）。
+    sessionPersister = PlaybackSessionPersister(this);
+    _favoriteHandler = FavoriteScrobbleHandler(ref);
+
+    // 3) 清理统一挂 onDispose。riverpod 在重跑 build 前会先跑这里注册的回调，
+    //    所以 _teardownRun 一定先于下一轮 build 执行 —— 旧 run 资源先收干净。
+    //    注意顺序：`_tearingDown` 必须在 _teardownRun 之前置真、在 `_mounted`
+    //    置假之后复位 —— 前置真是为了让拆卸期的 state 读值走镜像（否则 flush
+    //    重入 build → onDispose 表并发修改，invalidate 直接抛）；后复位是为了
+    //    让「已拆卸」窗口（_mounted=false）继续按旧契约抛 used-after-dispose。
+    //    `_mounted` 必须在 _teardownRun 跑完之后才置假，因为拆卸期 persister
+    //    仍要读 host.state 完成最后一次落盘。
+    ref.onDispose(() {
+      _tearingDown = true;
+      _teardownRun();
+      _mounted = false;
+      _tearingDown = false;
+    });
+
+    // 4) 权威收藏列表的持久监听：旧模型注册在 provider 主体里，迁移后必须放进
+    //    build()，否则 invalidate 重跑时这条监听不会重建 —— 连带着 autoDispose
+    //    的 starredProvider 也没人「养住」，valueOrNull 又变回永远 null。
+    ref.listen<AsyncValue<StarredResult>>(
+      starredProvider,
+      (prev, next) => cacheAuthoritativeStarred(next.valueOrNull),
+      fireImmediately: true,
+    );
+
+    // 5) 逐 run 启动连接重试监听与播放器初始化（_init 是异步的，不 await，
+    //    与旧构造函数里 `_init()` 的 fire-and-forget 语义一致）。
+    _initConnectivityRetryHandling(generation);
+    _init(generation);
+
+    return initial;
+  }
+
+  /// 逐 run 拆卸：等价旧 `同步通知基类.dispose()` 的清理集合。
+  ///
+  /// 顺序与旧 dispose() 对齐（先停落盘 / 轮询 / 淡入淡出，再收音频与系统资源），
+  /// 并额外做两件 Notifier 复用实例后才需要的事：
+  ///   * 显式 cancel `_playerSubscriptions`（旧模型靠换实例天然断流）；
+  ///   * 标记 persister 作废（`sessionPersister.dispose()`），阻断旧 run 残留在
+  ///     恢复异步尾巴上的流程写回新 run。
+  void _teardownRun() {
+    debugRunTeardownCount += 1;
+    // 先把「正在写」的那一轮结束前的状态补写一次（与旧 dispose 一致）。
     sessionPersister.cancelPersistTimer();
     _volumePersistTimer?.cancel();
+    _volumePersistTimer = null;
     unawaited(sessionPersister.persistPlaybackSession());
+    // 立刻标死本协作者：若它的恢复流程还挂在异步 await 上，醒来即早退，
+    // 不会再 playSong / schedulePersist 往新 run 的 state 写脏数据。
+    sessionPersister.dispose();
     stopPositionPolling();
     _cancelFade();
     _networkTypeSubscription?.cancel();
+    _networkTypeSubscription = null;
     _smtc?.dispose();
     _smtc = null;
-    // Check if initialized/assigned before disposing
-    // Since it was 'late', we can't check.
-    // Converting to nullable field:
+    // 显式取消逐 run 的 just_audio 流订阅：只靠 player.dispose() 不够（它是
+    // 异步的，且自己会补发一次 playing=false），残余事件仍会写进下一轮 state。
+    for (final sub in _playerSubscriptions) {
+      unawaited(sub.cancel());
+    }
+    _playerSubscriptions.clear();
+    // 收掉本轮播放器与 AudioHandler（避免上一轮实例悬空 / 抢设备）。
     _audioPlayer?.dispose();
-    _audioHandler?.stop(); // Ensure handler is stopped too
-    super.dispose();
+    _audioPlayer = null;
+    _audioHandler?.stop();
+    _audioHandler = null;
   }
 
   /// 退出/关闭瞬间立即落盘播放状态(播放会话 + 音量),不等待防抖 Timer。
@@ -2878,5 +3096,6 @@ class _PlayerNotifierImpl extends PlayerNotifier
         PlayerShuffleQueueInternals,
         PlayerSeekInternals,
         PlaybackPositionPollingDriver {
-  _PlayerNotifierImpl(Ref ref) : super(ref);
+  // 无状态构造：`NotifierProvider` 收零参工厂 `_PlayerNotifierImpl.new`，逐 run
+  // 的初始化已全部下沉到基类 `build()`（见上方「生命周期」一节）。
 }

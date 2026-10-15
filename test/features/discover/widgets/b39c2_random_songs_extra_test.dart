@@ -41,11 +41,11 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _MutableCastPeer extends CastPeerController {
-  _MutableCastPeer(super.ref);
+  _MutableCastPeer();
 }
 
 class _MutableDlnaCast extends DlnaCastNotifier {
-  _MutableDlnaCast(super.ref);
+  _MutableDlnaCast();
 }
 
 class _FakeMusicRepository extends MusicRepository {
@@ -120,10 +120,10 @@ class _Harness {
           fetchCount += 1;
           return fetched;
         }),
-        playerProvider.overrideWith((ref) => _RecordingPlayer()),
+        playerProvider.overrideWith(() => _RecordingPlayer()),
         castPeerControllerProvider
-            .overrideWith((ref) => _MutableCastPeer(ref)),
-        dlnaCastProvider.overrideWith((ref) => _MutableDlnaCast(ref)),
+            .overrideWith(() => _MutableCastPeer()),
+        dlnaCastProvider.overrideWith(() => _MutableDlnaCast()),
       ],
     );
     return UncontrolledProviderScope(

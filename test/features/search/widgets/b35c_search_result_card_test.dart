@@ -77,11 +77,11 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 class _StubSearchRepository extends SearchRepository {
@@ -214,9 +214,9 @@ Widget _build(
       ),
       // 为 null 时显式 override 为 null，避免落回真实 SearchRepository。
       searchRepositoryProvider.overrideWithValue(searchRepository),
-      playerProvider.overrideWith((ref) => player ?? _RecordingPlayer()),
-      castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-      dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+      playerProvider.overrideWith(() => player ?? _RecordingPlayer()),
+      castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+      dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
     ],
   );
   addTearDown(container.dispose);

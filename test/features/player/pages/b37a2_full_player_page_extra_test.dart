@@ -77,7 +77,7 @@ class _RootScreen extends StatelessWidget {
 
 /// 链路 A 投屏控制桩：可把 activePeer 摆成「正在投屏到 客厅音箱」（1478 出口）。
 class _RecCast extends CastPeerController {
-  _RecCast(super.ref);
+  _RecCast();
 
   static const PeerInfo castPeer = PeerInfo(
     peerId: 'peer-1',
@@ -102,7 +102,7 @@ class _RecCast extends CastPeerController {
 late _RecCast cast;
 
 class _RecDlna extends DlnaCastNotifier {
-  _RecDlna(super.ref);
+  _RecDlna();
 }
 
 class _RecSleepTimer extends SleepTimerNotifier {
@@ -117,16 +117,15 @@ Widget providerApp({
 }) {
   return ProviderScope(
     overrides: <Override>[
-      playerProvider.overrideWith((ref) => TestPlayerNotifier(state)),
+      playerProvider.overrideWith(() => TestPlayerNotifier(state)),
       currentSongPaletteProvider.overrideWith((ref) async => null),
       resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
         MusicFlowMediaVisuals.fallback(),
       ),
       currentLyricsProvider.overrideWith((ref) => lyricsFn()),
-      castPeerControllerProvider.overrideWith(
-        (Ref ref) => cast = _RecCast(ref),
+      castPeerControllerProvider.overrideWith(() => cast = _RecCast(),
       ),
-      dlnaCastProvider.overrideWith((Ref ref) => _RecDlna(ref)),
+      dlnaCastProvider.overrideWith(() => _RecDlna()),
       sleepTimerProvider.overrideWith(() => _RecSleepTimer()),
     ],
     child: MaterialApp(

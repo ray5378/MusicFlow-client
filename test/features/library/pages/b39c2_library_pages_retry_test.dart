@@ -66,11 +66,11 @@ class FakeConnectivityMonitor implements ConnectivityMonitor {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 StarredResult _filled() => StarredResult(
@@ -128,7 +128,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         connectivityMonitorProvider.overrideWithValue(monitor),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         starredProvider.overrideWith((ref) async => _filled()),
         favoritePlaylistsProvider
             .overrideWith((ref) async => <Playlist>[_playlist()]),
@@ -180,9 +180,9 @@ void main() {
       overrides: <Override>[
         connectivityMonitorProvider.overrideWithValue(monitor),
         subsonicApiClientProvider.overrideWithValue(api),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
         ensureActiveAddressProvider.overrideWith(
           (ref) async => const ServerAddress(
             id: 'addr-1',

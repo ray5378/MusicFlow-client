@@ -18,9 +18,17 @@ import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// 记录 setVolume 下发的假直投 notifier：验证音量条在直投态路由到 DLNA。
 class _RecCastNotifier extends DlnaCastNotifier {
-  _RecCastNotifier(super.ref, DlnaCastState initial, this.calls) {
-    state = initial;
+  final DlnaCastState initial;
+
+  _RecCastNotifier(this.initial, this.calls);
+
+  @override
+  DlnaCastState build() {
+    super.build();
+
+    return initial;
   }
+
 
   final List<int> calls;
 
@@ -34,8 +42,14 @@ class _RecCastNotifier extends DlnaCastNotifier {
 }
 
 class _FakeDevicesNotifier extends DlnaDevicesNotifier {
-  _FakeDevicesNotifier(super.ref, DlnaDevicesState initial) {
-    state = initial;
+  _FakeDevicesNotifier(this.initial);
+
+  final DlnaDevicesState initial;
+
+  @override
+  DlnaDevicesState build() {
+    super.build();
+    return initial;
   }
 
   @override
@@ -87,16 +101,16 @@ void main() {
     );
     return ProviderScope(
       overrides: [
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(playerState())),
-        castPeerControllerProvider.overrideWith((ref) => CastPeerController(ref)),
+        playerProvider.overrideWith(() => TestPlayerNotifier(playerState())),
+        castPeerControllerProvider.overrideWith(() => CastPeerController()),
         currentSongPaletteProvider.overrideWith((ref) async => null),
         resolvedCurrentSongMediaVisualsProvider.overrideWithValue(
           MusicFlowMediaVisuals.fallback(),
         ),
         currentLyricsProvider.overrideWith((ref) async => null),
-        dlnaCastProvider.overrideWith((ref) => _RecCastNotifier(ref, cast, calls)),
+        dlnaCastProvider.overrideWith(() => _RecCastNotifier( cast, calls)),
         dlnaDevicesProvider.overrideWith(
-          (ref) => _FakeDevicesNotifier(ref, const DlnaDevicesState()),
+          () => _FakeDevicesNotifier(const DlnaDevicesState()),
         ),
       ],
       child: MaterialApp(

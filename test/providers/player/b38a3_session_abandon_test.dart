@@ -373,7 +373,7 @@ class _FakeAddressPool extends AddressPool {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 }
 
 void main() {
@@ -426,8 +426,7 @@ void main() {
             _FakeCacheManager(cache),
           ),
           offlineCacheReadyProvider.overrideWith((ref) async {}),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

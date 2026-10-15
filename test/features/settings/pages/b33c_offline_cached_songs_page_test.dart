@@ -115,11 +115,11 @@ class RecordingPlayer extends TestPlayerNotifier {
 }
 
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref);
+  StubCastPeer();
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 class _PageHarness {
@@ -149,11 +149,10 @@ class _PageHarness {
             return Future<void>.value();
           }),
           offlineCacheManagerProvider.overrideWithValue(cache),
-          playerProvider.overrideWith((Ref ref) => player),
-          castPeerControllerProvider.overrideWith(
-            (Ref ref) => StubCastPeer(ref),
+          playerProvider.overrideWith(() => player),
+          castPeerControllerProvider.overrideWith(() => StubCastPeer(),
           ),
-          dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+          dlnaCastProvider.overrideWith(() => StubDlnaCast()),
         ],
       ),
       child: MediaQuery(

@@ -76,7 +76,7 @@ void main() {
 
   ProviderContainer buildContainer() {
     return ProviderContainer(overrides: <Override>[
-      playerProvider.overrideWith((ref) => player),
+      playerProvider.overrideWith(() => player),
       activeLibraryProvider.overrideWithValue(_lib()),
       isOfflineProvider.overrideWithValue(offline),
       offlineCacheManagerProvider.overrideWithValue(cache),

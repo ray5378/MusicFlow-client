@@ -57,7 +57,7 @@ class _FakeStatusLyricsController extends Mock
 
 /// Cast peer 桩：MainScaffold 本组用例不触发 Cast，仅需避免真控制器起 Timer。
 class _RecordingCastPeer extends CastPeerController {
-  _RecordingCastPeer(super.ref);
+  _RecordingCastPeer();
 
   @override
   Future<void> toggle() async {}
@@ -74,7 +74,7 @@ class _RecordingCastPeer extends CastPeerController {
 
 /// DLNA 直投桩：只保 `isCasting == false`，让链路落到本机分支。
 class _RecordingDlnaCast extends DlnaCastNotifier {
-  _RecordingDlnaCast(super.ref);
+  _RecordingDlnaCast();
 
   @override
   Future<void> toggle() async {}
@@ -178,11 +178,10 @@ class _Bench {
           ),
         ),
         connectivityMonitorProvider.overrideWithValue(connectivity),
-        playerProvider.overrideWith((ref) => TestPlayerNotifier(PlayerState())),
-        castPeerControllerProvider.overrideWith(
-          (Ref ref) => _RecordingCastPeer(ref),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
+        castPeerControllerProvider.overrideWith(() => _RecordingCastPeer(),
         ),
-        dlnaCastProvider.overrideWith((Ref ref) => _RecordingDlnaCast(ref)),
+        dlnaCastProvider.overrideWith(() => _RecordingDlnaCast()),
         statusLyricsControllerProvider.overrideWithValue(lyrics),
       ],
     );

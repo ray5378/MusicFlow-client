@@ -7,6 +7,26 @@ part of 'player_provider.dart';
 /// 导致流转上报读不到歌」的回归。
 const _kLoadThrottleOnFailStreak = Duration(milliseconds: 300);
 
+/// seek 落位后的**稳定观察窗**（T08 抽常量）：裸 seek / 重拉成功之后等这么久
+/// 再读回 `player.position` 判漂移。取 220ms：太短会把解码器刚起播的抖动读成
+/// 「seek 没生效」，太长则让用户感到拖动后迟滞。
+const _kSeekVerifyDelay = Duration(milliseconds: 220);
+
+/// 漂移重试前的**收尾等待**：`pause → seek → play` 之后留给播放器重新落位的
+/// 时间。只用于非服务端流（离线文件/外部直链/非管道化老服务端）的那次温和原地重试。
+const _kSeekRetryDelay = Duration(milliseconds: 120);
+
+/// 漂移容忍阈值（毫秒）：`|实际位置 - 目标位置|` 在此以内视为 seek 成功。
+/// 取 2000ms：覆盖转码片段粒度（HLS 分片）与 just_audio 位置上报的时间戳误差。
+const _kSeekDriftToleranceMs = 2000;
+
+/// seek 落位**宽限窗**（写入 `_seekSettleUntil`）：reload-stream 重拉成功后新源
+/// 从余数(<1s)起步，0 秒卡死看门狗会误判「卡在起点」而 reload→再犯则跳歌，近末尾
+/// 守卫也可能把「刚 seek 到尾段 + 尾包未到」当完成切歌。置位后宽限 15s：期间不
+/// 累计 `_startupStuckTicks`、不计近末尾完成；source 前进过 1500ms 即提前解除，
+/// 到期自动解除，真卡死仍由看门狗接力。切歌（经 `_clearStreamContext`）即清除。
+const _kSeekSettleWindow = Duration(seconds: 15);
+
 mixin PlayerSeekInternals on PlayerNotifier {
   /// 权威时长：元数据已知时以元数据为准，避免实时流渐进上报把 seek 目标截断。
   Duration _authoritativeDuration() => authoritativeDuration(
@@ -194,7 +214,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
     await player.seek(sourceTarget);
     if (!isCurrentSeek()) return;
 
-    await Future<void>.delayed(const Duration(milliseconds: 220));
+    await Future<void>.delayed(_kSeekVerifyDelay);
     if (!isCurrentSeek()) return;
     final actual = _logicalPlayerPosition(player.position);
     final drift = (actual - target).inMilliseconds.abs();
@@ -202,7 +222,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
       'seek verify target=$target sourceActual=${player.position} '
       'actual=$actual driftMs=$drift',
     );
-    if (drift <= 2000) return;
+    if (drift <= _kSeekDriftToleranceMs) return;
 
     // 走到这里只剩「本服务端流之外」的源(离线缓存文件 / 外部直链 / 明确判定的
     // 非管道化老服务端):position 漂移在这类源上同样会撒谎(见上),所以这里只做
@@ -222,7 +242,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
     if (shouldResume) {
       _startPlayback(fadeIn: false);
     }
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await Future<void>.delayed(_kSeekRetryDelay);
     if (!isCurrentSeek()) return;
     _seekDbg('seek retry completed now=${player.position}');
   }
@@ -271,7 +291,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
         sourcePositionOffset: seekTarget.serverOffset,
       );
       // 新源从余数起步,给看门狗一个落位宽限(否则 0 秒卡死会把本次 seek 当卡死重载掉)。
-      _seekSettleUntil = DateTime.now().add(const Duration(seconds: 15));
+      _seekSettleUntil = DateTime.now().add(_kSeekSettleWindow);
       if (!isCurrentSeek()) {
         _schedulePendingSeekIfReady();
         return;
@@ -282,7 +302,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
       if (shouldResume) {
         _softResumePlayback();
       }
-      await Future<void>.delayed(const Duration(milliseconds: 220));
+      await Future<void>.delayed(_kSeekVerifyDelay);
       if (!isCurrentSeek()) return;
       final actualReload = _logicalPlayerPosition(player.position);
       final reloadDrift = (actualReload - target).inMilliseconds.abs();
@@ -291,7 +311,7 @@ mixin PlayerSeekInternals on PlayerNotifier {
         'sourceActual=${player.position} actual=$actualReload '
         'sourceOffset=$_sourcePositionOffset driftMs=$reloadDrift',
       );
-      if (reloadDrift <= 2000) return;
+      if (reloadDrift <= _kSeekDriftToleranceMs) return;
       Logger.warn(
         'Reload-stream seek drift still high '
         '(target=$target, actual=$actualReload), retrying plain seek',

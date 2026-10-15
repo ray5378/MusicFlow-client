@@ -79,7 +79,8 @@ abstract class PlaybackPositionPollingHost {
   PlayerState get state;
   set state(PlayerState value);
 
-  /// StateNotifier.mounted 透传：dispose 后轮询 tick 直接早退。
+  /// 宿主逐 run 存活标记（`Notifier` 迁移后用宿主自持的 `mounted` 等价物提供）：
+  /// 拆卸后轮询 tick 直接早退。
   bool get mounted;
 
   /// 渲染可见性真值（前台激活且未隐藏到托盘）。

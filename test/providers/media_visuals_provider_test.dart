@@ -247,7 +247,7 @@ void main() {
       final emptyNotifier = TestPlayerNotifier(PlayerState());
       final emptyContainer = ProviderContainer(
         overrides: <Override>[
-          playerProvider.overrideWith((_) => emptyNotifier),
+          playerProvider.overrideWith(() => emptyNotifier),
         ],
       );
       addTearDown(emptyContainer.dispose);
@@ -263,7 +263,7 @@ void main() {
         ),
       );
       final songContainer = ProviderContainer(
-        overrides: <Override>[playerProvider.overrideWith((_) => songNotifier)],
+        overrides: <Override>[playerProvider.overrideWith(() => songNotifier)],
       );
       addTearDown(songContainer.dispose);
 

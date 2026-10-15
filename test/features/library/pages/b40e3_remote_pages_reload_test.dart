@@ -77,8 +77,8 @@ Future<void> _pump(WidgetTester tester, Widget page,
     ProviderScope(
       overrides: <Override>[
         searchRepositoryProvider.overrideWithValue(repo),
-        playerProvider
-            .overrideWith((Ref ref) => TestPlayerNotifier(PlayerState())),
+        // `NotifierProvider.overrideWith` 是零参工厂（riverpod 2.6.1 无 ref 形参）。
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),

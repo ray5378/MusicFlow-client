@@ -72,8 +72,6 @@ ServerAddress _addr(String url) => ServerAddress(
     );
 
 class _FakePeerRemote extends PeerRemoteControlNotifier {
-  _FakePeerRemote(super.ref);
-
   final List<Map<String, dynamic>> handled = <Map<String, dynamic>>[];
 
   @override
@@ -135,9 +133,9 @@ void main() {
       activeAddressProvider.overrideWith((ref) => address ?? _addr(server.url)),
       activeLibraryProvider.overrideWithValue(_lib()),
       subsonicApiClientProvider.overrideWithValue(api),
-      playerProvider.overrideWith((ref) => player),
-      peerRemoteControlProvider.overrideWith((ref) {
-        peer = _FakePeerRemote(ref);
+      playerProvider.overrideWith(() => player),
+      peerRemoteControlProvider.overrideWith(() {
+        peer = _FakePeerRemote();
         return peer!;
       }),
     ]);
@@ -240,9 +238,9 @@ void main() {
       activeAddressProvider.overrideWith((ref) => null),
       activeLibraryProvider.overrideWithValue(_lib()),
       subsonicApiClientProvider.overrideWithValue(api),
-      playerProvider.overrideWith((ref) => player),
-      peerRemoteControlProvider.overrideWith((ref) {
-        peer = _FakePeerRemote(ref);
+      playerProvider.overrideWith(() => player),
+      peerRemoteControlProvider.overrideWith(() {
+        peer = _FakePeerRemote();
         return peer!;
       }),
     ]);

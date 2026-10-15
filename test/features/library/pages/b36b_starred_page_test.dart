@@ -52,7 +52,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        playerProvider.overrideWith((Ref ref) => TestPlayerNotifier(PlayerState())),
+        playerProvider.overrideWith(() => TestPlayerNotifier(PlayerState())),
         ...overrides,
       ],
       child: MaterialApp(

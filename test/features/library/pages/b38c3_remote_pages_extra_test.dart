@@ -107,11 +107,11 @@ class _RecordingPlayer extends TestPlayerNotifier {
 }
 
 class _StubCastPeer extends CastPeerController {
-  _StubCastPeer(super.ref);
+  _StubCastPeer();
 }
 
 class _StubDlnaCast extends DlnaCastNotifier {
-  _StubDlnaCast(super.ref);
+  _StubDlnaCast();
 }
 
 late AppLocalizations loc;
@@ -163,11 +163,10 @@ class _Harness {
     container = ProviderContainer(
       overrides: <Override>[
         searchRepositoryProvider.overrideWithValue(repo),
-        playerProvider.overrideWith(
-          (ref) => player ?? _RecordingPlayer(PlayerState()),
+        playerProvider.overrideWith(() => player ?? _RecordingPlayer(PlayerState()),
         ),
-        castPeerControllerProvider.overrideWith((Ref ref) => _StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => _StubDlnaCast(ref)),
+        castPeerControllerProvider.overrideWith(() => _StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => _StubDlnaCast()),
       ],
     );
     tester.view.physicalSize = const Size(900, 1600);

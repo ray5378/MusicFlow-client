@@ -335,7 +335,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
 }
 
 class _FakeCastPeerController extends CastPeerController {
-  _FakeCastPeerController(super.ref);
+  _FakeCastPeerController();
 
   @override
   Future<Map<String, dynamic>?> fetchLocalQueueForRestore() async => null;
@@ -417,8 +417,7 @@ void main() {
             _FakeCacheManager(cache),
           ),
           offlineCacheReadyProvider.overrideWith((ref) async {}),
-          castPeerControllerProvider.overrideWith(
-            (ref) => _FakeCastPeerController(ref),
+          castPeerControllerProvider.overrideWith(() => _FakeCastPeerController(),
           ),
           starredProvider.overrideWith(
             (ref) async => StarredResult(

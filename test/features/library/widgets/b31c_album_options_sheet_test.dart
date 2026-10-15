@@ -165,11 +165,11 @@ class RecordingPlayer extends TestPlayerNotifier {
 /// 链路 A / B 两个 notifier 桩：只保留默认态（无投屏设备），让
 /// `playEffectiveQueue` 直接落到本机 `playerProvider`。
 class StubCastPeer extends CastPeerController {
-  StubCastPeer(super.ref);
+  StubCastPeer();
 }
 
 class StubDlnaCast extends DlnaCastNotifier {
-  StubDlnaCast(super.ref);
+  StubDlnaCast();
 }
 
 /// 把树里的 WidgetRef / BuildContext 递出来给 `showAlbumOptionsSheet`（见 #C2）。
@@ -255,9 +255,9 @@ class SheetHarness {
         playlistsLoadFailedProvider.overrideWith(
           (Ref ref) => playlistsLoadFailed,
         ),
-        playerProvider.overrideWith((Ref ref) => player),
-        castPeerControllerProvider.overrideWith((Ref ref) => StubCastPeer(ref)),
-        dlnaCastProvider.overrideWith((Ref ref) => StubDlnaCast(ref)),
+        playerProvider.overrideWith(() => player),
+        castPeerControllerProvider.overrideWith(() => StubCastPeer()),
+        dlnaCastProvider.overrideWith(() => StubDlnaCast()),
       ],
     );
     _container = container;
