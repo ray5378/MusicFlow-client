@@ -43,6 +43,13 @@ class TranscodedStreamSeekTarget {
 /// 服务端 P2-1 起 `/rest/stream` 全通道走实时管道(D9,无直传旁路),即使请求格式
 /// 与源格式一致、码率不限,返回的也是不可字节 seek 的实时流,拖动进度必须走
 /// timeOffset 重拉。调用方按服务端能力判定后传入(见 [serverPipesAllHttpStreams])。
+///
+/// D1(2026-10-20 任务A):服务端**默认输出编码已全局统一为 FLAC** —— 未带 `format`
+/// 时服务端也会转码出 FLAC(不再是「源格式直连」),因此旧注释里那条「请求格式 ==
+/// 源格式 ⇒ 可字节 seek」的快路径对本服务端**不再成立**。[serverPipelinedHttp]
+/// 为 true(本服务端 `MusicFlow*` 一律如此)时本函数无条件返回 true,自然覆盖该情形;
+/// 下面的格式/码率比对分支只保留给**明确识别出的非本服务端**(其直传流仍可字节 seek),
+/// 不劣化。断言见 test/providers/transcoded_stream_seek_test.dart 的「D1」组。
 bool shouldUseServerTimeOffsetSeek({
   required String? requestedFormat,
   required int? requestedMaxBitRate,

@@ -185,6 +185,29 @@ void main() {
     });
   });
 
+  group('D1(2026-10-20 任务A):未带 format 但服务端默认出 FLAC → 需 timeOffset', () {
+    // 任务A:服务端默认输出编码已全局统一 FLAC —— 未带 format/码率时服务端也会
+    // 转码出 FLAC(不可字节 seek)。客户端必须走 timeOffset 重拉、不得源内字节 seek、
+    // 不得从头播放。实现上本服务端(MusicFlow*)一律 serverPipelinedHttp=true,
+    // shouldUseServerTimeOffsetSeek 无条件 true → resolveSeekReloadPlan 必产出重拉计划。
+    // 重拉计划本身的地址改写断言见 seek_reload_routing_test.dart 的「D1」组。
+    test('未带 format + 未限码率 + 本服务端 → 判定为需 timeOffset(与源族无关)', () {
+      for (final src in <String>['mp3', 'flac', 'ogg', 'm4a']) {
+        expect(
+          shouldUseServerTimeOffsetSeek(
+            requestedFormat: null,
+            requestedMaxBitRate: null,
+            sourceFormat: src,
+            sourceBitRate: 320,
+            serverPipelinedHttp: true,
+          ),
+          isTrue,
+          reason: 'src=$src',
+        );
+      }
+    });
+  });
+
   group('TranscodedStreamSeekTarget', () {
     test(
       'splits logical time into whole-second offset and source remainder',

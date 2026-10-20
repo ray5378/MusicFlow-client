@@ -232,6 +232,32 @@ void main() {
     });
   });
 
+  group('D1(2026-10-20 任务A):未带 format 的本服务端流 → 仍走 timeOffset 重拉', () {
+    // 服务端默认输出编码已全局统一 FLAC:未带 format 时服务端也会转码出 FLAC
+    // (不可字节 seek)。客户端必须重拉、不得源内字节 seek、不得从头播放。
+    test('重拉地址带 timeOffset,且不带 format(服务端仍按默认 FLAC 出流)', () {
+      final base = _serverStreamUrl(); // 默认 format/maxBitRate 均为 '-' → 未指定
+      final plan = _plan(contextUrl: base);
+      expect(plan, isNotNull, reason: '未带 format 的本服务端流也必须重拉,绝不源内字节 seek');
+      expect(_timeOffsetOf(plan!.url), '231');
+      // 重拉地址不带 format → 服务端仍按 D1 默认 FLAC 出流。
+      expect(plan.format, isNull);
+      expect(plan.maxBitRate, isNull);
+    });
+
+    test('loaded-source 兜底路径同样重拉(上下文簿记丢失也不退化成字节 seek)', () {
+      final base = _serverStreamUrl();
+      final plan = _plan(
+        contextSongId: null,
+        contextUrl: null,
+        loadedSourceUrl: base,
+      );
+      expect(plan, isNotNull);
+      expect(plan!.origin, 'context_lost');
+      expect(_timeOffsetOf(plan.url), '231');
+    });
+  });
+
   group('serverPipesAllHttpStreams', () {
     test('accepts this server however the type string is spelled', () {
       for (final type in <String>['MusicFlow', 'musicflow', 'MusicFlow-web']) {

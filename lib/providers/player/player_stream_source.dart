@@ -3,6 +3,11 @@ part of 'player_provider.dart';
 mixin PlayerStreamSourceInternals on PlayerNotifier {
   /// 判断格式是否需要强制转码
   /// 返回 null 表示直接使用原始格式，返回格式字符串表示需要转码
+  ///
+  /// D1(2026-10-20 任务A)核对:服务端默认输出已全局统一 FLAC,但本名单仍**按源后缀**
+  /// 判断,触发条件不变 —— 命中者(ape/wv/tta/dff/dsf/tak、非 Apple 平台的 m4a/alac)
+  /// 显式请求 `format=mp3`,由服务端做**单次**转码(显式 format 优先级高于默认 FLAC);
+  /// 未命中者一律不传 format → 服务端默认出 FLAC。二者**不打架、不重复转码**。
   String? _needsTranscoding(String? suffix) {
     if (suffix == null) return null;
 
