@@ -2,6 +2,14 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.8.13] - 2026-10-20
+
+### 契约锁定
+
+- **「默认输出编码全局统一为 FLAC（D1）」的 seek 判定契约锁定**：服务端已把默认输出编码统一为 FLAC（源为 mp3 / m4a / aac / ogg / opus / 未知时，未带 `format` 也一律出 FLAC）。客户端核对后确认**判定逻辑无需改动** —— `shouldUseServerTimeOffsetSeek()` 首行即 `if (serverPipelinedHttp) return true;`，而本服务端（MusicFlow 自报名）一律命中该早返回，因此「未带 format 但拿到 FLAC」天然走 `timeOffset` 重拉、不做流内字节 seek、不会从头播放；下方「格式/码率比对」分支只服务**明确识别出的外部服务端**（Navidrome 等的字节直传启发式），不劣化。本次以**契约注释 + 行为断言**把这条语义钉死：`transcoded_stream_seek.dart` / `player_stream_source.dart` / `audio_quality.dart` 三处补 D1 契约注释，并在 `transcoded_stream_seek_test.dart` 与 `seek_reload_routing_test.dart` 新增两组用例 —— 「未带 format + 未限码率 + 本服务端 → 判定为需 timeOffset（与源族无关）」与「重拉地址带 timeOffset、且不带 format（服务端仍按默认 FLAC 出流）」；loaded-source 兜底路径（上下文簿记丢失）同样重拉，不退化成字节 seek。
+- **服务端「显式音质档位一律走显式转码」的语义同步**：服务端去掉 `decideTranscode` 的「可复用原始直传」快路径后，显式 `format=mp3` 与显式 `maxBitRate`（高品质 320 / 标准 192 / 流量节省 128）一律走显式转码，界面档位与实际输出一致。`audio_quality.dart` 的档位说明随之更新，并在 `transcoded_stream_seek_test.dart` 文件头补作用域说明（本文件用例以 `serverPipelinedHttp: false` 走比对分支，描述的是外部服务端语义；本服务端侧该改动不影响这些用例，两侧刻意分道）。
+- 说明：本次为**契约注释 + 用例补强**，**运行时行为零变化**；`player_stream_source.dart` 的强制 mp3 名单仍**按源后缀**判断（命中者显式请求 `format=mp3`，显式 format 优先于默认 FLAC），两者不冲突、不重复转码。门禁：`dart analyze` 0 error；`flutter test --concurrency=1` 四个 seek 相关文件 52 passed。
+
 ## [5.8.12] - 2026-10-16
 
 ### 重构
