@@ -6,8 +6,9 @@ import 'package:musicflow_client/core/l10n/localizations.dart';
 ///
 /// D1(2026-10-20 任务A)核对:服务端默认输出编码已全局统一为 FLAC —— `original`
 /// 档(不传 maxBitRate 和 format)的输出格式由**服务端**裁决,默认出 FLAC,不再等于
-/// 「源格式直连」;high/standard/dataSaver 档仍只传 maxBitRate(码率上限),输出格式
-/// 同样由服务端裁决(码率上限低于源码率时才转 mp3,否则默认 FLAC)。
+/// 「源格式直连」;high/standard/dataSaver 档只传 maxBitRate(码率上限)—— 服务端
+/// **只要收到 maxBitRate 就一定转 mp3 取该档位**(2026-10-20 起:D1 之后「不转码」=
+/// 默认出 FLAC,档位会形同虚设),界面档位与实际输出因此一致。
 enum AudioQualityLevel {
   original, // 原始音质档：不传 maxBitRate 和 format（D1:服务端默认出 FLAC）
   high, // 高品质 320kbps

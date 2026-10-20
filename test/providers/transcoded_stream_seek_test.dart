@@ -1,6 +1,12 @@
 import 'package:musicflow_client/providers/player/transcoded_stream_seek.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// 作用域说明(2026-10-20):本文件的用例都以 `serverPipelinedHttp: false` 走到**格式/码率
+// 比对分支**,描述的是**外部服务端**(Navidrome 等)「源格式相同且码率达标即可字节直传」
+// 的启发式 —— 这条分支本服务端用不到(本服务端首行 `if (serverPipelinedHttp) return true`
+// 就命中,见 lib/providers/player/transcoded_stream_seek.dart)。故服务端侧 2026-10-20 的
+// 「显式档位一律转码」改动**不影响**本文件用例,两侧刻意分道,免得为本服务端的 D1 去
+// 劣化外服务器的字节 seek。
 void main() {
   group('shouldUseServerTimeOffsetSeek', () {
     test('detects explicit format transcoding', () {
