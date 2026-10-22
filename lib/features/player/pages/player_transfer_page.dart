@@ -25,6 +25,16 @@ const double _kCellMinWidth = 240;
 /// 单个格子的宽度上限：玩家少时不把格子拉满整行，整组水平居中。
 const double _kCellMaxWidth = 320;
 
+/// 拖拽边缘自动滚动：热区高度（滚动视口内边缘）与速度范围（px/s）。
+/// 与 HA 卡片 `.tp-*` 同一口径；热区在视口内部、不占布局，进入即连续滚动，
+/// 越靠边缘越快。回收站在滚动视口之外，天然形成「热区 / 销毁」分界。
+const double _kAutoScrollZone = 44;
+const double _kAutoScrollMinSpeed = 140;
+const double _kAutoScrollMaxSpeed = 1100;
+
+/// 自动滚动定时器周期（毫秒）。每拍按这个时长折算位移，保证速度恒定。
+const int _kAutoScrollTickMs = 16;
+
 /// 「流转播放队列」专用页面。
 ///
 /// 一个圆 = 一个播放端：圆内是该端**此刻在播**的封面（没在播则显示设备图标），
@@ -87,6 +97,30 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
   Set<String> _selectedMembers = const <String>{};
   bool _groupBusy = false;
 
+  // ---- 拖拽边缘自动滚动 ----
+  final ScrollController _scroll = ScrollController();
+  final GlobalKey _viewportKey = GlobalKey();
+  final GlobalKey _trashKey = GlobalKey();
+  final Map<String, GlobalKey> _peerKeys = <String, GlobalKey>{};
+  Timer? _autoScrollTimer;
+  /// 当前指针全局坐标（Draggable.onDragUpdate 回传）；null = 还没移动过。
+  Offset? _dragGlobalPosition;
+  String? _draggingPeerId;
+  String? _dragHoverPeerId;
+  bool _dragOverTrash = false;
+
+  /// 本次拖拽期间是否真的发生过自动滚动。自动滚动后 DragTarget 的落点高亮
+  /// 与 _activeTarget 可能停在滚动前的位置（Flutter 只在指针移动时重做命中），
+  /// 因此松手时改由本页按**指针实际坐标**重新判定落点。
+  bool _autoScrolled = false;
+
+  @override
+  void dispose() {
+    _stopAutoScroll();
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -126,7 +160,173 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
   // ⚠️ 别在本文件内联比较器 —— 流转页与切换器曾各写一份,改一处就漂移;
   //    口径由 peer_order 单测 + tool/check-peer-order.mjs 双锁。
 
+  // ---- 拖拽边缘自动滚动（与 HA 卡片 `.tp-scroll` 同一口径） ----
+
+  GlobalKey _peerKey(String peerId) =>
+      _peerKeys.putIfAbsent(peerId, () => GlobalKey());
+
+  PeerInfo? _peerById(String peerId) {
+    for (final p in _peers ?? const <PeerInfo>[]) {
+      if (p.peerId == peerId) return p;
+    }
+    return null;
+  }
+
+  /// 全局坐标是否落在某个 key 对应的渲染盒内（已滚出可视区的盒子同样按
+  /// 自身矩形判断，滚出后自然不会再命中）。
+  bool _pointInKey(GlobalKey key, Offset globalPosition) {
+    final box = key.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return false;
+    return (box.localToGlobal(Offset.zero) & box.size).contains(globalPosition);
+  }
+
+  PeerInfo? _peerAt(Offset globalPosition) {
+    for (final p in _peers ?? const <PeerInfo>[]) {
+      final key = _peerKeys[p.peerId];
+      if (key != null && _pointInKey(key, globalPosition)) return p;
+    }
+    return null;
+  }
+
+  Rect? _viewportRect() {
+    final box = _viewportKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+  }
+
+  void _onDragStarted(PeerInfo peer) {
+    // 多指同时拖两个圆:第二路直接忽略(否则会覆盖第一路的源/坐标,
+    // 先松手那一路会拿错源去流转)。
+    if (_draggingPeerId != null) return;
+    _stopAutoScroll();
+    _draggingPeerId = peer.peerId;
+    _dragGlobalPosition = null;
+    _dragHoverPeerId = null;
+    _dragOverTrash = false;
+    _autoScrolled = false;
+    // 16ms ≈ 一帧：即使指针停在热区不动，也按固定节奏持续滚动。
+    _autoScrollTimer = Timer.periodic(
+      const Duration(milliseconds: _kAutoScrollTickMs),
+      (_) => _autoScrollTick(),
+    );
+  }
+
+  void _onDragUpdate(String peerId, Offset globalPosition) {
+    // 只接受当前拖拽会话内的更新:被忽略的第二路拖拽不得改坐标/落点。
+    if (_draggingPeerId != peerId) return;
+    _dragGlobalPosition = globalPosition;
+    _updateDragHover();
+  }
+
+  /// 按指针实际坐标重算「会落到谁那儿」：
+  /// - 回收站区域 → 只高亮回收站，不算播放器落点；
+  /// - 播放器圆 → 高亮该圆（拖回自己不算落点）；
+  /// - 其余 → 取消高亮。
+  /// 自动滚动让圆在指针下方移动时，靠它同步刷新，不依赖 Flutter 的命中重算。
+  void _updateDragHover() {
+    final pointer = _dragGlobalPosition;
+    if (!mounted || pointer == null || _draggingPeerId == null) return;
+    final overTrash = _pointInKey(_trashKey, pointer);
+    final hit = overTrash ? null : _peerAt(pointer);
+    final hoverId = hit != null && hit.peerId != _draggingPeerId
+        ? hit.peerId
+        : null;
+    if (hoverId == _dragHoverPeerId && overTrash == _dragOverTrash) return;
+    setState(() {
+      _dragHoverPeerId = hoverId;
+      _dragOverTrash = overTrash;
+    });
+  }
+
+  /// 每 16ms 判定一次：指针在滚动视口上/下边缘的热区内就持续滚动，
+  /// 越靠边越快（140–1100 px/s）；离开热区、到边界、无滚动空间、进入
+  /// 回收站都不滚 —— 回收站与滚动视口物理分离，这里再兜一层互斥。
+  void _autoScrollTick() {
+    final pointer = _dragGlobalPosition;
+    if (pointer == null || _draggingPeerId == null) return;
+    if (!_scroll.hasClients) return;
+    final rect = _viewportRect();
+    if (rect == null || !rect.contains(pointer)) return;
+    if (_pointInKey(_trashKey, pointer)) return;
+    final max = _scroll.position.maxScrollExtent;
+    if (max <= 0) return;
+    final zone = math.min(_kAutoScrollZone, rect.height / 2);
+    if (zone <= 0) return;
+    final topDepth = rect.top + zone - pointer.dy;
+    final bottomDepth = pointer.dy - (rect.bottom - zone);
+    final depth = math.max(topDepth, bottomDepth);
+    if (depth <= 0) return;
+    final t = (depth / zone).clamp(0.0, 1.0);
+    final speed =
+        _kAutoScrollMinSpeed +
+        (_kAutoScrollMaxSpeed - _kAutoScrollMinSpeed) * t;
+    final dir = topDepth > 0 ? -1.0 : 1.0;
+    final delta = dir * speed * (_kAutoScrollTickMs / 1000.0);
+    final current = _scroll.position.pixels;
+    final next = (current + delta).clamp(0.0, max);
+    if ((next - current).abs() < 0.01) return;
+    _scroll.jumpTo(next);
+    _autoScrolled = true;
+    // 滚动把别的圆送到指针下方：落点高亮立刻按新坐标重算。
+    _updateDragHover();
+  }
+
+  /// 松手收尾。普通拖拽由 DragTarget 正常派发；**发生过自动滚动**时
+  /// DragTarget 的 `_activeTarget` 可能停在被滚走前的旧位置（Flutter 只在
+  /// 指针移动时重做命中），因此这里按指针实际坐标重新判定落点：
+  /// 回收站优先（销毁），其次播放器圆（流转）。
+  Future<void> _onDragFinished(String peerId) async {
+    // 结束回调同样带源身份:被忽略的第二路拖拽结束时不得收掉第一路的会话。
+    if (_draggingPeerId != peerId) return;
+    final pointer = _dragGlobalPosition;
+    final fromId = _draggingPeerId;
+    final didAutoScroll = _autoScrolled;
+    _stopAutoScroll();
+    _draggingPeerId = null;
+    _dragGlobalPosition = null;
+    _dragHoverPeerId = null;
+    _dragOverTrash = false;
+    _autoScrolled = false;
+    if (mounted) setState(() {});
+    if (!didAutoScroll || pointer == null || fromId == null) return;
+    final from = _peerById(fromId);
+    if (from == null || !mounted) return;
+    if (_pointInKey(_trashKey, pointer)) {
+      await _destroyCore(from);
+      return;
+    }
+    final hit = _peerAt(pointer);
+    if (hit == null || hit.peerId == from.peerId) return;
+    await _dropCore(from, hit);
+  }
+
+  void _onDragCanceled(String peerId) {
+    if (_draggingPeerId != peerId) return;
+    _stopAutoScroll();
+    _draggingPeerId = null;
+    _dragGlobalPosition = null;
+    _dragHoverPeerId = null;
+    _dragOverTrash = false;
+    _autoScrolled = false;
+    if (mounted) setState(() {});
+  }
+
+  /// DragTarget 的落点回调。**发生过自动滚动**时 `_activeTarget` 可能是
+  /// 滚动前的旧目标，这里直接忽略，由 `_onDragFinished` 按实际坐标重判。
   Future<void> _handleDrop(PeerInfo from, PeerInfo to) async {
+    // 只认当前拖拽会话的源:多指同时拖时,被忽略的第二路拖拽即便被 DragTarget
+    // 接住也不得流转。
+    if (_draggingPeerId != from.peerId) return;
+    if (_autoScrolled) return;
+    await _dropCore(from, to);
+  }
+
+  Future<void> _dropCore(PeerInfo from, PeerInfo to) async {
     if (_busy || from.peerId == to.peerId) return;
     setState(() => _busy = true);
     final ok = await widget.onTransfer(from, to);
@@ -308,7 +508,15 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
 
   /// 回收站落点：销毁播放端（停止 + 清空其队列；本机 = 内存会话一并抛弃）。
   /// 成功弹 Toast **不关页**（可继续销毁别的播放器）；失败弹错也留页。
+  /// 自动滚动期间的落点由 `_onDragFinished` 重判，这里同样忽略过时调用。
   Future<void> _handleDestroy(PeerInfo peer) async {
+    // 同 _handleDrop:被忽略的第二路拖拽拖进回收站也不得销毁。
+    if (_draggingPeerId != peer.peerId) return;
+    if (_autoScrolled) return;
+    await _destroyCore(peer);
+  }
+
+  Future<void> _destroyCore(PeerInfo peer) async {
     if (_busy) return;
     setState(() => _busy = true);
     final controller = ref.read(castPeerControllerProvider.notifier);
@@ -399,6 +607,8 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
                         ),
                         [] => Center(child: Text(loc.player_transfer_empty)),
                         final list => SingleChildScrollView(
+                          key: _viewportKey,
+                          controller: _scroll,
                           padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
                           // 自适应网格：按可用宽度自动算列数，一行排满才换行；
                           // 单格宽度有上限（320），玩家少时不拉满整行 ——
@@ -434,6 +644,7 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
                                             j++
                                           )
                                             SizedBox(
+                                              key: _peerKey(list[j].peerId),
                                               width: cellWidth,
                                               child: _RingNode(
                                                 peer: list[j],
@@ -463,7 +674,26 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
                                                   list[j].isLocal &&
                                                       list[j].self,
                                                 ),
-                                                onDragStateChanged: (_) {},
+                                                dragHovered:
+                                                    _dragHoverPeerId ==
+                                                    list[j].peerId,
+                                                autoScrolling: _autoScrolled,
+                                                onDragStarted: () =>
+                                                    _onDragStarted(list[j]),
+                                                onDragUpdate: (pos) =>
+                                                    _onDragUpdate(
+                                                      list[j].peerId,
+                                                      pos,
+                                                    ),
+                                                onDragEnd: () => unawaited(
+                                                  _onDragFinished(
+                                                    list[j].peerId,
+                                                  ),
+                                                ),
+                                                onDragCanceled: () =>
+                                                    _onDragCanceled(
+                                                      list[j].peerId,
+                                                    ),
                                                 onDropFrom: _handleDrop,
                                               ),
                                             ),
@@ -480,8 +710,12 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
                     // 底部回收站：拖任意播放器圆进来 = 停止该端并清空其队列。
                     // 放在滚动区外的页面底部，常驻可见；不参与滚动。
                     Padding(
+                      key: _trashKey,
                       padding: const EdgeInsets.only(top: 4, bottom: 18),
-                      child: _TrashZone(onDestroy: _handleDestroy),
+                      child: _TrashZone(
+                        onDestroy: _handleDestroy,
+                        forceActive: _dragOverTrash,
+                      ),
                     ),
                   ],
                 ),
@@ -503,8 +737,13 @@ class _RingNode extends ConsumerWidget {
     required this.isSelf,
     required this.isActive,
     required this.onTap,
-    required this.onDragStateChanged,
     required this.onDropFrom,
+    required this.onDragStarted,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.onDragCanceled,
+    this.dragHovered = false,
+    this.autoScrolling = false,
     this.selectedGroup,
     this.isMemberOfSelected = false,
     this.onToggleMembership,
@@ -528,8 +767,21 @@ class _RingNode extends ConsumerWidget {
   /// 当前遥控目标就是这个圆（对齐小弹窗 selected 判据）→ 呼吸光环高亮。
   final bool isActive;
   final VoidCallback onTap;
-  final ValueChanged<PeerInfo?> onDragStateChanged;
   final Future<void> Function(PeerInfo from, PeerInfo to) onDropFrom;
+
+  /// 拖拽边缘自动滚动期间的重算结果：指针此刻是否在这个圆上。
+  /// Flutter 的 DragTarget 只在指针移动时重做命中，自动滚动把圆送到指针
+  /// 下方时不会刷新高亮，由页面按下发结果补齐。
+  final bool dragHovered;
+
+  /// 本次拖拽已经发生过自动滚动：此时 DragTarget 的 candidates 停留在
+  /// 滚动前的旧几何上，不再代表真实落点，必须让位给 [dragHovered]。
+  final bool autoScrolling;
+
+  final VoidCallback onDragStarted;
+  final ValueChanged<Offset> onDragUpdate;
+  final VoidCallback onDragEnd;
+  final VoidCallback onDragCanceled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -561,14 +813,18 @@ class _RingNode extends ConsumerWidget {
             peer: peer,
             isSelf: isSelf,
             isActive: isActive,
-            highlighted: candidates.isNotEmpty || groupSelected,
+            highlighted:
+                (!autoScrolling && candidates.isNotEmpty) ||
+                dragHovered ||
+                groupSelected,
             actionBelow: action,
             // 只有封面圆可拖起:从播放器名/歌名位置按下不会起拖,只响应点击。
             circleWrapper: (circle) => Draggable<PeerInfo>(
               data: peer,
-              onDragStarted: () => onDragStateChanged(peer),
-              onDragEnd: (_) => onDragStateChanged(null),
-              onDraggableCanceled: (_, _) => onDragStateChanged(null),
+              onDragStarted: onDragStarted,
+              onDragUpdate: (details) => onDragUpdate(details.globalPosition),
+              onDragEnd: (_) => onDragEnd(),
+              onDraggableCanceled: (_, _) => onDragCanceled(),
               // feedback 被插进根 Overlay,那里只给【无界约束】—— 必须先用
               // SizedBox 给出有界宽度,否则内部 Row+Expanded 布局崩掉
               //(size: MISSING → hit test 连环异常 → 拖动时整个画面卡死)。
@@ -966,9 +1222,13 @@ class _MemberToggleButton extends StatelessWidget {
 /// 悬停时红色高亮 + 放大（销毁语义用红色系，与流转落点的 primary 高亮区分）。
 /// 圆面 96px **大于播放器圆（78px）** —— 落点要比被拖物大，交互才合理。
 class _TrashZone extends StatelessWidget {
-  const _TrashZone({required this.onDestroy});
+  const _TrashZone({required this.onDestroy, this.forceActive = false});
 
   final Future<void> Function(PeerInfo peer) onDestroy;
+
+  /// 页面按指针坐标判定的「正悬停在回收站上」：自动滚动后 DragTarget 的
+  /// 候选刷新可能滞后，用这个开关保证红色高亮即时跟上。
+  final bool forceActive;
 
   @override
   Widget build(BuildContext context) {
@@ -978,7 +1238,7 @@ class _TrashZone extends StatelessWidget {
       onWillAcceptWithDetails: (_) => true,
       onAcceptWithDetails: (details) => onDestroy(details.data),
       builder: (context, candidates, rejected) {
-        final hot = candidates.isNotEmpty;
+        final hot = candidates.isNotEmpty || forceActive;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[

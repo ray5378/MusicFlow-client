@@ -211,6 +211,21 @@ Finder ringGesture(String name) =>
         )
         .at(0);
 
+/// 松手点落在哪个播放端的**整行**上（与页面 `_peerAt` 同一口径：按整行矩形）。
+/// 找不到返回 null —— 说明落点落在行间空隙 / 视口外。
+String? peerNameAtPoint(
+  WidgetTester tester,
+  Offset point,
+  Iterable<String> names,
+) {
+  for (final name in names) {
+    final finder = ringGesture(name);
+    if (finder.evaluate().isEmpty) continue;
+    if (tester.getRect(finder).contains(point)) return name;
+  }
+  return null;
+}
+
 /// 某个播放端**封面圆**（拖拽源）的句柄。
 ///
 /// 两个坑：
@@ -251,6 +266,37 @@ Finder hintFinder(String needle) =>
     find.byWidgetPredicate(
       (Widget w) => w is Text && (w.data ?? '').contains(needle),
     );
+
+/// 造 N 个远端播放端（全部 DLNA，名称 P01..P12），拼上本机：默认 800×600
+/// 测试窗口下 13 个圆排成 7 行 —— 远超滚动视口高度，页面必定可滚动。
+List<PeerInfo> manyPeers(int count) => <PeerInfo>[
+  kSelf,
+  for (var i = 1; i <= count; i++)
+    PeerInfo(
+      peerId: 'dlna:${i.toString().padLeft(2, '0')}',
+      name: 'P${i.toString().padLeft(2, '0')}',
+      kind: 'dlna',
+      available: true,
+    ),
+];
+
+/// 页面里唯一的滚动视口控制器（C1 接入的 `ScrollController`）。
+ScrollController pageScroll(WidgetTester tester) => tester
+    .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+    .controller!;
+
+/// 把指针移到 [target] 并推进 [ticks] 拍（16ms/拍，与页面自动滚动定时器同频）。
+Future<void> holdInHotzone(
+  WidgetTester tester,
+  TestGesture gesture,
+  Offset target, {
+  int ticks = 10,
+}) async {
+  await gesture.moveTo(target);
+  for (var i = 0; i < ticks; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+}
 
 void main() {
   testWidgets('首帧还没拿到播放端列表时显示加载圈', (WidgetTester tester) async {
@@ -700,6 +746,251 @@ void main() {
       // 桩返回 false 时页面不关，但命令已经下发了 ——
       // 这条钉的是「drop 之后仍然把 switchTo 发出去」，而不是「成功才发」。
       expect(ctrl!.calls, contains('switchTo:dlna:30'));
+    });
+  });
+
+  // ───────────────── 十一、拖拽边缘自动滚动（C1–C5） ─────────────────
+  group('拖拽边缘自动滚动', () {
+    testWidgets('拖到顶部热区：持续向上滚，越靠边越快', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:12')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+
+      // 先停在顶部热区浅处（离下边界远）→ 滚得慢。
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.top + 40),
+        ticks: 6,
+      );
+      final afterShallow = controller.offset;
+      expect(afterShallow, lessThan(controller.position.maxScrollExtent),
+          reason: '顶部热区必须向上滚');
+
+      // 再贴到上边界 → 同样帧数滚得更多。
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.top + 4),
+        ticks: 6,
+      );
+      final afterDeep = controller.offset;
+      final shallowDelta =
+          controller.position.maxScrollExtent - afterShallow;
+      final deepDelta = afterShallow - afterDeep;
+      expect(afterDeep, lessThan(afterShallow), reason: '贴边继续向上滚');
+      expect(deepDelta, greaterThan(shallowDelta),
+          reason: '越靠近边缘滚得越快（深度调速）');
+
+      await g.up();
+      await tester.pump();
+    });
+
+    testWidgets('离开热区立即停止滚动', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:12')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.top + 4),
+        ticks: 5,
+      );
+      expect(controller.offset, lessThan(controller.position.maxScrollExtent),
+          reason: '热区内已开始滚动');
+
+      // 移到视口正中（不在上下热区）→ 再推进 12 帧也不再滚。
+      await g.moveTo(viewport.center);
+      await tester.pump(const Duration(milliseconds: 16));
+      final stopped = controller.offset;
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.offset, stopped, reason: '离开热区必须立刻停');
+
+      await g.up();
+      await tester.pump();
+    });
+
+    testWidgets('拖到底部热区：向下滚，到最大边界自然停', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      expect(controller.position.maxScrollExtent, greaterThan(0),
+          reason: '13 个圆在 600 高的窗口里必须可滚动');
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:02')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.bottom - 4),
+        ticks: 8,
+      );
+      expect(controller.offset, greaterThan(0), reason: '底部热区必须向下滚');
+
+      // 继续停满 80 帧：滚到边界后不再越界。
+      for (var i = 0; i < 80; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.offset, controller.position.maxScrollExtent,
+          reason: '到边界自然停，clamp 不越界');
+
+      await g.up();
+      await tester.pump();
+    });
+
+    testWidgets('拖到回收站：只销毁不滚动（热区与回收站互斥）', (
+      WidgetTester tester,
+    ) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final controller = pageScroll(tester);
+      expect(controller.position.maxScrollExtent, greaterThan(0));
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:02')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await g.moveTo(tester.getCenter(find.byIcon(Icons.delete_outline)));
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.offset, 0,
+          reason: '回收站在滚动视口外，悬停其中不得触发滚动');
+
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 120));
+      await settle(tester);
+      expect(ctrl!.calls, contains('destroyPeer:dlna:02'),
+          reason: '拖入回收站仍然只触发销毁');
+    });
+
+    testWidgets('页面没有滚动空间时热区不生效', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: <PeerInfo>[kSelf, kDlna]);
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      expect(controller.position.maxScrollExtent, 0);
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle(kSelf.peerId)),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.top + 4),
+        ticks: 10,
+      );
+      expect(controller.offset, 0, reason: '无可滚空间时热区不激活');
+
+      await g.up();
+      await tester.pump();
+    });
+
+    testWidgets('自动滚动后松手：按指针实际坐标重判落点（不落旧目标）', (
+      WidgetTester tester,
+    ) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:02')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      // 指针停在底部热区右列（不落在两列之间的空隙里）并让列表滚一段。
+      // 离下边界 34px：仍在 44px 热区内，且滚动后落点会落在某一行圆格中部。
+      final releasePoint = Offset(viewport.right - 120, viewport.bottom - 34);
+      await holdInHotzone(tester, g, releasePoint, ticks: 20);
+      expect(controller.offset, greaterThan(0));
+
+      // 指针不动直接松手：DragTarget 的旧目标可能已被滚走，
+      // 页面必须按松手点的实际位置重新判定。
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 20));
+      await settle(tester);
+
+      // 逐格核对松手点命中谁：按整行矩形（与页面 _peerAt 同一口径）反推
+      // 期望目标，避免“只断言有流转”放过落到旧目标的回归。
+      final names = <String>[
+        kSelfName,
+        for (var i = 1; i <= 12; i++) 'P${i.toString().padLeft(2, '0')}',
+      ];
+      final hitName = peerNameAtPoint(tester, releasePoint, names);
+      expect(hitName, isNotNull, reason: '松手点必须落在某个播放端整行上');
+      final hitId = hitName == kSelfName
+          ? kSelf.peerId
+          : 'dlna:${hitName!.substring(1)}';
+
+      expect(transfers, hasLength(1), reason: '一次拖拽只能落地一次');
+      expect(transfers.single, 'dlna:02->$hitId',
+          reason: '必须落到松手点实际所在的播放端（不是滚动前的旧目标）');
+      expect(hitId, isNot('dlna:02'), reason: '不能落回自己');
+    });
+
+    testWidgets('多指同时拖两个圆：后起的拖拽被忽略，不得覆盖先起会话', (
+      WidgetTester tester,
+    ) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+
+      final first = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:02')),
+      );
+      await first.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+
+      // 第二根手指在另一个圆上起拖：页面应忽略它（否则会覆盖源/坐标）。
+      final second = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:03')),
+      );
+      await second.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await second.moveTo(Offset(viewport.center.dx, viewport.top + 120));
+      await tester.pump(const Duration(milliseconds: 20));
+      await second.up();
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(transfers, isEmpty,
+          reason: '被忽略的第二路拖拽松手不得流转');
+
+      // 第一路仍在会话内：正常落到另一个可见圆上，且只落一次。
+      await first.moveTo(tester.getCenter(ringGesture('P01')));
+      await tester.pump(const Duration(milliseconds: 20));
+      await first.up();
+      await tester.pump(const Duration(milliseconds: 20));
+      await settle(tester);
+      expect(transfers, hasLength(1));
+      expect(transfers.single, 'dlna:02->dlna:01');
     });
   });
 }
