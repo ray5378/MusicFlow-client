@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
@@ -114,8 +115,21 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
   /// 因此松手时改由本页按**指针实际坐标**重新判定落点。
   bool _autoScrolled = false;
 
+  /// 本次拖拽是否被**系统取消**（来电、切换应用、父级识别器抢走手势）。
+  ///
+  /// 取消时 Draggable 的回调顺序是 `onDragEnd` → `onDraggableCanceled`，
+  /// 仅凭 `onDragEnd` 分不出「取消」与「落在空白」；而自动滚动后的收尾又必须
+  /// 按指针位置重判落点。因此用全局指针路由留标记，让重判路径放弃。
+  bool _dragCanceled = false;
+
+  /// [_onDragFinished] 是否正卡在「等这轮事件分发结束」的微任务窗口里。
+  /// 取消事件（全局路由）总在这个窗口内到达 —— 此时 [_draggingPeerId] 已被清空，
+  /// 只能靠这个窗口标记判断「取消是不是针对本次拖拽的」。
+  bool _dragFinishing = false;
+
   @override
   void dispose() {
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
     _stopAutoScroll();
     _scroll.dispose();
     super.dispose();
@@ -124,6 +138,9 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
   @override
   void initState() {
     super.initState();
+    // 取消事件只在指针路由这一层可见：Draggable 的 onDragEnd 同样会收到取消，
+    // 但分不出「取消」与「落在空白」（见 _dragCanceled）。
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
     // **必须等首帧之后再拉**：loadPeers() 内部会写 castPeerController 的 state
     // (loadingPeers 标记)，而在 initState 这种 widget 生命周期里改 provider 会被
     // Riverpod 拒绝并抛「Tried to modify a provider while the widget tree was building」，
@@ -209,6 +226,8 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
     _dragHoverPeerId = null;
     _dragOverTrash = false;
     _autoScrolled = false;
+    _dragCanceled = false;
+    _dragFinishing = false;
     // 16ms ≈ 一帧：即使指针停在热区不动，也按固定节奏持续滚动。
     _autoScrollTimer = Timer.periodic(
       const Duration(milliseconds: _kAutoScrollTickMs),
@@ -294,6 +313,17 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
     _autoScrolled = false;
     if (mounted) setState(() {});
     if (!didAutoScroll || pointer == null || fromId == null) return;
+    // 系统取消与 onDragEnd 在同一轮事件里先后到达：Draggable 先回调 onDragEnd，
+    // 全局指针路由要到派发末尾才看到 PointerCancelEvent（那时会话已清空，见
+    // _dragFinishing）。等这轮分发结束再判定，避免把「被取消的拖拽」当成落在
+    // 指针下方的圆。
+    _dragFinishing = true;
+    await Future<void>.microtask(() {});
+    _dragFinishing = false;
+    if (!mounted || _dragCanceled) {
+      _dragCanceled = false;
+      return;
+    }
     final from = _peerById(fromId);
     if (from == null || !mounted) return;
     if (_pointInKey(_trashKey, pointer)) {
@@ -314,6 +344,15 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
     _dragOverTrash = false;
     _autoScrolled = false;
     if (mounted) setState(() {});
+  }
+
+  /// 全局指针路由：系统取消（来电、切应用、父级抢手势）只在这里留得下标记，
+  /// Draggable 的 onDragEnd 分不出「取消」与「落在空白」（见 [_dragCanceled]）。
+  void _onGlobalPointerEvent(PointerEvent event) {
+    if (event is PointerCancelEvent &&
+        (_draggingPeerId != null || _dragFinishing)) {
+      _dragCanceled = true;
+    }
   }
 
   /// DragTarget 的落点回调。**发生过自动滚动**时 `_activeTarget` 可能是

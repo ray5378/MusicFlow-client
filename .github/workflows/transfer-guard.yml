@@ -1,0 +1,52 @@
+name: Transfer Page Guard
+
+# 流转页「拖拽边缘自动滚动 + 系统取消」的**阻塞**守卫（与发版链解耦，失败标红）：
+#   1) node tool/check-transfer-autoscroll.mjs —— 契约静态锁（R1–R8）
+#   2) flutter test --concurrency=1 --coverage <两个测试文件> —— 行为锁
+#   3) node tool/check-transfer-coverage.mjs —— 本文件行覆盖率门禁（≥97%）
+#
+# 为什么单开一道而不塞进 Test Suite / UI Guard：
+#   那两条是 continue-on-error 的观察流水线，失败只显示黄字，锁不住东西。
+#   自动滚动的失败模式又全是**静默**的（滚不动 / 落到滚动前的旧目标 /
+#   系统取消后误流转），编译得过、单看代码也说得通，必须静态 + 行为 + 覆盖率
+#   三道一起才拦得住（v5.9.0/v5.9.1 两次实锤）。
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transfer-guard:
+    name: transfer page auto-scroll guard (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: 契约静态锁（R1–R8）
+        run: node tool/check-transfer-autoscroll.mjs
+
+      - name: 行为锁 + 覆盖率采集
+        run: |
+          flutter test --concurrency=1 --coverage \
+            test/features/player/player_transfer_page_cov_test.dart \
+            test/features/player/pages/b38c3_player_transfer_extra_test.dart
+
+      - name: 行覆盖率门禁（≥97%）
+        run: node tool/check-transfer-coverage.mjs

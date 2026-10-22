@@ -8,8 +8,6 @@ import 'package:musicflow_client/data/models/peer.dart';
 import 'package:musicflow_client/features/player/pages/player_transfer_page.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
-import 'package:musicflow_client/providers/cast/cast_peer_state.dart';
-import 'package:musicflow_client/providers/ui/palette_provider.dart';
 
 /// 流转页 widget 补测（批处理补测）：只打「页面层」逻辑 ——
 /// 列表装配/过滤、单击切遥控、群组管理模式、回收站销毁。
@@ -44,6 +42,7 @@ const PeerInfo kGroup = PeerInfo(
   kind: 'group',
   available: true,
 );
+
 /// sendspin 成员：服务端成员命名空间与 peerId 同形（`sendspin:<clientId>`），
 /// `_memberKeyFor` 对它的处理与 dlna 不同（不剥前缀），单独留一条用例钉住。
 const PeerInfo kSpin = PeerInfo(
@@ -163,53 +162,65 @@ Future<void> pumpPage(
   PeerInfo? activePeer,
   List<dynamic>? groups,
   List<String>? membershipIds,
+  bool viaOpen = false,
 }) async {
   ctrl = null;
   transfers.clear();
-  await tester.pumpWidget(ProviderScope(
-    overrides: <Override>[
-      castPeerControllerProvider.overrideWith(() {
-        final c = FakeCastPeer()
-          ..loaded = loaded
-          ..loadGate = loadGate
-          ..groups = groups
-          ..membershipIds = membershipIds
-          ..seed =
-              activePeer == null ? null : CastPeerState(activePeer: activePeer);
-        ctrl = c;
-        return c;
-      }),
-      // 页面只 watch 这个 stream 拿「在播」，测试里给空流即可。
-      peerNowPlayingProvider.overrideWith(
-        (Ref ref, String peerId) => const Stream<PeerNowPlaying?>.empty(),
-      ),
-    ],
-    child: MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      locale: const Locale('zh'),
-      theme: AppTheme.light(),
-      home: PlayerTransferPage(
-        onTransfer: (PeerInfo from, PeerInfo to) async {
-          transfers.add('${from.peerId}->${to.peerId}');
-          return true;
-        },
+  Future<bool> transfer(PeerInfo from, PeerInfo to) async {
+    transfers.add('${from.peerId}->${to.peerId}');
+    return true;
+  }
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: <Override>[
+        castPeerControllerProvider.overrideWith(() {
+          final c = FakeCastPeer()
+            ..loaded = loaded
+            ..loadGate = loadGate
+            ..groups = groups
+            ..membershipIds = membershipIds
+            ..seed = activePeer == null
+                ? null
+                : CastPeerState(activePeer: activePeer);
+          ctrl = c;
+          return c;
+        }),
+        // 页面只 watch 这个 stream 拿「在播」，测试里给空流即可。
+        peerNowPlayingProvider.overrideWith(
+          (Ref ref, String peerId) => const Stream<PeerNowPlaying?>.empty(),
+        ),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('zh'),
+        theme: AppTheme.light(),
+        // viaOpen = 走产品提供的静态入口 `PlayerTransferPage.open`（根导航器
+        // fullscreenDialog 路由），用于覆盖该包装方法本身；其余用例直接把页面
+        // 当 home，省掉一次路由跳转。
+        home: viaOpen
+            ? Builder(
+                builder: (BuildContext context) => TextButton(
+                  onPressed: () => unawaited(
+                    PlayerTransferPage.open(context, onTransfer: transfer),
+                  ),
+                  child: const Text('打开流转页'),
+                ),
+              )
+            : PlayerTransferPage(onTransfer: transfer),
       ),
     ),
-  ));
+  );
 }
 
 /// 某个播放端**整行**（落点）的 GestureDetector 句柄。
 ///
 /// 页面里 `_RingNode.build` 的注释写得很清楚：落点 DragTarget 铺在**整行**
 /// （拖到名称区也能接住，手势容错更大），所以落点找整行的 GestureDetector。
-Finder ringGesture(String name) =>
-    find
-        .ancestor(
-          of: find.text(name),
-          matching: find.byType(GestureDetector),
-        )
-        .at(0);
+Finder ringGesture(String name) => find
+    .ancestor(of: find.text(name), matching: find.byType(GestureDetector))
+    .at(0);
 
 /// 松手点落在哪个播放端的**整行**上（与页面 `_peerAt` 同一口径：按整行矩形）。
 /// 找不到返回 null —— 说明落点落在行间空隙 / 视口外。
@@ -234,8 +245,9 @@ String? peerNameAtPoint(
 ///    按 Draggable 去查永远落空，实测报 `Index out of range`）；
 /// 2. 从名称区按下也起不了拖（源码原话「只有封面圆可拖起」）。
 /// 所以直接用 `Draggable.data` 反查 —— `Draggable<PeerInfo>.data.peerId` 就是唯一的锚点。
-Finder coverDragHandle(String peerId) =>
-    find.byWidgetPredicate((Widget w) => w is Draggable<PeerInfo> && w.data?.peerId == peerId);
+Finder coverDragHandle(String peerId) => find.byWidgetPredicate(
+  (Widget w) => w is Draggable<PeerInfo> && w.data?.peerId == peerId,
+);
 
 /// 拖拽手势：QA 复核 batch20 缺口时验证过的**唯一可行姿势**。
 ///
@@ -262,10 +274,9 @@ Future<void> dragGesture(
 }
 
 /// 提示文案不进 Findle 字面量（中间可能夹富文本），直接找 Text 节点按内容筛。
-Finder hintFinder(String needle) =>
-    find.byWidgetPredicate(
-      (Widget w) => w is Text && (w.data ?? '').contains(needle),
-    );
+Finder hintFinder(String needle) => find.byWidgetPredicate(
+  (Widget w) => w is Text && (w.data ?? '').contains(needle),
+);
 
 /// 造 N 个远端播放端（全部 DLNA，名称 P01..P12），拼上本机：默认 800×600
 /// 测试窗口下 13 个圆排成 7 行 —— 远超滚动视口高度，页面必定可滚动。
@@ -311,29 +322,22 @@ void main() {
     await settle(tester);
   });
 
-  testWidgets('服务端一条播放端都不给时落到空态文案', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('服务端一条播放端都不给时落到空态文案', (WidgetTester tester) async {
     await pumpPage(tester, loaded: const <PeerInfo>[]);
     await settle(tester);
     expect(find.text('当前没有其它可用的播放器'), findsOneWidget);
     expect(find.text(kSelfName), findsNothing, reason: '没数据就没有本机圆');
   });
 
-  testWidgets('只回本机那一行时不是空态（本机自己占一格）', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('只回本机那一行时不是空态（本机自己占一格）', (WidgetTester tester) async {
     await pumpPage(tester, loaded: <PeerInfo>[kSelf]);
     await settle(tester);
     // 与例 2 区分开：`_load` 会把本机行塞回列表首位 → 走列表分支。
     expect(find.text(kSelfName), findsOneWidget);
-    expect(find.text('当前没有其它可用的播放器'), findsNothing,
-        reason: '有本机行就不该显示空态');
+    expect(find.text('当前没有其它可用的播放器'), findsNothing, reason: '有本机行就不该显示空态');
   });
 
-  testWidgets('列表装配：本机排第一，离线端与 Web 端不出', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('列表装配：本机排第一，离线端与 Web 端不出', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kOffline, kWeb, kDlna, kSelf, kGroup],
@@ -345,10 +349,16 @@ void main() {
     // [B20-P1] 现状钉子：离线端和 Web 端被 `available` / `platform != 'web'`
     // 两道过滤挡在页面外（拖到已下线的端上才会失败，所以先不展示）。
     // 将来若放开「离线端也列出来（灰显）」，这两条会红。
-    expect(find.text(kOfflineName), findsNothing,
-        reason: '[B20-P1] 离线端不出列表（现状钉子）');
-    expect(find.text(kWebName), findsNothing,
-        reason: '[B20-P1] Web 端不出列表（现状钉子）');
+    expect(
+      find.text(kOfflineName),
+      findsNothing,
+      reason: '[B20-P1] 离线端不出列表（现状钉子）',
+    );
+    expect(
+      find.text(kWebName),
+      findsNothing,
+      reason: '[B20-P1] Web 端不出列表（现状钉子）',
+    );
 
     // 顺序（QA 复核意见 4）：例 4 原来只断言「有/没有」，谁在前谁在后没人管。
     // 这里按 widget 树的深度优先顺序取三个名字，钉住 `_load` 的装配次序。
@@ -356,19 +366,22 @@ void main() {
         .byWidgetPredicate(
           (Widget w) =>
               w is Text &&
-              (w.data == kSelfName || w.data == kDlnaName || w.data == kGroupName),
+              (w.data == kSelfName ||
+                  w.data == kDlnaName ||
+                  w.data == kGroupName),
         )
         .evaluate()
         .map((Element e) => (e.widget as Text).data)
         .toList(growable: false);
     // 实测顺序：本机 → 群组 → 设备（comparePeerDisplayOrder 里群组优先于普通设备）。
-    expect(order, <String>[kSelfName, kGroupName, kDlnaName],
-        reason: '本机强制置首，其余按 comparePeerDisplayOrder');
+    expect(order, <String>[
+      kSelfName,
+      kGroupName,
+      kDlnaName,
+    ], reason: '本机强制置首，其余按 comparePeerDisplayOrder');
   });
 
-  testWidgets('点在线远端 = 切遥控目标，成功后自动关页', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('点在线远端 = 切遥控目标，成功后自动关页', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kSelf, kDlna],
@@ -377,26 +390,26 @@ void main() {
     await settle(tester);
     await tester.tap(find.text(kDlnaName));
     await settle(tester);
-    expect(ctrl!.calls, contains('switchTo:dlna:30'),
-        reason: '点远端必须走 switchTo');
+    expect(
+      ctrl!.calls,
+      contains('switchTo:dlna:30'),
+      reason: '点远端必须走 switchTo',
+    );
     expect(ctrl!.calls, isNot(contains('backToLocal:true')));
   });
 
-  testWidgets('点当前已遥控的远端 = 什么也不做，只关页（钉子）', (
-    WidgetTester tester,
-  ) async {
-    await pumpPage(
-      tester,
-      loaded: <PeerInfo>[kSelf, kDlna],
-      activePeer: kDlna,
-    );
+  testWidgets('点当前已遥控的远端 = 什么也不做，只关页（钉子）', (WidgetTester tester) async {
+    await pumpPage(tester, loaded: <PeerInfo>[kSelf, kDlna], activePeer: kDlna);
     await settle(tester);
     await tester.tap(find.text(kDlnaName));
     await settle(tester);
     // [B20-P2] 现状钉子：命中「已经在遥控它」的早退分支（只关页，不下发任何命令）。
     // 将来若改成「再点一次取消遥控」，这条会红。
-    expect(ctrl!.calls, isNot(contains('switchTo:dlna:30')),
-        reason: '[B20-P2] 已是当前目标时不该再 switchTo（现状钉子）');
+    expect(
+      ctrl!.calls,
+      isNot(contains('switchTo:dlna:30')),
+      reason: '[B20-P2] 已是当前目标时不该再 switchTo（现状钉子）',
+    );
     expect(ctrl!.calls, isNot(contains('backToLocal')));
   });
 
@@ -409,14 +422,15 @@ void main() {
     await settle(tester);
     await tester.tap(find.text(kSelfName));
     await settle(tester);
-    expect(ctrl!.calls, contains('backToLocal:true'),
-        reason: '点本机要 backToLocal(resumeLocal: true)');
+    expect(
+      ctrl!.calls,
+      contains('backToLocal:true'),
+      reason: '点本机要 backToLocal(resumeLocal: true)',
+    );
     expect(ctrl!.calls, isNot(contains('switchTo:dlna:30')));
   });
 
-  testWidgets('点群组：静默切遥控 + 拉成员配置 + 进入管理模式', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('点群组：静默切遥控 + 拉成员配置 + 进入管理模式', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kSelf, kGroup, kDlna],
@@ -432,30 +446,36 @@ void main() {
     await settle(tester);
     await tester.tap(find.text(kGroupName));
     await settle(tester);
-    expect(ctrl!.calls, contains('switchTo:group:g1'),
-        reason: '选中群组同时把遥控切过去');
+    expect(ctrl!.calls, contains('switchTo:group:g1'), reason: '选中群组同时把遥控切过去');
     expect(ctrl!.calls, contains('fetchGroups'), reason: '要拉成员配置');
-    expect(hintFinder('已选中群组'), findsOneWidget,
-        reason: '选中后标题下方出现进度提示');
+    expect(hintFinder('已选中群组'), findsOneWidget, reason: '选中后标题下方出现进度提示');
     // [B20-P4] 现状钉子：主卧在 `memberIds` 里 → 走「已是成员」档，显示退出圈。
     // 同时印证成员键是 `_memberKeyFor()` 的产出**裸 id**（`30`，DLNA 剥掉
     // `dlna:` 前缀），不是 `dlna:30` —— 服务端 DLNA 成员命名空间就是裸 id。
     // 将来若改成「先给加入圈」或改成传完整 peerId，这两条会红。
-    expect(find.bySemanticsLabel('退出该群组'), findsOneWidget,
-        reason: '[B20-P4] 已是成员显示退出圈（现状钉子）');
-    expect(find.bySemanticsLabel('加入该群组'), findsNothing,
-        reason: '[B20-P4] 成员态不显示加入圈（现状钉子）');
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      findsOneWidget,
+      reason: '[B20-P4] 已是成员显示退出圈（现状钉子）',
+    );
+    expect(
+      find.bySemanticsLabel('加入该群组'),
+      findsNothing,
+      reason: '[B20-P4] 成员态不显示加入圈（现状钉子）',
+    );
   });
 
-  testWidgets('点群组但服务端查不到这个 gid = 不进管理模式（钉子）', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('点群组但服务端查不到这个 gid = 不进管理模式（钉子）', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kSelf, kGroup, kDlna],
       activePeer: kSelf,
       groups: <dynamic>[
-        <String, dynamic>{'id': 'other', 'name': '别的组', 'memberIds': <dynamic>[]},
+        <String, dynamic>{
+          'id': 'other',
+          'name': '别的组',
+          'memberIds': <dynamic>[],
+        },
       ],
     );
     await settle(tester);
@@ -464,10 +484,16 @@ void main() {
     // [B20-P3] 现状钉子：查不到 gid 时只弹错提示，页面**不进**管理模式
     // （`_selectedGroupId` 保持 null，+/− 按钮也不出现）。
     // 将来若改成「查不到也按空成员进管理模式」，这两条会红。
-    expect(hintFinder('已选中群组'), findsNothing,
-        reason: '[B20-P3] 没命中 gid 不进管理模式（现状钉子）');
-    expect(find.bySemanticsLabel('加入该群组'), findsNothing,
-        reason: '[B20-P3] 没有成员按钮（现状钉子）');
+    expect(
+      hintFinder('已选中群组'),
+      findsNothing,
+      reason: '[B20-P3] 没命中 gid 不进管理模式（现状钉子）',
+    );
+    expect(
+      find.bySemanticsLabel('加入该群组'),
+      findsNothing,
+      reason: '[B20-P3] 没有成员按钮（现状钉子）',
+    );
   });
 
   testWidgets('点成员圈 = 加入 / 退出选中的群组', (WidgetTester tester) async {
@@ -491,13 +517,14 @@ void main() {
     await tester.tap(find.bySemanticsLabel('退出该群组'));
     await settle(tester);
     // 协议走的是裸 id（DLNA 剥掉 `dlna:` 前缀），不是 `dlna:30`。
-    expect(ctrl!.calls, contains('setGroupMembership:g1:30:false'),
-        reason: '退组带 join=false，且成员键走裸 id 命名空间');
+    expect(
+      ctrl!.calls,
+      contains('setGroupMembership:g1:30:false'),
+      reason: '退组带 join=false，且成员键走裸 id 命名空间',
+    );
   });
 
-  testWidgets('还没选群组时设备圆下方不出现成员圈（早退方向）', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('还没选群组时设备圆下方不出现成员圈（早退方向）', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kSelf, kGroup, kDlna],
@@ -512,8 +539,11 @@ void main() {
     );
     await settle(tester);
     // 没进管理模式就不要把 +/− 挂出来（点了也没用，`_groupBusy`/`_selectedGroupId` 早退）。
-    expect(find.bySemanticsLabel('退出该群组'), findsNothing,
-        reason: '未选群组时不显示成员圈（早退方向）');
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      findsNothing,
+      reason: '未选群组时不显示成员圈（早退方向）',
+    );
     expect(find.bySemanticsLabel('加入该群组'), findsNothing);
   });
 
@@ -537,17 +567,26 @@ void main() {
     await settle(tester);
     await tester.tap(find.text(kGroupName));
     await settle(tester);
-    expect(find.bySemanticsLabel('加入该群组'), findsOneWidget,
-        reason: '组里没有这台 dlna → 显示加入圈（而不是退出圈）');
+    expect(
+      find.bySemanticsLabel('加入该群组'),
+      findsOneWidget,
+      reason: '组里没有这台 dlna → 显示加入圈（而不是退出圈）',
+    );
     expect(find.bySemanticsLabel('退出该群组'), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('加入该群组'));
     await settle(tester);
     // dlna 的成员键是**裸 id**（剥掉 `dlna:` 前缀），join 方向也要走裸 id 命名空间。
-    expect(ctrl!.calls, contains('setGroupMembership:g1:30:true'),
-        reason: '入组带 join=true，且 dlna 成员键走裸 id 命名空间');
-    expect(ctrl!.calls, isNot(contains('setGroupMembership:g1:dlna:30:true')),
-        reason: '不能把完整 peerId 当 dlna 成员键发出去');
+    expect(
+      ctrl!.calls,
+      contains('setGroupMembership:g1:30:true'),
+      reason: '入组带 join=true，且 dlna 成员键走裸 id 命名空间',
+    );
+    expect(
+      ctrl!.calls,
+      isNot(contains('setGroupMembership:g1:dlna:30:true')),
+      reason: '不能把完整 peerId 当 dlna 成员键发出去',
+    );
   });
 
   testWidgets('sendspin 成员的成员键原样走 peerId（不与裸 id 混用）', (
@@ -558,20 +597,30 @@ void main() {
       loaded: <PeerInfo>[kSelf, kGroup, kSpin],
       activePeer: kSelf,
       groups: <dynamic>[
-        <String, dynamic>{'id': 'g1', 'name': kGroupName, 'memberIds': <dynamic>[]},
+        <String, dynamic>{
+          'id': 'g1',
+          'name': kGroupName,
+          'memberIds': <dynamic>[],
+        },
       ],
     );
     await settle(tester);
     await tester.tap(find.text(kGroupName));
     await settle(tester);
-    expect(find.bySemanticsLabel('加入该群组'), findsOneWidget,
-        reason: 'sendspin peer 未被成员键命中 → 显示加入圈');
+    expect(
+      find.bySemanticsLabel('加入该群组'),
+      findsOneWidget,
+      reason: 'sendspin peer 未被成员键命中 → 显示加入圈',
+    );
     await tester.tap(find.bySemanticsLabel('加入该群组'));
     await settle(tester);
     // [B20-P5] 现状钉子：sendspin 的 `_memberKeyFor` **原样**传 peerId，
     // 不像 dlna 那样剥 `dlna:` 前缀（服务端 sendspin 成员命名空间就是 `peerId` 同形）。
-    expect(ctrl!.calls, contains('setGroupMembership:g1:sendspin:sp1:true'),
-        reason: '[B20-P5] sendspin 成员键原样传（现状钉子）');
+    expect(
+      ctrl!.calls,
+      contains('setGroupMembership:g1:sendspin:sp1:true'),
+      reason: '[B20-P5] sendspin 成员键原样传（现状钉子）',
+    );
   });
 
   testWidgets('memberIds 里写完整 peerId 也能判定成员（_isMember 双通道）', (
@@ -595,14 +644,15 @@ void main() {
     await settle(tester);
     // [B20-P6] 现状钉子：`_isMember` 同时用裸 id 和 peerId 两路去 contains，
     // 所以服务端回完整 peerId 也算命中 —— 显示退出圈而非加入圈。
-    expect(find.bySemanticsLabel('退出该群组'), findsOneWidget,
-        reason: '[B20-P6] 完整 peerId 也算成员（双通道，现状钉子）');
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      findsOneWidget,
+      reason: '[B20-P6] 完整 peerId 也算成员（双通道，现状钉子）',
+    );
     expect(find.bySemanticsLabel('加入该群组'), findsNothing);
   });
 
-  testWidgets('同一屏：dlna 成员显示退出圈、sendspin 成员显示加入圈', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('同一屏：dlna 成员显示退出圈、sendspin 成员显示加入圈', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kSelf, kGroup, kDlna, kSpin],
@@ -621,16 +671,23 @@ void main() {
     // 同一屏两种圈并存：组内那台（主卧）是退出圈，组外那台（掌柜音箱）是加入圈。
     // 注意不能写 `findsNothing` —— 组外成员本来就该显示加入圈。
     // 本机与群组自身不参与成员操作，所以没有第三种圈。
-    expect(find.bySemanticsLabel('退出该群组'), findsOneWidget,
-        reason: '主卧在组里 → 退出圈');
-    expect(find.bySemanticsLabel('加入该群组'), findsOneWidget,
-        reason: '掌柜音箱不在组里 → 加入圈（同一屏两种圈并存）');
-    expect(find.bySemanticsLabel('退出该群组'), isNot(find.bySemanticsLabel('加入该群组')));
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      findsOneWidget,
+      reason: '主卧在组里 → 退出圈',
+    );
+    expect(
+      find.bySemanticsLabel('加入该群组'),
+      findsOneWidget,
+      reason: '掌柜音箱不在组里 → 加入圈（同一屏两种圈并存）',
+    );
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      isNot(find.bySemanticsLabel('加入该群组')),
+    );
   });
 
-  testWidgets('成员操作失败（返回 null）时保留原状、不空掉成员集', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('成员操作失败（返回 null）时保留原状、不空掉成员集', (WidgetTester tester) async {
     await pumpPage(
       tester,
       loaded: <PeerInfo>[kSelf, kGroup, kDlna],
@@ -654,10 +711,12 @@ void main() {
     // ids 为 null 分支：不 `_selectedMembers = ids.toSet()`（会把成员集清空），
     // 只弹错提示；界面仍是「已选中」态，退出圈还在。
     expect(ctrl!.calls, contains('setGroupMembership:g1:30:false'));
-    expect(find.bySemanticsLabel('退出该群组'), findsOneWidget,
-        reason: '失败后成员集没被清空，圈还在（现状钉子）');
-    expect(hintFinder('已选中群组'), findsOneWidget,
-        reason: '失败后仍停留在管理模式');
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      findsOneWidget,
+      reason: '失败后成员集没被清空，圈还在（现状钉子）',
+    );
+    expect(hintFinder('已选中群组'), findsOneWidget, reason: '失败后仍停留在管理模式');
   });
 
   // ───────────────────── 十、拖拽（batch20 缺口，batch21 补齐） ─────────────────────
@@ -685,9 +744,7 @@ void main() {
       expect(transfers, isNotEmpty, reason: '拖放成功会回调 onTransfer 关页');
     });
 
-    testWidgets('拖本机圆到回收站 = destroyPeer 销毁', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('拖本机圆到回收站 = destroyPeer 销毁', (WidgetTester tester) async {
       await pumpPage(
         tester,
         loaded: <PeerInfo>[kSelf, kDlna],
@@ -701,13 +758,14 @@ void main() {
         dstCenter: tester.getCenter(find.byIcon(Icons.delete_outline)),
       );
 
-      expect(ctrl!.calls, contains('destroyPeer:local:u1'),
-          reason: '拖到回收站必须真的销毁');
+      expect(
+        ctrl!.calls,
+        contains('destroyPeer:local:u1'),
+        reason: '拖到回收站必须真的销毁',
+      );
     });
 
-    testWidgets('拖远端 A 到远端 B 只切遥控目标，不动本机', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('拖远端 A 到远端 B 只切遥控目标，不动本机', (WidgetTester tester) async {
       await pumpPage(
         tester,
         loaded: <PeerInfo>[kSelf, kDlna, kGroup],
@@ -773,8 +831,11 @@ void main() {
         ticks: 6,
       );
       final afterShallow = controller.offset;
-      expect(afterShallow, lessThan(controller.position.maxScrollExtent),
-          reason: '顶部热区必须向上滚');
+      expect(
+        afterShallow,
+        lessThan(controller.position.maxScrollExtent),
+        reason: '顶部热区必须向上滚',
+      );
 
       // 再贴到上边界 → 同样帧数滚得更多。
       await holdInHotzone(
@@ -784,12 +845,10 @@ void main() {
         ticks: 6,
       );
       final afterDeep = controller.offset;
-      final shallowDelta =
-          controller.position.maxScrollExtent - afterShallow;
+      final shallowDelta = controller.position.maxScrollExtent - afterShallow;
       final deepDelta = afterShallow - afterDeep;
       expect(afterDeep, lessThan(afterShallow), reason: '贴边继续向上滚');
-      expect(deepDelta, greaterThan(shallowDelta),
-          reason: '越靠近边缘滚得越快（深度调速）');
+      expect(deepDelta, greaterThan(shallowDelta), reason: '越靠近边缘滚得越快（深度调速）');
 
       await g.up();
       await tester.pump();
@@ -814,8 +873,11 @@ void main() {
         Offset(viewport.center.dx, viewport.top + 4),
         ticks: 5,
       );
-      expect(controller.offset, lessThan(controller.position.maxScrollExtent),
-          reason: '热区内已开始滚动');
+      expect(
+        controller.offset,
+        lessThan(controller.position.maxScrollExtent),
+        reason: '热区内已开始滚动',
+      );
 
       // 移到视口正中（不在上下热区）→ 再推进 12 帧也不再滚。
       await g.moveTo(viewport.center);
@@ -835,8 +897,11 @@ void main() {
       await settle(tester);
       final viewport = tester.getRect(find.byType(SingleChildScrollView));
       final controller = pageScroll(tester);
-      expect(controller.position.maxScrollExtent, greaterThan(0),
-          reason: '13 个圆在 600 高的窗口里必须可滚动');
+      expect(
+        controller.position.maxScrollExtent,
+        greaterThan(0),
+        reason: '13 个圆在 600 高的窗口里必须可滚动',
+      );
 
       final g = await tester.startGesture(
         tester.getCenter(coverDragHandle('dlna:02')),
@@ -855,16 +920,17 @@ void main() {
       for (var i = 0; i < 80; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
-      expect(controller.offset, controller.position.maxScrollExtent,
-          reason: '到边界自然停，clamp 不越界');
+      expect(
+        controller.offset,
+        controller.position.maxScrollExtent,
+        reason: '到边界自然停，clamp 不越界',
+      );
 
       await g.up();
       await tester.pump();
     });
 
-    testWidgets('拖到回收站：只销毁不滚动（热区与回收站互斥）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('拖到回收站：只销毁不滚动（热区与回收站互斥）', (WidgetTester tester) async {
       await pumpPage(tester, loaded: manyPeers(12));
       await settle(tester);
       final controller = pageScroll(tester);
@@ -879,14 +945,16 @@ void main() {
       for (var i = 0; i < 15; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
-      expect(controller.offset, 0,
-          reason: '回收站在滚动视口外，悬停其中不得触发滚动');
+      expect(controller.offset, 0, reason: '回收站在滚动视口外，悬停其中不得触发滚动');
 
       await g.up();
       await tester.pump(const Duration(milliseconds: 120));
       await settle(tester);
-      expect(ctrl!.calls, contains('destroyPeer:dlna:02'),
-          reason: '拖入回收站仍然只触发销毁');
+      expect(
+        ctrl!.calls,
+        contains('destroyPeer:dlna:02'),
+        reason: '拖入回收站仍然只触发销毁',
+      );
     });
 
     testWidgets('页面没有滚动空间时热区不生效', (WidgetTester tester) async {
@@ -913,9 +981,7 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('自动滚动后松手：按指针实际坐标重判落点（不落旧目标）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('自动滚动后松手：按指针实际坐标重判落点（不落旧目标）', (WidgetTester tester) async {
       await pumpPage(tester, loaded: manyPeers(12));
       await settle(tester);
       final viewport = tester.getRect(find.byType(SingleChildScrollView));
@@ -951,14 +1017,15 @@ void main() {
           : 'dlna:${hitName!.substring(1)}';
 
       expect(transfers, hasLength(1), reason: '一次拖拽只能落地一次');
-      expect(transfers.single, 'dlna:02->$hitId',
-          reason: '必须落到松手点实际所在的播放端（不是滚动前的旧目标）');
+      expect(
+        transfers.single,
+        'dlna:02->$hitId',
+        reason: '必须落到松手点实际所在的播放端（不是滚动前的旧目标）',
+      );
       expect(hitId, isNot('dlna:02'), reason: '不能落回自己');
     });
 
-    testWidgets('多指同时拖两个圆：后起的拖拽被忽略，不得覆盖先起会话', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('多指同时拖两个圆：后起的拖拽被忽略，不得覆盖先起会话', (WidgetTester tester) async {
       await pumpPage(tester, loaded: manyPeers(12));
       await settle(tester);
       final viewport = tester.getRect(find.byType(SingleChildScrollView));
@@ -980,8 +1047,7 @@ void main() {
       await second.up();
       await tester.pump(const Duration(milliseconds: 40));
 
-      expect(transfers, isEmpty,
-          reason: '被忽略的第二路拖拽松手不得流转');
+      expect(transfers, isEmpty, reason: '被忽略的第二路拖拽松手不得流转');
 
       // 第一路仍在会话内：正常落到另一个可见圆上，且只落一次。
       await first.moveTo(tester.getCenter(ringGesture('P01')));
@@ -991,6 +1057,141 @@ void main() {
       await settle(tester);
       expect(transfers, hasLength(1));
       expect(transfers.single, 'dlna:02->dlna:01');
+    });
+
+    // ── C6/C7：自动滚动的两条收尾分支（覆盖率补测，2026-10-22） ──
+    // 自动滚动后 DragTarget 的旧落点不可信，回收站也一样：`_handleDestroy` 在
+    // `_autoScrolled` 时早退，必须由 `_onDragFinished` 按指针实际坐标销毁。
+    testWidgets('自动滚动后松手落在回收站：按实际坐标销毁,且只销毁一次', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      expect(controller.position.maxScrollExtent, greaterThan(0));
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:02')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.bottom - 4),
+        ticks: 8,
+      );
+      expect(controller.offset, greaterThan(0), reason: '先发生自动滚动');
+
+      // 指针移到回收站后松手：此时已离开热区，但 `_autoScrolled` 仍为 true，
+      // 回收站 DragTarget 的 onAccept 会被 `_handleDestroy` 早退挡掉，
+      // 必须由 `_onDragFinished` 按松手坐标补上销毁。
+      await g.moveTo(tester.getCenter(find.byIcon(Icons.delete_outline)));
+      await tester.pump(const Duration(milliseconds: 20));
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 120));
+      await settle(tester);
+
+      expect(
+        ctrl!.calls.where((String c) => c == 'destroyPeer:dlna:02').length,
+        1,
+        reason: '自动滚动后拖入回收站必须销毁，且不能被两条路径重复销毁',
+      );
+      expect(transfers, isEmpty, reason: '拖进回收站不是流转');
+    });
+
+    // 系统抢占/取消拖拽（来电、手势被外层接管）时，自动滚动定时器必须停、
+    // 会话必须清干净，否则下一次拖拽会带着旧坐标/旧源起手。
+    testWidgets('拖拽被系统取消：停自动滚动并清空会话，不流转也不关页', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      expect(controller.position.maxScrollExtent, greaterThan(0));
+
+      final g = await tester.startGesture(
+        tester.getCenter(coverDragHandle('dlna:02')),
+      );
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.bottom - 4),
+        ticks: 6,
+      );
+      final scrolled = controller.offset;
+      expect(scrolled, greaterThan(0), reason: '取消前已在自动滚动');
+
+      await g.cancel();
+      await tester.pump(const Duration(milliseconds: 20));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(controller.offset, scrolled, reason: '取消后自动滚动必须停住');
+      expect(transfers, isEmpty, reason: '取消不得流转');
+      expect(find.byType(PlayerTransferPage), findsOneWidget, reason: '取消不得关页');
+    });
+
+    // `PlayerTransferPage.open` 是全仓所有入口共用的包装（根导航器 +
+    // fullscreenDialog）：漏测时，「从 mini 播放器槽位打开只盖住内容区」
+    // 这类回归没有任何线索。
+    testWidgets('open(): 经根导航器弹出全屏流转页，点空白可关闭', (WidgetTester tester) async {
+      await pumpPage(tester, loaded: <PeerInfo>[kSelf, kDlna], viaOpen: true);
+      await settle(tester);
+      expect(find.byType(PlayerTransferPage), findsNothing);
+
+      await tester.tap(find.text('打开流转页'));
+      await settle(tester);
+      expect(find.byType(PlayerTransferPage), findsOneWidget);
+      expect(find.text(kDlnaName), findsOneWidget);
+
+      // 点空白处关闭（页面自身 onTap = maybePop），回到宿主按钮。
+      // ⚠️ 转场必须彻底落地：Zoom 转场在 300ms 边界时页面仍被缩放/尚未完成，
+      // 左上角这点还在屏障区，点击会被 ModalBarrier 吞掉（实测 canPop 一直是 true）。
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tapAt(const Offset(6, 6));
+      // 退场动画 300ms；本机圆带呼吸动画，不能改用 pumpAndSettle。
+      await settle(tester, frames: 12);
+      expect(find.byType(PlayerTransferPage), findsNothing);
+      expect(find.text('打开流转页'), findsOneWidget);
+    });
+
+    // 防御路径：`onDragEnd` 未按预期到达时，`onDraggableCanceled` 仍须把会话与
+    // 自动滚动定时器收干净。真实时序里 onDragEnd 在前会先清，这条只在例外时序
+    // 下走 —— 用直达回调钉住它的清理职责，避免日后被误删导致定时器静默泄漏。
+    testWidgets('onDraggableCanceled 直达：停自动滚动并清空会话', (
+      WidgetTester tester,
+    ) async {
+      await pumpPage(tester, loaded: manyPeers(12));
+      await settle(tester);
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+      final controller = pageScroll(tester);
+      final handle = coverDragHandle('dlna:02');
+      final g = await tester.startGesture(tester.getCenter(handle));
+      await g.moveBy(const Offset(40, 20));
+      await tester.pump(const Duration(milliseconds: 20));
+      await holdInHotzone(
+        tester,
+        g,
+        Offset(viewport.center.dx, viewport.bottom - 4),
+        ticks: 6,
+      );
+      final scrolled = controller.offset;
+      expect(scrolled, greaterThan(0), reason: '先发生自动滚动');
+
+      final draggable = tester.widget<Draggable<PeerInfo>>(handle);
+      draggable.onDraggableCanceled?.call(Velocity.zero, Offset.zero);
+      await tester.pump(const Duration(milliseconds: 16));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.offset, scrolled, reason: '取消回调必须停掉自动滚动');
+
+      await g.cancel();
+      await settle(tester);
+      expect(transfers, isEmpty, reason: '取消不得流转');
+      expect(find.byType(PlayerTransferPage), findsOneWidget);
     });
   });
 }
