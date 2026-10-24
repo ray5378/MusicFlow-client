@@ -207,7 +207,8 @@ mixin CastPeerDiscovery on CastPeerControllerBase {
 
   /// 拉取全部播放器群组(供流转页「点群组 → 加减成员」用)。
   /// 失败返回 null(调用方据此提示);成功返回原始 JSON 列表,
-  /// 每项含 id / name / memberIds(成员为命名空间写法:sendspin:`clientId` / 裸 id ≡ DLNA)。
+  /// 每项含 id / name / memberIds(成员为命名空间写法:sendspin:`clientId` /
+  /// airplay:`deviceId`;DLNA 不入组,历史裸 id 只会出现在老数据里)。
   Future<List<dynamic>?> fetchGroups() async {
     final client = ref.read(subsonicApiClientProvider);
     try {
@@ -221,7 +222,8 @@ mixin CastPeerDiscovery on CastPeerControllerBase {
   }
 
   /// 把设备加入/移出群组。[memberKey] 必须用服务端成员命名空间写法:
-  /// sendspin = `sendspin:<clientId>`;DLNA = 裸设备 id(历史数据约定,见 splitMemberId)。
+  /// sendspin = `sendspin:<clientId>`;airplay = `airplay:<deviceId>`。
+  /// DLNA 不入组(服务端 splitMemberId 拒收);历史裸 id 只用于移除老成员。
   /// 成功返回更新后的完整 memberIds;失败返回 null。
   Future<List<String>?> setGroupMembership(
     String groupId,

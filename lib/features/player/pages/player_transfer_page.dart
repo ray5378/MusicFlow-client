@@ -502,16 +502,25 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
     });
   }
 
-  /// 服务端成员命名空间写法:sendspin = `sendspin:<clientId>`(与 peerId 同形);
-  /// DLNA = 裸设备 id(历史数据约定,去掉 peerId 的 `dlna:` 前缀)。
-  String _memberKeyFor(PeerInfo p) =>
-      p.kind == 'sendspin'
-          ? p.peerId
-          : p.peerId.replaceFirst(RegExp('^dlna:'), '');
+  /// 该设备在群组 `memberIds` 里对应的那条字符串(命中原样返回,未命中 null)。
+  ///
+  /// 服务端口径是 `airplay:<deviceId>` / `sendspin:<clientId>`;历史组可能存裸
+  /// deviceId(升级前的 DLNA 成员),故按「peerId → kind:裸id → 裸id」依次回查 ——
+  /// 移除成员必须回传组里那条字符串,否则服务端按 no-op 处理,成员删不掉。
+  String? _groupMemberKey(PeerInfo p) {
+    final pid = p.peerId;
+    final cut = pid.indexOf(':');
+    final bare = cut >= 0 ? pid.substring(cut + 1) : pid;
+    for (final k in <String>[pid, '${p.kind}:$bare', bare]) {
+      if (_selectedMembers.contains(k)) return k;
+    }
+    return null;
+  }
 
-  bool _isMember(PeerInfo p) =>
-      _selectedMembers.contains(_memberKeyFor(p)) ||
-      _selectedMembers.contains(p.peerId);
+  /// 成员键:已在组内回传组里存的那条(移除才有效),否则用 peerId 加入。
+  String _memberKeyFor(PeerInfo p) => _groupMemberKey(p) ?? p.peerId;
+
+  bool _isMember(PeerInfo p) => _groupMemberKey(p) != null;
 
   /// 点 +/−:加入/退出选中的群组。成功用返回的 memberIds 就地刷新,失败提示并保留原状。
   Future<void> _toggleMembership(PeerInfo peer) async {
@@ -769,6 +778,14 @@ class _PlayerTransferPageState extends ConsumerState<PlayerTransferPage> {
 
 /// 单个播放端圆：**单击 = 切换遥控目标**；既是拖拽源（按住它拖走 = 把它的
 /// 队列给别人），也是落点（别的圆拖进来 = 把别人的队列给它）。
+/// 该设备能否加入群组:只有 **airplay / sendspin** 有群组出流通路
+/// (sendspin 原生 pump;airplay 经桥接 sink 挂同一条 pump)。DLNA 是各设备
+/// 自拉流的扇出模型、没有共享时间线,服务端 `splitMemberId()` 直接拒收
+/// (`400 ... 是 DLNA 设备`),所以不给勾选圈 —— 给了也只会换来一次报错。
+///
+/// 放在顶层(而不是页 State 的方法):勾选圈是在 `_RingNode.build` 里渲染的。
+bool _canJoinGroup(PeerInfo p) => p.kind == 'airplay' || p.kind == 'sendspin';
+
 class _RingNode extends ConsumerWidget {
   const _RingNode({
     required this.peer,
@@ -790,8 +807,8 @@ class _RingNode extends ConsumerWidget {
 
   final PeerInfo peer;
 
-  /// 选中的群组 peerId(null = 没选中任何群组):非空且本圆是设备型成员时,
-  /// 信息列下方显示 +/− 按钮(组内 − / 组外 +)。
+  /// 选中的群组 peerId(null = 没选中任何群组):非空且本圆是**可入组**设备
+  /// (airplay / sendspin)或已是成员时,信息列下方显示勾选圈(已加入实心)。
   final String? selectedGroup;
   final bool isMemberOfSelected;
   final VoidCallback? onToggleMembership;
@@ -837,12 +854,13 @@ class _RingNode extends ConsumerWidget {
           // 群组被选中:accent 常亮(与落点高亮同通道,但无拖拽候选也亮)。
           final groupSelected =
               peer.kind == 'group' && selectedGroup == peer.peerId;
-          // 选中群组后,设备型成员(dlna/sendspin)信息列下方出现加入/退出勾选圈;
-          // 本机/群组/airplay 不参与(服务端组成员只有 dlna/sendspin 命名空间)。
+          // 选中群组后,可进组的设备(airplay/sendspin)信息列下方出现加入/退出
+          // 勾选圈;DLNA 不能进组(服务端拒收)、本机与群组自身也不参与。
+          // **已是成员仍要渲染** —— 历史组里若存着 DLNA 成员,用户得有出口移除它。
           Widget? action;
           if (selectedGroup != null &&
               peer.kind != 'group' &&
-              (peer.kind == 'dlna' || peer.kind == 'sendspin')) {
+              (_canJoinGroup(peer) || isMemberOfSelected)) {
             action = _MemberToggleButton(
               isMember: isMemberOfSelected,
               onTap: onToggleMembership,

@@ -2,6 +2,17 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.9.2] - 2026-10-24
+
+### 修复
+
+- **流转页群组成员只允许 AirPlay / Sendspin，DLNA 不再出现「加入群组」圈**：服务端口径是群组成员仅 `airplay:<deviceId>` / `sendspin:<clientId>`（`splitMemberId()` 拒收 DLNA，直接 400），群组出流 = sendspin pump → AirPlay BridgeRing，DLNA 成员在组里永远静默；旧勾选圈条件却写成 `dlna || sendspin`，点 DLNA 必然失败。现在加入圈仅对 airplay / sendspin 渲染，且**已是成员的设备始终渲染**——否则历史组里存着的 DLNA 成员没有移除出口。
+- **成员键改用服务端命名空间写法**：旧代码把 `dlna:` 前缀剥掉再提交，与组里存的字符串对不上，服务端按 no-op 处理，成员删不掉。现在按「peerId → kind:裸id → 裸id」依次回查组内原样字符串：加入用完整 `sendspin:` / `airplay:` 写法，移除回传组里存的那条原样字符串。
+
+### 测试
+
+- 两个流转页测试文件与 `b38c3_player_transfer_extra_test` 同步改判据：DLNA 不得渲染加入圈、点圈提交完整命名空间成员键、历史裸 id 成员仍可移除；`player_transfer_page.dart` 行覆盖率 **566/566 = 100%**（门禁 97%）；`dart analyze lib/ --no-fatal-warnings` 无新增问题。
+
 ## [5.9.1] - 2026-10-22
 
 ### 修复

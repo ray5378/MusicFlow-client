@@ -364,8 +364,8 @@ void main() {
     expect(find.bySemanticsLabel('退出该群组'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('退出该群组'));
     await settle(tester);
-    // 协议走的是裸 id（DLNA 剥掉 `dlna:` 前缀），不是 `dlna:30`。
-    expect(ctrl!.calls, contains('setGroupMembership:g1:30:false'),
-        reason: '退组带 join=false，且成员键走裸 id 命名空间');
+    // 成员键回传组里那条完整 peerId（旧实现剥 `dlna:` 发裸 id `30`，服务端 no-op）。
+    expect(ctrl!.calls, contains('setGroupMembership:g1:dlna:30:false'),
+        reason: '退组带 join=false，成员键用服务端命名空间');
   });
 }

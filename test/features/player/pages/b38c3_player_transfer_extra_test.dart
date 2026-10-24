@@ -363,9 +363,16 @@ void main() {
 
   testWidgets('群组 peerId 不带 group: 前缀：gid 直接取 peerId（229/282）',
       (tester) async {
+    // DLNA 已不入组(仅 airplay/sendspin 渲染加入圈),改用 sendspin 设备验证加入。
+    const kSs = PeerInfo(
+      peerId: 'sendspin:ss9',
+      name: '测试Sendspin',
+      kind: 'sendspin',
+      available: true,
+    );
     await pumpPage(
       tester,
-      loaded: <PeerInfo>[kSelf, kGroupPlain, kDlna],
+      loaded: <PeerInfo>[kSelf, kGroupPlain, kDlna, kSs],
       activePeer: kSelf,
       groups: <dynamic>[
         <String, dynamic>{
@@ -382,16 +389,17 @@ void main() {
     expect(ctrl!.calls, contains('fetchGroups'));
     expect(hintFinder('已选中群组'), findsOneWidget);
 
-    // 主卧不在组里 → 加入圈；点击 → _toggleMembership，gid 取非前缀 peerId。
-    expect(find.bySemanticsLabel('加入该群组'), findsWidgets);
-    await tester.tap(find.bySemanticsLabel('加入该群组').first);
+    // 全场只有 sendspin 一颗加入圈;DLNA(kind dlna)不得渲染加入圈。
+    final rings = find.bySemanticsLabel('加入该群组');
+    expect(rings, findsOneWidget);
+    // 点击 → _toggleMembership,gid 取非前缀 peerId,成员键用完整命名空间写法。
+    await tester.tap(rings);
     await settle(tester);
-    expect(ctrl!.calls, contains('setGroupMembership:g1:30:true'),
+    expect(ctrl!.calls, contains('setGroupMembership:g1:sendspin:ss9:true'),
         reason: '非前缀群组 id 也要正确拼出 setGroupMembership');
 
     await tester.pumpWidget(const SizedBox());
   });
-
   testWidgets('拖远端到回收站成功：销毁远端并 invalidate 其在播（320）',
       (tester) async {
     await pumpPage(

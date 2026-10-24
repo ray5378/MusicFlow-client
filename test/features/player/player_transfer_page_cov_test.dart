@@ -43,8 +43,16 @@ const PeerInfo kGroup = PeerInfo(
   available: true,
 );
 
-/// sendspin 成员：服务端成员命名空间与 peerId 同形（`sendspin:<clientId>`），
-/// `_memberKeyFor` 对它的处理与 dlna 不同（不剥前缀），单独留一条用例钉住。
+/// AirPlay 成员：服务端成员命名空间与 peerId 同形（`airplay:<deviceId>`）。
+/// 群组只收 airplay / sendspin（DLNA 被服务端拒收）⇒ 勾选圈只挂这两种设备。
+const PeerInfo kAir = PeerInfo(
+  peerId: 'airplay:aa01',
+  name: '客厅音响',
+  kind: 'airplay',
+  available: true,
+);
+
+/// sendspin 成员：服务端成员命名空间与 peerId 同形（`sendspin:<clientId>`）。
 const PeerInfo kSpin = PeerInfo(
   peerId: 'sendspin:sp1',
   name: '掌柜音箱',
@@ -516,11 +524,12 @@ void main() {
     expect(find.bySemanticsLabel('退出该群组'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('退出该群组'));
     await settle(tester);
-    // 协议走的是裸 id（DLNA 剥掉 `dlna:` 前缀），不是 `dlna:30`。
+    // 成员键 = 服务端口径的**完整 peerId**（`dlna:30`）。旧实现剥掉 `dlna:`
+    // 前缀发裸 id `30`，与 memberIds 里存的字符串对不上 ⇒ 服务端 no-op ⇒ 删不掉。
     expect(
       ctrl!.calls,
-      contains('setGroupMembership:g1:30:false'),
-      reason: '退组带 join=false，且成员键走裸 id 命名空间',
+      contains('setGroupMembership:g1:dlna:30:false'),
+      reason: '退组带 join=false，成员键回传组里那条字符串',
     );
   });
 
@@ -547,20 +556,19 @@ void main() {
     expect(find.bySemanticsLabel('加入该群组'), findsNothing);
   });
 
-  testWidgets('点 dlna 成员的加入圈 = setGroupMembership(..., join: true)', (
+  testWidgets('点 airplay 成员的加入圈 = setGroupMembership(..., join: true)', (
     WidgetTester tester,
   ) async {
     await pumpPage(
       tester,
-      loaded: <PeerInfo>[kSelf, kGroup, kDlna],
+      loaded: <PeerInfo>[kSelf, kGroup, kAir],
       activePeer: kSelf,
       groups: <dynamic>[
-        // 主卧**不在** memberIds 里 → 走「加入」分支（join=true）。
-        // 只验退出那条的话，join=true 这条链（dlna 命名空间下的入组）没人守。
+        // 客厅音响**不在** memberIds 里 → 走「加入」分支（join=true）。
         <String, dynamic>{
           'id': 'g1',
           'name': kGroupName,
-          'memberIds': <dynamic>['dlna:77'],
+          'memberIds': <dynamic>['airplay:77'],
         },
       ],
     );
@@ -570,22 +578,53 @@ void main() {
     expect(
       find.bySemanticsLabel('加入该群组'),
       findsOneWidget,
-      reason: '组里没有这台 dlna → 显示加入圈（而不是退出圈）',
+      reason: '组里没有这台 airplay → 显示加入圈（而不是退出圈）',
     );
     expect(find.bySemanticsLabel('退出该群组'), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('加入该群组'));
     await settle(tester);
-    // dlna 的成员键是**裸 id**（剥掉 `dlna:` 前缀），join 方向也要走裸 id 命名空间。
+    // airplay 的成员键就是完整 peerId（服务端 airplay:<deviceId> 命名空间）。
     expect(
       ctrl!.calls,
-      contains('setGroupMembership:g1:30:true'),
-      reason: '入组带 join=true，且 dlna 成员键走裸 id 命名空间',
+      contains('setGroupMembership:g1:airplay:aa01:true'),
+      reason: '入组带 join=true，成员键用服务端命名空间',
+    );
+  });
+
+  testWidgets('DLNA 不能进组：管理模式下列不出现任何勾选圈', (WidgetTester tester) async {
+    // 2026-10-24 用户确认的契约：只有 airplay / sendspin 能加入群组。
+    // DLNA 即使组是空的也不给加入圈 —— 服务端 splitMemberId 会 400 拒收，
+    // 给了圈只会让用户看到一次「群组操作失败」。
+    await pumpPage(
+      tester,
+      loaded: <PeerInfo>[kSelf, kGroup, kDlna],
+      activePeer: kSelf,
+      groups: <dynamic>[
+        <String, dynamic>{
+          'id': 'g1',
+          'name': kGroupName,
+          'memberIds': <dynamic>[],
+        },
+      ],
+    );
+    await settle(tester);
+    await tester.tap(find.text(kGroupName));
+    await settle(tester);
+    expect(
+      hintFinder('已选中群组'),
+      findsOneWidget,
+      reason: '确认已进入管理模式（否则「没有圈」是因为没进模式，测不到点子上）',
     );
     expect(
-      ctrl!.calls,
-      isNot(contains('setGroupMembership:g1:dlna:30:true')),
-      reason: '不能把完整 peerId 当 dlna 成员键发出去',
+      find.bySemanticsLabel('加入该群组'),
+      findsNothing,
+      reason: 'DLNA 不渲染加入圈',
+    );
+    expect(
+      find.bySemanticsLabel('退出该群组'),
+      findsNothing,
+      reason: 'DLNA 不渲染退出圈',
     );
   });
 
@@ -710,7 +749,7 @@ void main() {
     await settle(tester);
     // ids 为 null 分支：不 `_selectedMembers = ids.toSet()`（会把成员集清空），
     // 只弹错提示；界面仍是「已选中」态，退出圈还在。
-    expect(ctrl!.calls, contains('setGroupMembership:g1:30:false'));
+    expect(ctrl!.calls, contains('setGroupMembership:g1:dlna:30:false'));
     expect(
       find.bySemanticsLabel('退出该群组'),
       findsOneWidget,
