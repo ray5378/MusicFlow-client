@@ -824,20 +824,16 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
       // 沿用本端刚置位的播放/暂停态,不被滞后上报顶掉。
       final effectiveStatus = _applyTransportShadow(healedStatus);
 
-      // 队列自然播完检测:设备曾处于活跃播放,随后无任何客户端命令干预而跳变为
-      // 非活跃(STOPPED/空)即判定整轮队列播放完毕,endOfQueueCount +1,
-      // 供随机歌曲「播完自动换一批」等场景监听触发续播。
+      // 播放活跃记账(供下面的「整轮播完」判定用)。
+      // 注意:**不再**用「设备从活跃变为非活跃」当播完判据 —— 桥/会话每次重建
+      // (AirPlay warm-reuse-poisoned → FLUSH → 新 gen、DLNA 清空重选)都会掉一拍
+      // inactive,旧实现会把它判成「整轮播完」并通知随机歌曲续播,续播又整队重推
+      // → 桥再重建,形成 1~2 秒一跳的自激循环(2026-11-10 现场)。播完只认服务端
+      // 队列级 ended(见下方快照解析),那是唯一权威证据。
       if (effectiveStatus.active) {
         _wasActivePlaying = true;
         // 设备已在用户命令后恢复活跃播放:清除命令标记,恢复自然播完判定能力。
         if (_userCommandSincePlaying) _userCommandSincePlaying = false;
-      } else {
-        if (_wasActivePlaying && !_userCommandSincePlaying) {
-          final ended = state.endOfQueueCount + 1;
-          state = state.copyWith(endOfQueueCount: ended);
-          Logger.infoWithTag('CAST', 'queue naturally ended, count=$ended');
-        }
-        _wasActivePlaying = false;
       }
 
       // ==================== 轻量轮询（SPEC §12.1 根治） ====================
@@ -943,6 +939,24 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
           // 目标空闲(无活跃队列):游标置 -1 → targetIdle 派生为 true,
           // Now 区显示「未在播放」,不残留上一首歌/上一目标的镜像。
           idx = -1;
+        }
+      }
+
+      // 整轮播完(权威判据):服务端队列级 ended=true 且已停止。endOfQueueCount +1 供
+      // 随机歌曲「播完自动换一批」等场景监听。前置条件与旧实现一致(确实播过 + 期间
+      // 无用户命令),只是证据从「设备掉了一拍 active」换成队列自己的 ended —— 后者
+      // 只在队列真正走完时置位(QueueController.markEnded),设备停/桥重建不会置位。
+      if (snap != null) {
+        final serverEnded = snap['ended'] == true;
+        final serverActive = snap['isActive'] == true;
+        if (serverEnded && !serverActive && _wasActivePlaying && !_userCommandSincePlaying) {
+          final endedCount = state.endOfQueueCount + 1;
+          state = state.copyWith(endOfQueueCount: endedCount);
+          Logger.infoWithTag('CAST', 'queue naturally ended (server ended), count=$endedCount');
+          // 一次整轮只计一次;重新起播后由 serverActive 分支重新武装。
+          _wasActivePlaying = false;
+        } else if (serverActive) {
+          _wasActivePlaying = true;
         }
       }
 

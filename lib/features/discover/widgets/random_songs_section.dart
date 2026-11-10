@@ -39,6 +39,9 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
 
   bool _autoContinue = false;
   int _roundToken = 0;
+  /// 续播在途标记:一轮续播(拉新批 + 整队推送)完成前拒绝再次触发,
+  /// 避免两条「播完」信号并发各推一次整队、互相打断。
+  bool _roundLoading = false;
   StreamSubscription<int>? _randomSongsSubscription;
 
   /// 自动重试定时器与计数:首载失败(无缓存)时自动补拉,有界重试,
@@ -219,20 +222,29 @@ class _RandomSongsSectionState extends ConsumerState<RandomSongsSection>
   /// - 新一批与旧内容按 id 去重,避免刚播完的歌立即又出现;
   /// - 本机链路用合并队列 + 从新批首首续播;投屏/DLNA 链路由其内部换批续播。
   Future<void> _loadNextRound() async {
-    final token = ++_roundToken;
-    final songs = await ref.refresh(randomSongsProvider.future);
-    if (!mounted || token != _roundToken || !_autoContinue) return;
-    if (songs.isEmpty) return;
-    // 先读当前已展示/已播的历史批,再更新展示,否则 _lastKnownSongs 已被新批覆盖、
-    // fresh 永远为空,无法实现「追加」。
-    final current = _lastKnownSongs ?? const <Song>[];
-    final currentIds = current.map((s) => s.id).toSet();
-    final fresh = songs.where((s) => !currentIds.contains(s.id)).toList();
-    if (fresh.isEmpty) return;
-    _roundSongIds = songs.map((s) => s.id).toSet();
-    setState(() => _lastKnownSongs = songs);
-    final merged = <Song>[...current, ...fresh];
-    await playEffectiveQueue(ref, merged, startIndex: current.length);
+    // 在途守卫:同一时刻只允许一轮续播在飞。整队推送本身要 1~2 秒,期间若再来一次
+    // 「播完」信号,两次续播会各自 append 一批并各推一次整队 —— 后一次直接把前一次
+    // 刚起播的会话重建掉。宁可丢弃新信号(在飞的那轮已经拉到新批了)。
+    if (_roundLoading) return;
+    _roundLoading = true;
+    try {
+      final token = ++_roundToken;
+      final songs = await ref.refresh(randomSongsProvider.future);
+      if (!mounted || token != _roundToken || !_autoContinue) return;
+      if (songs.isEmpty) return;
+      // 先读当前已展示/已播的历史批,再更新展示,否则 _lastKnownSongs 已被新批覆盖、
+      // fresh 永远为空,无法实现「追加」。
+      final current = _lastKnownSongs ?? const <Song>[];
+      final currentIds = current.map((s) => s.id).toSet();
+      final fresh = songs.where((s) => !currentIds.contains(s.id)).toList();
+      if (fresh.isEmpty) return;
+      _roundSongIds = songs.map((s) => s.id).toSet();
+      setState(() => _lastKnownSongs = songs);
+      final merged = <Song>[...current, ...fresh];
+      await playEffectiveQueue(ref, merged, startIndex: current.length);
+    } finally {
+      _roundLoading = false;
+    }
   }
 
   /// 随机歌曲歌单更新后的处理:
