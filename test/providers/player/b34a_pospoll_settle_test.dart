@@ -245,6 +245,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
     int? maxBitRate,
     String? format,
     int? timeOffset,
+    bool prefetch = false,
   }) =>
       'http://192.168.10.240:46400/rest/stream?id=$songId';
 }

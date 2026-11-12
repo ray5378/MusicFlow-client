@@ -324,6 +324,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
     int? maxBitRate,
     String? format,
     int? timeOffset,
+    bool prefetch = false,
   }) {
     final buf = StringBuffer('http://192.168.10.240:46400/rest/stream?id=$songId');
     if (format != null) buf.write('&format=$format');

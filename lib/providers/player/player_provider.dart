@@ -2395,10 +2395,12 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   ) async {
     if (upcoming == null || upcoming.isPreview) return;
     final q = _streamQualityFor(upcoming, quality);
+    // prefetch=1:服务端按低优先级处理(转码池满直接 429),预取失败静默回退在线流。
     final url = _apiClient.getStreamUrl(
       upcoming.id,
       format: q.format,
       maxBitRate: q.maxBitRate,
+      prefetch: true,
     );
     if (url.isEmpty) return;
     await _nextTrackMemoryPrefetch.start(
@@ -2445,6 +2447,14 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
     final file = cache.songFile(song.id);
     if (file == null || !file.existsSync()) return null;
     return file.uri.toString();
+  }
+
+  /// 作废「下一首内存预取」：中止在途下载并释放已备字节。
+  ///
+  /// 供「流转发起瞬间」调用（本机被暂停后不再需要预取；也不等搬移请求返回，
+  /// 慢网/重试时可能有数秒空窗）。预取只是加速，取消绝不影响正在播放的音频。
+  void cancelNextTrackPrefetch() {
+    _nextTrackMemoryPrefetch.reset();
   }
 
   @override

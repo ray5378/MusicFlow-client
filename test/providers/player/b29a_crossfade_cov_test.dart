@@ -367,6 +367,7 @@ class _SpySubsonicApiClient extends SubsonicApiClient {
     int? maxBitRate,
     String? format,
     int? timeOffset,
+    bool prefetch = false,
   }) =>
       streamUrl;
 }

@@ -272,11 +272,16 @@ class SubsonicApiClient {
   }
 
   /// Generate Stream URL
+  ///
+  /// [prefetch] 为 true 时带 `prefetch=1`:服务端按**低优先级预取**处理
+  /// (转码池无空位立即 429,不排队、不占真实播放的最后一格,不写播放统计)。
+  /// 只用于「下一首预取」这类可以静默失败的请求,正常播放绝不能带。
   String getStreamUrl(
     String songId, {
     int? maxBitRate,
     String? format,
     int? timeOffset,
+    bool prefetch = false,
   }) {
     if (_library == null) return '';
     final baseUrl = _dio.options.baseUrl;
@@ -294,6 +299,9 @@ class SubsonicApiClient {
     }
     if (timeOffset != null && timeOffset > 0) {
       params['timeOffset'] = timeOffset.toString();
+    }
+    if (prefetch) {
+      params['prefetch'] = '1';
     }
 
     // 流式播放始终使用 /rest/stream（包括转码）

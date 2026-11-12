@@ -235,6 +235,7 @@ class _ScriptedSubsonicApiClient extends SubsonicApiClient {
     int? maxBitRate,
     String? format,
     int? timeOffset,
+    bool prefetch = false,
   }) {
     streamUrlCalls.add('$songId|format=$format|maxBitRate=$maxBitRate');
     return streamUrl;

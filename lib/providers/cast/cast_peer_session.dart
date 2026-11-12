@@ -140,6 +140,9 @@ mixin CastPeerSession on CastPeerControllerBase {
     if (state.activePeer == null) {
       // 离开本机:先冻结本地状态(快照),再暂停本机。
       _saveLocalSnapshot();
+      // 流转发起瞬间即作废「下一首内存预取」:本机马上被暂停，在途预取只会白占
+      // 带宽/内存；且不等搬移请求返回（慢网/重试时可能空窗数秒）。
+      ref.read(playerProvider.notifier).cancelNextTrackPrefetch();
       await ref.read(playerProvider.notifier).pause();
     }
     state = state.copyWith(
