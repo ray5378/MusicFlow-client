@@ -2,6 +2,29 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.10.0] - 2026-11-12
+
+### 新增
+
+- **下一首整曲预取，切歌零等待**：离线缓存开启时由后台守护进程先落盘下一首，缓存 meta
+  记录音质签名（`qk`），起播优先用缓存文件；离线缓存关闭时改为内存预取整轨
+  （`next_track_memory_prefetch.dart`，≤64MB，支持 Range），切歌直接喂
+  `MemoryAudioSource` —— 不写盘、不碰离线缓存，失败一律静默回退在线流。
+- **预取请求带 `prefetch=1`（服务端低优先级）**：预取出流最多占转码池 `上限-1`，最后一格
+  永远留给真实播放；池满时服务端立即 429，客户端静默放弃并回退在线流。预取只是加速，
+  绝不影响「能不能播」。
+
+### 修复
+
+- **流转发起瞬间作废预取**：离开本机（本机即将暂停）时立即 `cancelNextTrackPrefetch()`，
+  中止在途下载并释放已备字节；不等搬移请求返回，慢网/重试时不再白占带宽与内存。
+
+### 测试
+
+- 播放器测试替身同步补齐 `getStreamUrl` 的 `prefetch` 形参；
+  `flutter test test/providers/player test/providers/cast test/providers/offline
+  test/core/offline test/core/player` **733 用例全绿**，`flutter analyze lib` 无 error。
+
 ## [5.9.3] - 2026-11-10
 
 ### 修复
