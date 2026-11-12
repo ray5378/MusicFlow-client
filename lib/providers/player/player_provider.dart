@@ -35,7 +35,9 @@ import 'package:musicflow_client/providers/player/crossfade_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_cache_daemon.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
+import 'package:musicflow_client/providers/offline/offline_cache_settings_provider.dart';
 import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
+import 'package:musicflow_client/core/player/next_track_memory_prefetch.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
@@ -213,6 +215,11 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   ProcessingState? _lastProcessingStateForDebug;
   bool _isHandlingCompletion = false;
   String? _completionHandlingSongId;
+  /// 下一首内存预取（关闭离线缓存时的在线加速通道）。
+  /// 见 core/player/next_track_memory_prefetch.dart：不写磁盘、不碰离线缓存。
+  final NextTrackMemoryPrefetch _nextTrackMemoryPrefetch =
+      NextTrackMemoryPrefetch();
+
   /// seek 落位宽限:reload-stream 重拉成功后,新源 source 从余数(<1s)起步,
   /// 0 秒卡死看门狗会误判「卡在起点」而 playSong 从头重载(再犯则 next 跳歌),
   /// 近末尾守卫也可能把「刚 seek 到尾段 + 尾包未到」当完成切歌。
@@ -1298,6 +1305,66 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
         }
       }
 
+      // [next-prefetch] 离线缓存关闭时的内存预取：切歌直接用内存字节喂播放器，
+      // 不再等首包 + 整轨下载。未命中/音质不符 → 照常走下面的在线流。
+      final memQuality = _streamQualityFor(song, effectiveQuality);
+      final memBytes = _nextTrackMemoryPrefetch.take(
+        song.id,
+        OfflineCacheManager.qualityKey(
+          format: memQuality.format,
+          maxBitRate: memQuality.maxBitRate,
+        ),
+      );
+      if (memBytes != null) {
+        _playDbg(
+          'sid=$debugSession source=memory_prefetch bytes=${memBytes.length}',
+        );
+        try {
+          final sourceReady = await _replaceLoadedSource(
+            songId: song.id,
+            label: 'memory_prefetch',
+            ownsSource: () => _isPlaybackContextCurrent(
+              session: debugSession,
+              songId: song.id,
+            ),
+            setSource: (player) async {
+              await player.setAudioSource(
+                MemoryAudioSource.of(
+                  memBytes,
+                  transcodeFormat: memQuality.format,
+                  suffix: song.suffix,
+                ),
+              );
+            },
+          );
+          if (!sourceReady) return;
+          // 内存源不走服务端管道：seek 由播放器本地处理（MemoryAudioSource 支持 Range）。
+          _currentStreamUrl = null;
+          await _syncPlaybackAfterSourceReady(autoPlay: autoPlay);
+          if (!isCurrentSession()) return;
+          await _applyPendingSeekIfNeeded();
+          if (!isCurrentSession()) return;
+          state = state.copyWith(
+            playbackSource: PlaybackSource.stream,
+            currentBitRateKbps: _resolveCurrentBitRateKbps(
+              song: song,
+              quality: effectiveQuality,
+              source: PlaybackSource.stream,
+            ),
+          );
+          if (!isCurrentSession()) return;
+          _clearCurrentPlaybackRetry(reason: 'playback_ready_memory_prefetch');
+          if (autoPlay) {
+            await _scrobble(song.id, submission: false);
+            if (!isCurrentSession()) return;
+          }
+          return;
+        } catch (e) {
+          Logger.warn('Memory prefetch playback failed: ${song.title}', e);
+          _currentStreamUrl = null;
+        }
+      }
+
       // 2. 流式播放
       final String? transcodeFormat = _needsTranscoding(song.suffix);
       final int? maxBitRate;
@@ -1462,6 +1529,13 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       Logger.info('Playing: ${song.title}');
 
       // 触发背景缓存：当前曲 + 实际即将播放的下一首（随机模式按随机语义取样）+ 当前曲封面。
+      // [next-prefetch] 下一首只解析一次：离线缓存守护与内存预取共用同一结果
+      //（随机模式会预计算并消费索引，重复调用会各算各的）。
+      final upcomingForPrefetch = _resolveUpcomingSongForCache();
+      if (!_ref.read(offlineCacheSettingsProvider).enabled) {
+        // 离线缓存关闭 → 用内存预取补位：在线播放也不等下一首整轨下载。
+        unawaited(_prefetchUpcomingInMemory(upcomingForPrefetch, effectiveQuality));
+      }
       unawaited(
         _ref
             .read(offlineCacheDaemonProvider)
@@ -1469,7 +1543,7 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
               song: song,
               queue: playQueue,
               index: playIndex,
-              upcomingSong: _resolveUpcomingSongForCache(),
+              upcomingSong: upcomingForPrefetch,
             ),
       );
 
@@ -2292,6 +2366,53 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   }
 
   /// 下一首
+  /// 生成在线播放用的流参数（与 playSong 流式分支同一口径）：
+  /// 需转码的格式 + 当前音质对应的码率上限（original 为 null）。
+  ({String? format, int? maxBitRate}) _streamQualityFor(
+    Song song,
+    AudioQualityLevel quality,
+  ) {
+    final format = _needsTranscoding(song.suffix);
+    final int? maxBitRate;
+    if (format != null) {
+      maxBitRate = quality == AudioQualityLevel.original
+          ? null
+          : (quality.maxBitRate ?? 320);
+    } else if (quality == AudioQualityLevel.original) {
+      maxBitRate = null;
+    } else {
+      maxBitRate = quality.maxBitRate;
+    }
+    return (format: format, maxBitRate: maxBitRate);
+  }
+
+  /// 预取「下一首」到内存（仅在离线缓存关闭时调用）。
+  ///
+  /// 任何失败都静默：预取只影响切歌速度，不影响可播性。
+  Future<void> _prefetchUpcomingInMemory(
+    Song? upcoming,
+    AudioQualityLevel quality,
+  ) async {
+    if (upcoming == null || upcoming.isPreview) return;
+    final q = _streamQualityFor(upcoming, quality);
+    final url = _apiClient.getStreamUrl(
+      upcoming.id,
+      format: q.format,
+      maxBitRate: q.maxBitRate,
+    );
+    if (url.isEmpty) return;
+    await _nextTrackMemoryPrefetch.start(
+      dio: _apiClient.dio,
+      songId: upcoming.id,
+      qualityKey: OfflineCacheManager.qualityKey(
+        format: q.format,
+        maxBitRate: q.maxBitRate,
+      ),
+      url: url,
+      expectedBytes: upcoming.size,
+    );
+  }
+
   /// 「下一首预取」是否已有可直接起播的整轨缓存。
   ///
   /// 返回本地 file URI 的条件：缓存存在、文件在盘、且缓存写入时的音质签名
@@ -2772,6 +2893,8 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   Future<void> clearQueue({bool keepCurrent = true}) async {
     _clearForcedNext();
     _resetShuffleHistory();
+    // 队列已清空：下一首内存预取作废（不占内存，也不再空拉带宽）。
+    _nextTrackMemoryPrefetch.reset();
 
     final currentSong = state.currentSong;
     if (keepCurrent && currentSong != null) {
