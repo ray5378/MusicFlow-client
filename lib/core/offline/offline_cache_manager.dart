@@ -475,6 +475,17 @@ class OfflineCacheManager {
     return _fileFor(e.kind, e.key);
   }
 
+  /// 单条歌曲的缓存元数据；未缓存返回 null。
+  /// 播放侧据此判断「这份整轨缓存能否直接起播」（见 [qualityKey]）。
+  Map<String, dynamic>? songMeta(String songId) =>
+      _entries['${OfflineCacheKind.song.name}:$songId']?.meta;
+
+  /// 缓存音质签名：转码格式 + 码率上限（null 表示原始/不限制）。
+  /// 写缓存（守护进程）与读缓存（播放侧）必须同一口径，
+  /// 否则会把 320k 的缓存当成无损起播（反之亦然）。
+  static String qualityKey({String? format, int? maxBitRate}) =>
+      '${format ?? 'src'}@${maxBitRate ?? 0}';
+
   // ---- 歌词 ----
   Future<void> putLyrics(String songId, String text) {
     if (songId.isEmpty || text.isEmpty) return Future.value();

@@ -103,12 +103,17 @@ class OfflineCacheDaemon {
     try {
       // 封面小、速度快，先缓存当前曲封面，不被整轨下载阻塞。
       await _cacheSongCover(cache, job.song);
-      await _cacheSongData(cache, job.song);
       // 预缓存实际「下一首将播放」的歌曲:随机模式由 player 侧 _resolveUpcomingSongForCache
       // 按随机语义取样给出,而非顺序队列的 index+1;未传时回退到顺序下一首。
       final next = job.upcomingSong ?? _nextFromQueue(job.queue, job.index);
+      // [next-prefetch] 先把**下一首**整轨下完，再补当前曲：当前曲已在流播，
+      // 先下它会让下一首常常赶不上（外网无损 20~50s，切歌仍要冷拉）。
+      // 只调整先后、不减少缓存内容，离线可用性不变。
       if (next != null && !next.isPreview) {
         await _cacheSongData(cache, next);
+      }
+      await _cacheSongData(cache, job.song);
+      if (next != null && !next.isPreview) {
         await _cacheSongCover(cache, next);
         await _cacheSongLyrics(cache, next);
       }
@@ -126,7 +131,12 @@ class OfflineCacheDaemon {
   }
 
   Future<void> _cacheSongData(OfflineCacheManager cache, Song song) async {
-    if (cache.hasSong(song.id)) return;
+    // 已缓存且音质签名一致才跳过；旧版本缓存（无 qk）或改过音质时重下，
+    // 否则「下一首预取」永远命中不到这些歌（hasSong=true 却不可直接起播）。
+    if (cache.hasSong(song.id) &&
+        cache.songMeta(song.id)?['qk'] == _qualityKeyOf(song)) {
+      return;
+    }
     final tmp = await _downloadStreamBytes(song);
     if (tmp == null) return;
     await cache.putSongFromFile(song.id, tmp, meta: _metaOf(song));
@@ -136,14 +146,36 @@ class OfflineCacheDaemon {
   }
 
   /// 缓存的歌曲附带展示元数据（供「已缓存音乐」页离线展示）。
-  static Map<String, dynamic> _metaOf(Song song) => {
+  Map<String, dynamic> _metaOf(Song song) => {
         'songId': song.id,
         'title': song.title,
         'artist': song.artist ?? '',
         if (song.album != null) 'album': song.album,
         if (song.duration != null) 'duration': song.duration,
         if (song.coverArt != null) 'coverArt': song.coverArt,
+        // 音质签名：播放侧据此判断这份整轨缓存能否直接起播。
+        'qk': _qualityKeyOf(song),
       };
+
+  /// 与 [_downloadStreamBytes] 同一口径的音质签名（转码格式 + 码率上限）。
+  String _qualityKeyOf(Song song) {
+    final quality = _ref.read(effectiveQualityProvider);
+    final format = _needsTranscoding(song.suffix);
+    final int? maxBitRate;
+    if (format != null) {
+      maxBitRate = quality == AudioQualityLevel.original
+          ? null
+          : (quality.maxBitRate ?? 320);
+    } else if (quality == AudioQualityLevel.original) {
+      maxBitRate = null;
+    } else {
+      maxBitRate = quality.maxBitRate;
+    }
+    return OfflineCacheManager.qualityKey(
+      format: format,
+      maxBitRate: maxBitRate,
+    );
+  }
 
   /// 缓存某首歌曲的歌词（在线时）。用于预缓存下一首时随附。
 

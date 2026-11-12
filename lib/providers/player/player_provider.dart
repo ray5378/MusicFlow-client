@@ -35,6 +35,7 @@ import 'package:musicflow_client/providers/player/crossfade_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_cache_daemon.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
+import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
@@ -1246,6 +1247,57 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       // 获取当前音质设置
       final effectiveQuality = _ref.read(effectiveQualityProvider);
 
+      // [next-prefetch 消费] 在线也优先用后台预取的整轨缓存本地起播。
+      // 守护进程在上一首播放期间就把本曲下完；只有「音质签名一致」才命中，
+      // 旧缓存/中途改过音质都不会被误用 → 未命中照常走流。
+      final prefetchFileUri = await _prefetchedFileUri(song, effectiveQuality);
+      if (prefetchFileUri != null) {
+        _playDbg('sid=$debugSession source=prefetch_file uri=$prefetchFileUri');
+        try {
+          final sourceReady = await _replaceLoadedSource(
+            songId: song.id,
+            label: 'prefetch_file',
+            ownsSource: () => _isPlaybackContextCurrent(
+              session: debugSession,
+              songId: song.id,
+            ),
+            setSource: (player) async {
+              await player.setUrl(prefetchFileUri);
+            },
+          );
+          if (!sourceReady) return;
+          // 本地文件不走服务端管道：清掉流 URL，seek 走播放器本地 seek。
+          _currentStreamUrl = null;
+          await _syncPlaybackAfterSourceReady(autoPlay: autoPlay);
+          if (!isCurrentSession()) return;
+          await _applyPendingSeekIfNeeded();
+          if (!isCurrentSession()) return;
+          state = state.copyWith(
+            playbackSource: PlaybackSource.stream,
+            currentBitRateKbps: _resolveCurrentBitRateKbps(
+              song: song,
+              quality: effectiveQuality,
+              source: PlaybackSource.stream,
+            ),
+          );
+          if (!isCurrentSession()) return;
+          _clearCurrentPlaybackRetry(reason: 'playback_ready_prefetch_file');
+          if (autoPlay) {
+            await _scrobble(song.id, submission: false);
+            if (!isCurrentSession()) return;
+          }
+          _seekDbg(
+            'prefetch file ready song=${song.id} '
+            'pos=${_audioPlayer?.position} duration=${state.duration}',
+          );
+          return;
+        } catch (e) {
+          // 缓存文件被淘汰/损坏：不跳歌，继续走在线流。
+          Logger.warn('Prefetch file playback failed: ${song.title}', e);
+          _currentStreamUrl = null;
+        }
+      }
+
       // 2. 流式播放
       final String? transcodeFormat = _needsTranscoding(song.suffix);
       final int? maxBitRate;
@@ -2240,6 +2292,40 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   }
 
   /// 下一首
+  /// 「下一首预取」是否已有可直接起播的整轨缓存。
+  ///
+  /// 返回本地 file URI 的条件：缓存存在、文件在盘、且缓存写入时的音质签名
+  /// 与当前播放设置一致（[OfflineCacheManager.qualityKey]）。任一不满足返回 null，
+  /// 调用方照常走在线流 —— 预取只是加速，绝不改变「能不能播」。
+  Future<String?> _prefetchedFileUri(
+    Song song,
+    AudioQualityLevel quality,
+  ) async {
+    if (song.isPreview) return null;
+    if (_ref.read(isOfflineProvider)) return null; // 离线分支已单独处理
+    final cache = _ref.read(offlineCacheManagerProvider);
+    await _ref.read(offlineCacheReadyProvider.future);
+    final format = _needsTranscoding(song.suffix);
+    final int? maxBitRate;
+    if (format != null) {
+      maxBitRate = quality == AudioQualityLevel.original
+          ? null
+          : (quality.maxBitRate ?? 320);
+    } else if (quality == AudioQualityLevel.original) {
+      maxBitRate = null;
+    } else {
+      maxBitRate = quality.maxBitRate;
+    }
+    final want = OfflineCacheManager.qualityKey(
+      format: format,
+      maxBitRate: maxBitRate,
+    );
+    if (cache.songMeta(song.id)?['qk'] != want) return null;
+    final file = cache.songFile(song.id);
+    if (file == null || !file.existsSync()) return null;
+    return file.uri.toString();
+  }
+
   @override
   Future<void> next() async {
     // 入口留痕(同 previous):"没点就切歌"是误触发主诉,先记变迁。
