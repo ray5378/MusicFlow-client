@@ -110,7 +110,9 @@ class OfflineCacheDaemon {
       // 先下它会让下一首常常赶不上（外网无损 20~50s，切歌仍要冷拉）。
       // 只调整先后、不减少缓存内容，离线可用性不变。
       if (next != null && !next.isPreview) {
-        await _cacheSongData(cache, next);
+        // 下一首是「预取」:带 prefetch=1 让服务端按低优先级出流(池满 429 就
+        // 本轮跳过,下一次播放事件会自然重试),绝不占用真实播放的最后一格。
+        await _cacheSongData(cache, next, prefetch: true);
       }
       await _cacheSongData(cache, job.song);
       if (next != null && !next.isPreview) {
@@ -130,14 +132,18 @@ class OfflineCacheDaemon {
     return null;
   }
 
-  Future<void> _cacheSongData(OfflineCacheManager cache, Song song) async {
+  Future<void> _cacheSongData(
+    OfflineCacheManager cache,
+    Song song, {
+    bool prefetch = false,
+  }) async {
     // 已缓存且音质签名一致才跳过；旧版本缓存（无 qk）或改过音质时重下，
     // 否则「下一首预取」永远命中不到这些歌（hasSong=true 却不可直接起播）。
     if (cache.hasSong(song.id) &&
         cache.songMeta(song.id)?['qk'] == _qualityKeyOf(song)) {
       return;
     }
-    final tmp = await _downloadStreamBytes(song);
+    final tmp = await _downloadStreamBytes(song, prefetch: prefetch);
     if (tmp == null) return;
     await cache.putSongFromFile(song.id, tmp, meta: _metaOf(song));
     try {
@@ -277,7 +283,7 @@ class OfflineCacheDaemon {
   }
 
   /// 按与播放器一致的音质/转码参数下载歌曲流，落盘到临时文件后返回。
-  Future<File?> _downloadStreamBytes(Song song) async {
+  Future<File?> _downloadStreamBytes(Song song, {bool prefetch = false}) async {
     final client = _ref.read(subsonicApiClientProvider);
     final baseUrl = client.dio.options.baseUrl;
     if (baseUrl.isEmpty) return null;
@@ -297,6 +303,7 @@ class OfflineCacheDaemon {
       song.id,
       maxBitRate: maxBitRate,
       format: format,
+      prefetch: prefetch,
     );
     if (url.isEmpty) return null;
 
