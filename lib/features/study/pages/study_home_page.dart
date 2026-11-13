@@ -70,9 +70,10 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
   }
 
   void _setTab(int index) {
-    if (_tab == index) return;
+    if (_tab == index && !_searchOpen) return;
     setState(() {
       _tab = index;
+      _searchOpen = false;
       _query = '';
       _searchController.clear();
     });
@@ -171,7 +172,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                   label: loc.core_back,
                   onPressed: () => Navigator.maybePop(context),
                 ),
-                // 三个模块按首页导航样式横排；窄屏/大字号用 FittedBox 兜底不溢出。
+                // 四个入口按首页导航样式横排（图标在上、文字在下）；窄屏/大字号自动缩放。
                 Expanded(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
@@ -182,31 +183,34 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                         _StudyModuleTab(
                           label: loc.study_section_catalog,
                           icon: AppIcons.study,
-                          selected: _tab == 0,
+                          selected: _tab == 0 && !_searchOpen,
                           onPressed: () => _setTab(0),
                         ),
-                        SizedBox(width: context.musicFlowSpacing.md),
+                        SizedBox(width: context.musicFlowSpacing.sm),
                         _StudyModuleTab(
                           label: loc.study_section_playlists,
                           icon: AppIcons.playlist,
-                          selected: _tab == 1,
+                          selected: _tab == 1 && !_searchOpen,
                           onPressed: () => _setTab(1),
                         ),
-                        SizedBox(width: context.musicFlowSpacing.md),
+                        SizedBox(width: context.musicFlowSpacing.sm),
                         _StudyModuleTab(
                           label: loc.study_section_continue,
                           icon: AppIcons.history,
-                          selected: _tab == 2,
+                          selected: _tab == 2 && !_searchOpen,
                           onPressed: () => _setTab(2),
+                        ),
+                        SizedBox(width: context.musicFlowSpacing.sm),
+                        // 搜索与三个模块同款入口（图标在上、文字在下），展开后输入框在下一行。
+                        _StudyModuleTab(
+                          label: loc.study_module_search,
+                          icon: AppIcons.search,
+                          selected: _searchOpen,
+                          onPressed: _toggleSearch,
                         ),
                       ],
                     ),
                   ),
-                ),
-                MusicFlowIconButton(
-                  icon: _searchOpen ? AppIcons.close : AppIcons.search,
-                  label: _searchOpen ? loc.study_search_clear : loc.study_search_hint,
-                  onPressed: _toggleSearch,
                 ),
               ],
             ),
@@ -883,7 +887,8 @@ class _StudyModuleTab extends StatelessWidget {
     required this.onPressed,
   });
 
-  static const double _width = 62;
+  // 四个入口 + 返回按钮要在 320dp 窄屏内放得下（4×56 + 3×8 = 248）。
+  static const double _width = 56;
 
   final String label;
   final IconData icon;
