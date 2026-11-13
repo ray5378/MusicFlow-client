@@ -135,6 +135,12 @@ abstract final class AppIcons {
   static const timer = Remix.timer_2_line;
   static const time = Remix.time_fill;
   static const quality = Remix.speed_line;
+  /// 播放倍速（学习音频）。
+  static const speed = Remix.speed_line;
+  /// 学习模块入口。
+  static const study = Remix.book_open_line;
+  /// 学习目录（总目录）里的文件夹行。
+  static const folder = Remix.folder_3_line;
   static const palette = Remix.paint_brush_line;
   static const externalLink = Remix.external_link_line;
 }

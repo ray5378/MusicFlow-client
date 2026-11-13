@@ -55,6 +55,13 @@ class Song {
   final bool starred;
   final int? discNumber;
   final String? type;
+  /// 内容类型：`study` = 学习音频（不写音乐历史、启用学习进度与倍速），
+  /// 其余/缺省为普通音乐。服务端 /rest/api/v1/study/* 返回的歌曲带此字段。
+  final String? kind;
+  /// 学习源 id（仅 [kind] == 'study' 时有值）。
+  final String? sourceId;
+  /// 学习源内的相对目录（仅 [kind] == 'study' 时有值）。
+  final String? relDir;
   final bool isPreview;
   final String? previewSource;
   final String? previewTrackId;
@@ -97,6 +104,9 @@ class Song {
     this.starred = false,
     this.discNumber,
     this.type,
+    this.kind,
+    this.sourceId,
+    this.relDir,
     this.isPreview = false,
     this.previewSource,
     this.previewTrackId,
@@ -165,6 +175,9 @@ class Song {
     bool? starred,
     int? discNumber,
     String? type,
+    String? kind,
+    String? sourceId,
+    String? relDir,
     bool? isPreview,
     String? previewSource,
     String? previewTrackId,
@@ -207,6 +220,9 @@ class Song {
       starred: starred ?? this.starred,
       discNumber: discNumber ?? this.discNumber,
       type: type ?? this.type,
+      kind: kind ?? this.kind,
+      sourceId: sourceId ?? this.sourceId,
+      relDir: relDir ?? this.relDir,
       isPreview: isPreview ?? this.isPreview,
       previewSource: previewSource ?? this.previewSource,
       previewTrackId: previewTrackId ?? this.previewTrackId,
@@ -262,6 +278,9 @@ class Song {
       },
       discNumber: _toInt(json['discNumber']),
       type: _toStr(json['type']),
+      kind: _toStr(json['kind']),
+      sourceId: _toStr(json['sourceId']),
+      relDir: _toStr(json['relDir']),
       isPreview: json['isPreview'] as bool? ?? false,
       previewSource: _toStr(json['previewSource']),
       previewTrackId: _toStr(json['previewTrackId']),
@@ -313,6 +332,9 @@ class Song {
       'starred': starred,
       'discNumber': discNumber,
       'type': type,
+      'kind': kind,
+      'sourceId': sourceId,
+      'relDir': relDir,
       'isPreview': isPreview,
       'previewSource': previewSource,
       'previewTrackId': previewTrackId,
@@ -324,6 +346,9 @@ class Song {
       'previewRequestHeaders': previewRequestHeaders,
     };
   }
+
+  /// 是否为学习音频(学习源入库的歌曲)。
+  bool get isStudy => kind == 'study';
 
   /// 获取时长字符串（格式：mm:ss）
   String get durationString {

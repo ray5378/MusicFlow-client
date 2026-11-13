@@ -41,6 +41,9 @@ class LocalStorage {
   static const String _keySearchHistory = 'search_history_v1';
   static const String _keyHomeSectionLayout = 'home_section_layout_v1';
   static const String _keyClientId = 'mf_client_id';
+  static const String _keyStudyRate = 'study_rate';
+  static const String _keyCategoryNavOrder = 'category_nav_order_v1';
+  static const String _keySidebarNavOrder = 'sidebar_nav_order_v1';
 
   /// 本安装的「临时端 ID」——服务端用它把同一账号下多个播放端(网页标签页 /
   /// 多个客户端)的播放队列隔离开，谁也不会覆盖谁。
@@ -697,6 +700,48 @@ class LocalStorage {
       jsonEncode(<String, Object?>{'v': clamped}),
     );
     Logger.infoWithTag(_logTag, 'playerVolume saved: $clamped');
+  }
+
+  /// 读取学习音频播放倍速（0.5~2.0，默认 1.0）。
+  static Future<double> getStudyRate() async {
+    final prefs = await getPrefs();
+    final value = prefs.getDouble(_keyStudyRate);
+    if (value == null) return 1.0;
+    return value.clamp(0.5, 2.0).toDouble();
+  }
+
+  /// 保存学习音频播放倍速（0.5~2.0）。
+  static Future<void> setStudyRate(double rate) async {
+    final clamped = rate.clamp(0.5, 2.0).toDouble();
+    final prefs = await getPrefs();
+    await prefs.setDouble(_keyStudyRate, clamped);
+    Logger.infoWithTag(_logTag, 'studyRate saved: $clamped');
+  }
+
+  /// 读取窄屏首页顶部分类导航顺序（元素为稳定 id，缺失返回 null）。
+  static Future<List<String>?> getCategoryNavOrder() async {
+    final prefs = await getPrefs();
+    return prefs.getStringList(_keyCategoryNavOrder);
+  }
+
+  /// 保存窄屏首页顶部分类导航顺序。
+  static Future<void> setCategoryNavOrder(List<String> ids) async {
+    final prefs = await getPrefs();
+    await prefs.setStringList(_keyCategoryNavOrder, ids);
+    Logger.infoWithTag(_logTag, 'categoryNavOrder saved: ${ids.join(",")}');
+  }
+
+  /// 读取 Windows 宽屏侧栏曲库入口顺序（元素为稳定 id，缺失返回 null）。
+  static Future<List<String>?> getSidebarNavOrder() async {
+    final prefs = await getPrefs();
+    return prefs.getStringList(_keySidebarNavOrder);
+  }
+
+  /// 保存 Windows 宽屏侧栏曲库入口顺序。
+  static Future<void> setSidebarNavOrder(List<String> ids) async {
+    final prefs = await getPrefs();
+    await prefs.setStringList(_keySidebarNavOrder, ids);
+    Logger.infoWithTag(_logTag, 'sidebarNavOrder saved: ${ids.join(",")}');
   }
 
   /// 修复损坏的 SharedPreferences 文件。

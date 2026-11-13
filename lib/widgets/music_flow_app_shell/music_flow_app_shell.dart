@@ -19,6 +19,7 @@ class MusicFlowAppShell extends StatelessWidget {
     this.onOpenDrawer,
     this.showNavigationBar = true,
     this.libraryEntries = const <MusicFlowSidebarLibraryEntry>[],
+    this.onLibraryEntriesReordered,
     this.onOpenPage,
   });
 
@@ -34,6 +35,9 @@ class MusicFlowAppShell extends StatelessWidget {
   final VoidCallback? onOpenDrawer;
   final bool showNavigationBar;
   final List<MusicFlowSidebarLibraryEntry> libraryEntries;
+
+  /// 曲库入口拖拽排序回调（仅宽屏侧栏支持）。
+  final ReorderCallback? onLibraryEntriesReordered;
 
   /// 侧栏/抽屉「打开页面」回调：统一落到内容区分支导航器，
   /// 避免推到根导航器造成全屏覆盖壳（Windows 侧栏场景）。
@@ -73,6 +77,7 @@ class MusicFlowAppShell extends StatelessWidget {
           showMiniPlayer: showMiniPlayer,
           networkStatusBar: networkStatusBar,
           libraryEntries: libraryEntries,
+          onLibraryEntriesReordered: onLibraryEntriesReordered,
           onOpenPage: onOpenPage,
         ),
       },
@@ -190,6 +195,7 @@ class _WideShellBody extends StatelessWidget {
     required this.showMiniPlayer,
     required this.networkStatusBar,
     required this.libraryEntries,
+    this.onLibraryEntriesReordered,
     this.onOpenPage,
   });
 
@@ -203,6 +209,7 @@ class _WideShellBody extends StatelessWidget {
   final bool showMiniPlayer;
   final Widget networkStatusBar;
   final List<MusicFlowSidebarLibraryEntry> libraryEntries;
+  final ReorderCallback? onLibraryEntriesReordered;
   final Future<void> Function(Widget page)? onOpenPage;
 
   @override
@@ -224,6 +231,7 @@ class _WideShellBody extends StatelessWidget {
             onDestinationSelected: onDestinationSelected,
             onOpenDrawer: onOpenDrawer,
             libraryEntries: libraryEntries,
+            onLibraryEntriesReordered: onLibraryEntriesReordered,
             onOpenPage: onOpenPage,
           ),
         Expanded(

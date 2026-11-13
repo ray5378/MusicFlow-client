@@ -3342,4 +3342,56 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settings_default_control_current_client_desc =>
       'When on, always control this client at launch. When off, automatically take over whichever player is currently playing.';
+
+  @override
+  String get study_title => 'Study';
+
+  @override
+  String get study_section_catalog => 'Catalog';
+
+  @override
+  String get study_section_playlists => 'Study playlists';
+
+  @override
+  String get study_section_continue => 'Continue learning';
+
+  @override
+  String get study_empty_catalog => 'No study sources yet';
+
+  @override
+  String get study_empty_playlists => 'No study playlists yet';
+
+  @override
+  String get study_empty_continue => 'Nothing in progress';
+
+  @override
+  String get study_empty_dir => 'This folder is empty';
+
+  @override
+  String get study_empty_playlist_tracks => 'This playlist is empty';
+
+  @override
+  String get study_load_failed => 'Failed to load';
+
+  @override
+  String get study_play_failed => 'Playback failed, please try again';
+
+  @override
+  String get study_play_all => 'Play this folder';
+
+  @override
+  String study_source_song_count(int count) {
+    return '$count songs indexed';
+  }
+
+  @override
+  String study_playlist_song_count(int count) {
+    return '$count songs';
+  }
+
+  @override
+  String get player_speed => 'Playback speed';
+
+  @override
+  String get player_speed_study_only => 'Applies to study audio only';
 }

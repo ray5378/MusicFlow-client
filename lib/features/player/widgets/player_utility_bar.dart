@@ -79,6 +79,15 @@ class PlayerUtilityBar extends ConsumerWidget {
               selected: sleepActive,
               onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
             ),
+            // 播放倍速(仅学习音频):位于「定时」与「流转播放」之间。
+            // 与网页端一致 —— 只作用于学习音频，普通音乐恒 1.0 不显示该按钮。
+            if (currentSong.isStudy)
+              _PlaybackSpeedButton(
+                speed: ref.watch(
+                  playerProvider.select((s) => s.playbackSpeed),
+                ),
+                onPressed: () => unawaited(_openSpeedSheet(context, ref)),
+              ),
             // 「流转播放」：使用 infinity(∞) 图标（2026-10-02 由信号塔换为 ∞），
             // 置于最右，与最左的 DLNA 直投拉开距离。
             PlayerIconButton(
@@ -169,6 +178,114 @@ class PlayerUtilityBar extends ConsumerWidget {
       useRootNavigator: true,
       isScrollControlled: true,
       builder: (dialogContext) => const LocalDlnaCastSheet(),
+    );
+  }
+
+  /// 学习音频倍速选择面板（0.75x ~ 2x，与网页端同一档位）。
+  Future<void> _openSpeedSheet(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
+    final current = ref.read(playerProvider).playbackSpeed;
+    final selected = await showMusicFlowBottomSheet<double>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final colors = sheetContext.musicFlowColors;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    loc.player_speed,
+                    style: sheetContext.musicFlowTypography.title,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    loc.player_speed_study_only,
+                    style: sheetContext.musicFlowTypography.metadata.copyWith(
+                      color: colors.muted,
+                    ),
+                  ),
+                ),
+                for (final rate in _playbackRates)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${_formatRate(rate)}x'),
+                    trailing: (current - rate).abs() < 0.001
+                        ? Icon(AppIcons.check, color: colors.accent)
+                        : null,
+                    onTap: () => Navigator.of(sheetContext).pop(rate),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null || !context.mounted) return;
+    await ref.read(playerProvider.notifier).setPlaybackSpeed(selected);
+  }
+
+  /// 与网页端 studyRate 一致的档位。
+  static const List<double> _playbackRates = <double>[
+    0.75,
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0,
+  ];
+
+  static String _formatRate(double rate) {
+    final text = rate.toStringAsFixed(2);
+    return text.endsWith('0') ? text.substring(0, text.length - 1) : text;
+  }
+}
+
+/// 倍速按钮：直接以当前倍速文案（如 `1.5x`）呈现，视觉规格与
+/// [PlayerIconButton] 对齐（48dp 圆形可点区），便于与工具条其余按钮并排。
+class _PlaybackSpeedButton extends StatelessWidget {
+  const _PlaybackSpeedButton({required this.speed, required this.onPressed});
+
+  final double speed;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = context.musicFlowColors;
+    final active = (speed - 1.0).abs() > 0.001;
+    return Tooltip(
+      message: loc.player_speed,
+      waitDuration: const Duration(milliseconds: 400),
+      child: MusicFlowPressable(
+        semanticLabel: loc.player_speed,
+        selected: active,
+        onPressed: onPressed,
+        enableHaptics: true,
+        minimumSize: const Size.square(48),
+        borderRadius: context.musicFlowRadii.pill,
+        child: SizedBox.square(
+          dimension: 48,
+          child: Center(
+            child: Text(
+              '${PlayerUtilityBar._formatRate(speed)}x',
+              style: context.musicFlowTypography.metadata.copyWith(
+                color: active ? colors.accent : colors.ink,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

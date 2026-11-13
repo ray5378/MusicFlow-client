@@ -701,6 +701,8 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
     // 跳过（否则每次重开都停在默认值、观感上"回到 100%"）。也保证任何播放
     // 源就绪前，real 引擎音量已是用户上次设置。
     await _restorePlayerVolume();
+    // 学习音频倍速同理：与音量一起在任何音源就绪前恢复成用户上次选择。
+    await _restorePlaybackSpeed();
     // 中途被 ref.invalidate 作废：本轮 player 可能已被新 run 顶掉，自己收掉，
     // 免得留下一只没人管的 AudioPlayer（旧模型整体换实例，不存在悬空资源）。
     if (!_isRunCurrent(generation)) {
@@ -888,6 +890,9 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
         // 后可能把音量重置为 1.0，这里再压回上次保存的音量，确保重启后实际
         // 读音与 UI 都是保存值，而不是被顶回 100%。
         _audioPlayer?.setVolume(state.volume);
+        // 播放源就绪时同样重放一次倍速：Android/Windows 的播放引擎载入新源后
+        // 可能把速度重置为 1.0（与音量同一类回归），这里再压回用户选择值。
+        unawaited(_applyEffectivePlaybackSpeed());
         unawaited(_applyPendingSeekIfNeeded());
       }
 
@@ -1895,6 +1900,9 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
     // 真正播出一首后清零失败连跳计数,供日志反映当前失败段的长短。
     _consecutiveFailSkips = 0;
     _offlineFailSkips = 0; // 有歌真正播出来 → 离线连跳保护复位（D-058）
+    // 学习音频倍速：新音源就绪后重放一次。just_audio 换源后速度可能回到 1.0,
+    // 不重放会表现为「开了倍速后下一首按原速/异常停住」。
+    await _applyEffectivePlaybackSpeed();
     if (autoPlay) {
       _startPlayback();
       return;
@@ -2236,6 +2244,57 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       );
     } catch (e) {
       Logger.warnWithTag(_playerLogTag, 'failed to restore player volume', e);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 学习音频倍速
+  // ---------------------------------------------------------------------------
+
+  /// 当前应生效的播放速度：学习音频 = 用户选择值，普通音乐恒 1.0。
+  ///
+  /// 与网页端 `studyRate` 同一语义（音乐不被倍速影响），实际写入播放器
+  /// 的时机统一收敛到 [_applyEffectivePlaybackSpeed]。
+  double get effectivePlaybackSpeed =>
+      (state.currentSong?.isStudy ?? false) ? state.playbackSpeed : 1.0;
+
+  /// 设置学习音频倍速（0.5~2.0，持久化，切歌后保持）。
+  Future<void> setPlaybackSpeed(double speed) async {
+    final clamped = speed.clamp(0.5, 2.0).toDouble();
+    if (!mounted) return;
+    if (state.playbackSpeed == clamped) return;
+    state = state.copyWith(playbackSpeed: clamped);
+    unawaited(LocalStorage.setStudyRate(clamped));
+    await _applyEffectivePlaybackSpeed();
+  }
+
+  /// 把「当前应生效的速度」写进播放器。
+  ///
+  /// 每次音源就绪都要重放一次：just_audio 载入新源后速度可能回到 1.0，
+  /// 不重放就会出现「开了倍速后下一首按原速播/不继续播」的问题。
+  Future<void> _applyEffectivePlaybackSpeed() async {
+    final player = _audioPlayer;
+    if (player == null) return;
+    final speed = effectivePlaybackSpeed;
+    try {
+      if (player.speed != speed) {
+        await player.setSpeed(speed);
+      }
+      _playDbg('playback speed applied: $speed song=${state.currentSong?.id}');
+    } catch (e) {
+      Logger.warnWithTag(_playerLogTag, 'failed to apply playback speed', e);
+    }
+  }
+
+  /// 启动时恢复学习音频倍速（默认 1.0）。
+  Future<void> _restorePlaybackSpeed() async {
+    try {
+      final rate = await LocalStorage.getStudyRate();
+      state = state.copyWith(playbackSpeed: rate);
+      await _applyEffectivePlaybackSpeed();
+      Logger.infoWithTag(_playerLogTag, 'restored study rate: $rate');
+    } catch (e) {
+      Logger.warnWithTag(_playerLogTag, 'failed to restore study rate', e);
     }
   }
 
@@ -3048,8 +3107,16 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   }
 
   /// 上报播放记录（Scrobble）
-  Future<void> _scrobble(String songId, {required bool submission}) =>
-      _favoriteHandler.scrobble(songId, submission: submission);
+  ///
+  /// 学习音频不写音乐播放历史（与网页端一致：`kind=study` 只走学习进度上报），
+  /// 否则「最近播放/听歌统计」会被课件音频污染。
+  Future<void> _scrobble(String songId, {required bool submission}) {
+    final current = state.currentSong;
+    if (current != null && current.id == songId && current.isStudy) {
+      return Future<void>.value();
+    }
+    return _favoriteHandler.scrobble(songId, submission: submission);
+  }
 
   /// 切换当前歌曲的收藏状态
   Future<void> toggleFavorite() async {

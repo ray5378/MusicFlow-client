@@ -13,6 +13,7 @@ class MusicFlowExpandedNavigationSidebar extends StatefulWidget {
     required this.onDestinationSelected,
     required this.onOpenDrawer,
     this.libraryEntries = const <MusicFlowSidebarLibraryEntry>[],
+    this.onLibraryEntriesReordered,
     this.onOpenPage,
   });
 
@@ -21,6 +22,9 @@ class MusicFlowExpandedNavigationSidebar extends StatefulWidget {
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onOpenDrawer;
   final List<MusicFlowSidebarLibraryEntry> libraryEntries;
+
+  /// 曲库入口拖拽排序回调（长按拖动，顺序由调用方持久化）。
+  final ReorderCallback? onLibraryEntriesReordered;
   final Future<void> Function(Widget page)? onOpenPage;
 
   @override
@@ -105,68 +109,9 @@ class _MusicFlowExpandedNavigationSidebarState
                   endInset: collapsed ? spacing.sm : spacing.md,
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: collapsed ? spacing.xxs : spacing.sm,
-                      vertical: spacing.md,
-                    ),
-                    itemCount:
-                        widget.destinations.length + widget.libraryEntries.length,
-                    itemBuilder: (context, index) {
-                      final isLibrary = index >= widget.destinations.length;
-                      if (collapsed) {
-                        // 折叠态：全部显示为带 Tooltip 的图标窄条。
-                        if (isLibrary) {
-                          final entry =
-                              widget.libraryEntries[index - widget.destinations.length];
-                          return Padding(
-                            padding: EdgeInsets.only(bottom: spacing.xxs),
-                            child: ShellSidebarIconEntry(
-                              label: entry.label,
-                              icon: entry.icon,
-                              onPressed: entry.onTap,
-                            ),
-                          );
-                        }
-                        final destination = widget.destinations[index];
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: spacing.xxs),
-                          child: ShellSidebarIconDestination(
-                            destination: destination,
-                            selected: destination.branchIndex ==
-                                widget.selectedBranchIndex,
-                            onPressed: () => widget.onDestinationSelected(
-                              destination.branchIndex,
-                            ),
-                          ),
-                        );
-                      }
-                      if (isLibrary) {
-                        final entry =
-                            widget.libraryEntries[index - widget.destinations.length];
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: spacing.xxs),
-                          child: ShellSidebarActionEntry(
-                            label: entry.label,
-                            icon: entry.icon,
-                            onPressed: entry.onTap,
-                          ),
-                        );
-                      }
-                      final destination = widget.destinations[index];
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: spacing.xxs),
-                        child: ShellSidebarDestination(
-                          destination: destination,
-                          selected: destination.branchIndex ==
-                              widget.selectedBranchIndex,
-                          onPressed: () => widget.onDestinationSelected(
-                            destination.branchIndex,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  child: collapsed
+                      ? _buildCollapsedList(spacing)
+                      : _buildExpandedList(spacing),
                 ),
                 MusicFlowDivider(
                   inset: collapsed ? spacing.sm : spacing.md,
@@ -188,6 +133,110 @@ class _MusicFlowExpandedNavigationSidebarState
           ),
         ),
       ),
+    );
+  }
+
+  /// 折叠态：全部显示为带 Tooltip 的图标窄条（不参与拖拽排序）。
+  Widget _buildCollapsedList(MusicFlowSpacing spacing) {
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.xxs,
+        vertical: spacing.md,
+      ),
+      itemCount: widget.destinations.length + widget.libraryEntries.length,
+      itemBuilder: (context, index) {
+        final isLibrary = index >= widget.destinations.length;
+        if (isLibrary) {
+          final entry =
+              widget.libraryEntries[index - widget.destinations.length];
+          return Padding(
+            padding: EdgeInsets.only(bottom: spacing.xxs),
+            child: ShellSidebarIconEntry(
+              label: entry.label,
+              icon: entry.icon,
+              onPressed: entry.onTap,
+            ),
+          );
+        }
+        final destination = widget.destinations[index];
+        return Padding(
+          padding: EdgeInsets.only(bottom: spacing.xxs),
+          child: ShellSidebarIconDestination(
+            destination: destination,
+            selected: destination.branchIndex == widget.selectedBranchIndex,
+            onPressed: () =>
+                widget.onDestinationSelected(destination.branchIndex),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 展开态：分支目的地固定在上方，曲库入口可长按拖拽排序。
+  Widget _buildExpandedList(MusicFlowSpacing spacing) {
+    final rows = <Widget>[
+      for (final destination in widget.destinations)
+        Padding(
+          padding: EdgeInsets.only(bottom: spacing.xxs),
+          child: ShellSidebarDestination(
+            destination: destination,
+            selected: destination.branchIndex == widget.selectedBranchIndex,
+            onPressed: () =>
+                widget.onDestinationSelected(destination.branchIndex),
+          ),
+        ),
+    ];
+
+    final entries = widget.libraryEntries;
+    final onReorder = widget.onLibraryEntriesReordered;
+    if (onReorder == null) {
+      rows.addAll(<Widget>[
+        for (final entry in entries)
+          Padding(
+            padding: EdgeInsets.only(bottom: spacing.xxs),
+            child: ShellSidebarActionEntry(
+              label: entry.label,
+              icon: entry.icon,
+              onPressed: entry.onTap,
+            ),
+          ),
+      ]);
+    } else {
+      rows.add(
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          itemCount: entries.length,
+          onReorder: onReorder,
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            return ReorderableDelayedDragStartListener(
+              key: ValueKey<String>(
+                'musicflow-sidebar-entry-'
+                '${entry.id.isNotEmpty ? entry.id : entry.label}',
+              ),
+              index: index,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: spacing.xxs),
+                child: ShellSidebarActionEntry(
+                  label: entry.label,
+                  icon: entry.icon,
+                  onPressed: entry.onTap,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    return ListView(
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.sm,
+        vertical: spacing.md,
+      ),
+      children: rows,
     );
   }
 }

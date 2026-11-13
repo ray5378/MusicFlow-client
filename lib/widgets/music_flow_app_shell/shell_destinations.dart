@@ -22,8 +22,11 @@ class MusicFlowSidebarLibraryEntry {
     required this.label,
     required this.icon,
     required this.onTap,
+    this.id = '',
   });
 
+  /// 稳定 id（拖拽排序持久化用）；为空时退化为按 [label] 识别。
+  final String id;
   final String label;
   final IconData icon;
   final VoidCallback onTap;

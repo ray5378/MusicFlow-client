@@ -33,7 +33,8 @@ void main() {
     );
     // v4.3.30 新增 AppIcons.drag(首页分区编辑页拖拽把手):104 → 105。
     // v5.1.5 新增 AppIcons.transferInfinity(流转播放 ∞ 图标):105 → 106。
-    expect(declarations, hasLength(106));
+    // v5.x 学习模块新增 speed/study/folder(倍速、学习入口、学习目录文件夹):106 → 109。
+    expect(declarations, hasLength(109));
   });
 
   test('product symbols use Remix and platform actions use Cupertino', () {

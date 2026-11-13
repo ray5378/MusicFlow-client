@@ -105,6 +105,12 @@ class PlayerState {
   /// 本机播放音量（0.0~1.0，对齐主项目前端 volume 语义）。
   final double volume;
 
+  /// 学习音频播放倍速（0.5~2.0，对齐网页端 studyRate 语义）。
+  ///
+  /// **只对 `Song.kind == 'study'` 生效**，普通音乐恒按 1.0 播放 ——
+  /// 这一维度是「用户上次选择」的持久值，实际生效速度由当前歌曲类型决定。
+  final double playbackSpeed;
+
   PlayerState({
     this.currentSong,
     this.queue = const [],
@@ -122,6 +128,7 @@ class PlayerState {
     this.currentBitRateKbps = 0,
     this.bufferedPosition = Duration.zero,
     this.volume = 0.8,
+    this.playbackSpeed = 1.0,
   });
 
   /// ⚠️ **可空字段的 null 一律表示「未指定」，不是「清成 null」。**
@@ -149,6 +156,7 @@ class PlayerState {
     int? currentBitRateKbps,
     Duration? bufferedPosition,
     double? volume,
+    double? playbackSpeed,
     bool clearCurrentSong = false,
     bool clearPlaybackMeta = false,
     bool clearBufferedPosition = false,
@@ -176,6 +184,7 @@ class PlayerState {
           ? Duration.zero
           : (bufferedPosition ?? this.bufferedPosition),
       volume: volume ?? this.volume,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
   }
 

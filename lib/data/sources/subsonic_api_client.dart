@@ -214,6 +214,25 @@ class SubsonicApiClient {
           sendTimeout: receiveTimeout,
         );
 
+  /// Raw PUT for non-Subsonic endpoints (e.g. /rest/api/v1/study/progress).
+  /// Sends [data] as JSON and returns the decoded JSON body directly.
+  Future<dynamic> putRaw(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    dynamic data,
+    Duration? receiveTimeout,
+  }) async {
+    final response = await _dio.put(
+      path,
+      queryParameters: queryParameters,
+      data: data,
+      options: _rawOptions(receiveTimeout).copyWith(
+        contentType: 'application/json',
+      ),
+    );
+    return response.data;
+  }
+
   /// Raw DELETE for non-Subsonic endpoints (e.g. /rest/api/v1/...).
   /// Returns the decoded JSON body directly (no subsonic-response unwrap).
   Future<dynamic> deleteRaw(

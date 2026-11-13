@@ -3176,4 +3176,56 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get settings_default_control_current_client_desc =>
       '开启后启动时始终控制本客户端；关闭则启动时自动接管正在播放中的播放器。';
+
+  @override
+  String get study_title => '学习';
+
+  @override
+  String get study_section_catalog => '总目录';
+
+  @override
+  String get study_section_playlists => '学习歌单';
+
+  @override
+  String get study_section_continue => '继续学习';
+
+  @override
+  String get study_empty_catalog => '还没有可用的学习源';
+
+  @override
+  String get study_empty_playlists => '还没有学习歌单';
+
+  @override
+  String get study_empty_continue => '暂无学习进度';
+
+  @override
+  String get study_empty_dir => '这个目录是空的';
+
+  @override
+  String get study_empty_playlist_tracks => '这个歌单还没有内容';
+
+  @override
+  String get study_load_failed => '加载失败';
+
+  @override
+  String get study_play_failed => '播放失败，请稍后重试';
+
+  @override
+  String get study_play_all => '播放本目录';
+
+  @override
+  String study_source_song_count(int count) {
+    return '$count 首已入库';
+  }
+
+  @override
+  String study_playlist_song_count(int count) {
+    return '$count 首';
+  }
+
+  @override
+  String get player_speed => '播放倍速';
+
+  @override
+  String get player_speed_study_only => '仅对学习音频生效';
 }

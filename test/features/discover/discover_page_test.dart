@@ -34,9 +34,18 @@ void main() {
   ) async {
     await _pumpDiscover(tester);
 
-    // 分类入口(六项):探索/喜欢/歌单/歌曲/艺术家/专辑。
-    for (final label in <String>['探索', '喜欢', '歌单', '歌曲', '艺术家', '专辑']) {
-      expect(find.text(label), findsOneWidget);
+    // 分类入口(默认顺序):探索/喜欢/歌单/学习/歌曲/艺术家/专辑/已缓存。
+    // 入口是横向可拖拽排序的懒加载列表，屏外项仍需能被查到(skipOffstage: false)。
+    for (final label in <String>[
+      '探索',
+      '喜欢',
+      '歌单',
+      '学习',
+      '歌曲',
+      '艺术家',
+      '专辑',
+    ]) {
+      expect(find.text(label, skipOffstage: false), findsOneWidget);
     }
     // 区块标题按序出现。
     expect(find.text('随机歌曲'), findsOneWidget);

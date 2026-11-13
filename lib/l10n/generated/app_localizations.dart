@@ -5751,6 +5751,102 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'开启后启动时始终控制本客户端；关闭则启动时自动接管正在播放中的播放器。'**
   String get settings_default_control_current_client_desc;
+
+  /// No description provided for @study_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'学习'**
+  String get study_title;
+
+  /// No description provided for @study_section_catalog.
+  ///
+  /// In zh, this message translates to:
+  /// **'总目录'**
+  String get study_section_catalog;
+
+  /// No description provided for @study_section_playlists.
+  ///
+  /// In zh, this message translates to:
+  /// **'学习歌单'**
+  String get study_section_playlists;
+
+  /// No description provided for @study_section_continue.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续学习'**
+  String get study_section_continue;
+
+  /// No description provided for @study_empty_catalog.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有可用的学习源'**
+  String get study_empty_catalog;
+
+  /// No description provided for @study_empty_playlists.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有学习歌单'**
+  String get study_empty_playlists;
+
+  /// No description provided for @study_empty_continue.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无学习进度'**
+  String get study_empty_continue;
+
+  /// No description provided for @study_empty_dir.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个目录是空的'**
+  String get study_empty_dir;
+
+  /// No description provided for @study_empty_playlist_tracks.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个歌单还没有内容'**
+  String get study_empty_playlist_tracks;
+
+  /// No description provided for @study_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败'**
+  String get study_load_failed;
+
+  /// No description provided for @study_play_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败，请稍后重试'**
+  String get study_play_failed;
+
+  /// No description provided for @study_play_all.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放本目录'**
+  String get study_play_all;
+
+  /// No description provided for @study_source_song_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首已入库'**
+  String study_source_song_count(int count);
+
+  /// No description provided for @study_playlist_song_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 首'**
+  String study_playlist_song_count(int count);
+
+  /// No description provided for @player_speed.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放倍速'**
+  String get player_speed;
+
+  /// No description provided for @player_speed_study_only.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅对学习音频生效'**
+  String get player_speed_study_only;
 }
 
 class _AppLocalizationsDelegate

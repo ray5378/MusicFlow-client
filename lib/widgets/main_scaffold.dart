@@ -18,12 +18,14 @@ import 'package:musicflow_client/features/library/pages/playlist_search_page.dar
 import 'package:musicflow_client/features/library/pages/song_list_page.dart';
 import 'package:musicflow_client/features/library/pages/starred_page.dart';
  import 'package:musicflow_client/features/settings/pages/offline_cached_songs_page.dart';
+import 'package:musicflow_client/features/study/pages/study_home_page.dart';
 import 'package:musicflow_client/features/player/widgets/mini_player.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/player/effective_volume.dart';
 import 'package:musicflow_client/providers/ui/home_section_layout_provider.dart';
+import 'package:musicflow_client/providers/ui/nav_order_provider.dart';
 import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/random_songs_push_provider.dart';
@@ -470,6 +472,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         ? loc.widgets_home
         : loc.widgets_music_flow;
     final destinations = musicFlowMainDestinations(label: homeLabel);
+    final navOrder = ref.watch(navOrderProvider).valueOrNull?.sidebar ??
+        SidebarNavIds.defaults;
     final currentBranchIsVisible = destinations.any(
       (destination) => destination.branchIndex == currentBranchIndex,
     );
@@ -514,7 +518,15 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             showNavigationBar: false,
             onOpenDrawer: openMusicFlowAppDrawer,
             // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-            libraryEntries: _libraryEntries(loc),
+            // 顺序由本地持久化的拖拽排序决定（长按条目可拖动）。
+            libraryEntries: _libraryEntries(loc, navOrder),
+            onLibraryEntriesReordered: (oldIndex, newIndex) {
+              unawaited(
+                ref
+                    .read(navOrderProvider.notifier)
+                    .reorderSidebar(oldIndex, newIndex),
+              );
+            },
             onOpenPage: _openPageInContentArea,
           ),
         ),
@@ -554,40 +566,62 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   ///
   /// 注意:必须是 State 的实例方法——它通过 [_openPageInContentArea]
   /// 把页面推到内容区分支导航器,而该方法依赖 State 的 widget 状态。
-  List<MusicFlowSidebarLibraryEntry> _libraryEntries(AppLocalizations loc) {
+  List<MusicFlowSidebarLibraryEntry> _libraryEntries(
+    AppLocalizations loc,
+    List<String> order,
+  ) {
     Future<void> open(Widget page) => _openPageInContentArea(page);
 
-    return <MusicFlowSidebarLibraryEntry>[
-      MusicFlowSidebarLibraryEntry(
+    final byId = <String, MusicFlowSidebarLibraryEntry>{
+      SidebarNavIds.playlists: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.playlists,
         label: loc.widgets_playlists,
         icon: AppIcons.playlist,
         onTap: () => unawaited(open(const PlaylistSearchPage())),
       ),
-      MusicFlowSidebarLibraryEntry(
+      SidebarNavIds.music: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.music,
         label: loc.widgets_music,
         icon: AppIcons.headphones,
         onTap: () => unawaited(open(const SongListPage())),
       ),
-      MusicFlowSidebarLibraryEntry(
+      SidebarNavIds.artists: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.artists,
         label: loc.widgets_artists,
         icon: AppIcons.profile,
         onTap: () => unawaited(open(const ArtistListPage())),
       ),
-      MusicFlowSidebarLibraryEntry(
+      SidebarNavIds.albums: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.albums,
         label: loc.widgets_albums,
         icon: AppIcons.album,
         onTap: () => unawaited(open(const AlbumListPage())),
       ),
-      MusicFlowSidebarLibraryEntry(
+      SidebarNavIds.liked: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.liked,
         label: loc.widgets_i_like,
         icon: AppIcons.heart,
         onTap: () => unawaited(open(const StarredPage())),
       ),
-      MusicFlowSidebarLibraryEntry(
+      SidebarNavIds.study: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.study,
+        label: loc.study_title,
+        icon: AppIcons.study,
+        onTap: () => unawaited(open(const StudyHomePage())),
+      ),
+      SidebarNavIds.cached: MusicFlowSidebarLibraryEntry(
+        id: SidebarNavIds.cached,
         label: loc.offline_cache_cached_songs_title,
         icon: AppIcons.offline,
         onTap: () => unawaited(open(const OfflineCachedSongsPage())),
       ),
-    ];
+    };
+
+    final entries = <MusicFlowSidebarLibraryEntry>[];
+    for (final id in order) {
+      final entry = byId[id];
+      if (entry != null) entries.add(entry);
+    }
+    return entries;
   }
 }
