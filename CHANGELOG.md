@@ -2,6 +2,14 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.11.1] - 2026-11-13
+
+### 修复
+
+- **交互反馈门禁**：学习目录页「播放本目录」改用统一 `MusicFlowIconButton`，倍速面板档位改用
+  `MusicFlowPressable`，不再出现绕过按压缩放反馈的裸 `IconButton` / `ListTile`
+  （CI `check_interaction_feedback` 拦截）。功能行为不变。
+
 ## [5.11.0] - 2026-11-13
 
 ### 新增
