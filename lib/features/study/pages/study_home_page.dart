@@ -159,6 +159,33 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            // 页标题「学习」:字号/高度/左右留白与首页「MusicFlow」标题一致,
+            // 让下方的模块入口与首页分类导航处于同一水平线。
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                context.musicFlowPageHorizontalPadding - 5,
+                context.musicFlowSpacing.sm,
+                context.musicFlowPageHorizontalPadding - 5,
+                context.musicFlowSpacing.sm,
+              ),
+              child: SizedBox(
+                height: 48,
+                width: double.infinity,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Semantics(
+                    header: true,
+                    namesRoute: true,
+                    child: Text(
+                      loc.study_title,
+                      style: context.musicFlowTypography.headline,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+            ),
             // 与首页分类导航同款：不带标题栏底色，图标在上、文字在下；
             // 高度/间距/左右留白与首页「探索 / 喜欢」一栏保持一致。
             Padding(
@@ -336,45 +363,44 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     return ListView(
       padding: _listPadding,
       children: <Widget>[
-        _Section(
-          title: loc.study_section_catalog,
-          child: sources.when(
-            loading: () => const _LoadingRows(),
-            error: (error, _) => _ErrorRow(
-              message: loc.study_load_failed,
-              onRetry: () => ref.invalidate(studySourcesProvider),
-            ),
-            data: (items) {
-              final visible = items
-                  .where((source) => _matches(source.name))
-                  .toList(growable: false);
-              if (items.isEmpty) {
-                return _EmptyRow(
-                  icon: AppIcons.study,
-                  label: loc.study_empty_catalog,
-                );
-              }
-              if (visible.isEmpty) {
-                return _EmptyRow(
-                  icon: AppIcons.search,
-                  label: loc.study_search_empty,
-                );
-              }
-              return Column(
-                children: <Widget>[
-                  for (final source in visible)
-                    _StudyRow(
-                      icon: AppIcons.study,
-                      title: source.name,
-                      subtitle: source.songCount > 0
-                          ? loc.study_source_song_count(source.songCount)
-                          : null,
-                      onTap: () => _openBrowse(context, source),
-                    ),
-                ],
-              );
-            },
+        // 标题已在顶部导航中展示,这里直接进入内容,不再重复「总目录」。
+        const SizedBox(height: 8),
+        sources.when(
+          loading: () => const _LoadingRows(),
+          error: (error, _) => _ErrorRow(
+            message: loc.study_load_failed,
+            onRetry: () => ref.invalidate(studySourcesProvider),
           ),
+          data: (items) {
+            final visible = items
+                .where((source) => _matches(source.name))
+                .toList(growable: false);
+            if (items.isEmpty) {
+              return _EmptyRow(
+                icon: AppIcons.study,
+                label: loc.study_empty_catalog,
+              );
+            }
+            if (visible.isEmpty) {
+              return _EmptyRow(
+                icon: AppIcons.search,
+                label: loc.study_search_empty,
+              );
+            }
+            return Column(
+              children: <Widget>[
+                for (final source in visible)
+                  _StudyRow(
+                    icon: AppIcons.study,
+                    title: source.name,
+                    subtitle: source.songCount > 0
+                        ? loc.study_source_song_count(source.songCount)
+                        : null,
+                    onTap: () => _openBrowse(context, source),
+                  ),
+              ],
+            );
+          },
         ),
         _BlankZone(
           label: loc.study_blank_hint,
@@ -390,18 +416,12 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     return ListView(
       padding: _listPadding,
       children: <Widget>[
+        // 标题已由顶部导航展示;仅保留新建文件夹/歌单的快捷入口,右对齐。
         Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 8),
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: <Widget>[
-              Expanded(
-                child: Text(
-                  loc.study_section_playlists,
-                  style: context.musicFlowTypography.body.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
               MusicFlowIconButton(
                 icon: AppIcons.folder,
                 label: loc.study_new_folder,
@@ -530,15 +550,19 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     return ListView(
       padding: _listPadding,
       children: <Widget>[
-        _Section(
-          title: loc.study_section_continue,
-          trailing: hasRecords
-              ? MusicFlowButton.ghost(
-                  label: loc.study_clear_records,
-                  onPressed: () => unawaited(_clearContinueRecords()),
-                )
-              : null,
-          child: continuing.when(
+        // 标题已由顶部导航展示;仅保留「清空学习记录」入口,右对齐。
+        if (hasRecords)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: MusicFlowButton.ghost(
+                label: loc.study_clear_records,
+                onPressed: () => unawaited(_clearContinueRecords()),
+              ),
+            ),
+          ),
+        continuing.when(
             loading: () => const _LoadingRows(),
             error: (error, _) => _ErrorRow(
               message: loc.study_load_failed,
@@ -598,7 +622,6 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                 ],
               );
             },
-          ),
         ),
       ],
     );
@@ -1052,11 +1075,10 @@ class _StudyModuleTab extends StatelessWidget {
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child, this.trailing});
+  const _Section({required this.title, required this.child});
 
   final String title;
   final Widget child;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1065,7 +1087,7 @@ class _Section extends StatelessWidget {
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.only(top: 20, bottom: 8),
-          child: MusicFlowSectionHeader(title: title, trailing: trailing),
+          child: MusicFlowSectionHeader(title: title),
         ),
         child,
       ],
