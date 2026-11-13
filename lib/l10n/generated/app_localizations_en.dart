@@ -3380,6 +3380,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get study_play_all => 'Play this folder';
 
   @override
+  String get study_icon_play_playlist => 'Play this playlist';
+
+  @override
+  String get study_icon_play_content => 'Play this lesson';
+
+  @override
   String study_source_song_count(int count) {
     return '$count songs indexed';
   }
@@ -3480,6 +3486,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get study_folder_rename => 'Rename folder';
+
+  @override
+  String get study_folder_delete => 'Delete folder';
 
   @override
   String get study_folder_rename_title => 'Rename study playlist folder';

@@ -356,14 +356,16 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     StudyPlaylist playlist,
   ) {
     return _StudyRow(
-      icon: AppIcons.playlist,
+      icon: AppIcons.play,
+      iconLabel: loc.study_icon_play_playlist,
+      onIconTap: () => unawaited(_playPlaylist(playlist)),
       title: playlist.name,
       subtitle: playlist.folder.isEmpty
           ? loc.study_playlist_song_count(playlist.songCount)
           : '${loc.study_playlist_song_count(playlist.songCount)} · ${playlist.folder}',
       onTap: () => _openPlaylist(context, playlist),
       onLongPress: () =>
-          unawaited(_showPlaylistActions(context, playlist)),
+          unawaited(_showPlaylistActions(playlist)),
     );
   }
 
@@ -441,6 +443,32 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         ),
       ),
     );
+  }
+
+  /// 点击歌单图标:不进入详情,直接播放整个学习歌单。
+  Future<void> _playPlaylist(StudyPlaylist playlist) async {
+    final loc = AppLocalizations.of(context);
+    try {
+      final songs = await ref.read(
+        studyPlaylistTracksProvider(playlist.id).future,
+      );
+      if (!mounted) return;
+      if (songs.isEmpty) {
+        _toast(loc.study_empty_playlist_tracks, kind: MusicFlowMessageKind.error);
+        return;
+      }
+      final casting =
+          ref.read(castPeerControllerProvider).activePeer != null ||
+          ref.read(dlnaCastProvider).isCasting;
+      if (casting) {
+        await playEffectiveQueue(ref, songs, startIndex: 0);
+        return;
+      }
+      await ref.read(playerProvider.notifier).playQueue(songs, startIndex: 0);
+    } catch (_) {
+      if (!mounted) return;
+      _toast(loc.study_play_failed, kind: MusicFlowMessageKind.error);
+    }
   }
 
   void _invalidatePlaylists() {
@@ -672,7 +700,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     final songs = <Song>[for (final item in items) item.song];
     final casting =
         ref.read(castPeerControllerProvider).activePeer != null ||
-        ref.read(dlnaProvider).isCasting;
+        ref.read(dlnaCastProvider).isCasting;
     if (casting) {
       await playEffectiveQueue(ref, songs, startIndex: index);
       return;
@@ -895,6 +923,8 @@ class _StudyRow extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.onLongPress,
+    this.onIconTap,
+    this.iconLabel,
   });
 
   final IconData icon;
@@ -902,6 +932,9 @@ class _StudyRow extends StatelessWidget {
   final String? subtitle;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  /// 图标本身作为播放入口(歌单行),与整行点击(进入详情)区分。
+  final VoidCallback? onIconTap;
+  final String? iconLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -915,7 +948,14 @@ class _StudyRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         child: Row(
           children: <Widget>[
-            Icon(icon, size: 22, color: colors.accent),
+            if (onIconTap != null)
+              MusicFlowIconButton(
+                icon: icon,
+                label: iconLabel ?? title,
+                onPressed: onIconTap,
+              )
+            else
+              Icon(icon, size: 22, color: colors.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

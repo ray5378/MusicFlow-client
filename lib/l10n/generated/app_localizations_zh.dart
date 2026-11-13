@@ -3214,6 +3214,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get study_play_all => '播放本目录';
 
   @override
+  String get study_icon_play_playlist => '播放这个歌单';
+
+  @override
+  String get study_icon_play_content => '播放这一课';
+
+  @override
   String study_source_song_count(int count) {
     return '$count 首已入库';
   }
@@ -3309,6 +3315,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get study_folder_rename => '重命名文件夹';
+
+  @override
+  String get study_folder_delete => '删除文件夹';
 
   @override
   String get study_folder_rename_title => '重命名学习歌单文件夹';

@@ -181,8 +181,70 @@ class _StudyPlaylistPageState extends ConsumerState<StudyPlaylistPage> {
     switch (action) {
       case StudyPlaylistAction.rename:
         await _renamePlaylist();
+      case StudyPlaylistAction.move:
+        await _moveToFolder();
+      case StudyPlaylistAction.removeFromFolder:
+        await _removeFromFolder();
       case StudyPlaylistAction.delete:
         await _deletePlaylist();
+    }
+  }
+
+  Future<void> _moveToFolder() async {
+    final loc = AppLocalizations.of(context);
+    final folders = await ref
+        .read(studyPlaylistFoldersProvider.future)
+        .catchError((Object _) => const <String>[]);
+    if (!mounted) return;
+    final pick = await showStudyFolderPickerSheet(
+      context: context,
+      title: loc.study_move_to_folder_title(_title),
+      folders: folders,
+      currentFolder: '',
+    );
+    if (pick == null || !mounted) return;
+    try {
+      final api = ref.read(studyApiProvider);
+      var folder = pick.folder;
+      if (pick.createNew) {
+        final name = await showStudyPlaylistNameSheet(
+          context: context,
+          title: loc.study_new_folder,
+          confirmText: loc.common_save,
+          fieldLabel: loc.study_new_folder,
+        );
+        if (name == null || !mounted) return;
+        await api.createPlaylistFolder(name);
+        folder = name;
+      }
+      await api.movePlaylist(widget.playlistId, folder);
+      ref.invalidate(studyPlaylistsProvider);
+      ToastNotifier.show(
+        loc.study_moved_to_folder(folder),
+        kind: MusicFlowMessageKind.success,
+      );
+    } catch (_) {
+      ToastNotifier.show(
+        loc.study_playlist_update_failed,
+        kind: MusicFlowMessageKind.error,
+      );
+    }
+  }
+
+  Future<void> _removeFromFolder() async {
+    final loc = AppLocalizations.of(context);
+    try {
+      await ref.read(studyApiProvider).movePlaylist(widget.playlistId, '');
+      ref.invalidate(studyPlaylistsProvider);
+      ToastNotifier.show(
+        loc.study_removed_from_folder,
+        kind: MusicFlowMessageKind.success,
+      );
+    } catch (_) {
+      ToastNotifier.show(
+        loc.study_playlist_update_failed,
+        kind: MusicFlowMessageKind.error,
+      );
     }
   }
 

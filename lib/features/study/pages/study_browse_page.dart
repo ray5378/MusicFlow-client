@@ -591,16 +591,17 @@ class _FileRow extends StatelessWidget {
         child: Row(
           children: <Widget>[
             SizedBox(
-              width: 26,
+              width: 30,
               child: busy
                   ? const SizedBox.square(
                       dimension: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(
-                      entry.finished ? AppIcons.checkCircle : AppIcons.fileText,
-                      size: 20,
-                      color: playing ? colors.accent : colors.muted,
+                  : MusicFlowIconButton(
+                      icon: playing ? AppIcons.equalizer : AppIcons.play,
+                      label: loc.study_icon_play_content,
+                      selected: playing,
+                      onPressed: selectionMode ? onToggleSelected : onTap,
                     ),
             ),
             const SizedBox(width: 12),

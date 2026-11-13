@@ -3488,6 +3488,8 @@
   "study_load_failed": "Failed to load",
   "study_play_failed": "Playback failed, please try again",
   "study_play_all": "Play this folder",
+  "study_icon_play_playlist": "Play this playlist",
+  "study_icon_play_content": "Play this lesson",
   "study_source_song_count": "{count} songs indexed",
   "@study_source_song_count": {
     "placeholders": {
@@ -3574,6 +3576,7 @@
   },
   "study_new_folder": "New folder",
   "study_folder_rename": "Rename folder",
+  "study_folder_delete": "Delete folder",
   "study_folder_rename_title": "Rename study playlist folder",
   "study_folder_name_hint": "e.g. Calculus",
   "study_folder_playlist_count": "{count} playlist(s)",

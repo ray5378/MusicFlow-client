@@ -5824,6 +5824,18 @@ abstract class AppLocalizations {
   /// **'播放本目录'**
   String get study_play_all;
 
+  /// No description provided for @study_icon_play_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放这个歌单'**
+  String get study_icon_play_playlist;
+
+  /// No description provided for @study_icon_play_content.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放这一课'**
+  String get study_icon_play_content;
+
   /// No description provided for @study_source_song_count.
   ///
   /// In zh, this message translates to:
@@ -5985,6 +5997,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'重命名文件夹'**
   String get study_folder_rename;
+
+  /// No description provided for @study_folder_delete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除文件夹'**
+  String get study_folder_delete;
 
   /// No description provided for @study_folder_rename_title.
   ///
