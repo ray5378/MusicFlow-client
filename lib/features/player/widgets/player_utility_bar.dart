@@ -44,57 +44,64 @@ class PlayerUtilityBar extends ConsumerWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
         // [D-046] 缺陷：宽 > 高但宽度 < 600 时仍进大屏分栏，左栏算出 186px，
-        //   这个 Row（5 个 48dp 按钮）右侧溢出 54px（594x400 下实测红框）。
-        //   建议：给 utility bar 加 Flexible/FittedBox，或在窄左栏下退化成 icon-only。
-        //   守卫用例：test/features/player/b30c_full_player_page_cov_test.dart 窄宽布局用例。
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: <Widget>[
-            // 链路 B（局域网 DLNA 直投）独立按钮：置于最左，与「流转播放」拉开距离，
-            // 避免与链路 A（后端投屏）靠得太近而混淆。
-            PlayerIconButton(
-              icon: AppIcons.dlnaLocal,
-              label: dlnaCast.isCasting
-                  ? loc.player_dlna_local_casting(dlnaCast.currentDevice?.name ?? '')
-                  : loc.player_dlna_local,
-              selected: dlnaCast.isCasting,
-              onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
-            ),
-            PlayerIconButton(
-              icon: state.starred ? AppIcons.heart : AppIcons.heartOutline,
-              label: state.starred ? loc.player_unfavorite : loc.player_favorite,
-              selected: state.starred,
-              onPressed: () {
-                ref.read(playerProvider.notifier).toggleFavorite();
-              },
-            ),
-            // 音量：弹出式音量调节弹窗，与「喜欢」「流转播放」并排。
-            const VolumeButton(),
-            // 定时暂停:预设倒计时弹窗,到点后自动暂停(停止)播放。
-            PlayerIconButton(
-              icon: AppIcons.timer,
-              label: sleepActive
-                  ? _formatSleepRemaining(sleepRemaining, loc)
-                  : loc.player_sleep_timer,
-              selected: sleepActive,
-              onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
-            ),
-            // 播放倍速(学习音频与普通音乐通用):位于「定时」与「流转播放」之间。
-            _PlaybackSpeedButton(
-              speed: ref.watch(
-                playerProvider.select((s) => s.playbackSpeed),
+        //   这个 Row 右侧溢出（594x400 下实测红框）。
+        // 6 个 48dp 按钮后窄屏会溢出：320dp 宽度（左右各留 40）可用 240，
+        //   200% 字号/360dp 下实测溢出 48px / 8px。
+        // 统一用 FittedBox(scaleDown) 兜底：放得下时原样（不放大），
+        //   放不下时整排等比缩小，绝不出现红框。
+        //   守卫用例：test/features/player/full_player_page_test.dart 200% 字号用例。
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              // 链路 B（局域网 DLNA 直投）独立按钮：置于最左，与「流转播放」拉开距离，
+              // 避免与链路 A（后端投屏）靠得太近而混淆。
+              PlayerIconButton(
+                icon: AppIcons.dlnaLocal,
+                label: dlnaCast.isCasting
+                    ? loc.player_dlna_local_casting(dlnaCast.currentDevice?.name ?? '')
+                    : loc.player_dlna_local,
+                selected: dlnaCast.isCasting,
+                onPressed: () => unawaited(_openLocalDlnaCastSheet(context, ref)),
               ),
-              onPressed: () => unawaited(_openSpeedSheet(context, ref)),
-            ),
-            // 「流转播放」：使用 infinity(∞) 图标（2026-10-02 由信号塔换为 ∞），
-            // 置于最右，与最左的 DLNA 直投拉开距离。
-            PlayerIconButton(
-              icon: AppIcons.transferInfinity,
-              label: loc.player_transfer_playback_current(currentPlayerName(cast)),
-              selected: cast.isCasting,
-              onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
-            ),
-          ],
+              PlayerIconButton(
+                icon: state.starred ? AppIcons.heart : AppIcons.heartOutline,
+                label: state.starred ? loc.player_unfavorite : loc.player_favorite,
+                selected: state.starred,
+                onPressed: () {
+                  ref.read(playerProvider.notifier).toggleFavorite();
+                },
+              ),
+              // 音量：弹出式音量调节弹窗，与「喜欢」「流转播放」并排。
+              const VolumeButton(),
+              // 定时暂停:预设倒计时弹窗,到点后自动暂停(停止)播放。
+              PlayerIconButton(
+                icon: AppIcons.timer,
+                label: sleepActive
+                    ? _formatSleepRemaining(sleepRemaining, loc)
+                    : loc.player_sleep_timer,
+                selected: sleepActive,
+                onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
+              ),
+              // 播放倍速(学习音频与普通音乐通用):位于「定时」与「流转播放」之间。
+              _PlaybackSpeedButton(
+                speed: ref.watch(
+                  playerProvider.select((s) => s.playbackSpeed),
+                ),
+                onPressed: () => unawaited(_openSpeedSheet(context, ref)),
+              ),
+              // 「流转播放」：使用 infinity(∞) 图标（2026-10-02 由信号塔换为 ∞），
+              // 置于最右，与最左的 DLNA 直投拉开距离。
+              PlayerIconButton(
+                icon: AppIcons.transferInfinity,
+                label: loc.player_transfer_playback_current(currentPlayerName(cast)),
+                selected: cast.isCasting,
+                onPressed: () => unawaited(_openPlayerSwitcher(context, ref)),
+              ),
+            ],
+          ),
         ),
       ),
     );
