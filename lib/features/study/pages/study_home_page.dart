@@ -153,96 +153,88 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     final loc = AppLocalizations.of(context);
 
     return MusicFlowScaffold(
-      topBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          // 与首页分类导航同款：不带标题栏底色，图标在上、文字在下；
-          // 搜索按钮常驻最右，展开后搜索框在下一行。
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              context.musicFlowPageHorizontalPadding - 8,
-              context.musicFlowSpacing.sm,
-              context.musicFlowPageHorizontalPadding - 8,
-              0,
-            ),
-            child: Row(
-              children: <Widget>[
-                MusicFlowIconButton(
-                  icon: AppIcons.back,
-                  label: loc.core_back,
-                  onPressed: () => Navigator.maybePop(context),
-                ),
-                // 四个入口按首页导航样式横排（图标在上、文字在下）；窄屏/大字号自动缩放。
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        _StudyModuleTab(
-                          label: loc.study_section_catalog,
-                          icon: AppIcons.study,
-                          selected: _tab == 0 && !_searchOpen,
-                          onPressed: () => _setTab(0),
-                        ),
-                        SizedBox(width: context.musicFlowSpacing.sm),
-                        _StudyModuleTab(
-                          label: loc.study_section_playlists,
-                          icon: AppIcons.playlist,
-                          selected: _tab == 1 && !_searchOpen,
-                          onPressed: () => _setTab(1),
-                        ),
-                        SizedBox(width: context.musicFlowSpacing.sm),
-                        _StudyModuleTab(
-                          label: loc.study_section_continue,
-                          icon: AppIcons.history,
-                          selected: _tab == 2 && !_searchOpen,
-                          onPressed: () => _setTab(2),
-                        ),
-                        SizedBox(width: context.musicFlowSpacing.sm),
-                        // 搜索与三个模块同款入口（图标在上、文字在下），展开后输入框在下一行。
-                        _StudyModuleTab(
-                          label: loc.study_module_search,
-                          icon: AppIcons.search,
-                          selected: _searchOpen,
-                          onPressed: _toggleSearch,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_searchOpen)
+      // 顶部导航行需要避让系统状态栏（与首页 SafeArea 一致）。
+      topBar: SafeArea(
+        bottom: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // 与首页分类导航同款：不带标题栏底色，图标在上、文字在下；
+            // 高度/间距/左右留白与首页「探索 / 喜欢」一栏保持一致。
             Padding(
               padding: EdgeInsets.fromLTRB(
-                context.musicFlowPageHorizontalPadding,
-                context.musicFlowSpacing.sm,
-                context.musicFlowPageHorizontalPadding,
+                context.musicFlowPageHorizontalPadding - 5,
                 context.musicFlowSpacing.xs,
+                context.musicFlowPageHorizontalPadding - 5,
+                0,
               ),
-              child: MusicFlowTextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                label: loc.study_search_unified_hint,
-                leadingIcon: AppIcons.search,
-                onChanged: _onQueryChanged,
-                trailing: _query.isEmpty
-                    ? null
-                    : MusicFlowIconButton(
-                        icon: AppIcons.close,
-                        label: loc.study_search_clear,
-                        onPressed: () {
-                          _searchController.clear();
-                          _onQueryChanged('');
-                        },
-                      ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    _StudyModuleTab(
+                      label: loc.study_section_catalog,
+                      icon: AppIcons.study,
+                      selected: _tab == 0 && !_searchOpen,
+                      onPressed: () => _setTab(0),
+                    ),
+                    SizedBox(width: context.musicFlowSpacing.md),
+                    _StudyModuleTab(
+                      label: loc.study_section_playlists,
+                      icon: AppIcons.playlist,
+                      selected: _tab == 1 && !_searchOpen,
+                      onPressed: () => _setTab(1),
+                    ),
+                    SizedBox(width: context.musicFlowSpacing.md),
+                    _StudyModuleTab(
+                      label: loc.study_section_continue,
+                      icon: AppIcons.history,
+                      selected: _tab == 2 && !_searchOpen,
+                      onPressed: () => _setTab(2),
+                    ),
+                    SizedBox(width: context.musicFlowSpacing.md),
+                    // 搜索与三个模块同款入口（图标在上、文字在下），展开后输入框在下一行。
+                    _StudyModuleTab(
+                      label: loc.study_module_search,
+                      icon: AppIcons.search,
+                      selected: _searchOpen,
+                      onPressed: _toggleSearch,
+                    ),
+                  ],
+                ),
               ),
             ),
-          SizedBox(height: context.musicFlowSpacing.xs),
-        ],
+            if (_searchOpen)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  context.musicFlowPageHorizontalPadding,
+                  context.musicFlowSpacing.sm,
+                  context.musicFlowPageHorizontalPadding,
+                  context.musicFlowSpacing.xs,
+                ),
+                child: MusicFlowTextField(
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                  label: loc.study_search_unified_hint,
+                  leadingIcon: AppIcons.search,
+                  onChanged: _onQueryChanged,
+                  trailing: _query.isEmpty
+                      ? null
+                      : MusicFlowIconButton(
+                          icon: AppIcons.close,
+                          label: loc.study_search_clear,
+                          onPressed: () {
+                            _searchController.clear();
+                            _onQueryChanged('');
+                          },
+                        ),
+                ),
+              ),
+            SizedBox(height: context.musicFlowSpacing.xs),
+          ],
+        ),
       ),
       body: MusicFlowRefreshView(
         onRefresh: _refresh,
@@ -904,8 +896,8 @@ class _StudyModuleTab extends StatelessWidget {
     required this.onPressed,
   });
 
-  // 四个入口 + 返回按钮要在 320dp 窄屏内放得下（4×56 + 3×8 = 248）。
-  static const double _width = 56;
+  // 与首页分类导航同一尺寸：64×64；4 个入口 + 3 段间距在 320dp 窄屏内仍放得下。
+  static const double _width = 64;
 
   final String label;
   final IconData icon;
@@ -919,7 +911,7 @@ class _StudyModuleTab extends StatelessWidget {
     return MusicFlowPressable(
       semanticLabel: label,
       selected: selected,
-      minimumSize: const Size(_width, 60),
+      minimumSize: const Size(_width, 64),
       borderRadius: context.musicFlowRadii.surface,
       onPressed: onPressed,
       child: SizedBox(
