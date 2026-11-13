@@ -20,8 +20,8 @@ import 'package:musicflow_client/providers/study/study_providers.dart';
 
 /// 学习模块首页：总目录 / 学习歌单 / 继续学习。
 ///
-/// 三个模块横向平铺、点击切换；搜索按钮与三个 Tab 同一排，
-/// 搜索范围跟随当前 Tab（目录名 / 歌单名 / 课程标题）。
+/// 三个模块与首页分类导航同款排版（图标在上、文字在下，无底色条），点击切换；
+/// 搜索为统一搜索：一次搜「学习歌单 + 学习内容」，歌单排在内容前面。
 class StudyHomePage extends ConsumerStatefulWidget {
   const StudyHomePage({super.key});
 
@@ -42,9 +42,15 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   final Set<String> _expandedFolders = <String>{};
+  // 统一搜索的内容结果（服务端 kind=study 模糊匹配）。
+  List<Song> _contentResults = const <Song>[];
+  bool _contentSearching = false;
+  Timer? _searchDebounce;
+  int _searchSeq = 0;
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -70,6 +76,11 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       _query = '';
       _searchController.clear();
     });
+    _searchDebounce?.cancel();
+    setState(() {
+      _contentResults = const <Song>[];
+      _contentSearching = false;
+    });
   }
 
   void _toggleSearch() {
@@ -78,14 +89,55 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       if (!_searchOpen) {
         _query = '';
         _searchController.clear();
+        _contentResults = const <Song>[];
+        _contentSearching = false;
       }
     });
+    _searchDebounce?.cancel();
     if (_searchOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocus.requestFocus();
       });
     }
   }
+
+  /// 统一搜索：输入即搜「学习歌单 + 学习内容」（歌单本地即时过滤，内容走服务端）。
+  void _onQueryChanged(String value) {
+    setState(() => _query = value);
+    _searchDebounce?.cancel();
+    final q = value.trim();
+    if (q.isEmpty) {
+      setState(() {
+        _contentResults = const <Song>[];
+        _contentSearching = false;
+      });
+      return;
+    }
+    setState(() => _contentSearching = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 260), () {
+      unawaited(_runContentSearch(q));
+    });
+  }
+
+  Future<void> _runContentSearch(String q) async {
+    final seq = ++_searchSeq;
+    try {
+      final songs = await ref.read(studyApiProvider).searchContents(q);
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _contentResults = songs;
+        _contentSearching = false;
+      });
+    } catch (_) {
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _contentResults = const <Song>[];
+        _contentSearching = false;
+      });
+    }
+  }
+
+  bool get _searchActive => _searchOpen && _query.trim().isNotEmpty;
 
   bool _matches(String text) {
     final q = _query.trim().toLowerCase();
@@ -103,34 +155,76 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       topBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          MusicFlowTopBar.back(context: context, title: loc.study_title),
-          _StudyTabStrip(
-            index: _tab,
-            labels: <String>[
-              loc.study_section_catalog,
-              loc.study_section_playlists,
-              loc.study_section_continue,
-            ],
-            searchOpen: _searchOpen,
-            onChanged: _setTab,
-            onToggleSearch: _toggleSearch,
+          // 与首页分类导航同款：不带标题栏底色，图标在上、文字在下；
+          // 搜索按钮常驻最右，展开后搜索框在下一行。
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              context.musicFlowPageHorizontalPadding - 8,
+              context.musicFlowSpacing.sm,
+              context.musicFlowPageHorizontalPadding - 8,
+              0,
+            ),
+            child: Row(
+              children: <Widget>[
+                MusicFlowIconButton(
+                  icon: AppIcons.back,
+                  label: loc.core_back,
+                  onPressed: () => Navigator.maybePop(context),
+                ),
+                // 三个模块按首页导航样式横排；窄屏/大字号用 FittedBox 兜底不溢出。
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        _StudyModuleTab(
+                          label: loc.study_section_catalog,
+                          icon: AppIcons.study,
+                          selected: _tab == 0,
+                          onPressed: () => _setTab(0),
+                        ),
+                        SizedBox(width: context.musicFlowSpacing.md),
+                        _StudyModuleTab(
+                          label: loc.study_section_playlists,
+                          icon: AppIcons.playlist,
+                          selected: _tab == 1,
+                          onPressed: () => _setTab(1),
+                        ),
+                        SizedBox(width: context.musicFlowSpacing.md),
+                        _StudyModuleTab(
+                          label: loc.study_section_continue,
+                          icon: AppIcons.history,
+                          selected: _tab == 2,
+                          onPressed: () => _setTab(2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                MusicFlowIconButton(
+                  icon: _searchOpen ? AppIcons.close : AppIcons.search,
+                  label: _searchOpen ? loc.study_search_clear : loc.study_search_hint,
+                  onPressed: _toggleSearch,
+                ),
+              ],
+            ),
           ),
           if (_searchOpen)
             Padding(
               padding: EdgeInsets.fromLTRB(
                 context.musicFlowPageHorizontalPadding,
-                0,
-                context.musicFlowPageHorizontalPadding,
                 context.musicFlowSpacing.sm,
+                context.musicFlowPageHorizontalPadding,
+                context.musicFlowSpacing.xs,
               ),
               child: MusicFlowTextField(
                 controller: _searchController,
                 focusNode: _searchFocus,
-                label: _tab == 1
-                    ? loc.study_search_playlists_hint
-                    : loc.study_search_hint,
+                label: loc.study_search_unified_hint,
                 leadingIcon: AppIcons.search,
-                onChanged: (value) => setState(() => _query = value),
+                onChanged: _onQueryChanged,
                 trailing: _query.isEmpty
                     ? null
                     : MusicFlowIconButton(
@@ -138,12 +232,12 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                         label: loc.study_search_clear,
                         onPressed: () {
                           _searchController.clear();
-                          setState(() => _query = '');
+                          _onQueryChanged('');
                         },
                       ),
               ),
             ),
-          const MusicFlowDivider(),
+          SizedBox(height: context.musicFlowSpacing.xs),
         ],
       ),
       body: MusicFlowRefreshView(
@@ -152,7 +246,9 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
-            child: _buildTabBody(context, loc),
+            child: _searchActive
+                ? _buildSearchResults(context, loc)
+                : _buildTabBody(context, loc),
           ),
         ),
       ),
@@ -168,6 +264,69 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       default:
         return _buildCatalogTab(context, loc);
     }
+  }
+
+  /// 统一搜索结果：学习歌单排在前面，学习内容排在后面（与服务端搜索一致）。
+  Widget _buildSearchResults(BuildContext context, AppLocalizations loc) {
+    final playlists =
+        ref.watch(studyPlaylistsProvider).asData?.value ??
+            const <StudyPlaylist>[];
+    final matchedPlaylists = playlists
+        .where((playlist) => _matches(playlist.name))
+        .toList(growable: false);
+    return ListView(
+      padding: _listPadding,
+      children: <Widget>[
+        _Section(
+          title: loc.study_section_playlists,
+          child: matchedPlaylists.isEmpty
+              ? _EmptyRow(icon: AppIcons.search, label: loc.study_search_empty)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    for (final playlist in matchedPlaylists)
+                      _buildPlaylistRow(context, loc, playlist),
+                  ],
+                ),
+        ),
+        _Section(
+          title: loc.study_section_contents,
+          child: _contentSearching
+              ? const _LoadingRows()
+              : _contentResults.isEmpty
+                  ? _EmptyRow(
+                      icon: AppIcons.search,
+                      label: loc.study_search_empty,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        for (final song in _contentResults)
+                          _StudyRow(
+                            icon: AppIcons.play,
+                            title: song.title,
+                            subtitle: (song.album ?? '').isEmpty
+                                ? null
+                                : song.album,
+                            onTap: () => unawaited(_playSong(song)),
+                          ),
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+
+  /// 搜索结果里点单条学习内容 → 直接播放（投屏态走统一流转入口）。
+  Future<void> _playSong(Song song) async {
+    final casting =
+        ref.read(castPeerControllerProvider).activePeer != null ||
+            ref.read(dlnaCastProvider).isCasting;
+    if (casting) {
+      await playEffectiveQueue(ref, <Song>[song], startIndex: 0);
+      return;
+    }
+    await ref.read(playerProvider.notifier).playQueue(<Song>[song], startIndex: 0);
   }
 
   EdgeInsets get _listPadding => EdgeInsets.only(
@@ -715,76 +874,50 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
   }
 }
 
-/// 三个模块横向 Tab + 搜索按钮（同一排）。
-class _StudyTabStrip extends StatelessWidget {
-  const _StudyTabStrip({
-    required this.index,
-    required this.labels,
-    required this.searchOpen,
-    required this.onChanged,
-    required this.onToggleSearch,
+/// 学习模块标签：与首页分类导航同款「图标在上、文字在下」，无底色条。
+class _StudyModuleTab extends StatelessWidget {
+  const _StudyModuleTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onPressed,
   });
 
-  final int index;
-  final List<String> labels;
-  final bool searchOpen;
-  final ValueChanged<int> onChanged;
-  final VoidCallback onToggleSearch;
+  static const double _width = 62;
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        context.musicFlowPageHorizontalPadding,
-        0,
-        context.musicFlowPageHorizontalPadding,
-        context.musicFlowSpacing.sm,
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: context.musicFlowColors.raised,
-                borderRadius: context.musicFlowRadii.control,
-              ),
-              child: Row(
-                children: <Widget>[
-                  for (var i = 0; i < labels.length; i++)
-                    Expanded(
-                      child: MusicFlowPressable(
-                        semanticLabel: labels[i],
-                        selected: index == i,
-                        onPressed: () => onChanged(i),
-                        borderRadius: context.musicFlowRadii.control,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Text(
-                            labels[i],
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: context.musicFlowTypography.label.copyWith(
-                              color: index == i
-                                  ? context.musicFlowColors.ink
-                                  : context.musicFlowColors.muted,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+    final colors = context.musicFlowColors;
+    final color = selected ? colors.accent : colors.muted;
+    return MusicFlowPressable(
+      semanticLabel: label,
+      selected: selected,
+      minimumSize: const Size(_width, 60),
+      borderRadius: context.musicFlowRadii.surface,
+      onPressed: onPressed,
+      child: SizedBox(
+        width: _width,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 26, color: color),
+            SizedBox(height: context.musicFlowSpacing.xxs),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.musicFlowTypography.metadata.copyWith(
+                color: color,
+                fontWeight: selected ? FontWeight.w600 : null,
               ),
             ),
-          ),
-          SizedBox(width: context.musicFlowSpacing.sm),
-          MusicFlowIconButton(
-            icon: searchOpen ? AppIcons.close : AppIcons.search,
-            label: searchOpen ? loc.study_search_clear : loc.study_search_hint,
-            onPressed: onToggleSearch,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

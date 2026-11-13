@@ -242,6 +242,21 @@ class StudyApi {
     return _mapList(raw).map(StudyPlaylist.fromJson).toList(growable: false);
   }
 
+  /// 学习内容搜索（服务端按标题 / 课程 / 目录模糊匹配 kind=study 的歌曲）。
+  ///
+  /// 与学习歌单搜索一起构成「统一搜索」：歌单在上、内容在下。
+  Future<List<Song>> searchContents(String query, {int limit = 50}) async {
+    final q = query.trim();
+    if (q.isEmpty) return const <Song>[];
+    final raw = await _client.getRaw(
+      '$_base/search',
+      queryParameters: <String, dynamic>{'q': q, 'limit': limit},
+    );
+    return <Song>[
+      for (final item in _mapList(raw)) Song.fromJson(item),
+    ];
+  }
+
   /// 学习歌单文件夹名列表(按课程归档;与歌单一样按用户隔离)。
   Future<List<String>> fetchPlaylistFolders() async {
     final raw = await _client.getRaw('$_base/playlist-folders');
