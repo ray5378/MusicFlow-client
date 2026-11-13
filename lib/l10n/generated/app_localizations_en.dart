@@ -3350,6 +3350,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get study_section_catalog => 'Catalog';
 
   @override
+  String get study_section_contents => 'Study content';
+
+  @override
   String get study_section_playlists => 'Study playlists';
 
   @override
@@ -3466,6 +3469,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get study_search_hint => 'Search study content';
+
+  @override
+  String get study_search_unified_hint => 'Search study content or playlists';
 
   @override
   String get study_search_playlists_hint => 'Search study playlists';

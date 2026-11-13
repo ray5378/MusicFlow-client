@@ -3184,6 +3184,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get study_section_catalog => '总目录';
 
   @override
+  String get study_section_contents => '学习内容';
+
+  @override
   String get study_section_playlists => '学习歌单';
 
   @override
@@ -3295,6 +3298,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get study_search_hint => '搜索学习内容';
+
+  @override
+  String get study_search_unified_hint => '搜索学习内容或学习歌单';
 
   @override
   String get study_search_playlists_hint => '搜索学习歌单';

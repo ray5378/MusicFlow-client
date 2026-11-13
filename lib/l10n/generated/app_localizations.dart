@@ -5764,6 +5764,12 @@ abstract class AppLocalizations {
   /// **'总目录'**
   String get study_section_catalog;
 
+  /// No description provided for @study_section_contents.
+  ///
+  /// In zh, this message translates to:
+  /// **'学习内容'**
+  String get study_section_contents;
+
   /// No description provided for @study_section_playlists.
   ///
   /// In zh, this message translates to:
@@ -5961,6 +5967,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'搜索学习内容'**
   String get study_search_hint;
+
+  /// No description provided for @study_search_unified_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索学习内容或学习歌单'**
+  String get study_search_unified_hint;
 
   /// No description provided for @study_search_playlists_hint.
   ///
