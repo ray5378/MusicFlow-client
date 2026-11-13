@@ -216,14 +216,31 @@ class PlayerUtilityBar extends ConsumerWidget {
                   ),
                 ),
                 for (final rate in _playbackRates)
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('${_formatRate(rate)}x'),
-                    trailing: (current - rate).abs() < 0.001
-                        ? Icon(AppIcons.check, color: colors.accent)
-                        : null,
-                    onTap: () => Navigator.of(sheetContext).pop(rate),
+                  MusicFlowPressable(
+                    onPressed: () => Navigator.of(sheetContext).pop(rate),
+                    borderRadius: sheetContext.musicFlowRadii.surface,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              '${_formatRate(rate)}x',
+                              style: sheetContext.musicFlowTypography.body,
+                            ),
+                          ),
+                          if ((current - rate).abs() < 0.001)
+                            Icon(
+                              AppIcons.check,
+                              size: 18,
+                              color: colors.accent,
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
               ],
             ),

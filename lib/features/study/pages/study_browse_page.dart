@@ -144,9 +144,9 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
             : widget.path.split('/').last,
         subtitle: widget.path.isEmpty ? null : widget.path,
         actions: <Widget>[
-          IconButton(
-            tooltip: loc.study_play_all,
-            icon: const Icon(AppIcons.play),
+          MusicFlowIconButton(
+            icon: AppIcons.play,
+            label: loc.study_play_all,
             onPressed: async.valueOrNull == null
                 ? null
                 : () => unawaited(
