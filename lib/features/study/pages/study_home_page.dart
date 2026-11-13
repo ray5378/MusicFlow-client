@@ -567,10 +567,15 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
               return Column(
                 children: <Widget>[
                   for (var i = 0; i < visible.length; i++)
-                    _ContinueRow(
-                      item: visible[i],
-                      playing: visible[i].song.id == currentId,
-                      onTap: () => unawaited(_playContinue(visible, i)),
+                    _SwipeDeleteRow(
+                      deleteLabel: loc.common_delete,
+                      onDelete: () =>
+                          unawaited(_deleteContinueRecord(visible[i])),
+                      child: _ContinueRow(
+                        item: visible[i],
+                        playing: visible[i].song.id == currentId,
+                        onTap: () => unawaited(_playContinue(visible, i)),
+                      ),
                     ),
                 ],
               );
@@ -876,6 +881,18 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
           initialPosition: Duration(seconds: items[index].positionSec),
         );
   }
+
+  /// 删除一条学习记录（只从「继续学习」移除，不删除音频文件）。
+  Future<void> _deleteContinueRecord(StudyContinueItem item) async {
+    final loc = AppLocalizations.of(context);
+    try {
+      await ref.read(studyApiProvider).deleteProgress(item.song.id);
+      ref.invalidate(studyContinueProvider);
+      _toast(loc.study_record_deleted);
+    } catch (_) {
+      _toast(loc.study_delete_record_failed, kind: MusicFlowMessageKind.error);
+    }
+  }
 }
 
 /// 学习模块标签：与首页分类导航同款「图标在上、文字在下」，无底色条。
@@ -1123,6 +1140,126 @@ class _StudyRow extends StatelessWidget {
             Icon(AppIcons.chevronRight, size: 18, color: colors.muted),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 左滑露出右侧「删除」按钮的行容器。
+///
+/// 拖动行内容向左偏移，松开后按位移/速度吸附到展开或收起；
+/// 展开时右侧删除按钮可点，点按行内其他区域先收起。
+class _SwipeDeleteRow extends StatefulWidget {
+  const _SwipeDeleteRow({
+    required this.child,
+    required this.deleteLabel,
+    required this.onDelete,
+  });
+
+  final Widget child;
+  final String deleteLabel;
+  final VoidCallback onDelete;
+
+  @override
+  State<_SwipeDeleteRow> createState() => _SwipeDeleteRowState();
+}
+
+class _SwipeDeleteRowState extends State<_SwipeDeleteRow> {
+  static const double _actionWidth = 96;
+
+  double _offset = 0;
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _offset = (_offset + details.delta.dx).clamp(-_actionWidth, 0.0);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    setState(() {
+      if (velocity < -300) {
+        _offset = -_actionWidth;
+      } else if (velocity > 300) {
+        _offset = 0;
+      } else {
+        _offset = _offset < -_actionWidth / 2 ? -_actionWidth : 0;
+      }
+    });
+  }
+
+  void _close() {
+    if (_offset != 0) setState(() => _offset = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.musicFlowColors;
+    final open = _offset != 0;
+    return ClipRRect(
+      borderRadius: context.musicFlowRadii.surface,
+      child: Stack(
+        children: <Widget>[
+          Positioned(
+            top: 0,
+            bottom: 0,
+            right: 0,
+            width: _actionWidth,
+            child: MusicFlowPressable(
+              semanticLabel: widget.deleteLabel,
+              borderRadius: BorderRadius.zero,
+              minimumSize: const Size(_actionWidth, 48),
+              onPressed: () {
+                _close();
+                widget.onDelete();
+              },
+              child: ColoredBox(
+                color: colors.error,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        AppIcons.delete,
+                        size: 18,
+                        color: colors.onError,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.deleteLabel,
+                        style: context.musicFlowTypography.metadata.copyWith(
+                          color: colors.onError,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onHorizontalDragUpdate: _onDragUpdate,
+            onHorizontalDragEnd: _onDragEnd,
+            child: Transform.translate(
+              offset: Offset(_offset, 0),
+              child: ColoredBox(
+                color: colors.canvas,
+                child: widget.child,
+              ),
+            ),
+          ),
+          if (open)
+            Positioned(
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: _actionWidth,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _close,
+              ),
+            ),
+        ],
       ),
     );
   }

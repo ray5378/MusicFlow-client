@@ -3193,6 +3193,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get study_section_continue => '继续学习';
 
   @override
+  String get study_module_search => '搜索';
+
+  @override
   String get study_empty_catalog => '还没有可用的学习源';
 
   @override
@@ -3200,6 +3203,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get study_empty_continue => '暂无学习进度';
+
+  @override
+  String get study_record_deleted => '学习记录已删除';
+
+  @override
+  String get study_delete_record_failed => '删除学习记录失败，请稍后重试';
 
   @override
   String get study_empty_dir => '这个目录是空的';

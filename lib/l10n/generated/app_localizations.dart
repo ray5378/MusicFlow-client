@@ -5782,6 +5782,12 @@ abstract class AppLocalizations {
   /// **'继续学习'**
   String get study_section_continue;
 
+  /// No description provided for @study_module_search.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get study_module_search;
+
   /// No description provided for @study_empty_catalog.
   ///
   /// In zh, this message translates to:
@@ -5799,6 +5805,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'暂无学习进度'**
   String get study_empty_continue;
+
+  /// No description provided for @study_record_deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'学习记录已删除'**
+  String get study_record_deleted;
+
+  /// No description provided for @study_delete_record_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除学习记录失败，请稍后重试'**
+  String get study_delete_record_failed;
 
   /// No description provided for @study_empty_dir.
   ///

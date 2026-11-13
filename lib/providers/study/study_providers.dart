@@ -20,9 +20,9 @@ final studySourcesProvider = FutureProvider<List<StudySource>>((ref) {
   return ref.watch(studyApiProvider).fetchSources();
 });
 
-/// 继续学习（未听完的最近条目）。
+/// 继续学习（未听完的最近条目；服务端每用户最多保留最新 50 条记录）。
 final studyContinueProvider = FutureProvider<List<StudyContinueItem>>((ref) {
-  return ref.watch(studyApiProvider).fetchContinue();
+  return ref.watch(studyApiProvider).fetchContinue(limit: 50);
 });
 
 /// 学习歌单列表。

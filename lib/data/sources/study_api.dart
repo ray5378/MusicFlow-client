@@ -363,4 +363,11 @@ class StudyApi {
       },
     );
   }
+
+  /// 删除一条学习记录（只影响「继续学习」列表，不删除音频文件）。
+  Future<void> deleteProgress(String songId) async {
+    await _client.deleteRaw(
+      '$_base/progress/${Uri.encodeComponent(songId)}',
+    );
+  }
 }

@@ -3359,6 +3359,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get study_section_continue => 'Continue learning';
 
   @override
+  String get study_module_search => 'Search';
+
+  @override
   String get study_empty_catalog => 'No study sources yet';
 
   @override
@@ -3366,6 +3369,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get study_empty_continue => 'Nothing in progress';
+
+  @override
+  String get study_record_deleted => 'Learning record deleted';
+
+  @override
+  String get study_delete_record_failed =>
+      'Failed to delete the learning record, please try again later';
 
   @override
   String get study_empty_dir => 'This folder is empty';

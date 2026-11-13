@@ -3485,6 +3485,8 @@
   "study_empty_catalog": "还没有可用的学习源",
   "study_empty_playlists": "还没有学习歌单",
   "study_empty_continue": "暂无学习进度",
+  "study_record_deleted": "学习记录已删除",
+  "study_delete_record_failed": "删除学习记录失败，请稍后重试",
   "study_empty_dir": "这个目录是空的",
   "study_empty_playlist_tracks": "这个歌单还没有内容",
   "study_load_failed": "加载失败",
