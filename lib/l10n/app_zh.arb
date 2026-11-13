@@ -3505,5 +3505,141 @@
     }
   },
   "player_speed": "播放倍速",
-  "player_speed_study_only": "仅对学习音频生效"
+  "player_speed_hint": "对所有音频生效",
+  "study_playlist_create": "新建学习歌单",
+  "study_playlist_rename": "重命名歌单",
+  "study_playlist_rename_title": "重命名学习歌单",
+  "study_playlist_actions": "歌单操作",
+  "study_playlist_created": "已创建「{name}」",
+  "@study_playlist_created": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_playlist_renamed": "已重命名为「{name}」",
+  "@study_playlist_renamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_playlist_deleted": "已删除「{name}」",
+  "@study_playlist_deleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_playlist_create_failed": "创建歌单失败，请稍后重试",
+  "study_playlist_update_failed": "更新歌单失败，请稍后重试",
+  "study_playlist_delete_failed": "删除歌单失败，请稍后重试",
+  "study_add_to_playlist": "加入学习歌单",
+  "study_added_to_playlist": "已加入「{name}」，共 {count} 首",
+  "@study_added_to_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_add_to_playlist_failed": "加入学习歌单失败，请稍后重试",
+  "study_file_resolve_failed": "文件处理失败，请稍后重试",
+  "study_removed_count": "已移出 {count} 首",
+  "@study_removed_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_remove_failed": "移出失败，请稍后重试",
+  "study_search_hint": "搜索学习内容",
+  "study_search_playlists_hint": "搜索学习歌单",
+  "study_search_clear": "清除",
+  "study_search_empty": "没有匹配的内容",
+  "study_playlist_search_result": "搜索到 {count} 个学习歌单",
+  "@study_playlist_search_result": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_new_folder": "新建文件夹",
+  "study_folder_rename": "重命名文件夹",
+  "study_folder_rename_title": "重命名学习歌单文件夹",
+  "study_folder_name_hint": "例如：高等数学",
+  "study_folder_playlist_count": "{count} 个歌单",
+  "@study_folder_playlist_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_folder_created": "已创建文件夹「{name}」",
+  "@study_folder_created": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_folder_renamed": "文件夹已重命名为「{name}」",
+  "@study_folder_renamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_folder_deleted": "已删除文件夹「{name}」",
+  "@study_folder_deleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_folder_create_failed": "创建文件夹失败，请稍后重试",
+  "study_folder_update_failed": "更新文件夹失败，请稍后重试",
+  "study_folder_delete_failed": "删除文件夹失败，请稍后重试",
+  "study_folder_delete_confirm": "确定删除文件夹「{name}」？夹内歌单会回到根目录，不会删除歌单。",
+  "@study_folder_delete_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_move_to_folder": "移动到文件夹",
+  "study_move_to_folder_title": "移动「{name}」到文件夹",
+  "@study_move_to_folder_title": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_root_folder": "根目录",
+  "study_remove_from_folder": "移出文件夹",
+  "study_or_new_folder": "或新建文件夹",
+  "study_moved_to_folder": "已移动到「{name}」",
+  "@study_moved_to_folder": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_removed_from_folder": "已移回根目录",
+  "study_blank_hint": "长按空白处可新建歌单 / 文件夹",
+  "study_blank_actions_title": "新建"
 }

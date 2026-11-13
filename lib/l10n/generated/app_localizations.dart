@@ -5842,11 +5842,263 @@ abstract class AppLocalizations {
   /// **'播放倍速'**
   String get player_speed;
 
-  /// No description provided for @player_speed_study_only.
+  /// No description provided for @player_speed_hint.
   ///
   /// In zh, this message translates to:
-  /// **'仅对学习音频生效'**
-  String get player_speed_study_only;
+  /// **'对所有音频生效'**
+  String get player_speed_hint;
+
+  /// No description provided for @study_playlist_create.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建学习歌单'**
+  String get study_playlist_create;
+
+  /// No description provided for @study_playlist_rename.
+  ///
+  /// In zh, this message translates to:
+  /// **'重命名歌单'**
+  String get study_playlist_rename;
+
+  /// No description provided for @study_playlist_rename_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'重命名学习歌单'**
+  String get study_playlist_rename_title;
+
+  /// No description provided for @study_playlist_actions.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌单操作'**
+  String get study_playlist_actions;
+
+  /// No description provided for @study_playlist_created.
+  ///
+  /// In zh, this message translates to:
+  /// **'已创建「{name}」'**
+  String study_playlist_created(String name);
+
+  /// No description provided for @study_playlist_renamed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已重命名为「{name}」'**
+  String study_playlist_renamed(String name);
+
+  /// No description provided for @study_playlist_deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除「{name}」'**
+  String study_playlist_deleted(String name);
+
+  /// No description provided for @study_playlist_create_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建歌单失败，请稍后重试'**
+  String get study_playlist_create_failed;
+
+  /// No description provided for @study_playlist_update_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新歌单失败，请稍后重试'**
+  String get study_playlist_update_failed;
+
+  /// No description provided for @study_playlist_delete_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除歌单失败，请稍后重试'**
+  String get study_playlist_delete_failed;
+
+  /// No description provided for @study_add_to_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入学习歌单'**
+  String get study_add_to_playlist;
+
+  /// No description provided for @study_added_to_playlist.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入「{name}」，共 {count} 首'**
+  String study_added_to_playlist(String name, int count);
+
+  /// No description provided for @study_add_to_playlist_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入学习歌单失败，请稍后重试'**
+  String get study_add_to_playlist_failed;
+
+  /// No description provided for @study_file_resolve_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件处理失败，请稍后重试'**
+  String get study_file_resolve_failed;
+
+  /// No description provided for @study_removed_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移出 {count} 首'**
+  String study_removed_count(int count);
+
+  /// No description provided for @study_remove_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'移出失败，请稍后重试'**
+  String get study_remove_failed;
+
+  /// No description provided for @study_search_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索学习内容'**
+  String get study_search_hint;
+
+  /// No description provided for @study_search_playlists_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索学习歌单'**
+  String get study_search_playlists_hint;
+
+  /// No description provided for @study_search_clear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除'**
+  String get study_search_clear;
+
+  /// No description provided for @study_search_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的内容'**
+  String get study_search_empty;
+
+  /// No description provided for @study_playlist_search_result.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索到 {count} 个学习歌单'**
+  String study_playlist_search_result(int count);
+
+  /// No description provided for @study_new_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建文件夹'**
+  String get study_new_folder;
+
+  /// No description provided for @study_folder_rename.
+  ///
+  /// In zh, this message translates to:
+  /// **'重命名文件夹'**
+  String get study_folder_rename;
+
+  /// No description provided for @study_folder_rename_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'重命名学习歌单文件夹'**
+  String get study_folder_rename_title;
+
+  /// No description provided for @study_folder_name_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：高等数学'**
+  String get study_folder_name_hint;
+
+  /// No description provided for @study_folder_playlist_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个歌单'**
+  String study_folder_playlist_count(int count);
+
+  /// No description provided for @study_folder_created.
+  ///
+  /// In zh, this message translates to:
+  /// **'已创建文件夹「{name}」'**
+  String study_folder_created(String name);
+
+  /// No description provided for @study_folder_renamed.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件夹已重命名为「{name}」'**
+  String study_folder_renamed(String name);
+
+  /// No description provided for @study_folder_deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除文件夹「{name}」'**
+  String study_folder_deleted(String name);
+
+  /// No description provided for @study_folder_create_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建文件夹失败，请稍后重试'**
+  String get study_folder_create_failed;
+
+  /// No description provided for @study_folder_update_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新文件夹失败，请稍后重试'**
+  String get study_folder_update_failed;
+
+  /// No description provided for @study_folder_delete_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除文件夹失败，请稍后重试'**
+  String get study_folder_delete_failed;
+
+  /// No description provided for @study_folder_delete_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除文件夹「{name}」？夹内歌单会回到根目录，不会删除歌单。'**
+  String study_folder_delete_confirm(String name);
+
+  /// No description provided for @study_move_to_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'移动到文件夹'**
+  String get study_move_to_folder;
+
+  /// No description provided for @study_move_to_folder_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'移动「{name}」到文件夹'**
+  String study_move_to_folder_title(String name);
+
+  /// No description provided for @study_root_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'根目录'**
+  String get study_root_folder;
+
+  /// No description provided for @study_remove_from_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'移出文件夹'**
+  String get study_remove_from_folder;
+
+  /// No description provided for @study_or_new_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'或新建文件夹'**
+  String get study_or_new_folder;
+
+  /// No description provided for @study_moved_to_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移动到「{name}」'**
+  String study_moved_to_folder(String name);
+
+  /// No description provided for @study_removed_from_folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移回根目录'**
+  String get study_removed_from_folder;
+
+  /// No description provided for @study_blank_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'长按空白处可新建歌单 / 文件夹'**
+  String get study_blank_hint;
+
+  /// No description provided for @study_blank_actions_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建'**
+  String get study_blank_actions_title;
 }
 
 class _AppLocalizationsDelegate

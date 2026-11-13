@@ -3505,5 +3505,141 @@
     }
   },
   "player_speed": "Playback speed",
-  "player_speed_study_only": "Applies to study audio only"
+  "player_speed_hint": "Applies to all audio",
+  "study_playlist_create": "New study playlist",
+  "study_playlist_rename": "Rename playlist",
+  "study_playlist_rename_title": "Rename study playlist",
+  "study_playlist_actions": "Playlist actions",
+  "study_playlist_created": "Created \"{name}\"",
+  "@study_playlist_created": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_playlist_renamed": "Renamed to \"{name}\"",
+  "@study_playlist_renamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_playlist_deleted": "Deleted \"{name}\"",
+  "@study_playlist_deleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_playlist_create_failed": "Failed to create the playlist, please try again",
+  "study_playlist_update_failed": "Failed to update the playlist, please try again",
+  "study_playlist_delete_failed": "Failed to delete the playlist, please try again",
+  "study_add_to_playlist": "Add to study playlist",
+  "study_added_to_playlist": "Added {count} to \"{name}\"",
+  "@study_added_to_playlist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_add_to_playlist_failed": "Failed to add to the playlist, please try again",
+  "study_file_resolve_failed": "Failed to process the files, please try again",
+  "study_removed_count": "Removed {count} songs",
+  "@study_removed_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_remove_failed": "Failed to remove, please try again",
+  "study_search_hint": "Search study content",
+  "study_search_playlists_hint": "Search study playlists",
+  "study_search_clear": "Clear",
+  "study_search_empty": "No matching content",
+  "study_playlist_search_result": "{count} study playlist(s) found",
+  "@study_playlist_search_result": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_new_folder": "New folder",
+  "study_folder_rename": "Rename folder",
+  "study_folder_rename_title": "Rename study playlist folder",
+  "study_folder_name_hint": "e.g. Calculus",
+  "study_folder_playlist_count": "{count} playlist(s)",
+  "@study_folder_playlist_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "study_folder_created": "Created folder \"{name}\"",
+  "@study_folder_created": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_folder_renamed": "Folder renamed to \"{name}\"",
+  "@study_folder_renamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_folder_deleted": "Deleted folder \"{name}\"",
+  "@study_folder_deleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_folder_create_failed": "Failed to create the folder, please try again",
+  "study_folder_update_failed": "Failed to update the folder, please try again",
+  "study_folder_delete_failed": "Failed to delete the folder, please try again",
+  "study_folder_delete_confirm": "Delete folder \"{name}\"? Playlists inside will return to the root, not be deleted.",
+  "@study_folder_delete_confirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_move_to_folder": "Move to folder",
+  "study_move_to_folder_title": "Move \"{name}\" to folder",
+  "@study_move_to_folder_title": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_root_folder": "Root",
+  "study_remove_from_folder": "Remove from folder",
+  "study_or_new_folder": "Or create a new folder",
+  "study_moved_to_folder": "Moved to \"{name}\"",
+  "@study_moved_to_folder": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "study_removed_from_folder": "Moved back to the root",
+  "study_blank_hint": "Long-press the blank area to create a playlist / folder",
+  "study_blank_actions_title": "Create"
 }

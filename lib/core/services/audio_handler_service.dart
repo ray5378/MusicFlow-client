@@ -162,7 +162,8 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
         playing: true, // 关键：标记为正在播放
         updatePosition: Duration.zero,
         bufferedPosition: Duration.zero,
-        speed: 1.0,
+        // 倍速播放时通知栏进度也按同一速率外推(否则首帧按 1x 走,下一拍才纠正)。
+        speed: _audioPlayer.speed,
       ),
     );
   }

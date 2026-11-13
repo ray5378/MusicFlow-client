@@ -88,6 +88,7 @@ class StudyPlaylist {
     this.duration = 0,
     this.comment = '',
     this.public = false,
+    this.folder = '',
   });
 
   final String id;
@@ -97,6 +98,9 @@ class StudyPlaylist {
   final String comment;
   final bool public;
 
+  /// 所属文件夹名;空串=根目录。
+  final String folder;
+
   factory StudyPlaylist.fromJson(Map<String, dynamic> json) {
     return StudyPlaylist(
       id: '${json['id'] ?? ''}',
@@ -105,6 +109,7 @@ class StudyPlaylist {
       duration: (json['duration'] as num?)?.toInt() ?? 0,
       comment: '${json['comment'] ?? ''}',
       public: json['public'] == true,
+      folder: '${json['folder'] ?? ''}',
     );
   }
 }
@@ -124,6 +129,14 @@ class StudyContinueItem {
 
   /// 0~1。
   final double progress;
+}
+
+/// 批量入库结果：源文件相对路径 + 入库后的歌曲。
+class StudyResolvedEntry {
+  const StudyResolvedEntry({required this.path, required this.song});
+
+  final String path;
+  final Song song;
 }
 
 class StudyApi {
@@ -169,28 +182,40 @@ class StudyApi {
     required String sourceId,
     required List<String> paths,
   }) async {
-    if (paths.isEmpty) return const <Song>[];
+    final entries = await resolveBatchEntries(sourceId: sourceId, paths: paths);
+    return <Song>[for (final entry in entries) entry.song];
+  }
+
+  /// 批量入库并保留路径映射（多选加歌单需要按 relPath 精确对应 songId）。
+  Future<List<StudyResolvedEntry>> resolveBatchEntries({
+    required String sourceId,
+    required List<String> paths,
+  }) async {
+    if (paths.isEmpty) return const <StudyResolvedEntry>[];
     final raw = await _client.postRaw(
       '$_base/resolve-batch',
       data: <String, dynamic>{'sourceId': sourceId, 'paths': paths},
     );
-    final items = _mapList(raw);
-    final songs = <Song>[];
-    for (final item in items) {
+    final entries = <StudyResolvedEntry>[];
+    for (final item in _mapList(raw)) {
       final song = item['song'];
-      if (song is! Map) continue;
-      songs.add(
-        Song.fromJson(
-          song.map((key, value) => MapEntry(key.toString(), value)),
+      final path = item['path'];
+      if (song is! Map || path is! String) continue;
+      entries.add(
+        StudyResolvedEntry(
+          path: path,
+          song: Song.fromJson(
+            song.map((key, value) => MapEntry(key.toString(), value)),
+          ),
         ),
       );
     }
     Logger.infoWithTag(
       _logTag,
       'resolveBatch source=$sourceId requested=${paths.length} '
-          'resolved=${songs.length}',
+      'resolved=${entries.length}',
     );
-    return songs;
+    return entries;
   }
 
   /// 继续学习（未听完的最近条目）。
@@ -209,9 +234,49 @@ class StudyApi {
     ];
   }
 
-  Future<List<StudyPlaylist>> fetchPlaylists() async {
-    final raw = await _client.getRaw('$_base/playlists');
+  Future<List<StudyPlaylist>> fetchPlaylists({String q = ''}) async {
+    final raw = await _client.getRaw(
+      '$_base/playlists',
+      queryParameters: q.trim().isEmpty ? null : <String, dynamic>{'q': q.trim()},
+    );
     return _mapList(raw).map(StudyPlaylist.fromJson).toList(growable: false);
+  }
+
+  /// 学习歌单文件夹名列表(按课程归档;与歌单一样按用户隔离)。
+  Future<List<String>> fetchPlaylistFolders() async {
+    final raw = await _client.getRaw('$_base/playlist-folders');
+    return _mapList(raw)
+        .map((item) => '${item['name'] ?? ''}')
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<void> createPlaylistFolder(String name) async {
+    await _client.postRaw(
+      '$_base/playlist-folders',
+      data: <String, dynamic>{'name': name},
+    );
+  }
+
+  Future<void> renamePlaylistFolder(String name, String next) async {
+    await _client.putRaw(
+      '$_base/playlist-folders/${Uri.encodeComponent(name)}',
+      data: <String, dynamic>{'name': next},
+    );
+  }
+
+  Future<void> deletePlaylistFolder(String name) async {
+    await _client.deleteRaw(
+      '$_base/playlist-folders/${Uri.encodeComponent(name)}',
+    );
+  }
+
+  /// 把歌单移动到文件夹(folder 传空串 = 移回根目录)。
+  Future<void> movePlaylist(String playlistId, String folder) async {
+    await _client.putRaw(
+      '$_base/playlists/${Uri.encodeComponent(playlistId)}',
+      data: <String, dynamic>{'folder': folder},
+    );
   }
 
   /// 学习歌单曲目（按歌单顺序）。
@@ -220,6 +285,52 @@ class StudyApi {
       '$_base/playlists/${Uri.encodeComponent(playlistId)}/tracks',
     );
     return _mapList(raw).map(Song.fromJson).toList(growable: false);
+  }
+
+  /// 新建学习歌单，返回新歌单 id。
+  Future<String> createPlaylist(String name) async {
+    final raw = await _client.postRaw(
+      '$_base/playlists',
+      data: <String, dynamic>{'name': name},
+    );
+    final id = raw is Map ? '${raw['id'] ?? ''}'.trim() : '';
+    if (id.isEmpty) {
+      throw StateError('study playlist create returned no id');
+    }
+    return id;
+  }
+
+  /// 重命名学习歌单。
+  Future<void> renamePlaylist(String playlistId, String name) async {
+    await _client.putRaw(
+      '$_base/playlists/${Uri.encodeComponent(playlistId)}',
+      data: <String, dynamic>{'name': name},
+    );
+  }
+
+  /// 删除学习歌单。
+  Future<void> deletePlaylist(String playlistId) async {
+    await _client.deleteRaw(
+      '$_base/playlists/${Uri.encodeComponent(playlistId)}',
+    );
+  }
+
+  /// 把已入库的学习歌曲加入歌单（服务端会过滤未入库 id 与重复项）。
+  Future<void> addTracks(String playlistId, List<String> songIds) async {
+    if (songIds.isEmpty) return;
+    await _client.postRaw(
+      '$_base/playlists/${Uri.encodeComponent(playlistId)}/tracks',
+      data: <String, dynamic>{'add': songIds},
+    );
+  }
+
+  /// 从学习歌单移出歌曲（按 songId）。
+  Future<void> removeTracks(String playlistId, List<String> songIds) async {
+    if (songIds.isEmpty) return;
+    await _client.postRaw(
+      '$_base/playlists/${Uri.encodeComponent(playlistId)}/tracks',
+      data: <String, dynamic>{'remove': songIds},
+    );
   }
 
   /// 上报学习进度（不写音乐播放历史）。

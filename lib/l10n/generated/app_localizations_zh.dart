@@ -3227,5 +3227,157 @@ class AppLocalizationsZh extends AppLocalizations {
   String get player_speed => '播放倍速';
 
   @override
-  String get player_speed_study_only => '仅对学习音频生效';
+  String get player_speed_hint => '对所有音频生效';
+
+  @override
+  String get study_playlist_create => '新建学习歌单';
+
+  @override
+  String get study_playlist_rename => '重命名歌单';
+
+  @override
+  String get study_playlist_rename_title => '重命名学习歌单';
+
+  @override
+  String get study_playlist_actions => '歌单操作';
+
+  @override
+  String study_playlist_created(String name) {
+    return '已创建「$name」';
+  }
+
+  @override
+  String study_playlist_renamed(String name) {
+    return '已重命名为「$name」';
+  }
+
+  @override
+  String study_playlist_deleted(String name) {
+    return '已删除「$name」';
+  }
+
+  @override
+  String get study_playlist_create_failed => '创建歌单失败，请稍后重试';
+
+  @override
+  String get study_playlist_update_failed => '更新歌单失败，请稍后重试';
+
+  @override
+  String get study_playlist_delete_failed => '删除歌单失败，请稍后重试';
+
+  @override
+  String get study_add_to_playlist => '加入学习歌单';
+
+  @override
+  String study_added_to_playlist(String name, int count) {
+    return '已加入「$name」，共 $count 首';
+  }
+
+  @override
+  String get study_add_to_playlist_failed => '加入学习歌单失败，请稍后重试';
+
+  @override
+  String get study_file_resolve_failed => '文件处理失败，请稍后重试';
+
+  @override
+  String study_removed_count(int count) {
+    return '已移出 $count 首';
+  }
+
+  @override
+  String get study_remove_failed => '移出失败，请稍后重试';
+
+  @override
+  String get study_search_hint => '搜索学习内容';
+
+  @override
+  String get study_search_playlists_hint => '搜索学习歌单';
+
+  @override
+  String get study_search_clear => '清除';
+
+  @override
+  String get study_search_empty => '没有匹配的内容';
+
+  @override
+  String study_playlist_search_result(int count) {
+    return '搜索到 $count 个学习歌单';
+  }
+
+  @override
+  String get study_new_folder => '新建文件夹';
+
+  @override
+  String get study_folder_rename => '重命名文件夹';
+
+  @override
+  String get study_folder_rename_title => '重命名学习歌单文件夹';
+
+  @override
+  String get study_folder_name_hint => '例如：高等数学';
+
+  @override
+  String study_folder_playlist_count(int count) {
+    return '$count 个歌单';
+  }
+
+  @override
+  String study_folder_created(String name) {
+    return '已创建文件夹「$name」';
+  }
+
+  @override
+  String study_folder_renamed(String name) {
+    return '文件夹已重命名为「$name」';
+  }
+
+  @override
+  String study_folder_deleted(String name) {
+    return '已删除文件夹「$name」';
+  }
+
+  @override
+  String get study_folder_create_failed => '创建文件夹失败，请稍后重试';
+
+  @override
+  String get study_folder_update_failed => '更新文件夹失败，请稍后重试';
+
+  @override
+  String get study_folder_delete_failed => '删除文件夹失败，请稍后重试';
+
+  @override
+  String study_folder_delete_confirm(String name) {
+    return '确定删除文件夹「$name」？夹内歌单会回到根目录，不会删除歌单。';
+  }
+
+  @override
+  String get study_move_to_folder => '移动到文件夹';
+
+  @override
+  String study_move_to_folder_title(String name) {
+    return '移动「$name」到文件夹';
+  }
+
+  @override
+  String get study_root_folder => '根目录';
+
+  @override
+  String get study_remove_from_folder => '移出文件夹';
+
+  @override
+  String get study_or_new_folder => '或新建文件夹';
+
+  @override
+  String study_moved_to_folder(String name) {
+    return '已移动到「$name」';
+  }
+
+  @override
+  String get study_removed_from_folder => '已移回根目录';
+
+  @override
+  String get study_blank_hint => '长按空白处可新建歌单 / 文件夹';
+
+  @override
+  String get study_blank_actions_title => '新建';
 }

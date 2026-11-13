@@ -2248,23 +2248,21 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
   }
 
   // ---------------------------------------------------------------------------
-  // 学习音频倍速
+  // 播放倍速
   // ---------------------------------------------------------------------------
 
-  /// 当前应生效的播放速度：学习音频 = 用户选择值，普通音乐恒 1.0。
+  /// 当前应生效的播放速度：学习音频与普通音乐共用同一档位（默认 1.0）。
   ///
-  /// 与网页端 `studyRate` 同一语义（音乐不被倍速影响），实际写入播放器
-  /// 的时机统一收敛到 [_applyEffectivePlaybackSpeed]。
-  double get effectivePlaybackSpeed =>
-      (state.currentSong?.isStudy ?? false) ? state.playbackSpeed : 1.0;
+  /// 实际写入播放器的时机统一收敛到 [_applyEffectivePlaybackSpeed]。
+  double get effectivePlaybackSpeed => state.playbackSpeed;
 
-  /// 设置学习音频倍速（0.5~2.0，持久化，切歌后保持）。
+  /// 设置播放倍速（0.5~2.0，持久化，切歌后保持）。
   Future<void> setPlaybackSpeed(double speed) async {
     final clamped = speed.clamp(0.5, 2.0).toDouble();
     if (!mounted) return;
     if (state.playbackSpeed == clamped) return;
     state = state.copyWith(playbackSpeed: clamped);
-    unawaited(LocalStorage.setStudyRate(clamped));
+    unawaited(LocalStorage.setPlaybackRate(clamped));
     await _applyEffectivePlaybackSpeed();
   }
 
@@ -2286,15 +2284,15 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
     }
   }
 
-  /// 启动时恢复学习音频倍速（默认 1.0）。
+  /// 启动时恢复播放倍速（默认 1.0）。
   Future<void> _restorePlaybackSpeed() async {
     try {
-      final rate = await LocalStorage.getStudyRate();
+      final rate = await LocalStorage.getPlaybackRate();
       state = state.copyWith(playbackSpeed: rate);
       await _applyEffectivePlaybackSpeed();
-      Logger.infoWithTag(_playerLogTag, 'restored study rate: $rate');
+      Logger.infoWithTag(_playerLogTag, 'restored playback rate: $rate');
     } catch (e) {
-      Logger.warnWithTag(_playerLogTag, 'failed to restore study rate', e);
+      Logger.warnWithTag(_playerLogTag, 'failed to restore playback rate', e);
     }
   }
 

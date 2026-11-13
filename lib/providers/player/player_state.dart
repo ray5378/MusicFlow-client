@@ -105,10 +105,10 @@ class PlayerState {
   /// 本机播放音量（0.0~1.0，对齐主项目前端 volume 语义）。
   final double volume;
 
-  /// 学习音频播放倍速（0.5~2.0，对齐网页端 studyRate 语义）。
+  /// 播放倍速（0.5~2.0），学习音频与普通音乐共用同一档位。
   ///
-  /// **只对 `Song.kind == 'study'` 生效**，普通音乐恒按 1.0 播放 ——
-  /// 这一维度是「用户上次选择」的持久值，实际生效速度由当前歌曲类型决定。
+  /// 这一维度是「用户上次选择」的持久值，切歌后保持；实际写入播放器
+  /// 的速度见 `PlayerController.effectivePlaybackSpeed`。
   final double playbackSpeed;
 
   PlayerState({

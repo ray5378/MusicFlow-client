@@ -3393,5 +3393,166 @@ class AppLocalizationsEn extends AppLocalizations {
   String get player_speed => 'Playback speed';
 
   @override
-  String get player_speed_study_only => 'Applies to study audio only';
+  String get player_speed_hint => 'Applies to all audio';
+
+  @override
+  String get study_playlist_create => 'New study playlist';
+
+  @override
+  String get study_playlist_rename => 'Rename playlist';
+
+  @override
+  String get study_playlist_rename_title => 'Rename study playlist';
+
+  @override
+  String get study_playlist_actions => 'Playlist actions';
+
+  @override
+  String study_playlist_created(String name) {
+    return 'Created \"$name\"';
+  }
+
+  @override
+  String study_playlist_renamed(String name) {
+    return 'Renamed to \"$name\"';
+  }
+
+  @override
+  String study_playlist_deleted(String name) {
+    return 'Deleted \"$name\"';
+  }
+
+  @override
+  String get study_playlist_create_failed =>
+      'Failed to create the playlist, please try again';
+
+  @override
+  String get study_playlist_update_failed =>
+      'Failed to update the playlist, please try again';
+
+  @override
+  String get study_playlist_delete_failed =>
+      'Failed to delete the playlist, please try again';
+
+  @override
+  String get study_add_to_playlist => 'Add to study playlist';
+
+  @override
+  String study_added_to_playlist(String name, int count) {
+    return 'Added $count to \"$name\"';
+  }
+
+  @override
+  String get study_add_to_playlist_failed =>
+      'Failed to add to the playlist, please try again';
+
+  @override
+  String get study_file_resolve_failed =>
+      'Failed to process the files, please try again';
+
+  @override
+  String study_removed_count(int count) {
+    return 'Removed $count songs';
+  }
+
+  @override
+  String get study_remove_failed => 'Failed to remove, please try again';
+
+  @override
+  String get study_search_hint => 'Search study content';
+
+  @override
+  String get study_search_playlists_hint => 'Search study playlists';
+
+  @override
+  String get study_search_clear => 'Clear';
+
+  @override
+  String get study_search_empty => 'No matching content';
+
+  @override
+  String study_playlist_search_result(int count) {
+    return '$count study playlist(s) found';
+  }
+
+  @override
+  String get study_new_folder => 'New folder';
+
+  @override
+  String get study_folder_rename => 'Rename folder';
+
+  @override
+  String get study_folder_rename_title => 'Rename study playlist folder';
+
+  @override
+  String get study_folder_name_hint => 'e.g. Calculus';
+
+  @override
+  String study_folder_playlist_count(int count) {
+    return '$count playlist(s)';
+  }
+
+  @override
+  String study_folder_created(String name) {
+    return 'Created folder \"$name\"';
+  }
+
+  @override
+  String study_folder_renamed(String name) {
+    return 'Folder renamed to \"$name\"';
+  }
+
+  @override
+  String study_folder_deleted(String name) {
+    return 'Deleted folder \"$name\"';
+  }
+
+  @override
+  String get study_folder_create_failed =>
+      'Failed to create the folder, please try again';
+
+  @override
+  String get study_folder_update_failed =>
+      'Failed to update the folder, please try again';
+
+  @override
+  String get study_folder_delete_failed =>
+      'Failed to delete the folder, please try again';
+
+  @override
+  String study_folder_delete_confirm(String name) {
+    return 'Delete folder \"$name\"? Playlists inside will return to the root, not be deleted.';
+  }
+
+  @override
+  String get study_move_to_folder => 'Move to folder';
+
+  @override
+  String study_move_to_folder_title(String name) {
+    return 'Move \"$name\" to folder';
+  }
+
+  @override
+  String get study_root_folder => 'Root';
+
+  @override
+  String get study_remove_from_folder => 'Remove from folder';
+
+  @override
+  String get study_or_new_folder => 'Or create a new folder';
+
+  @override
+  String study_moved_to_folder(String name) {
+    return 'Moved to \"$name\"';
+  }
+
+  @override
+  String get study_removed_from_folder => 'Moved back to the root';
+
+  @override
+  String get study_blank_hint =>
+      'Long-press the blank area to create a playlist / folder';
+
+  @override
+  String get study_blank_actions_title => 'Create';
 }

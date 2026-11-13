@@ -30,6 +30,11 @@ final studyPlaylistsProvider = FutureProvider<List<StudyPlaylist>>((ref) {
   return ref.watch(studyApiProvider).fetchPlaylists();
 });
 
+/// 学习歌单文件夹(按课程归档)。
+final studyPlaylistFoldersProvider = FutureProvider<List<String>>((ref) {
+  return ref.watch(studyApiProvider).fetchPlaylistFolders();
+});
+
 /// 某个学习源的目录内容。
 final studyDirProvider = FutureProvider.family<List<StudyDirEntry>,
     ({String sourceId, String path})>((ref, args) {

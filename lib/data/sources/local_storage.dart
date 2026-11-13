@@ -41,7 +41,9 @@ class LocalStorage {
   static const String _keySearchHistory = 'search_history_v1';
   static const String _keyHomeSectionLayout = 'home_section_layout_v1';
   static const String _keyClientId = 'mf_client_id';
-  static const String _keyStudyRate = 'study_rate';
+  static const String _keyPlaybackRate = 'playback_rate';
+  /// v5.11 仅学习音频用的旧键:升级后首次读取回退到它,避免用户已选倍速丢失。
+  static const String _keyLegacyStudyRate = 'study_rate';
   static const String _keyCategoryNavOrder = 'category_nav_order_v1';
   static const String _keySidebarNavOrder = 'sidebar_nav_order_v1';
 
@@ -702,20 +704,21 @@ class LocalStorage {
     Logger.infoWithTag(_logTag, 'playerVolume saved: $clamped');
   }
 
-  /// 读取学习音频播放倍速（0.5~2.0，默认 1.0）。
-  static Future<double> getStudyRate() async {
+  /// 读取播放倍速（学习音频与普通音乐共用，0.5~2.0，默认 1.0）。
+  static Future<double> getPlaybackRate() async {
     final prefs = await getPrefs();
-    final value = prefs.getDouble(_keyStudyRate);
+    final value = prefs.getDouble(_keyPlaybackRate) ??
+        prefs.getDouble(_keyLegacyStudyRate);
     if (value == null) return 1.0;
     return value.clamp(0.5, 2.0).toDouble();
   }
 
-  /// 保存学习音频播放倍速（0.5~2.0）。
-  static Future<void> setStudyRate(double rate) async {
+  /// 保存播放倍速（0.5~2.0）。
+  static Future<void> setPlaybackRate(double rate) async {
     final clamped = rate.clamp(0.5, 2.0).toDouble();
     final prefs = await getPrefs();
-    await prefs.setDouble(_keyStudyRate, clamped);
-    Logger.infoWithTag(_logTag, 'studyRate saved: $clamped');
+    await prefs.setDouble(_keyPlaybackRate, clamped);
+    Logger.infoWithTag(_logTag, 'playbackRate saved: $clamped');
   }
 
   /// 读取窄屏首页顶部分类导航顺序（元素为稳定 id，缺失返回 null）。

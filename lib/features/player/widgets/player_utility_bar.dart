@@ -79,15 +79,13 @@ class PlayerUtilityBar extends ConsumerWidget {
               selected: sleepActive,
               onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
             ),
-            // 播放倍速(仅学习音频):位于「定时」与「流转播放」之间。
-            // 与网页端一致 —— 只作用于学习音频，普通音乐恒 1.0 不显示该按钮。
-            if (currentSong.isStudy)
-              _PlaybackSpeedButton(
-                speed: ref.watch(
-                  playerProvider.select((s) => s.playbackSpeed),
-                ),
-                onPressed: () => unawaited(_openSpeedSheet(context, ref)),
+            // 播放倍速(学习音频与普通音乐通用):位于「定时」与「流转播放」之间。
+            _PlaybackSpeedButton(
+              speed: ref.watch(
+                playerProvider.select((s) => s.playbackSpeed),
               ),
+              onPressed: () => unawaited(_openSpeedSheet(context, ref)),
+            ),
             // 「流转播放」：使用 infinity(∞) 图标（2026-10-02 由信号塔换为 ∞），
             // 置于最右，与最左的 DLNA 直投拉开距离。
             PlayerIconButton(
@@ -181,7 +179,10 @@ class PlayerUtilityBar extends ConsumerWidget {
     );
   }
 
-  /// 学习音频倍速选择面板（0.75x ~ 2x，与网页端同一档位）。
+  /// 播放倍速选择面板（0.75x ~ 2x，与网页端同一档位）。
+  ///
+  /// 内容必须包在 [MusicFlowBottomSheet] 里：`showMusicFlowBottomSheet`
+  /// 只负责路由/弹窗骨架，不提供底色；裸 Column 会透出遮罩（无底色）。
   Future<void> _openSpeedSheet(BuildContext context, WidgetRef ref) async {
     final loc = AppLocalizations.of(context);
     final current = ref.read(playerProvider).playbackSpeed;
@@ -191,59 +192,42 @@ class PlayerUtilityBar extends ConsumerWidget {
       isScrollControlled: true,
       builder: (sheetContext) {
         final colors = sheetContext.musicFlowColors;
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    loc.player_speed,
-                    style: sheetContext.musicFlowTypography.title,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    loc.player_speed_study_only,
-                    style: sheetContext.musicFlowTypography.metadata.copyWith(
-                      color: colors.muted,
+        return MusicFlowBottomSheet(
+          title: loc.player_speed,
+          subtitle: loc.player_speed_hint,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (final rate in _playbackRates)
+                MusicFlowPressable(
+                  onPressed: () => Navigator.of(sheetContext).pop(rate),
+                  selected: (current - rate).abs() < 0.001,
+                  borderRadius: sheetContext.musicFlowRadii.surface,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 12,
                     ),
-                  ),
-                ),
-                for (final rate in _playbackRates)
-                  MusicFlowPressable(
-                    onPressed: () => Navigator.of(sheetContext).pop(rate),
-                    borderRadius: sheetContext.musicFlowRadii.surface,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              '${_formatRate(rate)}x',
-                              style: sheetContext.musicFlowTypography.body,
-                            ),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            '${_formatRate(rate)}x',
+                            style: sheetContext.musicFlowTypography.body,
                           ),
-                          if ((current - rate).abs() < 0.001)
-                            Icon(
-                              AppIcons.check,
-                              size: 18,
-                              color: colors.accent,
-                            ),
-                        ],
-                      ),
+                        ),
+                        if ((current - rate).abs() < 0.001)
+                          Icon(
+                            AppIcons.check,
+                            size: 18,
+                            color: colors.accent,
+                          ),
+                      ],
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
       },
@@ -252,7 +236,7 @@ class PlayerUtilityBar extends ConsumerWidget {
     await ref.read(playerProvider.notifier).setPlaybackSpeed(selected);
   }
 
-  /// 与网页端 studyRate 一致的档位。
+  /// 与网页端一致的档位。
   static const List<double> _playbackRates = <double>[
     0.75,
     1.0,
