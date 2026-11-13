@@ -3378,6 +3378,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to delete the learning record, please try again later';
 
   @override
+  String get study_clear_records => 'Clear learning history';
+
+  @override
+  String get study_clear_records_action => 'Clear';
+
+  @override
+  String get study_clear_records_confirm =>
+      'Clear all learning history? Both individual items and study playlist resume positions will be removed. Audio files will not be deleted.';
+
+  @override
+  String get study_clear_records_done => 'Learning history cleared';
+
+  @override
+  String get study_clear_records_failed =>
+      'Failed to clear learning history, please try again later';
+
+  @override
   String get study_empty_dir => 'This folder is empty';
 
   @override
@@ -3444,6 +3461,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get study_playlist_create_failed =>
       'Failed to create the playlist, please try again';
+
+  @override
+  String get study_playlist_name_exists =>
+      'A study playlist with this name already exists';
 
   @override
   String get study_playlist_update_failed =>

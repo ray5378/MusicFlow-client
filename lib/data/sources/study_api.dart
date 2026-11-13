@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
@@ -120,6 +121,8 @@ class StudyContinueItem {
     required this.song,
     this.positionSec = 0,
     this.progress = 0,
+    this.playlistId = '',
+    this.playlistName = '',
   });
 
   final Song song;
@@ -129,6 +132,26 @@ class StudyContinueItem {
 
   /// 0~1。
   final double progress;
+
+  /// 学习歌单续播条目：所属歌单 id / 名称（单条学习内容为空串）。
+  final String playlistId;
+  final String playlistName;
+
+  /// 是否为「学习歌单」续播条目。
+  bool get isPlaylist => playlistId.isNotEmpty;
+}
+
+/// 「继续学习」接口结果：单条学习内容 + 学习歌单续播条目。
+class StudyContinueResult {
+  const StudyContinueResult({
+    this.items = const <StudyContinueItem>[],
+    this.playlistItems = const <StudyContinueItem>[],
+  });
+
+  final List<StudyContinueItem> items;
+  final List<StudyContinueItem> playlistItems;
+
+  bool get isEmpty => items.isEmpty && playlistItems.isEmpty;
 }
 
 /// 批量入库结果：源文件相对路径 + 入库后的歌曲。
@@ -139,6 +162,11 @@ class StudyResolvedEntry {
   final Song song;
 }
 
+/// 学习歌单重名：服务端以 409 拒绝创建/改名。
+class StudyPlaylistNameConflict implements Exception {
+  const StudyPlaylistNameConflict();
+}
+
 class StudyApi {
   StudyApi(this._client);
 
@@ -147,9 +175,9 @@ class StudyApi {
 
   final SubsonicApiClient _client;
 
-  static List<Map<String, dynamic>> _mapList(dynamic raw) {
-    if (raw is Map && raw['items'] is List) {
-      final list = raw['items'] as List;
+  static List<Map<String, dynamic>> _mapList(dynamic raw, {String key = 'items'}) {
+    if (raw is Map && raw[key] is List) {
+      final list = raw[key] as List;
       return <Map<String, dynamic>>[
         for (final item in list)
           if (item is Map)
@@ -220,18 +248,27 @@ class StudyApi {
 
   /// 继续学习（未听完的最近条目）。
   Future<List<StudyContinueItem>> fetchContinue({int limit = 20}) async {
+    final result = await fetchContinueAll(limit: limit);
+    return result.items;
+  }
+
+  /// 继续学习全部内容：单独学习的内容 + 学习歌单续播条目。
+  Future<StudyContinueResult> fetchContinueAll({int limit = 20}) async {
     final raw = await _client.getRaw(
       '$_base/continue',
       queryParameters: <String, dynamic>{'limit': limit},
     );
-    return <StudyContinueItem>[
-      for (final item in _mapList(raw))
-        StudyContinueItem(
-          song: Song.fromJson(item),
-          positionSec: (item['positionSec'] as num?)?.toInt() ?? 0,
-          progress: (item['progress'] as num?)?.toDouble() ?? 0,
-        ),
-    ];
+    List<StudyContinueItem> parse(String key) => <StudyContinueItem>[
+          for (final item in _mapList(raw, key: key))
+            StudyContinueItem(
+              song: Song.fromJson(item),
+              positionSec: (item['positionSec'] as num?)?.toInt() ?? 0,
+              progress: (item['progress'] as num?)?.toDouble() ?? 0,
+              playlistId: '${item['playlistId'] ?? ''}'.trim(),
+              playlistName: '${item['playlistName'] ?? ''}'.trim(),
+            ),
+        ];
+    return StudyContinueResult(items: parse('items'), playlistItems: parse('playlistItems'));
   }
 
   Future<List<StudyPlaylist>> fetchPlaylists({String q = ''}) async {
@@ -294,33 +331,66 @@ class StudyApi {
     );
   }
 
-  /// 学习歌单曲目（按歌单顺序）。
+  /// 学习歌单曲目（按歌单顺序）。列表展示与源文件一致的文件名（含扩展名）。
   Future<List<Song>> fetchPlaylistTracks(String playlistId) async {
     final raw = await _client.getRaw(
       '$_base/playlists/${Uri.encodeComponent(playlistId)}/tracks',
     );
-    return _mapList(raw).map(Song.fromJson).toList(growable: false);
+    final name = raw is Map ? '${raw['name'] ?? ''}'.trim() : '';
+    return <Song>[
+      for (final item in _mapList(raw))
+        _playlistTrackFromJson(item, playlistId: playlistId, playlistName: name),
+    ];
+  }
+
+  Song _playlistTrackFromJson(
+    Map<String, dynamic> json, {
+    String playlistId = '',
+    String playlistName = '',
+  }) {
+    final song = Song.fromJson(json);
+    final fileName = '${json['fileName'] ?? ''}'.trim();
+    return song.copyWith(
+      title: fileName.isEmpty ? null : fileName,
+      // 记录来源歌单：播放时据此同时上报「整单续播」位置。
+      playlistId: playlistId.isEmpty ? null : playlistId,
+      playlistName: playlistName.isEmpty ? null : playlistName,
+    );
   }
 
   /// 新建学习歌单，返回新歌单 id。
   Future<String> createPlaylist(String name) async {
-    final raw = await _client.postRaw(
-      '$_base/playlists',
-      data: <String, dynamic>{'name': name},
-    );
-    final id = raw is Map ? '${raw['id'] ?? ''}'.trim() : '';
-    if (id.isEmpty) {
-      throw StateError('study playlist create returned no id');
+    try {
+      final raw = await _client.postRaw(
+        '$_base/playlists',
+        data: <String, dynamic>{'name': name},
+      );
+      final id = raw is Map ? '${raw['id'] ?? ''}'.trim() : '';
+      if (id.isEmpty) {
+        throw StateError('study playlist create returned no id');
+      }
+      return id;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        throw const StudyPlaylistNameConflict();
+      }
+      rethrow;
     }
-    return id;
   }
 
   /// 重命名学习歌单。
   Future<void> renamePlaylist(String playlistId, String name) async {
-    await _client.putRaw(
-      '$_base/playlists/${Uri.encodeComponent(playlistId)}',
-      data: <String, dynamic>{'name': name},
-    );
+    try {
+      await _client.putRaw(
+        '$_base/playlists/${Uri.encodeComponent(playlistId)}',
+        data: <String, dynamic>{'name': name},
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        throw const StudyPlaylistNameConflict();
+      }
+      rethrow;
+    }
   }
 
   /// 删除学习歌单。
@@ -368,6 +438,28 @@ class StudyApi {
   Future<void> deleteProgress(String songId) async {
     await _client.deleteRaw(
       '$_base/progress/${Uri.encodeComponent(songId)}',
+    );
+  }
+
+  /// 清空当前用户全部学习记录（含学习歌单续播位置，不删除音频文件）。
+  Future<void> clearProgress() async {
+    await _client.deleteRaw('$_base/progress');
+  }
+
+  /// 上报学习歌单播放位置（整单续播用；曲目必须属于该歌单）。
+  Future<void> reportPlaylistProgress({
+    required String playlistId,
+    required String songId,
+    required int positionSec,
+    required int durationSec,
+  }) async {
+    await _client.putRaw(
+      '$_base/playlists/${Uri.encodeComponent(playlistId)}/progress',
+      data: <String, dynamic>{
+        'songId': songId,
+        'positionSec': positionSec < 0 ? 0 : positionSec,
+        'durationSec': durationSec < 0 ? 0 : durationSec,
+      },
     );
   }
 }

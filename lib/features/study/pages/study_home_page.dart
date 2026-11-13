@@ -526,28 +526,40 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
 
   Widget _buildContinueTab(BuildContext context, AppLocalizations loc) {
     final continuing = ref.watch(studyContinueProvider);
+    final hasRecords = !(continuing.asData?.value.isEmpty ?? true);
     return ListView(
       padding: _listPadding,
       children: <Widget>[
         _Section(
           title: loc.study_section_continue,
+          trailing: hasRecords
+              ? MusicFlowButton.ghost(
+                  label: loc.study_clear_records,
+                  onPressed: () => unawaited(_clearContinueRecords()),
+                )
+              : null,
           child: continuing.when(
             loading: () => const _LoadingRows(),
             error: (error, _) => _ErrorRow(
               message: loc.study_load_failed,
               onRetry: () => ref.invalidate(studyContinueProvider),
             ),
-            data: (items) {
-              if (items.isEmpty) {
+            data: (result) {
+              if (result.isEmpty) {
                 return _EmptyRow(
                   icon: AppIcons.history,
                   label: loc.study_empty_continue,
                 );
               }
-              final visible = items
+              final visible = result.items
                   .where((item) => _matches(item.song.title))
                   .toList(growable: false);
-              if (visible.isEmpty) {
+              // 学习歌单续播条目:标题是歌单名,副标题是上次听到的那一节。
+              final visiblePlaylists = result.playlistItems
+                  .where((item) =>
+                      _matches(item.playlistName) || _matches(item.song.title))
+                  .toList(growable: false);
+              if (visible.isEmpty && visiblePlaylists.isEmpty) {
                 return _EmptyRow(
                   icon: AppIcons.search,
                   label: loc.study_search_empty,
@@ -558,6 +570,20 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
               );
               return Column(
                 children: <Widget>[
+                  for (final item in visiblePlaylists)
+                    _SwipeDeleteRow(
+                      deleteLabel: loc.common_delete,
+                      onDelete: () =>
+                          unawaited(_deleteContinueRecord(item)),
+                      child: _ContinueRow(
+                        item: item,
+                        playing: item.song.id == currentId,
+                        icon: AppIcons.playlist,
+                        title: item.playlistName,
+                        subtitle: item.song.title,
+                        onTap: () => unawaited(_resumePlaylist(item)),
+                      ),
+                    ),
                   for (var i = 0; i < visible.length; i++)
                     _SwipeDeleteRow(
                       deleteLabel: loc.common_delete,
@@ -576,6 +602,90 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         ),
       ],
     );
+  }
+
+  /// 学习歌单续播:取整单曲目,定位到上次那一节,并从上次位置继续。
+  Future<void> _resumePlaylist(StudyContinueItem item) async {
+    final loc = AppLocalizations.of(context);
+    if (item.playlistId.isEmpty) return;
+    try {
+      final songs = await ref.read(
+        studyPlaylistTracksProvider(item.playlistId).future,
+      );
+      if (!mounted) return;
+      if (songs.isEmpty) {
+        _toast(loc.study_empty_playlist_tracks, kind: MusicFlowMessageKind.error);
+        return;
+      }
+      final index = songs.indexWhere((s) => s.id == item.song.id);
+      final start = index >= 0 ? index : 0;
+      final casting =
+          ref.read(castPeerControllerProvider).activePeer != null ||
+          ref.read(dlnaCastProvider).isCasting;
+      if (casting) {
+        await playEffectiveQueue(ref, songs, startIndex: start);
+        return;
+      }
+      await ref.read(playerProvider.notifier).playQueue(
+            songs,
+            startIndex: start,
+            initialPosition: Duration(seconds: item.positionSec),
+          );
+    } catch (_) {
+      if (!mounted) return;
+      _toast(loc.study_load_failed, kind: MusicFlowMessageKind.error);
+    }
+  }
+
+  /// 清空全部学习记录(含学习歌单续播位置,不删除音频文件)。
+  Future<void> _clearContinueRecords() async {
+    final loc = AppLocalizations.of(context);
+    final confirmed = await showMusicFlowBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (sheetContext) => MusicFlowBottomSheet(
+        title: loc.study_clear_records,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              loc.study_clear_records_confirm,
+              style: sheetContext.musicFlowTypography.body.copyWith(
+                color: sheetContext.musicFlowColors.muted,
+              ),
+            ),
+            SizedBox(height: sheetContext.musicFlowSpacing.lg),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: MusicFlowButton.secondary(
+                    label: loc.settings_cancel,
+                    onPressed: () => Navigator.of(sheetContext).pop(false),
+                  ),
+                ),
+                SizedBox(width: sheetContext.musicFlowSpacing.sm),
+                Expanded(
+                  child: MusicFlowButton.destructive(
+                    label: loc.study_clear_records_action,
+                    onPressed: () => Navigator.of(sheetContext).pop(true),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(studyApiProvider).clearProgress();
+      ref.invalidate(studyContinueProvider);
+      _toast(loc.study_clear_records_done);
+    } catch (_) {
+      if (!mounted) return;
+      _toast(loc.study_clear_records_failed, kind: MusicFlowMessageKind.error);
+    }
   }
 
   void _openBrowse(BuildContext context, StudySource source) {
@@ -654,6 +764,8 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       await ref.read(studyApiProvider).createPlaylist(name);
       _invalidatePlaylists();
       _toast(loc.study_playlist_created(name));
+    } on StudyPlaylistNameConflict {
+      _toast(loc.study_playlist_name_exists, kind: MusicFlowMessageKind.error);
     } catch (_) {
       _toast(loc.study_playlist_create_failed, kind: MusicFlowMessageKind.error);
     }
@@ -780,6 +892,8 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       _invalidatePlaylists();
       ref.invalidate(studyPlaylistTracksProvider(playlist.id));
       _toast(loc.study_playlist_renamed(name));
+    } on StudyPlaylistNameConflict {
+      _toast(loc.study_playlist_name_exists, kind: MusicFlowMessageKind.error);
     } catch (_) {
       _toast(loc.study_playlist_update_failed, kind: MusicFlowMessageKind.error);
     }
@@ -1263,11 +1377,21 @@ class _ContinueRow extends StatelessWidget {
     required this.item,
     required this.playing,
     required this.onTap,
+    this.icon,
+    this.title,
+    this.subtitle,
   });
 
   final StudyContinueItem item;
   final bool playing;
   final VoidCallback onTap;
+
+  /// 歌单续播行用列表图标区分;为空时按播放状态显示播放/正在播放图标。
+  final IconData? icon;
+
+  /// 主标题/副标题覆盖:歌单续播行显示歌单名 + 上次那一节。
+  final String? title;
+  final String? subtitle;
 
   static String _formatSeconds(int seconds) {
     if (seconds <= 0) return '00:00';
@@ -1300,7 +1424,7 @@ class _ContinueRow extends StatelessWidget {
                     valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
                   ),
                   Icon(
-                    playing ? AppIcons.equalizer : AppIcons.play,
+                    icon ?? (playing ? AppIcons.equalizer : AppIcons.play),
                     size: 13,
                     color: playing ? colors.accent : colors.ink,
                   ),
@@ -1313,7 +1437,7 @@ class _ContinueRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    item.song.title,
+                    title ?? item.song.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: context.musicFlowTypography.body.copyWith(
@@ -1323,7 +1447,9 @@ class _ContinueRow extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      '${_formatSeconds(item.positionSec)} · $percent%',
+                      subtitle == null
+                          ? '${_formatSeconds(item.positionSec)} · $percent%'
+                          : '$subtitle · ${_formatSeconds(item.positionSec)} · $percent%',
                       style: context.musicFlowTypography.metadata.copyWith(
                         color: colors.muted,
                       ),

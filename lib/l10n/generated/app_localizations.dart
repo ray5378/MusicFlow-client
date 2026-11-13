@@ -5818,6 +5818,36 @@ abstract class AppLocalizations {
   /// **'删除学习记录失败，请稍后重试'**
   String get study_delete_record_failed;
 
+  /// No description provided for @study_clear_records.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空学习记录'**
+  String get study_clear_records;
+
+  /// No description provided for @study_clear_records_action.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空'**
+  String get study_clear_records_action;
+
+  /// No description provided for @study_clear_records_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清空全部学习记录？单条学习内容与学习歌单的续播位置都会被清除，音频文件不会被删除。'**
+  String get study_clear_records_confirm;
+
+  /// No description provided for @study_clear_records_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'学习记录已清空'**
+  String get study_clear_records_done;
+
+  /// No description provided for @study_clear_records_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空学习记录失败，请稍后重试'**
+  String get study_clear_records_failed;
+
   /// No description provided for @study_empty_dir.
   ///
   /// In zh, this message translates to:
@@ -5931,6 +5961,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'创建歌单失败，请稍后重试'**
   String get study_playlist_create_failed;
+
+  /// No description provided for @study_playlist_name_exists.
+  ///
+  /// In zh, this message translates to:
+  /// **'已存在同名学习歌单，请换个名字'**
+  String get study_playlist_name_exists;
 
   /// No description provided for @study_playlist_update_failed.
   ///

@@ -21,8 +21,9 @@ final studySourcesProvider = FutureProvider<List<StudySource>>((ref) {
 });
 
 /// 继续学习（未听完的最近条目；服务端每用户最多保留最新 50 条记录）。
-final studyContinueProvider = FutureProvider<List<StudyContinueItem>>((ref) {
-  return ref.watch(studyApiProvider).fetchContinue(limit: 50);
+/// 同时带出「学习歌单续播」条目，可整单从上次位置继续。
+final studyContinueProvider = FutureProvider<StudyContinueResult>((ref) {
+  return ref.watch(studyApiProvider).fetchContinueAll(limit: 50);
 });
 
 /// 学习歌单列表。
@@ -84,7 +85,7 @@ class StudyProgressReporter {
           if (prevSong != null && prevSong.isStudy && (changedSong || paused)) {
             // 换歌/暂停：把上一首的最终进度补报一次，刷新后能准确续播。
             _send(
-              songId: prevSong.id,
+              song: prevSong,
               position: previous.position,
               duration: previous.duration,
             );
@@ -118,11 +119,11 @@ class StudyProgressReporter {
     final now = DateTime.now();
     if (now.difference(_lastReportAt) < _heartbeatInterval) return;
     if (state.position <= Duration.zero) return;
-    _send(songId: song.id, position: state.position, duration: state.duration);
+    _send(song: song, position: state.position, duration: state.duration);
   }
 
   void _send({
-    required String songId,
+    required Song song,
     required Duration position,
     required Duration duration,
   }) {
@@ -130,11 +131,11 @@ class StudyProgressReporter {
     if (_ref.read(castPeerControllerProvider).activePeer != null) return;
     if (_ref.read(dlnaCastProvider).isCasting) return;
     _lastReportAt = DateTime.now();
+    final api = _ref.read(studyApiProvider);
     unawaited(
-      _ref
-          .read(studyApiProvider)
+      api
           .reportProgress(
-            songId: songId,
+            songId: song.id,
             positionSec: position.inSeconds,
             durationSec: duration.inSeconds,
           )
@@ -142,6 +143,22 @@ class StudyProgressReporter {
         Logger.debugWithTag(_logTag, 'report progress failed: $e');
       }),
     );
+    // 来自学习歌单的播放:同时记录整单续播位置(继续学习页可整单续播)。
+    final playlistId = song.playlistId?.trim() ?? '';
+    if (playlistId.isNotEmpty) {
+      unawaited(
+        api
+            .reportPlaylistProgress(
+              playlistId: playlistId,
+              songId: song.id,
+              positionSec: position.inSeconds,
+              durationSec: duration.inSeconds,
+            )
+            .catchError((Object e) {
+          Logger.debugWithTag(_logTag, 'report playlist progress failed: $e');
+        }),
+      );
+    }
   }
 
   void dispose() {

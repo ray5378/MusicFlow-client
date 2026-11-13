@@ -3211,6 +3211,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get study_delete_record_failed => '删除学习记录失败，请稍后重试';
 
   @override
+  String get study_clear_records => '清空学习记录';
+
+  @override
+  String get study_clear_records_action => '清空';
+
+  @override
+  String get study_clear_records_confirm =>
+      '确定清空全部学习记录？单条学习内容与学习歌单的续播位置都会被清除，音频文件不会被删除。';
+
+  @override
+  String get study_clear_records_done => '学习记录已清空';
+
+  @override
+  String get study_clear_records_failed => '清空学习记录失败，请稍后重试';
+
+  @override
   String get study_empty_dir => '这个目录是空的';
 
   @override
@@ -3276,6 +3292,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get study_playlist_create_failed => '创建歌单失败，请稍后重试';
+
+  @override
+  String get study_playlist_name_exists => '已存在同名学习歌单，请换个名字';
 
   @override
   String get study_playlist_update_failed => '更新歌单失败，请稍后重试';

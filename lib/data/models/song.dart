@@ -62,6 +62,9 @@ class Song {
   final String? sourceId;
   /// 学习源内的相对目录（仅 [kind] == 'study' 时有值）。
   final String? relDir;
+  /// 播放来源为学习歌单时有值：播放进度额外写入「整单续播」。
+  final String? playlistId;
+  final String? playlistName;
   final bool isPreview;
   final String? previewSource;
   final String? previewTrackId;
@@ -107,6 +110,8 @@ class Song {
     this.kind,
     this.sourceId,
     this.relDir,
+    this.playlistId,
+    this.playlistName,
     this.isPreview = false,
     this.previewSource,
     this.previewTrackId,
@@ -178,6 +183,8 @@ class Song {
     String? kind,
     String? sourceId,
     String? relDir,
+    String? playlistId,
+    String? playlistName,
     bool? isPreview,
     String? previewSource,
     String? previewTrackId,
@@ -223,6 +230,8 @@ class Song {
       kind: kind ?? this.kind,
       sourceId: sourceId ?? this.sourceId,
       relDir: relDir ?? this.relDir,
+      playlistId: playlistId ?? this.playlistId,
+      playlistName: playlistName ?? this.playlistName,
       isPreview: isPreview ?? this.isPreview,
       previewSource: previewSource ?? this.previewSource,
       previewTrackId: previewTrackId ?? this.previewTrackId,
@@ -281,6 +290,8 @@ class Song {
       kind: _toStr(json['kind']),
       sourceId: _toStr(json['sourceId']),
       relDir: _toStr(json['relDir']),
+      playlistId: _toStr(json['playlistId']),
+      playlistName: _toStr(json['playlistName']),
       isPreview: json['isPreview'] as bool? ?? false,
       previewSource: _toStr(json['previewSource']),
       previewTrackId: _toStr(json['previewTrackId']),
@@ -335,6 +346,8 @@ class Song {
       'kind': kind,
       'sourceId': sourceId,
       'relDir': relDir,
+      'playlistId': playlistId,
+      'playlistName': playlistName,
       'isPreview': isPreview,
       'previewSource': previewSource,
       'previewTrackId': previewTrackId,
