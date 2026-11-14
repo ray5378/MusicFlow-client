@@ -39,6 +39,15 @@ class PlayerUtilityBar extends ConsumerWidget {
     final dlnaCast = ref.watch(dlnaCastProvider);
     final sleepRemaining = ref.watch(sleepTimerProvider);
     final sleepActive = sleepRemaining != null;
+    // 倍速:本机走本地解码器;链路 A 投屏/群组走服务端 /peers/:id/speed。
+    // 本机实例(local:)与链路 B(局域网 DLNA 直投)没有服务端出流入口 —— 隐藏
+    // 按钮,而不是留一个点了没反应的控件。
+    final remoteCasting =
+        cast.isCasting && !(cast.activePeer?.isLocal ?? false);
+    final hideSpeed = dlnaCast.isCasting || (cast.isCasting && !remoteCasting);
+    final speedValue = remoteCasting
+        ? cast.status.speed
+        : ref.watch(playerProvider.select((s) => s.playbackSpeed));
 
     return Center(
       child: ConstrainedBox(
@@ -86,12 +95,14 @@ class PlayerUtilityBar extends ConsumerWidget {
                 onPressed: () => unawaited(_openSleepTimerSheet(context, ref)),
               ),
               // 播放倍速(学习音频与普通音乐通用):位于「定时」与「流转播放」之间。
-              _PlaybackSpeedButton(
-                speed: ref.watch(
-                  playerProvider.select((s) => s.playbackSpeed),
+              // 投屏态显示/下发**远端**倍速(服务端以当前位置重投当前曲)。
+              if (!hideSpeed)
+                _PlaybackSpeedButton(
+                  speed: speedValue,
+                  onPressed: () => unawaited(
+                    _openSpeedSheet(context, ref, casting: remoteCasting),
+                  ),
                 ),
-                onPressed: () => unawaited(_openSpeedSheet(context, ref)),
-              ),
               // 「流转播放」：使用 infinity(∞) 图标（2026-10-02 由信号塔换为 ∞），
               // 置于最右，与最左的 DLNA 直投拉开距离。
               PlayerIconButton(
@@ -190,9 +201,15 @@ class PlayerUtilityBar extends ConsumerWidget {
   ///
   /// 内容必须包在 [MusicFlowBottomSheet] 里：`showMusicFlowBottomSheet`
   /// 只负责路由/弹窗骨架，不提供底色；裸 Column 会透出遮罩（无底色）。
-  Future<void> _openSpeedSheet(BuildContext context, WidgetRef ref) async {
+  Future<void> _openSpeedSheet(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool casting,
+  }) async {
     final loc = AppLocalizations.of(context);
-    final current = ref.read(playerProvider).playbackSpeed;
+    final current = casting
+        ? ref.read(castPeerControllerProvider).status.speed
+        : ref.read(playerProvider).playbackSpeed;
     final selected = await showMusicFlowBottomSheet<double>(
       context: context,
       useRootNavigator: true,
@@ -240,6 +257,13 @@ class PlayerUtilityBar extends ConsumerWidget {
       },
     );
     if (selected == null || !context.mounted) return;
+    if (casting) {
+      // 远端(投屏播放器 / 群组 / 混合群组):服务端按新倍速从当前位置重投。
+      await ref
+          .read(castPeerControllerProvider.notifier)
+          .setActivePeerPlaybackSpeed(selected);
+      return;
+    }
     await ref.read(playerProvider.notifier).setPlaybackSpeed(selected);
   }
 

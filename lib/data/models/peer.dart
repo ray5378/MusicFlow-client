@@ -99,6 +99,7 @@ class PeerStatus {
     this.muted = false,
     this.active = false,
     this.reportedAtMs,
+    this.speed = 1,
   });
 
   factory PeerStatus.fromJson(Map<String, dynamic> j) => PeerStatus(
@@ -117,6 +118,9 @@ class PeerStatus {
         // 注意:不能用 `updatedAt` 代替 —— 对 local 而言那是「队列行写入时刻」,
         // 实测与真实采样时刻能差几十秒(2026-09-16 实测相差 53s)。
         reportedAtMs: (j['reportedAt'] as num?)?.toInt(),
+        // 服务端 4.13.0 起 /status 回传当前出流倍速(0.75~2,缺省 1)。
+        // 只对**设备型**目标有意义:本机实例(local:)不支持远端改速率。
+        speed: (j['speed'] as num?)?.toDouble() ?? 1,
       );
 
   final String state;
@@ -125,6 +129,10 @@ class PeerStatus {
   final int? volume;
   final bool muted;
   final bool active;
+
+  /// 服务端当前出流倍速(0.75~2，缺省 1)。设备型目标由 `/peers/:id/speed` 下发；
+  /// 本机实例(local:)不参与(本机自带倍速)。
+  final double speed;
 
   /// `positionSeconds` 的**采样时刻**(服务端时钟,毫秒)。仅客户端实例有,设备型为 null。
   final int? reportedAtMs;
@@ -139,6 +147,7 @@ class PeerStatus {
     bool? muted,
     bool? active,
     int? reportedAtMs,
+    double? speed,
   }) {
     return PeerStatus(
       state: state ?? this.state,
@@ -148,6 +157,7 @@ class PeerStatus {
       muted: muted ?? this.muted,
       active: active ?? this.active,
       reportedAtMs: reportedAtMs ?? this.reportedAtMs,
+      speed: speed ?? this.speed,
     );
   }
 }

@@ -498,6 +498,34 @@ mixin CastPeerSession on CastPeerControllerBase {
     state = state.copyWith(status: nextStatus);
   }
 
+  /// 投屏/群组的播放倍速(服务端 4.13.0 能力)。
+  ///
+  /// 服务端是**唯一执行方**:出流在 cast 时按倍速一次性编码(atempo),运行中改不了,
+  /// 因此服务端会以「当前内容位置 + 新倍速」重投当前曲。客户端只负责下发偏好,
+  /// 成功后乐观回写 status.speed(设备真正切流由下一次轮询确认)。
+  ///
+  /// 本机实例(local:)不支持 —— 服务端直接 400(本机自带倍速,不存在「被遥控改速率」),
+  /// UI 层已在投屏到 local 时隐藏入口。
+  Future<void> setActivePeerPlaybackSpeed(double speed) async {
+    final peerId = state.activePeer?.peerId;
+    if (peerId == null) return;
+    final clamped = speed.clamp(0.75, 2.0).toDouble();
+    final res = await _post('speed', data: <String, dynamic>{'speed': clamped});
+    if (res == null) {
+      Logger.warnWithTag(
+        'CAST-PEER',
+        '[speed] peer=$peerId speed=$clamped send failed (post returned null), '
+            'optimistic writeback skipped',
+      );
+      return;
+    }
+    // 服务端回显归一后的档位;没有回显就按请求值回写。
+    final applied = (res is Map && res['speed'] is num)
+        ? (res['speed'] as num).toDouble()
+        : clamped;
+    state = state.copyWith(status: state.status.copyWith(speed: applied));
+  }
+
   // ==================== 播放模式同步 ====================
 
   /// 下发投屏播放模式(order|one|all|shuffle)。
