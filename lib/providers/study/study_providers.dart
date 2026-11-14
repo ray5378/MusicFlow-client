@@ -8,6 +8,7 @@ import 'package:musicflow_client/data/sources/study_api.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 
 /// 学习模块 API（随活跃库/地址切换自动重建）。
@@ -54,7 +55,8 @@ final studyPlaylistTracksProvider =
 ///
 /// - 每 10 秒心跳一次（与网页端同一节流）；
 /// - 暂停 / 换歌 / 清空队列时立即补报一次；
-/// - 只上报本机正在播放的学习音频（投屏/直投链路由对端自行上报）。
+/// - 进度/时长/播放态统一走 [effectivePositionProvider] 等「有效播放」入口，
+///   因此本机、服务端投屏、局域网 DLNA 直投都会保留学习记录。
 final studyProgressReporterProvider = Provider<StudyProgressReporter>((ref) {
   final reporter = StudyProgressReporter(ref);
   reporter.start();
@@ -71,10 +73,17 @@ class StudyProgressReporter {
   final Ref _ref;
   Timer? _heartbeat;
   ProviderSubscription<PlayerState>? _playerSub;
+  ProviderSubscription<bool>? _effectivePlayingSub;
   DateTime _lastReportAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   void start() {
     if (_playerSub != null) return;
+    // 有效播放态(本机/投屏/直投)单独监听：远端被暂停/续播时 playerProvider
+    // 不一定变化，必须由这里驱动心跳的启停。
+    _effectivePlayingSub = _ref.listen<bool>(
+      effectiveIsPlayingProvider,
+      (_, _) => _syncHeartbeat(),
+    );
     _playerSub = _ref.listen<PlayerState>(
       playerProvider,
       (previous, next) {
@@ -82,25 +91,46 @@ class StudyProgressReporter {
           final prevSong = previous.currentSong;
           final changedSong = prevSong?.id != next.currentSong?.id;
           final paused = previous.isPlaying && !next.isPlaying;
-          if (prevSong != null && prevSong.isStudy && (changedSong || paused)) {
-            // 换歌/暂停：把上一首的最终进度补报一次，刷新后能准确续播。
-            _send(
-              song: prevSong,
-              position: previous.position,
-              duration: previous.duration,
-            );
+          if (prevSong != null && prevSong.isStudy) {
+            if (changedSong) {
+              // 换歌：上一首的最终进度补报一次。投屏/直投下
+              // playerProvider.position 是本机残留值，改用上一拍心跳即可，
+              // 不能用旧值覆盖远端进度。
+              if (!_isRemoteActive()) {
+                _send(
+                  song: prevSong,
+                  position: previous.position,
+                  duration: previous.duration,
+                );
+              }
+            } else if (paused) {
+              // 暂停：用有效进度把最终位置补报一次（投屏/直投时取设备进度）。
+              _send(
+                song: prevSong,
+                position: _ref.read(effectivePositionProvider),
+                duration: _ref.read(effectiveDurationProvider),
+              );
+            }
           }
         }
-        // 心跳只在「本机正在播放学习音频」时存在：普通音乐/暂停/空闲时
+        // 心跳只在「正在播放学习音频」时存在：普通音乐/暂停/空闲时
         // 不持有任何 Timer（既省电，也避免应用级定时器在测试里悬挂）。
-        _syncHeartbeat(next);
+        _syncHeartbeat();
       },
       fireImmediately: true,
     );
   }
 
-  void _syncHeartbeat(PlayerState state) {
-    final shouldTick = state.currentSong?.isStudy == true && state.isPlaying;
+  /// 是否处于远端播放（服务端投屏 / 局域网 DLNA 直投）。
+  bool _isRemoteActive() {
+    return _ref.read(castPeerControllerProvider).activePeer != null ||
+        _ref.read(dlnaCastProvider).isCasting;
+  }
+
+  void _syncHeartbeat() {
+    final song = _ref.read(playerProvider).currentSong;
+    final shouldTick =
+        song?.isStudy == true && _ref.read(effectiveIsPlayingProvider);
     if (shouldTick) {
       _heartbeat ??= Timer.periodic(
         _heartbeatInterval,
@@ -113,13 +143,18 @@ class StudyProgressReporter {
   }
 
   void _reportCurrent() {
-    final state = _ref.read(playerProvider);
-    final song = state.currentSong;
-    if (song == null || !song.isStudy || !state.isPlaying) return;
+    final song = _ref.read(playerProvider).currentSong;
+    if (song == null || !song.isStudy) return;
+    if (!_ref.read(effectiveIsPlayingProvider)) return;
     final now = DateTime.now();
     if (now.difference(_lastReportAt) < _heartbeatInterval) return;
-    if (state.position <= Duration.zero) return;
-    _send(song: song, position: state.position, duration: state.duration);
+    final position = _ref.read(effectivePositionProvider);
+    if (position <= Duration.zero) return;
+    _send(
+      song: song,
+      position: position,
+      duration: _ref.read(effectiveDurationProvider),
+    );
   }
 
   void _send({
@@ -127,9 +162,6 @@ class StudyProgressReporter {
     required Duration position,
     required Duration duration,
   }) {
-    // 投屏 / 局域网直投时本机不是发声端，进度由对端上报，避免用旧进度覆盖。
-    if (_ref.read(castPeerControllerProvider).activePeer != null) return;
-    if (_ref.read(dlnaCastProvider).isCasting) return;
     _lastReportAt = DateTime.now();
     final api = _ref.read(studyApiProvider);
     unawaited(
@@ -166,5 +198,7 @@ class StudyProgressReporter {
     _heartbeat = null;
     _playerSub?.close();
     _playerSub = null;
+    _effectivePlayingSub?.close();
+    _effectivePlayingSub = null;
   }
 }
