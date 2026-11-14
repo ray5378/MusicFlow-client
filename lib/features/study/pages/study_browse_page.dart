@@ -59,9 +59,8 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
 
   List<StudyDirEntry> _sortedFiles(List<StudyDirEntry> entries) {
     final files =
-        entries.where((e) => !e.isDir && isStudyAudioFile(e.name)).toList()..sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-        );
+        entries.where((e) => !e.isDir && isStudyAudioFile(e.name)).toList()
+          ..sort((a, b) => compareStudyNames(a.name, b.name));
     return files;
   }
 
@@ -240,10 +239,7 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
             ),
             data: (entries) {
               final dirs = entries.where((e) => e.isDir).toList()
-                ..sort(
-                  (a, b) =>
-                      a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-                );
+                ..sort((a, b) => compareStudyNames(a.name, b.name));
               final files = _sortedFiles(entries);
               if (dirs.isEmpty && files.isEmpty) {
                 return Center(

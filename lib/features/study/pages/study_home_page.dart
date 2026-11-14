@@ -534,7 +534,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         set.add(parts.take(i).join('/'));
       }
     }
-    return set.toList()..sort();
+    return set.toList()..sort(compareStudyNames);
   }
 
   static int _folderDepth(String path) => path.split('/').length - 1;

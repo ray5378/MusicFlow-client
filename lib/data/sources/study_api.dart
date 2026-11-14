@@ -30,6 +30,46 @@ bool isStudyAudioFile(String name) {
   return _studyAudioExtensions.contains(name.substring(dot + 1).toLowerCase());
 }
 
+bool _isDigitCode(int code) => code >= 0x30 && code <= 0x39;
+
+/// 学习内容自然排序（与服务端 `localeCompare(..., {numeric:true})` 一致）：
+/// 数字段按数值比较，其余按字符码点比较；因此 1 < 3 < 11 < 103，而不是字典序。
+int compareStudyNames(String a, String b) {
+  final x = a.toLowerCase();
+  final y = b.toLowerCase();
+  var i = 0;
+  var j = 0;
+  while (i < x.length && j < y.length) {
+    final cx = x.codeUnitAt(i);
+    final cy = y.codeUnitAt(j);
+    final dx = _isDigitCode(cx);
+    final dy = _isDigitCode(cy);
+    if (dx && dy) {
+      var ei = i;
+      while (ei < x.length && _isDigitCode(x.codeUnitAt(ei))) {
+        ei++;
+      }
+      var ej = j;
+      while (ej < y.length && _isDigitCode(y.codeUnitAt(ej))) {
+        ej++;
+      }
+      final na = BigInt.parse(x.substring(i, ei));
+      final nb = BigInt.parse(y.substring(j, ej));
+      final cmp = na.compareTo(nb);
+      if (cmp != 0) return cmp;
+      i = ei;
+      j = ej;
+      continue;
+    }
+    if (cx != cy) return cx.compareTo(cy);
+    i++;
+    j++;
+  }
+  if (i < x.length) return 1;
+  if (j < y.length) return -1;
+  return 0;
+}
+
 /// 学习源。
 class StudySource {
   const StudySource({
@@ -253,7 +293,7 @@ class StudyApi {
         }
       }
     }
-    files.sort();
+    files.sort(compareStudyNames);
     return files;
   }
 
