@@ -320,8 +320,8 @@ Future<StudyDirAction?> showStudyDirActionsSheet({
     isScrollControlled: true,
     desktopAnchored:
         context.musicFlowWindowClass != MusicFlowWindowClass.compact,
-    builder: (_) {
-      final loc = AppLocalizations.of(context);
+    builder: (sheetContext) {
+      final loc = AppLocalizations.of(sheetContext);
       return MusicFlowBottomSheet(
         title: name,
         child: Column(
@@ -330,8 +330,9 @@ Future<StudyDirAction?> showStudyDirActionsSheet({
             MusicFlowActionRow(
               icon: AppIcons.playlistAdd,
               title: loc.study_add_to_playlist,
-              onPressed: () =>
-                  Navigator.of(context).pop(StudyDirAction.addToPlaylist),
+              onPressed: () => Navigator.of(
+                sheetContext,
+              ).pop(StudyDirAction.addToPlaylist),
             ),
           ],
         ),
@@ -453,8 +454,8 @@ Future<StudyFolderAction?> showStudyFolderActionsSheet({
     isScrollControlled: true,
     desktopAnchored:
         context.musicFlowWindowClass != MusicFlowWindowClass.compact,
-    builder: (_) {
-      final loc = AppLocalizations.of(context);
+    builder: (sheetContext) {
+      final loc = AppLocalizations.of(sheetContext);
       return MusicFlowBottomSheet(
         title: folder,
         child: Column(
@@ -463,15 +464,17 @@ Future<StudyFolderAction?> showStudyFolderActionsSheet({
             MusicFlowActionRow(
               icon: AppIcons.edit,
               title: loc.study_folder_rename,
-              onPressed: () =>
-                  Navigator.of(context).pop(StudyFolderAction.rename),
+              onPressed: () => Navigator.of(
+                sheetContext,
+              ).pop(StudyFolderAction.rename),
             ),
             MusicFlowActionRow(
               icon: AppIcons.delete,
               title: loc.study_folder_delete,
               destructive: true,
-              onPressed: () =>
-                  Navigator.of(context).pop(StudyFolderAction.delete),
+              onPressed: () => Navigator.of(
+                sheetContext,
+              ).pop(StudyFolderAction.delete),
             ),
           ],
         ),
