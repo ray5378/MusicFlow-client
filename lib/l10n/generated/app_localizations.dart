@@ -6172,17 +6172,17 @@ abstract class AppLocalizations {
   /// **'已移回根目录'**
   String get study_removed_from_folder;
 
-  /// No description provided for @study_blank_hint.
+  /// No description provided for @study_dir_scanning.
   ///
   /// In zh, this message translates to:
-  /// **'长按空白处可新建歌单 / 文件夹'**
-  String get study_blank_hint;
+  /// **'正在扫描目录…'**
+  String get study_dir_scanning;
 
-  /// No description provided for @study_blank_actions_title.
+  /// No description provided for @study_dir_no_audio.
   ///
   /// In zh, this message translates to:
-  /// **'新建'**
-  String get study_blank_actions_title;
+  /// **'该目录下没有学习内容'**
+  String get study_dir_no_audio;
 }
 
 class _AppLocalizationsDelegate

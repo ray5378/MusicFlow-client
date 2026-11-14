@@ -3596,9 +3596,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get study_removed_from_folder => 'Moved back to the root';
 
   @override
-  String get study_blank_hint =>
-      'Long-press the blank area to create a playlist / folder';
+  String get study_dir_scanning => 'Scanning folder…';
 
   @override
-  String get study_blank_actions_title => 'Create';
+  String get study_dir_no_audio => 'No study content in this folder';
 }

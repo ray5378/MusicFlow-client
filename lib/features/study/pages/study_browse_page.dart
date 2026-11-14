@@ -43,26 +43,6 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
   final Set<String> _selectedPaths = <String>{};
   bool _addingToPlaylist = false;
 
-  static const Set<String> _audioExtensions = <String>{
-    'mp3',
-    'm4a',
-    'aac',
-    'flac',
-    'wav',
-    'ogg',
-    'opus',
-    'ape',
-    'wma',
-    'aiff',
-    'aif',
-  };
-
-  static bool _isAudioFile(String name) {
-    final dot = name.lastIndexOf('.');
-    if (dot <= 0 || dot == name.length - 1) return false;
-    return _audioExtensions.contains(name.substring(dot + 1).toLowerCase());
-  }
-
   Future<void> _refresh() async {
     ref.invalidate(
       studyDirProvider((sourceId: widget.sourceId, path: widget.path)),
@@ -79,7 +59,7 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
 
   List<StudyDirEntry> _sortedFiles(List<StudyDirEntry> entries) {
     final files =
-        entries.where((e) => !e.isDir && _isAudioFile(e.name)).toList()..sort(
+        entries.where((e) => !e.isDir && isStudyAudioFile(e.name)).toList()..sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
     return files;
@@ -145,6 +125,22 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
           ),
         ),
       ),
+    );
+  }
+
+  /// 子目录长按：把该目录（递归）里的学习内容加入学习歌单。
+  Future<void> _showDirActions(StudyDirEntry entry) async {
+    if (_selectionMode || _addingToPlaylist || _resolvingAll) return;
+    final action = await showStudyDirActionsSheet(
+      context: context,
+      name: entry.name,
+    );
+    if (action != StudyDirAction.addToPlaylist || !mounted) return;
+    await addStudyDirToPlaylist(
+      context: context,
+      ref: ref,
+      sourceId: widget.sourceId,
+      path: entry.relPath,
     );
   }
 
@@ -269,6 +265,9 @@ class _StudyBrowsePageState extends ConsumerState<StudyBrowsePage> {
                       onTap: _selectionMode
                           ? null
                           : () => _openDirectory(dirs[index]),
+                      onLongPress: _selectionMode
+                          ? null
+                          : () => _showDirActions(dirs[index]),
                     );
                   }
                   final file = files[index - dirs.length];
@@ -492,15 +491,18 @@ class _BrowseSelectionBar extends StatelessWidget {
 }
 
 class _DirRow extends StatelessWidget {
-  const _DirRow({required this.entry, required this.onTap});
+  const _DirRow({required this.entry, required this.onTap, this.onLongPress});
 
   final StudyDirEntry entry;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     return MusicFlowPressable(
       onPressed: onTap,
+      onLongPress: onLongPress,
+      onSecondaryTap: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

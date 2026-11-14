@@ -8,6 +8,28 @@ import 'package:musicflow_client/data/sources/subsonic_api_client.dart';
 /// 学习面与音乐面互相隔离：列表/搜索/歌单都只看 `kind='study'` 的源与歌曲，
 /// 播放进度写 `study_progress`（不污染音乐播放历史）。
 
+/// 学习目录中的音频扩展名（与服务的浏览白名单一致）。
+const Set<String> _studyAudioExtensions = <String>{
+  'mp3',
+  'm4a',
+  'aac',
+  'flac',
+  'wav',
+  'ogg',
+  'opus',
+  'ape',
+  'wma',
+  'aiff',
+  'aif',
+};
+
+/// 判断文件是否为可入库的学习音频（按扩展名）。
+bool isStudyAudioFile(String name) {
+  final dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot == name.length - 1) return false;
+  return _studyAudioExtensions.contains(name.substring(dot + 1).toLowerCase());
+}
+
 /// 学习源。
 class StudySource {
   const StudySource({
@@ -205,6 +227,36 @@ class StudyApi {
     return _mapList(raw).map(StudyDirEntry.fromJson).toList(growable: false);
   }
 
+  /// 递归收集目录（含所有子目录）下的音频文件路径。
+  ///
+  /// 用于「整个目录加入学习歌单」：逐层列远程目录，最多遍历 [maxDirs] 个目录、
+  /// 收集 [maxFiles] 个文件，避免超大目录把远端打满；结果按路径排序保证顺序稳定。
+  Future<List<String>> collectAudioPaths({
+    required String sourceId,
+    String path = '',
+    int maxFiles = 2000,
+    int maxDirs = 400,
+  }) async {
+    final files = <String>[];
+    final queue = <String>[path];
+    var visited = 0;
+    while (queue.isNotEmpty && files.length < maxFiles && visited < maxDirs) {
+      final dir = queue.removeAt(0);
+      visited++;
+      final entries = await fetchDir(sourceId: sourceId, path: dir);
+      for (final entry in entries) {
+        if (entry.isDir) {
+          queue.add(entry.relPath);
+        } else if (isStudyAudioFile(entry.name)) {
+          files.add(entry.relPath);
+          if (files.length >= maxFiles) break;
+        }
+      }
+    }
+    files.sort();
+    return files;
+  }
+
   /// 批量入库（「播放全部」/点某一章）：返回按入参顺序排列的歌曲，失败项跳过。
   Future<List<Song>> resolveBatch({
     required String sourceId,
@@ -295,12 +347,21 @@ class StudyApi {
   }
 
   /// 学习歌单文件夹名列表(按课程归档;与歌单一样按用户隔离)。
+  ///
+  /// 服务端返回 `{ items: ["新概念一", "课程/高数"] }`（多级目录用 `/` 分隔），
+  /// 条目是字符串而不是对象，不能走 [_mapList]（只保留 Map）。
   Future<List<String>> fetchPlaylistFolders() async {
     final raw = await _client.getRaw('$_base/playlist-folders');
-    return _mapList(raw)
-        .map((item) => '${item['name'] ?? ''}')
-        .where((name) => name.isNotEmpty)
-        .toList(growable: false);
+    final list = raw is Map && raw['items'] is List
+        ? raw['items'] as List
+        : const <dynamic>[];
+    return <String>[
+      for (final item in list)
+        if (item is String)
+          item.trim()
+        else if (item is Map)
+          '${item['name'] ?? ''}'.trim(),
+    ].where((name) => name.isNotEmpty).toList(growable: false);
   }
 
   Future<void> createPlaylistFolder(String name) async {

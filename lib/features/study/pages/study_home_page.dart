@@ -397,14 +397,11 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                         ? loc.study_source_song_count(source.songCount)
                         : null,
                     onTap: () => _openBrowse(context, source),
+                    onLongPress: () => unawaited(_showSourceActions(source)),
                   ),
               ],
             );
           },
-        ),
-        _BlankZone(
-          label: loc.study_blank_hint,
-          onLongPress: () => unawaited(_showBlankActions(includeFolder: false)),
         ),
       ],
     );
@@ -442,12 +439,6 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
             onRetry: () => ref.invalidate(studyPlaylistsProvider),
           ),
           data: (items) {
-            if (items.isEmpty) {
-              return _EmptyRow(
-                icon: AppIcons.playlist,
-                label: loc.study_empty_playlists,
-              );
-            }
             final query = _query.trim();
             if (query.isNotEmpty) {
               final matched = items
@@ -476,53 +467,87 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                 ],
               );
             }
-            final knownFolders = <String>{
+            // 文件夹以完整路径（a/b）存储：逐级补全父目录后按路径排序，
+            // 这样空文件夹也能显示，并且子目录缩进在父目录下。
+            final knownFolders = _knownFolders(<String>[
               ...(folderNames.asData?.value ?? const <String>[]),
               for (final playlist in items)
                 if (playlist.folder.isNotEmpty) playlist.folder,
-            }.toList()
-              ..sort();
+            ]);
             final rootPlaylists = items
                 .where((playlist) => playlist.folder.isEmpty)
                 .toList(growable: false);
+            if (items.isEmpty && knownFolders.isEmpty) {
+              return _EmptyRow(
+                icon: AppIcons.playlist,
+                label: loc.study_empty_playlists,
+              );
+            }
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                for (final folder in knownFolders) ...<Widget>[
-                  _FolderRow(
-                    name: folder,
-                    count: items
-                        .where((playlist) => playlist.folder == folder)
-                        .length,
-                    expanded: _expandedFolders.contains(folder),
-                    onTap: () => setState(() {
-                      if (!_expandedFolders.add(folder)) {
-                        _expandedFolders.remove(folder);
-                      }
-                    }),
-                    onLongPress: () => unawaited(_showFolderActions(folder)),
-                  ),
-                  if (_expandedFolders.contains(folder))
-                    for (final playlist in items.where(
-                      (playlist) => playlist.folder == folder,
-                    ))
-                      Padding(
-                        padding: const EdgeInsets.only(left: 20),
-                        child: _buildPlaylistRow(context, loc, playlist),
-                      ),
-                ],
+                for (final folder in knownFolders)
+                  if (_isFolderVisible(folder)) ...<Widget>[
+                    _FolderRow(
+                      name: _folderLabel(folder),
+                      depth: _folderDepth(folder),
+                      count: items
+                          .where((playlist) => playlist.folder == folder)
+                          .length,
+                      expanded: _expandedFolders.contains(folder),
+                      onTap: () => setState(() {
+                        if (!_expandedFolders.add(folder)) {
+                          _expandedFolders.remove(folder);
+                        }
+                      }),
+                      onLongPress: () => unawaited(_showFolderActions(folder)),
+                    ),
+                    if (_expandedFolders.contains(folder))
+                      for (final playlist in items.where(
+                        (playlist) => playlist.folder == folder,
+                      ))
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: 20.0 + _folderDepth(folder) * 16,
+                          ),
+                          child: _buildPlaylistRow(context, loc, playlist),
+                        ),
+                  ],
                 for (final playlist in rootPlaylists)
                   _buildPlaylistRow(context, loc, playlist),
               ],
             );
           },
         ),
-        _BlankZone(
-          label: loc.study_blank_hint,
-          onLongPress: () => unawaited(_showBlankActions(includeFolder: true)),
-        ),
       ],
     );
+  }
+
+  /// 补全每级父目录并按路径排序（服务端多级目录用 `/` 分隔）。
+  List<String> _knownFolders(Iterable<String> folders) {
+    final set = <String>{};
+    for (final raw in folders) {
+      final path = raw.trim();
+      if (path.isEmpty) continue;
+      final parts = path.split('/');
+      for (var i = 1; i <= parts.length; i++) {
+        set.add(parts.take(i).join('/'));
+      }
+    }
+    return set.toList()..sort();
+  }
+
+  static int _folderDepth(String path) => path.split('/').length - 1;
+
+  static String _folderLabel(String path) => path.split('/').last;
+
+  /// 只显示祖先目录都已展开的文件夹（折叠父目录时隐藏整棵子树）。
+  bool _isFolderVisible(String path) {
+    final parts = path.split('/');
+    for (var i = 1; i < parts.length; i++) {
+      if (!_expandedFolders.contains(parts.take(i).join('/'))) return false;
+    }
+    return true;
   }
 
   Widget _buildPlaylistRow(
@@ -814,18 +839,19 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     }
   }
 
-  Future<void> _showBlankActions({required bool includeFolder}) async {
-    final action = await showStudyBlankActionsSheet(
+  /// 总目录里的学习源（顶层目录）长按：整源递归加入学习歌单。
+  Future<void> _showSourceActions(StudySource source) async {
+    final action = await showStudyDirActionsSheet(
       context: context,
-      includeFolder: includeFolder,
+      name: source.name,
     );
-    if (action == null || !mounted) return;
-    switch (action) {
-      case StudyBlankAction.newPlaylist:
-        await _createPlaylist();
-      case StudyBlankAction.newFolder:
-        await _createFolder();
-    }
+    if (action != StudyDirAction.addToPlaylist || !mounted) return;
+    await addStudyDirToPlaylist(
+      context: context,
+      ref: ref,
+      sourceId: source.id,
+      path: '',
+    );
   }
 
   Future<void> _showFolderActions(String folder) async {
@@ -1103,6 +1129,7 @@ class _FolderRow extends StatelessWidget {
     required this.expanded,
     required this.onTap,
     required this.onLongPress,
+    this.depth = 0,
   });
 
   final String name;
@@ -1110,6 +1137,9 @@ class _FolderRow extends StatelessWidget {
   final bool expanded;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+
+  /// 多级目录层级（0 = 根目录），用于左侧缩进。
+  final int depth;
 
   @override
   Widget build(BuildContext context) {
@@ -1121,7 +1151,12 @@ class _FolderRow extends StatelessWidget {
       onSecondaryTap: onLongPress,
       borderRadius: context.musicFlowRadii.surface,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: EdgeInsets.only(
+          left: 8.0 + depth * 16,
+          right: 8,
+          top: 10,
+          bottom: 10,
+        ),
         child: Row(
           children: <Widget>[
             Icon(AppIcons.folder, size: 22, color: colors.accent),
@@ -1154,45 +1189,6 @@ class _FolderRow extends StatelessWidget {
               color: colors.muted,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 空白区域：长按新建歌单 / 文件夹。
-class _BlankZone extends StatelessWidget {
-  const _BlankZone({required this.label, required this.onLongPress});
-
-  final String label;
-  final VoidCallback onLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.musicFlowColors;
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: MusicFlowPressable(
-        onPressed: onLongPress,
-        onLongPress: onLongPress,
-        onSecondaryTap: onLongPress,
-        borderRadius: context.musicFlowRadii.control,
-        child: Container(
-          height: 110,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: context.musicFlowRadii.control,
-            border: Border.all(
-              color: colors.muted.withValues(alpha: 0.2),
-              style: BorderStyle.solid,
-            ),
-          ),
-          child: Text(
-            label,
-            style: context.musicFlowTypography.metadata.copyWith(
-              color: colors.muted,
-            ),
-          ),
         ),
       ),
     );

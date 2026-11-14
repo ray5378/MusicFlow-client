@@ -3654,6 +3654,6 @@
     }
   },
   "study_removed_from_folder": "Moved back to the root",
-  "study_blank_hint": "Long-press the blank area to create a playlist / folder",
-  "study_blank_actions_title": "Create"
+  "study_dir_scanning": "Scanning folder…",
+  "study_dir_no_audio": "No study content in this folder"
 }

@@ -305,16 +305,16 @@ class _StudyPlaylistActionsSheet extends StatelessWidget {
   }
 }
 
-// ==================== 学习歌单文件夹 ====================
+// ==================== 学习目录（总目录 / 子目录）长按 ====================
 
-/// 空白区域长按菜单：新建歌单 / 新建文件夹。
-enum StudyBlankAction { newPlaylist, newFolder }
+/// 目录长按菜单：把整个目录（递归）加入学习歌单。
+enum StudyDirAction { addToPlaylist }
 
-Future<StudyBlankAction?> showStudyBlankActionsSheet({
+Future<StudyDirAction?> showStudyDirActionsSheet({
   required BuildContext context,
-  required bool includeFolder,
+  required String name,
 }) {
-  return showMusicFlowBottomSheet<StudyBlankAction>(
+  return showMusicFlowBottomSheet<StudyDirAction>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
@@ -323,28 +323,121 @@ Future<StudyBlankAction?> showStudyBlankActionsSheet({
     builder: (_) {
       final loc = AppLocalizations.of(context);
       return MusicFlowBottomSheet(
-        title: loc.study_blank_actions_title,
+        title: name,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             MusicFlowActionRow(
               icon: AppIcons.playlistAdd,
-              title: loc.study_playlist_create,
+              title: loc.study_add_to_playlist,
               onPressed: () =>
-                  Navigator.of(context).pop(StudyBlankAction.newPlaylist),
+                  Navigator.of(context).pop(StudyDirAction.addToPlaylist),
             ),
-            if (includeFolder)
-              MusicFlowActionRow(
-                icon: AppIcons.folder,
-                title: loc.study_new_folder,
-                onPressed: () =>
-                    Navigator.of(context).pop(StudyBlankAction.newFolder),
-              ),
           ],
         ),
       );
     },
   );
+}
+
+/// 扫描进度弹窗（目录可能很深，远程列目录 + 入库需要时间）。
+Future<void> _showDirScanningSheet(BuildContext context) {
+  return showMusicFlowBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isDismissible: false,
+    enableDrag: false,
+    builder: (sheetContext) {
+      final loc = AppLocalizations.of(sheetContext);
+      return MusicFlowBottomSheet(
+        title: loc.study_add_to_playlist,
+        child: Row(
+          children: <Widget>[
+            const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: sheetContext.musicFlowSpacing.sm),
+            Expanded(
+              child: Text(
+                loc.study_dir_scanning,
+                style: sheetContext.musicFlowTypography.body.copyWith(
+                  color: sheetContext.musicFlowColors.muted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+/// 把 [sourceId] 下 [path] 目录（含所有子目录）里的学习内容加入学习歌单。
+///
+/// 先递归列目录收集音频路径，再分批入库（服务端单次上限 500，这里按 200 一批），
+/// 最后复用 [addStudySongsToPlaylist] 让用户选择/新建目标歌单。
+/// 返回 true 表示加入成功。
+Future<bool> addStudyDirToPlaylist({
+  required BuildContext context,
+  required WidgetRef ref,
+  required String sourceId,
+  required String path,
+}) async {
+  final loc = AppLocalizations.of(context);
+  final api = ref.read(studyApiProvider);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final scanning = _showDirScanningSheet(context);
+  var closed = false;
+  void closeScanning() {
+    if (closed) return;
+    closed = true;
+    navigator.pop();
+  }
+
+  final List<String> paths;
+  final List<String> songIds = <String>[];
+  try {
+    paths = await api.collectAudioPaths(sourceId: sourceId, path: path);
+    if (paths.isEmpty) {
+      closeScanning();
+      await scanning;
+      if (!context.mounted) return false;
+      ToastNotifier.show(
+        loc.study_dir_no_audio,
+        kind: MusicFlowMessageKind.warning,
+      );
+      return false;
+    }
+    for (var i = 0; i < paths.length; i += 200) {
+      final end = i + 200 < paths.length ? i + 200 : paths.length;
+      final resolved = await api.resolveBatchEntries(
+        sourceId: sourceId,
+        paths: paths.sublist(i, end),
+      );
+      songIds.addAll(<String>[for (final entry in resolved) entry.song.id]);
+    }
+  } catch (_) {
+    closeScanning();
+    await scanning;
+    if (!context.mounted) return false;
+    ToastNotifier.show(
+      loc.study_file_resolve_failed,
+      kind: MusicFlowMessageKind.error,
+    );
+    return false;
+  }
+  closeScanning();
+  await scanning;
+  if (!context.mounted) return false;
+  if (songIds.isEmpty) {
+    ToastNotifier.show(
+      loc.study_file_resolve_failed,
+      kind: MusicFlowMessageKind.error,
+    );
+    return false;
+  }
+  return addStudySongsToPlaylist(context: context, ref: ref, songIds: songIds);
 }
 
 /// 文件夹操作（重命名 / 删除）。
