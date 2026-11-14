@@ -3539,6 +3539,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String study_folder_subfolder_count(int count) {
+    return '$count folder(s)';
+  }
+
+  @override
   String study_folder_created(String name) {
     return 'Created folder \"$name\"';
   }
@@ -3567,7 +3572,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String study_folder_delete_confirm(String name) {
-    return 'Delete folder \"$name\"? Playlists inside will return to the root, not be deleted.';
+    return 'Delete folder \"$name\"? Playlists inside move up one level; no playlist is deleted.';
   }
 
   @override

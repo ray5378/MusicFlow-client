@@ -3598,6 +3598,14 @@
       }
     }
   },
+  "study_folder_subfolder_count": "{count} 个子文件夹",
+  "@study_folder_subfolder_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "study_folder_created": "已创建文件夹「{name}」",
   "@study_folder_created": {
     "placeholders": {
@@ -3625,7 +3633,7 @@
   "study_folder_create_failed": "创建文件夹失败，请稍后重试",
   "study_folder_update_failed": "更新文件夹失败，请稍后重试",
   "study_folder_delete_failed": "删除文件夹失败，请稍后重试",
-  "study_folder_delete_confirm": "确定删除文件夹「{name}」？夹内歌单会回到根目录，不会删除歌单。",
+  "study_folder_delete_confirm": "确定删除文件夹「{name}」？夹内歌单会移到上一级，不会删除歌单。",
   "@study_folder_delete_confirm": {
     "placeholders": {
       "name": {

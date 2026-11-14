@@ -320,4 +320,88 @@ void main() {
     expect(await api.searchContents('   '), isEmpty);
     expect(client.getPaths, isEmpty);
   });
+
+  // ---- 学习歌单文件夹：进入文件夹 / 嵌套建夹 / 改名与删除的请求形态 ----
+  //
+  // 这四条钉住的是「嵌套文件夹」这条链路的服务端契约：
+  //   * 新建要能带 parent（否则在文件夹里新建会跑到根目录）；
+  //   * 新建歌单要能带 folder（同上）；
+  //   * 改名必须走 POST /rename（旧的 PUT /:name 只迁移直属歌单，子目录会断）；
+  //   * 删除必须走 POST /delete（旧的 DELETE /:name 不级联子目录）。
+  group('学习歌单文件夹（进入文件夹语义）', () {
+    test('新建文件夹带 parent 时落到子目录，根目录不带 parent', () async {
+      final client = _FakeClient();
+      final api = StudyApi(client);
+
+      await api.createPlaylistFolder('高数', parent: '课程');
+      expect(client.postPaths.single, '/rest/api/v1/study/playlist-folders');
+      expect(client.postData.single, <String, dynamic>{
+        'name': '高数',
+        'parent': '课程',
+      });
+
+      await api.createPlaylistFolder('英语');
+      expect(
+        client.postData.last,
+        <String, dynamic>{'name': '英语'},
+        reason: '根目录新建不传 parent，保持老请求体',
+      );
+    });
+
+    test('重命名走 /rename 且只传新名称，不再用 PUT /:name', () async {
+      final client = _FakeClient();
+
+      await StudyApi(client).renamePlaylistFolder('课程/高数', '线代');
+
+      expect(
+        client.postPaths.single,
+        '/rest/api/v1/study/playlist-folders/rename',
+      );
+      expect(client.postData.single, <String, dynamic>{
+        'path': '课程/高数',
+        'name': '线代',
+      });
+      expect(
+        client.putPaths,
+        isEmpty,
+        reason: 'PUT /playlist-folders/:name 只迁移直属歌单，嵌套子目录会断',
+      );
+    });
+
+    test('删除走 /delete 并传完整路径，不再用 DELETE /:name', () async {
+      final client = _FakeClient();
+
+      await StudyApi(client).deletePlaylistFolder('课程/高数');
+
+      expect(
+        client.postPaths.single,
+        '/rest/api/v1/study/playlist-folders/delete',
+      );
+      expect(client.postData.single, <String, dynamic>{'path': '课程/高数'});
+      expect(
+        client.deletePaths,
+        isEmpty,
+        reason: 'DELETE /playlist-folders/:name 不级联子目录，会留下孤儿',
+      );
+    });
+
+    test('新建歌单带 folder 时直接落在该文件夹', () async {
+      final client = _FakeClient()
+        ..onPost = (path, data) => <String, dynamic>{'id': 'pl-new'};
+      final api = StudyApi(client);
+
+      expect(await api.createPlaylist('第一讲', folder: '课程/高数'), 'pl-new');
+      expect(client.postData.single, <String, dynamic>{
+        'name': '第一讲',
+        'folder': '课程/高数',
+      });
+
+      await api.createPlaylist('根歌单');
+      expect(
+        client.postData.last,
+        <String, dynamic>{'name': '根歌单'},
+        reason: '根目录新建不传 folder',
+      );
+    });
+  });
 }

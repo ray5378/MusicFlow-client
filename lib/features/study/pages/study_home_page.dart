@@ -7,10 +7,12 @@ import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/study_api.dart';
-import 'package:musicflow_client/features/library/widgets/playlist_manage_dialogs.dart';
 import 'package:musicflow_client/features/study/pages/study_browse_page.dart';
-import 'package:musicflow_client/features/study/pages/study_playlist_page.dart';
+import 'package:musicflow_client/features/study/pages/study_folder_page.dart';
+import 'package:musicflow_client/features/study/study_folder_tree.dart';
+import 'package:musicflow_client/features/study/study_playlist_actions.dart';
 import 'package:musicflow_client/features/study/widgets/study_playlist_sheets.dart';
+import 'package:musicflow_client/features/study/widgets/study_rows.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
@@ -41,7 +43,6 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
   String _query = '';
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  final Set<String> _expandedFolders = <String>{};
   // 统一搜索的内容结果（服务端 kind=study 模糊匹配）。
   List<Song> _contentResults = const <Song>[];
   bool _contentSearching = false;
@@ -303,7 +304,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         _Section(
           title: loc.study_section_playlists,
           child: matchedPlaylists.isEmpty
-              ? _EmptyRow(icon: AppIcons.search, label: loc.study_search_empty)
+              ? StudyEmptyRow(icon: AppIcons.search, label: loc.study_search_empty)
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -315,9 +316,9 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         _Section(
           title: loc.study_section_contents,
           child: _contentSearching
-              ? const _LoadingRows()
+              ? const StudyLoadingRows()
               : _contentResults.isEmpty
-                  ? _EmptyRow(
+                  ? StudyEmptyRow(
                       icon: AppIcons.search,
                       label: loc.study_search_empty,
                     )
@@ -325,7 +326,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
                         for (final song in _contentResults)
-                          _StudyRow(
+                          StudyRow(
                             icon: AppIcons.play,
                             title: song.title,
                             subtitle: (song.album ?? '').isEmpty
@@ -366,8 +367,8 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
         // 标题已在顶部导航中展示,这里直接进入内容,不再重复「总目录」。
         const SizedBox(height: 8),
         sources.when(
-          loading: () => const _LoadingRows(),
-          error: (error, _) => _ErrorRow(
+          loading: () => const StudyLoadingRows(),
+          error: (error, _) => StudyErrorRow(
             message: loc.study_load_failed,
             onRetry: () => ref.invalidate(studySourcesProvider),
           ),
@@ -376,13 +377,13 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                 .where((source) => _matches(source.name))
                 .toList(growable: false);
             if (items.isEmpty) {
-              return _EmptyRow(
+              return StudyEmptyRow(
                 icon: AppIcons.study,
                 label: loc.study_empty_catalog,
               );
             }
             if (visible.isEmpty) {
-              return _EmptyRow(
+              return StudyEmptyRow(
                 icon: AppIcons.search,
                 label: loc.study_search_empty,
               );
@@ -390,7 +391,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
             return Column(
               children: <Widget>[
                 for (final source in visible)
-                  _StudyRow(
+                  StudyRow(
                     icon: AppIcons.study,
                     title: source.name,
                     subtitle: source.songCount > 0
@@ -422,19 +423,19 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
               MusicFlowIconButton(
                 icon: AppIcons.folder,
                 label: loc.study_new_folder,
-                onPressed: () => unawaited(_createFolder()),
+                onPressed: () => unawaited(createStudyFolder(context, ref)),
               ),
               MusicFlowIconButton(
                 icon: AppIcons.playlistAdd,
                 label: loc.study_playlist_create,
-                onPressed: () => unawaited(_createPlaylist()),
+                onPressed: () => unawaited(createStudyPlaylist(context, ref)),
               ),
             ],
           ),
         ),
         playlists.when(
-          loading: () => const _LoadingRows(),
-          error: (error, _) => _ErrorRow(
+          loading: () => const StudyLoadingRows(),
+          error: (error, _) => StudyErrorRow(
             message: loc.study_load_failed,
             onRetry: () => ref.invalidate(studyPlaylistsProvider),
           ),
@@ -457,7 +458,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                     ),
                   ),
                   if (matched.isEmpty)
-                    _EmptyRow(
+                    StudyEmptyRow(
                       icon: AppIcons.search,
                       label: loc.study_search_empty,
                     )
@@ -467,18 +468,19 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                 ],
               );
             }
-            // 文件夹以完整路径（a/b）存储：逐级补全父目录后按路径排序，
-            // 这样空文件夹也能显示，并且子目录缩进在父目录下。
-            final knownFolders = _knownFolders(<String>[
+            // 文件夹以完整路径（a/b）存储：这里只放**根层**（不含 `/` 的一段），
+            // 子层靠点文件夹进到里面看（StudyFolderPage），不再原地展开摊平。
+            final allFolders = buildStudyFolderPaths(<String>[
               ...(folderNames.asData?.value ?? const <String>[]),
               for (final playlist in items)
                 if (playlist.folder.isNotEmpty) playlist.folder,
             ]);
+            final rootFolders = rootStudyFolders(allFolders);
             final rootPlaylists = items
                 .where((playlist) => playlist.folder.isEmpty)
                 .toList(growable: false);
-            if (items.isEmpty && knownFolders.isEmpty) {
-              return _EmptyRow(
+            if (items.isEmpty && rootFolders.isEmpty) {
+              return StudyEmptyRow(
                 icon: AppIcons.playlist,
                 label: loc.study_empty_playlists,
               );
@@ -486,33 +488,18 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                for (final folder in knownFolders)
-                  if (_isFolderVisible(folder)) ...<Widget>[
-                    _FolderRow(
-                      name: _folderLabel(folder),
-                      depth: _folderDepth(folder),
-                      count: items
-                          .where((playlist) => playlist.folder == folder)
-                          .length,
-                      expanded: _expandedFolders.contains(folder),
-                      onTap: () => setState(() {
-                        if (!_expandedFolders.add(folder)) {
-                          _expandedFolders.remove(folder);
-                        }
-                      }),
-                      onLongPress: () => unawaited(_showFolderActions(folder)),
+                for (final folder in rootFolders)
+                  StudyFolderRow(
+                    name: studyFolderLabel(folder),
+                    playlistCount: items
+                        .where((playlist) => playlist.folder == folder)
+                        .length,
+                    folderCount: studyChildFolders(allFolders, folder).length,
+                    onTap: () => openStudyFolder(context, folder),
+                    onLongPress: () => unawaited(
+                      showStudyFolderActions(context, ref, folder),
                     ),
-                    if (_expandedFolders.contains(folder))
-                      for (final playlist in items.where(
-                        (playlist) => playlist.folder == folder,
-                      ))
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: 20.0 + _folderDepth(folder) * 16,
-                          ),
-                          child: _buildPlaylistRow(context, loc, playlist),
-                        ),
-                  ],
+                  ),
                 for (final playlist in rootPlaylists)
                   _buildPlaylistRow(context, loc, playlist),
               ],
@@ -523,49 +510,22 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     );
   }
 
-  /// 补全每级父目录并按路径排序（服务端多级目录用 `/` 分隔）。
-  List<String> _knownFolders(Iterable<String> folders) {
-    final set = <String>{};
-    for (final raw in folders) {
-      final path = raw.trim();
-      if (path.isEmpty) continue;
-      final parts = path.split('/');
-      for (var i = 1; i <= parts.length; i++) {
-        set.add(parts.take(i).join('/'));
-      }
-    }
-    return set.toList()..sort(compareStudyNames);
-  }
-
-  static int _folderDepth(String path) => path.split('/').length - 1;
-
-  static String _folderLabel(String path) => path.split('/').last;
-
-  /// 只显示祖先目录都已展开的文件夹（折叠父目录时隐藏整棵子树）。
-  bool _isFolderVisible(String path) {
-    final parts = path.split('/');
-    for (var i = 1; i < parts.length; i++) {
-      if (!_expandedFolders.contains(parts.take(i).join('/'))) return false;
-    }
-    return true;
-  }
-
   Widget _buildPlaylistRow(
     BuildContext context,
     AppLocalizations loc,
     StudyPlaylist playlist,
   ) {
-    return _StudyRow(
+    return StudyRow(
       icon: AppIcons.play,
       iconLabel: loc.study_icon_play_playlist,
-      onIconTap: () => unawaited(_playPlaylist(playlist)),
+      onIconTap: () => unawaited(playStudyPlaylist(context, ref, playlist)),
       title: playlist.name,
       subtitle: playlist.folder.isEmpty
           ? loc.study_playlist_song_count(playlist.songCount)
           : '${loc.study_playlist_song_count(playlist.songCount)} · ${playlist.folder}',
-      onTap: () => _openPlaylist(context, playlist),
+      onTap: () => openStudyPlaylist(context, playlist),
       onLongPress: () =>
-          unawaited(_showPlaylistActions(playlist)),
+          unawaited(showStudyPlaylistActions(context, ref, playlist)),
     );
   }
 
@@ -588,14 +548,14 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
             ),
           ),
         continuing.when(
-            loading: () => const _LoadingRows(),
-            error: (error, _) => _ErrorRow(
+            loading: () => const StudyLoadingRows(),
+            error: (error, _) => StudyErrorRow(
               message: loc.study_load_failed,
               onRetry: () => ref.invalidate(studyContinueProvider),
             ),
             data: (result) {
               if (result.isEmpty) {
-                return _EmptyRow(
+                return StudyEmptyRow(
                   icon: AppIcons.history,
                   label: loc.study_empty_continue,
                 );
@@ -609,7 +569,7 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
                       _matches(item.playlistName) || _matches(item.song.title))
                   .toList(growable: false);
               if (visible.isEmpty && visiblePlaylists.isEmpty) {
-                return _EmptyRow(
+                return StudyEmptyRow(
                   icon: AppIcons.search,
                   label: loc.study_search_empty,
                 );
@@ -751,92 +711,9 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
     );
   }
 
-  void _openPlaylist(BuildContext context, StudyPlaylist playlist) {
-    unawaited(
-      Navigator.of(context).push<void>(
-        MusicFlowPageRoute<void>(
-          context: context,
-          builder: (_) =>
-              StudyPlaylistPage(playlistId: playlist.id, title: playlist.name),
-        ),
-      ),
-    );
-  }
-
-  /// 点击歌单图标:不进入详情,直接播放整个学习歌单。
-  Future<void> _playPlaylist(StudyPlaylist playlist) async {
-    final loc = AppLocalizations.of(context);
-    try {
-      final songs = await ref.read(
-        studyPlaylistTracksProvider(playlist.id).future,
-      );
-      if (!mounted) return;
-      if (songs.isEmpty) {
-        _toast(loc.study_empty_playlist_tracks, kind: MusicFlowMessageKind.error);
-        return;
-      }
-      final casting =
-          ref.read(castPeerControllerProvider).activePeer != null ||
-          ref.read(dlnaCastProvider).isCasting;
-      if (casting) {
-        await playEffectiveQueue(ref, songs, startIndex: 0);
-        return;
-      }
-      await ref.read(playerProvider.notifier).playQueue(songs, startIndex: 0);
-    } catch (_) {
-      if (!mounted) return;
-      _toast(loc.study_play_failed, kind: MusicFlowMessageKind.error);
-    }
-  }
-
-  void _invalidatePlaylists() {
-    ref.invalidate(studyPlaylistsProvider);
-    ref.invalidate(studyPlaylistFoldersProvider);
-  }
-
   void _toast(String message, {MusicFlowMessageKind kind = MusicFlowMessageKind.success}) {
     if (!mounted) return;
     ToastNotifier.show(message, kind: kind);
-  }
-
-  /// 新建学习歌单：输入名称后创建并刷新列表。
-  Future<void> _createPlaylist() async {
-    final loc = AppLocalizations.of(context);
-    final name = await showStudyPlaylistNameSheet(
-      context: context,
-      title: loc.study_playlist_create,
-      confirmText: loc.common_save,
-    );
-    if (name == null || !mounted) return;
-    try {
-      await ref.read(studyApiProvider).createPlaylist(name);
-      _invalidatePlaylists();
-      _toast(loc.study_playlist_created(name));
-    } on StudyPlaylistNameConflict {
-      _toast(loc.study_playlist_name_exists, kind: MusicFlowMessageKind.error);
-    } catch (_) {
-      _toast(loc.study_playlist_create_failed, kind: MusicFlowMessageKind.error);
-    }
-  }
-
-  /// 新建歌单文件夹。
-  Future<void> _createFolder() async {
-    final loc = AppLocalizations.of(context);
-    final name = await showStudyPlaylistNameSheet(
-      context: context,
-      title: loc.study_new_folder,
-      confirmText: loc.common_save,
-      fieldLabel: loc.study_new_folder,
-      hintText: loc.study_folder_name_hint,
-    );
-    if (name == null || !mounted) return;
-    try {
-      await ref.read(studyApiProvider).createPlaylistFolder(name);
-      _invalidatePlaylists();
-      _toast(loc.study_folder_created(name));
-    } catch (_) {
-      _toast(loc.study_folder_create_failed, kind: MusicFlowMessageKind.error);
-    }
   }
 
   /// 总目录里的学习源（顶层目录）长按：整源递归加入学习歌单。
@@ -852,167 +729,6 @@ class _StudyHomePageState extends ConsumerState<StudyHomePage> {
       sourceId: source.id,
       path: '',
     );
-  }
-
-  Future<void> _showFolderActions(String folder) async {
-    final action = await showStudyFolderActionsSheet(
-      context: context,
-      folder: folder,
-    );
-    if (action == null || !mounted) return;
-    switch (action) {
-      case StudyFolderAction.rename:
-        await _renameFolder(folder);
-      case StudyFolderAction.delete:
-        await _deleteFolder(folder);
-    }
-  }
-
-  Future<void> _renameFolder(String folder) async {
-    final loc = AppLocalizations.of(context);
-    final name = await showStudyPlaylistNameSheet(
-      context: context,
-      title: loc.study_folder_rename_title,
-      confirmText: loc.common_save,
-      initialName: folder,
-      fieldLabel: loc.study_new_folder,
-      hintText: loc.study_folder_name_hint,
-    );
-    if (name == null || !mounted || name == folder) return;
-    try {
-      await ref.read(studyApiProvider).renamePlaylistFolder(folder, name);
-      setState(() {
-        if (_expandedFolders.remove(folder)) _expandedFolders.add(name);
-      });
-      _invalidatePlaylists();
-      _toast(loc.study_folder_renamed(name));
-    } catch (_) {
-      _toast(loc.study_folder_update_failed, kind: MusicFlowMessageKind.error);
-    }
-  }
-
-  Future<void> _deleteFolder(String folder) async {
-    final loc = AppLocalizations.of(context);
-    final confirmed = await showDeleteFolderConfirmSheet(
-      context: context,
-      folder: folder,
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await ref.read(studyApiProvider).deletePlaylistFolder(folder);
-      _expandedFolders.remove(folder);
-      _invalidatePlaylists();
-      _toast(loc.study_folder_deleted(folder));
-    } catch (_) {
-      _toast(loc.study_folder_delete_failed, kind: MusicFlowMessageKind.error);
-    }
-  }
-
-  /// 歌单长按菜单：重命名 / 移动到文件夹 / 移出文件夹 / 删除。
-  Future<void> _showPlaylistActions(StudyPlaylist playlist) async {
-    final action = await showStudyPlaylistActionsSheet(
-      context: context,
-      playlist: playlist,
-    );
-    if (action == null || !mounted) return;
-    switch (action) {
-      case StudyPlaylistAction.rename:
-        await _renamePlaylist(playlist);
-      case StudyPlaylistAction.move:
-        await _movePlaylist(playlist);
-      case StudyPlaylistAction.removeFromFolder:
-        await _applyPlaylistFolder(playlist, '');
-      case StudyPlaylistAction.delete:
-        await _deletePlaylist(playlist);
-    }
-  }
-
-  Future<void> _renamePlaylist(StudyPlaylist playlist) async {
-    final loc = AppLocalizations.of(context);
-    final name = await showStudyPlaylistNameSheet(
-      context: context,
-      title: loc.study_playlist_rename_title,
-      confirmText: loc.common_save,
-      initialName: playlist.name,
-    );
-    if (name == null || !mounted || name == playlist.name) return;
-    try {
-      await ref.read(studyApiProvider).renamePlaylist(playlist.id, name);
-      _invalidatePlaylists();
-      ref.invalidate(studyPlaylistTracksProvider(playlist.id));
-      _toast(loc.study_playlist_renamed(name));
-    } on StudyPlaylistNameConflict {
-      _toast(loc.study_playlist_name_exists, kind: MusicFlowMessageKind.error);
-    } catch (_) {
-      _toast(loc.study_playlist_update_failed, kind: MusicFlowMessageKind.error);
-    }
-  }
-
-  /// 移动到文件夹：可选择已有文件夹、根目录或现场新建文件夹。
-  Future<void> _movePlaylist(StudyPlaylist playlist) async {
-    final loc = AppLocalizations.of(context);
-    final folders = await ref.read(studyPlaylistFoldersProvider.future).catchError(
-          (Object _) => const <String>[],
-        );
-    if (!mounted) return;
-    final pick = await showStudyFolderPickerSheet(
-      context: context,
-      title: loc.study_move_to_folder_title(playlist.name),
-      folders: folders,
-      currentFolder: playlist.folder,
-    );
-    if (pick == null || !mounted) return;
-    if (pick.createNew) {
-      final name = await showStudyPlaylistNameSheet(
-        context: context,
-        title: loc.study_new_folder,
-        confirmText: loc.common_save,
-        fieldLabel: loc.study_new_folder,
-        hintText: loc.study_folder_name_hint,
-      );
-      if (name == null || !mounted) return;
-      await _applyPlaylistFolder(playlist, name, createFolder: true);
-      return;
-    }
-    await _applyPlaylistFolder(playlist, pick.folder);
-  }
-
-  Future<void> _applyPlaylistFolder(
-    StudyPlaylist playlist,
-    String folder, {
-    bool createFolder = false,
-  }) async {
-    final loc = AppLocalizations.of(context);
-    try {
-      final api = ref.read(studyApiProvider);
-      if (createFolder) await api.createPlaylistFolder(folder);
-      await api.movePlaylist(playlist.id, folder);
-      _invalidatePlaylists();
-      _toast(
-        folder.isEmpty
-            ? loc.study_removed_from_folder
-            : loc.study_moved_to_folder(folder),
-      );
-    } catch (_) {
-      _toast(loc.study_playlist_update_failed, kind: MusicFlowMessageKind.error);
-    }
-  }
-
-  Future<void> _deletePlaylist(StudyPlaylist playlist) async {
-    final loc = AppLocalizations.of(context);
-    final confirmed = await showDeletePlaylistConfirmDialog(
-      context: context,
-      playlistName: playlist.name,
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await ref.read(studyApiProvider).deletePlaylist(playlist.id);
-      _invalidatePlaylists();
-      ref.invalidate(studyPlaylistTracksProvider(playlist.id));
-      _toast(loc.study_playlist_deleted(playlist.name));
-    } catch (_) {
-      _toast(loc.study_playlist_delete_failed, kind: MusicFlowMessageKind.error);
-    }
   }
 
   /// 继续学习：本机续播从上次进度起播；投屏/直投交给流转链路（对端起播）。
@@ -1117,154 +833,6 @@ class _Section extends StatelessWidget {
         ),
         child,
       ],
-    );
-  }
-}
-
-/// 文件夹行（点击展开/收起夹内歌单，长按重命名/删除）。
-class _FolderRow extends StatelessWidget {
-  const _FolderRow({
-    required this.name,
-    required this.count,
-    required this.expanded,
-    required this.onTap,
-    required this.onLongPress,
-    this.depth = 0,
-  });
-
-  final String name;
-  final int count;
-  final bool expanded;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-
-  /// 多级目录层级（0 = 根目录），用于左侧缩进。
-  final int depth;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.musicFlowColors;
-    final loc = AppLocalizations.of(context);
-    return MusicFlowPressable(
-      onPressed: onTap,
-      onLongPress: onLongPress,
-      onSecondaryTap: onLongPress,
-      borderRadius: context.musicFlowRadii.surface,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 8.0 + depth * 16,
-          right: 8,
-          top: 10,
-          bottom: 10,
-        ),
-        child: Row(
-          children: <Widget>[
-            Icon(AppIcons.folder, size: 22, color: colors.accent),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.musicFlowTypography.body,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      loc.study_folder_playlist_count(count),
-                      style: context.musicFlowTypography.metadata.copyWith(
-                        color: colors.muted,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              expanded ? AppIcons.chevronDown : AppIcons.chevronRight,
-              size: 18,
-              color: colors.muted,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StudyRow extends StatelessWidget {
-  const _StudyRow({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.subtitle,
-    this.onLongPress,
-    this.onIconTap,
-    this.iconLabel,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-  /// 图标本身作为播放入口(歌单行),与整行点击(进入详情)区分。
-  final VoidCallback? onIconTap;
-  final String? iconLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.musicFlowColors;
-    return MusicFlowPressable(
-      onPressed: onTap,
-      onLongPress: onLongPress,
-      onSecondaryTap: onLongPress,
-      borderRadius: context.musicFlowRadii.surface,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        child: Row(
-          children: <Widget>[
-            if (onIconTap != null)
-              MusicFlowIconButton(
-                icon: icon,
-                label: iconLabel ?? title,
-                onPressed: onIconTap,
-              )
-            else
-              Icon(icon, size: 22, color: colors.accent),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.musicFlowTypography.body,
-                  ),
-                  if (subtitle != null && subtitle!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.musicFlowTypography.metadata.copyWith(
-                          color: colors.muted,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Icon(AppIcons.chevronRight, size: 18, color: colors.muted),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -1479,81 +1047,6 @@ class _ContinueRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _EmptyRow extends StatelessWidget {
-  const _EmptyRow({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.musicFlowColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 18, color: colors.muted),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: context.musicFlowTypography.metadata.copyWith(
-                color: colors.muted,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorRow extends StatelessWidget {
-  const _ErrorRow({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: <Widget>[
-          Icon(
-            AppIcons.warning,
-            size: 18,
-            color: context.musicFlowColors.muted,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: context.musicFlowTypography.metadata.copyWith(
-                color: context.musicFlowColors.muted,
-              ),
-            ),
-          ),
-          MusicFlowButton.ghost(label: loc.widgets_retry, onPressed: onRetry),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadingRows extends StatelessWidget {
-  const _LoadingRows();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 18),
-      child: LinearProgressIndicator(minHeight: 2),
     );
   }
 }

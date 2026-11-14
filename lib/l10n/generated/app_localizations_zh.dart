@@ -3365,6 +3365,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String study_folder_subfolder_count(int count) {
+    return '$count 个子文件夹';
+  }
+
+  @override
   String study_folder_created(String name) {
     return '已创建文件夹「$name」';
   }
@@ -3390,7 +3395,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String study_folder_delete_confirm(String name) {
-    return '确定删除文件夹「$name」？夹内歌单会回到根目录，不会删除歌单。';
+    return '确定删除文件夹「$name」？夹内歌单会移到上一级，不会删除歌单。';
   }
 
   @override

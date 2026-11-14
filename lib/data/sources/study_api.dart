@@ -404,23 +404,37 @@ class StudyApi {
     ].where((name) => name.isNotEmpty).toList(growable: false);
   }
 
-  Future<void> createPlaylistFolder(String name) async {
+  /// 新建文件夹；[parent] 为空表示建在根目录，否则建在该文件夹里面（服务端会
+  /// 逐级补齐父目录，并支持多级路径）。
+  Future<void> createPlaylistFolder(String name, {String parent = ''}) async {
     await _client.postRaw(
       '$_base/playlist-folders',
-      data: <String, dynamic>{'name': name},
+      data: <String, dynamic>{
+        'name': name,
+        if (parent.trim().isNotEmpty) 'parent': parent.trim(),
+      },
     );
   }
 
-  Future<void> renamePlaylistFolder(String name, String next) async {
-    await _client.putRaw(
-      '$_base/playlist-folders/${Uri.encodeComponent(name)}',
-      data: <String, dynamic>{'name': next},
+  /// 重命名文件夹：[path] 是旧完整路径，[next] 只给**新名称**（不含父路径）。
+  ///
+  /// 走 `POST /playlist-folders/rename`：服务端会把子目录路径与夹内歌单的归属
+  /// 一起迁移；旧的 `PUT /playlist-folders/:name` 只迁直属歌单，嵌套结构会断。
+  Future<void> renamePlaylistFolder(String path, String next) async {
+    await _client.postRaw(
+      '$_base/playlist-folders/rename',
+      data: <String, dynamic>{'path': path, 'name': next},
     );
   }
 
-  Future<void> deletePlaylistFolder(String name) async {
-    await _client.deleteRaw(
-      '$_base/playlist-folders/${Uri.encodeComponent(name)}',
+  /// 删除文件夹：[path] 为完整路径。
+  ///
+  /// 走 `POST /playlist-folders/delete`：连同子目录一起解散，夹内歌单上移到被删
+  /// 文件夹的上一级；旧的 `DELETE /playlist-folders/:name` 不级联子目录。
+  Future<void> deletePlaylistFolder(String path) async {
+    await _client.postRaw(
+      '$_base/playlist-folders/delete',
+      data: <String, dynamic>{'path': path},
     );
   }
 
@@ -460,11 +474,16 @@ class StudyApi {
   }
 
   /// 新建学习歌单，返回新歌单 id。
-  Future<String> createPlaylist(String name) async {
+  ///
+  /// [folder] 为空表示建在根目录，否则直接建在该文件夹里面。
+  Future<String> createPlaylist(String name, {String folder = ''}) async {
     try {
       final raw = await _client.postRaw(
         '$_base/playlists',
-        data: <String, dynamic>{'name': name},
+        data: <String, dynamic>{
+          'name': name,
+          if (folder.trim().isNotEmpty) 'folder': folder.trim(),
+        },
       );
       final id = raw is Map ? '${raw['id'] ?? ''}'.trim() : '';
       if (id.isEmpty) {

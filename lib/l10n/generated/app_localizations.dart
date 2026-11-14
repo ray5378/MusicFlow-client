@@ -6088,6 +6088,12 @@ abstract class AppLocalizations {
   /// **'{count} 个歌单'**
   String study_folder_playlist_count(int count);
 
+  /// No description provided for @study_folder_subfolder_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个子文件夹'**
+  String study_folder_subfolder_count(int count);
+
   /// No description provided for @study_folder_created.
   ///
   /// In zh, this message translates to:
@@ -6127,7 +6133,7 @@ abstract class AppLocalizations {
   /// No description provided for @study_folder_delete_confirm.
   ///
   /// In zh, this message translates to:
-  /// **'确定删除文件夹「{name}」？夹内歌单会回到根目录，不会删除歌单。'**
+  /// **'确定删除文件夹「{name}」？夹内歌单会移到上一级，不会删除歌单。'**
   String study_folder_delete_confirm(String name);
 
   /// No description provided for @study_move_to_folder.

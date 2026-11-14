@@ -3598,6 +3598,14 @@
       }
     }
   },
+  "study_folder_subfolder_count": "{count} folder(s)",
+  "@study_folder_subfolder_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "study_folder_created": "Created folder \"{name}\"",
   "@study_folder_created": {
     "placeholders": {
@@ -3625,7 +3633,7 @@
   "study_folder_create_failed": "Failed to create the folder, please try again",
   "study_folder_update_failed": "Failed to update the folder, please try again",
   "study_folder_delete_failed": "Failed to delete the folder, please try again",
-  "study_folder_delete_confirm": "Delete folder \"{name}\"? Playlists inside will return to the root, not be deleted.",
+  "study_folder_delete_confirm": "Delete folder \"{name}\"? Playlists inside move up one level; no playlist is deleted.",
   "@study_folder_delete_confirm": {
     "placeholders": {
       "name": {
