@@ -107,6 +107,15 @@ class _MusicFlowRefreshViewState extends State<MusicFlowRefreshView> {
     final colors = context.musicFlowColors;
     final feedback = _RefreshFeedback.from(_phase, loc);
     final visible = !isAndroidTouch && feedback != null;
+    // 安卓触屏端一直是「手势有、反馈无」：RefreshIndicator.noSpinner 刻意不画
+    // 转圈，文字气泡又被下面那条 `!isAndroidTouch` 整块挡掉 —— 结果下拉刷新全程
+    // 零反馈，用户看不出到底刷没刷。这里只补一个**纯动画**指示器（刻意不带文字，
+    // 避免重蹈文字气泡在正常向下滚动时打扰用户的老路），并且**只在 refreshing
+    // 阶段插入**：空闲时它根本不进 widget 树，不会影响任何按
+    // CircularProgressIndicator 计数断言既有用例。
+    final showTouchRefreshing =
+        isAndroidTouch && _phase == _RefreshPhase.refreshing;
+    final animationsDisabled = _animationsDisabled(context);
     final emphasisColor = feedback?.kind == _RefreshFeedbackKind.failed
         ? colors.error
         : colors.accent;
@@ -122,6 +131,28 @@ class _MusicFlowRefreshViewState extends State<MusicFlowRefreshView> {
             child: widget.child,
           ),
         ),
+        // 安卓触屏端专属：刷新进行中浮一个只有动画、没有文字的指示器。
+        // IgnorePointer 保证它绝不吃手势（下拉/滚动照常）；Semantics 只报
+        // 「正在刷新」给读屏，没有可见文案。
+        if (showTouchRefreshing)
+          PositionedDirectional(
+            top: context.musicFlowSpacing.sm,
+            start: 0,
+            end: 0,
+            child: IgnorePointer(
+              child: Semantics(
+                liveRegion: true,
+                label: loc.core_refreshing,
+                child: Center(
+                  child: ExcludeSemantics(
+                    child: _TouchRefreshingIndicator(
+                      animationsDisabled: animationsDisabled,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         // 安卓触屏端不渲染文字气泡:下拉刷新可用但全程无文字提示。
         if (!isAndroidTouch)
           PositionedDirectional(
@@ -258,13 +289,7 @@ class _RefreshFeedbackIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.musicFlowColors;
-    final animationsDisabled =
-        MediaQuery.maybeOf(context)?.disableAnimations ??
-        WidgetsBinding
-            .instance
-            .platformDispatcher
-            .accessibilityFeatures
-            .disableAnimations;
+    final animationsDisabled = _animationsDisabled(context);
     return switch (feedback.kind) {
       _RefreshFeedbackKind.refreshing =>
         animationsDisabled
@@ -298,5 +323,58 @@ class _RefreshFeedbackIcon extends StatelessWidget {
         color: colors.error,
       ),
     };
+  }
+}
+
+/// 系统是否要求「减少动效」。
+///
+/// 抽成顶层函数供两处共用（桌面文字气泡的图标、安卓纯动画指示器），保证两边
+/// 对无障碍设置的判断永远一致 —— 否则会出现「气泡已经不转了、指示器还在转」
+/// 这种同一手势两套节奏的割裂。
+bool _animationsDisabled(BuildContext context) {
+  return MediaQuery.maybeOf(context)?.disableAnimations ??
+      WidgetsBinding
+          .instance
+          .platformDispatcher
+          .accessibilityFeatures
+          .disableAnimations;
+}
+
+/// 安卓触屏端的「刷新中」指示器：**只有动画，没有文字**。
+///
+/// 形态与桌面端文字气泡同源（surface 底 + controlBoundary 描边 + pill 圆角），
+/// 只是把文案换成 16px 转圈、体量更小，浮在内容上方且不吃手势。开启「减少动效」
+/// 时退化为静态 refresh 图标，与桌面气泡的处理保持一致。
+class _TouchRefreshingIndicator extends StatelessWidget {
+  const _TouchRefreshingIndicator({required this.animationsDisabled});
+
+  final bool animationsDisabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.musicFlowColors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: context.musicFlowRadii.pill,
+        border: Border.all(color: colors.controlBoundary),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: context.musicFlowSpacing.sm,
+          vertical: context.musicFlowSpacing.xs,
+        ),
+        child: animationsDisabled
+            ? Icon(AppIcons.refresh, size: 18, color: colors.accent)
+            : SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.accent,
+                  backgroundColor: colors.divider,
+                ),
+              ),
+      ),
+    );
   }
 }
