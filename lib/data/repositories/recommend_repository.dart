@@ -56,6 +56,30 @@ class RecommendRepository {
     }
   }
 
+  /// 首页「为你推荐」聚合区块:服务端一次算好的「固定卡 + 随机补位」快照。
+  ///
+  /// 对应 `GET /rest/api/v1/home/recommend-section`。返回体形态见
+  /// [HomeRecommendSection.fromJson]。请求失败向上抛,由 provider 统一兜底
+  /// (置 `homeCardsLoadFailedProvider` 并返回空区块)。
+  Future<HomeRecommendSection> getHomeRecommendSection() async {
+    try {
+      final data = await _apiClient.getRaw(
+        '/rest/api/v1/home/recommend-section',
+      );
+      // 与 getHomeSections 对齐:先判 Map 形态再取键,避免 getRaw 返回
+      // null / List 时抛 CastError。同时兼容 subsonic-response 包裹形态。
+      final body = data is Map<String, dynamic>
+          ? (data['subsonic-response'] is Map<String, dynamic>
+              ? data['subsonic-response'] as Map<String, dynamic>
+              : data)
+          : <String, dynamic>{};
+      return HomeRecommendSection.fromJson(body);
+    } catch (e) {
+      Logger.error('Failed to get home recommend section', e);
+      rethrow;
+    }
+  }
+
   /// 不同插件的平台推荐频道(网易云/QQ 等)及提供方 providerId。
   /// providerId 用于把未入库的推荐歌单经 /v1/online/:providerId/recommend/import
   /// 导入成本地库歌单(返回真实 library playlistId 后播放,与主项目一致)。

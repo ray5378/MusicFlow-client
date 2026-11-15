@@ -14,9 +14,10 @@ import 'package:musicflow_client/features/discover/widgets/hoverable_horizontal_
 import 'package:musicflow_client/features/library/pages/playlist_detail_page.dart';
 import 'package:musicflow_client/features/library/widgets/playlist_options_sheet.dart';
 
-/// 固定推荐歌单 + 随机歌单（对齐主项目首页「为你推荐」顶部）：
-/// 固定卡（今日漫游/每日推荐/本地推荐，>30 首门槛）+ 随机补位的本地歌单，
-/// 合计 homeCount 张（每日推荐插件配置，默认 8，含今日漫游固定卡）。
+/// 固定推荐卡 + 随机补位歌单（对齐主项目首页「为你推荐」顶部）：
+/// 数据来自服务端聚合快照 `GET /rest/api/v1/home/recommend-section`。
+/// **固定卡零门槛**（服务端不再按 songCount 过滤，客户端也不过滤），
+/// 随机补位由服务端按小时确定性洗牌，合计 `homeCount` 张（服务端下发）。
 ///
 /// 从 `discover_page.dart` 抽出（v5.8.4 大页面拆分子组件，行为零变更）。
 class FixedRecommendSection extends ConsumerWidget {
@@ -41,16 +42,18 @@ class FixedRecommendSection extends ConsumerWidget {
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
           data: (section) {
+            // 空区块的两种含义必须分开处理：
+            // - 加载失败(loadFailed) → 显示可重试的错误态，用户知道「是没拉到」；
+            // - 真的没有内容         → 整块隐藏，不占首屏。
+            // 旧实现里首屏这条链从不置位 loadFailed，两者永远混为一谈。
             if (section.isEmpty) {
-              // 数据驱动解耦:服务端暂无推荐歌单时整块隐藏;仅加载失败才保留
-              // 错误提示(可重试),不让空数据/占位堆满首屏。
               if (!loadFailed) return const SizedBox.shrink();
-              return DiscoverSectionMessage(
-                title: loc.discover_unavailable_recommend,
-                description: loc.discover_error_desc_check_route,
-                icon: AppIcons.cloudOff,
-                onRetry: () => ref.invalidate(homeRecommendSectionProvider),
-              );
+              return _buildUnavailable(loc, ref);
+            }
+            // 固定卡集体失效(degraded 且一张都没剩)等同于没内容：走错误态，
+            // 而不是把一堆随机补位歌单伪装成「为你推荐」。
+            if (section.degraded && section.fixed.isEmpty) {
+              return _buildUnavailable(loc, ref);
             }
             // 固定卡 + 随机歌单合并为横向卡片行，样式与「插件推荐」完全一致：
             // 152 宽封面、playlistRailHeight 行高、HoverableHorizontalScroll 左右滑动。
@@ -155,6 +158,17 @@ class FixedRecommendSection extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// 「推荐暂不可用」态：空区块 + 加载失败，或固定卡集体失效时使用。
+  /// 抽成方法是为了让两处触发条件共用同一视觉与同一重试入口。
+  Widget _buildUnavailable(AppLocalizations loc, WidgetRef ref) {
+    return DiscoverSectionMessage(
+      title: loc.discover_unavailable_recommend,
+      description: loc.discover_error_desc_check_route,
+      icon: AppIcons.cloudOff,
+      onRetry: () => ref.invalidate(homeRecommendSectionProvider),
     );
   }
 }

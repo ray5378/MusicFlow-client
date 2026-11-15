@@ -59,17 +59,18 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('recentPlaylistsProvider', () {
-    test('成功: 按 changed 倒序并取前 20', () async {
+    test('成功: 原样透传服务端顺序（不再客户端排序 / 截断）', () async {
       final repo = _FakePlaylistRepository();
       final cache = _FakeMetadataCache();
-      // b42:recentPlaylists 改走服务端分页 size=50 + recent 专用缓存 scope。
-      when(() => repo.getPlaylists(size: 50)).thenAnswer((_) async {
-        final list = <Playlist>[];
-        for (var i = 0; i < 25; i++) {
-          list.add(_pl('p$i', changed: DateTime(2024, 1, i + 1)));
-        }
-        return list;
-      });
+      // 服务端已按 updated_at 倒序，客户端不得二次排序。
+      // 故意给一个 changed **递增** 的序列：客户端若还偷偷按 changed 重排，
+      // 顺序会被反转，本用例立即判红（比旧用例的断言更强）。
+      final serverOrder = <Playlist>[
+        for (var i = 0; i < 20; i++)
+          _pl('p$i', changed: DateTime(2024, 1, i + 1)),
+      ];
+      when(() => repo.getRecentPlaylists(limit: 20))
+          .thenAnswer((_) async => serverOrder);
       when(() => cache.cacheRecentPlaylists(any(), any()))
           .thenAnswer((_) async {});
       when(() => cache.getRecentPlaylists(any()))
@@ -84,13 +85,15 @@ void main() {
 
       final result = await container.read(recentPlaylistsProvider.future);
       expect(result.length, 20);
-      // 第一个应是 changed 最大的(2024-01-25)。
-      expect(result.first.id, 'p24');
-      // 倒序: 第二个比第一个早。
       expect(
-        result[0].changed!.isAfter(result[1].changed!),
-        isTrue,
+        result.map((p) => p.id).toList(),
+        serverOrder.map((p) => p.id).toList(),
+        reason: '响应顺序即展示顺序，客户端禁止重排',
       );
+      expect(result.first.id, 'p0',
+          reason: '服务端排好的第一个就应是第一个；旧实现会把它重排掉');
+      verify(() => repo.getRecentPlaylists(limit: 20)).called(1);
+      verifyNever(() => repo.getPlaylists(size: 50));
     });
 
     test('仓库为 null + 缓存命中 → 缓存兜底返回排序结果', () async {

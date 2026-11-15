@@ -1,7 +1,8 @@
-// b42 —— recentPlaylistsProvider 服务端分页（size=50）行为钉子。
+// b42 —— recentPlaylistsProvider 服务端聚合端点（limit=20）行为钉子。
 //
 // 钉住：
-//   1) fetch 走 repository.getPlaylists(size: 50)，不再全量；
+//   1) fetch 走 repository.getRecentPlaylists(limit: 20)，不再全量、不再
+//      客户端按 changed 二次排序（响应顺序即展示顺序）；
 //   2) cacheWrite 写 recent 专用缓存（cacheRecentPlaylists），
 //      不再覆盖 playlistsProvider 的全量缓存（cachePlaylists）；
 //   3) 远程失败回落 recent 缓存；recent 缓存缺失时回退旧全量缓存。
@@ -77,10 +78,10 @@ void main() {
     registerFallbackValue(<Playlist>[]);
   });
 
-  test('fetch 传 size=50，缓存写 recent 专用 scope、不动全量缓存', () async {
+  test('fetch 传 limit=20，缓存写 recent 专用 scope、不动全量缓存', () async {
     final repo = MockPlaylistRepository();
     final cache = MockMetadataCacheRepository();
-    when(() => repo.getPlaylists(size: 50)).thenAnswer(
+    when(() => repo.getRecentPlaylists(limit: 20)).thenAnswer(
       (_) async => [
         _playlist('p2', changed: DateTime(2024, 3, 1)),
         _playlist('p1', changed: DateTime(2024, 1, 1)),
@@ -93,10 +94,10 @@ void main() {
     addTearDown(container.dispose);
 
     final result = await container.read(recentPlaylistsProvider.future);
-    // 服务端已按 updatedAt 倒序返回,客户端仍按 changed 倒序取前 20。
+    // 服务端按 updated_at 倒序，客户端原样透传、不重排。
     expect(result.map((p) => p.id), <String>['p2', 'p1']);
 
-    verify(() => repo.getPlaylists(size: 50)).called(1);
+    verify(() => repo.getRecentPlaylists(limit: 20)).called(1);
     verify(() => cache.cacheRecentPlaylists('lib-1', any())).called(1);
     // 不再走全量接口、不再覆盖全量缓存。
     verifyNever(() => repo.getPlaylists());
@@ -107,7 +108,7 @@ void main() {
   test('远程失败 → 回落 recent 缓存排序取前 20', () async {
     final repo = MockPlaylistRepository();
     final cache = MockMetadataCacheRepository();
-    when(() => repo.getPlaylists(size: 50)).thenThrow(StateError('offline'));
+    when(() => repo.getRecentPlaylists(limit: 20)).thenThrow(StateError('offline'));
     when(() => cache.getRecentPlaylists('lib-1')).thenAnswer((_) async {
       return List.generate(
         25,
@@ -128,7 +129,7 @@ void main() {
   test('recent 缓存缺失 → 回退旧全量缓存兜底（老版本升级兼容）', () async {
     final repo = MockPlaylistRepository();
     final cache = MockMetadataCacheRepository();
-    when(() => repo.getPlaylists(size: 50)).thenThrow(StateError('offline'));
+    when(() => repo.getRecentPlaylists(limit: 20)).thenThrow(StateError('offline'));
     when(() => cache.getRecentPlaylists('lib-1'))
         .thenAnswer((_) async => null);
     when(() => cache.getPlaylists('lib-1')).thenAnswer((_) async {

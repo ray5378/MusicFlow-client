@@ -112,19 +112,12 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final all = await fetchWithCacheFallback<List<Playlist>>(
     ref: ref,
     label: 'recentPlaylists',
-    // 服务端分页:size=50(按 updatedAt 倒序取前 50),替代此前全量拉取
-    // (数百歌单时 317KB/次)。客户端仍按 changed 倒序再取前 20 渲染。
-    fetch: () async {
-      final list = await repository.getPlaylists(size: 50);
-      list.sort((a, b) {
-        final ta = a.changed?.millisecondsSinceEpoch ?? 0;
-        final tb = b.changed?.millisecondsSinceEpoch ?? 0;
-        return tb.compareTo(ta);
-      });
-      return list;
-    },
-    // 只缓存这 50 条(recent 专用 scope):兜底语义仍成立 —— 冷启动未就绪时
-    // 读该缓存排序取前 20 秒出;且不再覆盖 playlistsProvider 的全量缓存。
+    // 服务端聚合端点:按 updated_at 倒序取前 20 条,**响应顺序即展示顺序**。
+    // 旧实现拉 `getPlaylists(size: 50)` 再在客户端按 changed 倒序截前 20 ——
+    // 多传 30 条冗余数据,且排序口径由客户端单点决定,与 Web/HA 容易漂移。
+    fetch: () => repository.getRecentPlaylists(limit: 20),
+    // 只缓存这 20 条(recent 专用 scope):兜底语义仍成立 —— 冷启动未就绪时
+    // 读该缓存秒出;且不覆盖 playlistsProvider 的全量缓存。
     cacheWrite: (list) => cache.cacheRecentPlaylists(resolvedLibraryId, list),
     cacheRead: () => _recentPlaylistsFromCache(cache, resolvedLibraryId),
     failedProvider: recentPlaylistsLoadFailedProvider,
@@ -135,7 +128,9 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
     cacheFirst: true,
     refreshKey: resolvedLibraryId,
   );
-  return _sortRecentPlaylists(all);
+  // 远程结果原样透传(服务端已排序);缓存路径在 _recentPlaylistsFromCache
+  // 内部按同一口径排序,兼容老版本写入的全量缓存。
+  return all;
 });
 
 /// 所有歌单 Provider(同样保持数据,不自动释放)

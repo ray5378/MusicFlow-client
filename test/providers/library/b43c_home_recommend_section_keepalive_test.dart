@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/recommend.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/repositories/recommend_repository.dart';
@@ -33,7 +34,11 @@ void main() {
 
   test('离开页面（取消监听）后再读 → 不重拉，keepAlive 保留缓存结果', () async {
     final repo = MockRecommendRepository();
-    when(() => repo.getHomeCards()).thenAnswer((_) async => <HomeCard>[
+    when(() => repo.getHomeRecommendSection()).thenAnswer(
+      (_) async => HomeRecommendSection(
+        hourBucket: 498541,
+        homeCount: 12,
+        fixed: <HomeCard>[
           HomeCard(
             playlistId: 'c1',
             name: 'card',
@@ -42,15 +47,16 @@ void main() {
             isCombo: false,
             songCount: 42,
           ),
-        ]);
+        ],
+        random: const <Playlist>[],
+      ),
+    );
 
     final container = ProviderContainer(
       overrides: <Override>[
         recommendRepositoryProvider.overrideWithValue(repo),
         activeLibraryProvider.overrideWithValue(null),
         ensureActiveAddressProvider.overrideWith((ref) async => _address()),
-        // homeCount=1 且固定卡已有 1 张 → needed=0，跳过随机补位（不触歌单仓）。
-        homePlaylistCountProvider.overrideWith((ref) async => 1),
       ],
     );
     addTearDown(container.dispose);
@@ -65,19 +71,19 @@ void main() {
     final again = await container.read(homeRecommendSectionProvider.future);
     expect(identical(again, section), isTrue,
         reason: 'keepAlive provider 应返回同一份缓存结果');
-    verify(() => repo.getHomeCards()).called(1);
+    verify(() => repo.getHomeRecommendSection()).called(1);
   });
 
   test('依赖变化后 invalidate → 重建重拉（Riverpod 自动失效路径仍可用）', () async {
     final repo = MockRecommendRepository();
-    when(() => repo.getHomeCards()).thenAnswer((_) async => <HomeCard>[]);
+    when(() => repo.getHomeRecommendSection())
+        .thenAnswer((_) async => const HomeRecommendSection.empty());
 
     final container = ProviderContainer(
       overrides: <Override>[
         recommendRepositoryProvider.overrideWithValue(repo),
         activeLibraryProvider.overrideWithValue(null),
         ensureActiveAddressProvider.overrideWith((ref) async => _address()),
-        homePlaylistCountProvider.overrideWith((ref) async => 1),
       ],
     );
     addTearDown(container.dispose);
@@ -88,6 +94,6 @@ void main() {
     // 手动失效等价于依赖变化触发的自动失效：重建时再次走仓库。
     container.invalidate(homeRecommendSectionProvider);
     await container.read(homeRecommendSectionProvider.future);
-    verify(() => repo.getHomeCards()).called(2);
+    verify(() => repo.getHomeRecommendSection()).called(2);
   });
 }

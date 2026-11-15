@@ -97,7 +97,7 @@ class _FakePlaylistRepo extends PlaylistRepository {
   int fetchCalls = 0;
 
   @override
-  Future<List<Playlist>> getPlaylists({int? size}) async {
+  Future<List<Playlist>> getRecentPlaylists({int limit = 20}) async {
     fetchCalls++;
     return <Playlist>[_pl('remote')];
   }
@@ -130,7 +130,7 @@ class _GatedPlaylistRepo extends PlaylistRepository {
   int fetchCalls = 0;
 
   @override
-  Future<List<Playlist>> getPlaylists({int? size}) {
+  Future<List<Playlist>> getRecentPlaylists({int limit = 20}) {
     fetchCalls++;
     return gate.future;
   }

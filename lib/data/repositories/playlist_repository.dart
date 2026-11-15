@@ -33,6 +33,32 @@ class PlaylistRepository {
     return (items: items, total: total);
   }
 
+  /// 最近更新的歌单:走 `GET /rest/api/v1/home/recent-playlists?limit=N`。
+  ///
+  /// 服务端已按 `updated_at` 倒序取前 [limit] 条(limit 默认 20,服务端已 clamp
+  /// 到 1..100),**响应顺序即展示顺序**,客户端不再二次排序、不再翻页。
+  /// 对比旧实现(`getPlaylists(size: 50)` + 客户端按 changed 倒序再截 20):
+  /// 省掉 50 条冗余传输,且排序口径由服务端单点决定,避免两端不一致。
+  Future<List<Playlist>> getRecentPlaylists({int limit = 20}) async {
+    try {
+      final data = await _apiClient.getRaw(
+        '/rest/api/v1/home/recent-playlists',
+        queryParameters: <String, String>{'limit': limit.toString()},
+      );
+      if (data is! Map<String, dynamic>) {
+        Logger.warnWithTag(
+          'PLAYLIST',
+          'recent-playlists unexpected body type: ${data.runtimeType}',
+        );
+        return <Playlist>[];
+      }
+      return _parsePlaylists(data['items'] as List? ?? const <dynamic>[]);
+    } catch (e) {
+      Logger.error('Failed to get recent playlists', e);
+      rethrow;
+    }
+  }
+
   /// 收藏 / 取消收藏歌单:POST /rest/api/v1/playlists/:id/favorite。
   /// 返回服务端处理结果,失败抛异常由上层统一提示。
   Future<bool> setPlaylistFavorite(String playlistId, bool favorite) async {

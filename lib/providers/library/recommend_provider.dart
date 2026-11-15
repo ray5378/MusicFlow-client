@@ -1,10 +1,7 @@
-import 'dart:math';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
-import 'package:musicflow_client/data/models/playlist.dart';
 import 'package:musicflow_client/data/models/recommend.dart';
 import 'package:musicflow_client/data/repositories/recommend_cache_repository.dart';
 import 'package:musicflow_client/data/repositories/recommend_repository.dart';
@@ -12,7 +9,6 @@ import 'package:musicflow_client/data/sources/database/database_provider.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/api/fetch_with_cache_fallback.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
-import 'package:musicflow_client/providers/library/playlist_provider.dart';
 
 final recommendRepositoryProvider = Provider<RecommendRepository?>((ref) {
   final activeLib = ref.watch(activeLibraryProvider);
@@ -128,73 +124,70 @@ final homePlaylistCountProvider = FutureProvider<int>((ref) async {
   }
 });
 
-/// 首页「为你推荐」顶部卡片：固定推荐卡 + 随机补位本地歌单。
-/// 对齐主项目前端 Home/index.vue：
-/// - 固定卡来自 /v1/recommend/home-cards（今日漫游/每日推荐/本地推荐，>30 首门槛）；
-/// - 随机歌单从本地库歌单随机抽取（排除固定卡、≥30 首），
-///   补足到 homeCount 张（每日推荐插件配置，默认 8，含今日漫游固定卡）。
-class HomeRecommendSection {
-  final List<HomeCard> fixed;
-  final List<Playlist> random;
-
-  const HomeRecommendSection({required this.fixed, required this.random});
-
-  bool get isEmpty => fixed.isEmpty && random.isEmpty;
-}
-
-/// 首页「为你推荐」区块数据（固定推荐卡 + 随机补位本地歌单）。
+/// 首页「为你推荐」区块数据（服务端聚合快照：固定卡 + 随机补位）。
 ///
 /// 与 randomSongsProvider 对齐 —— **保持数据,不自动释放**:离开发现页再回来
 /// 不重拉;watch 的依赖(活跃库/客户端)变化时 Riverpod 会自动失效重建重拉。
+///
+/// 数据源:`GET /rest/api/v1/home/recommend-section`(服务端一次算好)。
+/// 与旧实现的三处本质差别:
+/// 1. **不再按 songCount 门槛过滤** —— 服务端零门槛下发固定卡,客户端原样展示。
+///    旧实现在这里做 `songCount > 30`,把 30 首的卡全部误杀,用户观感「固定卡
+///    不见了、全是随机」。
+/// 2. **不再翻页建池 + 本地 shuffle** —— 服务端按小时确定性洗牌并冻结快照,
+///    同一小时内各端一致;旧实现串行翻 4 页 `/v1/playlists?pageSize=100`
+///    (生产 873 张库只覆盖最新 400 张)再 `shuffle(Random())`,既有长尾又有偏差。
+/// 3. **失败会置 `homeCardsLoadFailedProvider`** —— 旧实现首屏这条链永远不置位,
+///    UI 无法区分「真的没卡」和「加载失败」,只能静默降级成纯随机。
 final homeRecommendSectionProvider =
     FutureProvider<HomeRecommendSection>((ref) async {
   final repo = ref.watch(recommendRepositoryProvider);
-  final plRepo = ref.watch(playlistRepositoryProvider);
+  final failed = ref.read(homeCardsLoadFailedProvider.notifier);
 
-  // 1) 固定推荐卡（>30 首门槛，与主项目一致）
-  var fixed = <HomeCard>[];
-  if (repo != null) {
-    try {
-      await ref.read(ensureActiveAddressProvider.future);
-      fixed = await repo.getHomeCards();
-    } catch (e) {
-      Logger.warnWithTag('RECOMMEND', 'home cards load failed', e);
-    }
+  if (repo == null) {
+    failed.state = false;
+    return const HomeRecommendSection.empty();
   }
-  final fixedCards = fixed.where((c) => c.songCount > 30).toList();
 
-  // 2) 首页张数（默认 8，每日推荐插件配置）
-  var homeCount = 8;
+  // 地址未就绪单独兜:这不算「固定卡加载失败」,不该让 UI 显示错误态,
+  // 只回落空区块。地址探测完成后 provider 会因 watch 依赖变化自动重拉。
   try {
-    homeCount = await ref.read(homePlaylistCountProvider.future);
-  } catch (_) {}
-
-  // 3) 随机补位本地歌单
-  final random = <Playlist>[];
-  final fixedIds = fixedCards.map((c) => c.playlistId).toSet();
-  final needed = max(0, homeCount - fixedCards.length);
-  if (plRepo != null && needed > 0) {
-    final pool = <Playlist>[];
-    try {
-      // 首页随机池：取前若干页本地歌单（上限控制），随机抽取
-      for (var page = 1; page <= 4 && pool.length < 400; page++) {
-        final r = await plRepo.getPlaylistsPage(page, 100, query: '');
-        pool.addAll(r.items);
-        if (r.items.length < 100) break;
-      }
-    } catch (e) {
-      Logger.warnWithTag('RECOMMEND', 'random playlist pool load failed', e);
-    }
-    pool.shuffle(Random());
-    for (final p in pool) {
-      if (random.length >= needed) break;
-      if (fixedIds.contains(p.id)) continue;
-      if (p.songCount < 30) continue;
-      random.add(p);
-    }
+    await ref.read(ensureActiveAddressProvider.future);
+  } catch (e) {
+    Logger.warnWithTag('RECOMMEND', 'address not ready', e);
+    failed.state = false;
+    return const HomeRecommendSection.empty();
   }
 
-  return HomeRecommendSection(fixed: fixedCards, random: random);
+  try {
+    final section = await repo.getHomeRecommendSection();
+    // 服务端可能回带 `playlistId` 为空的坏卡(插件数据缺陷):
+    // 过滤掉并留痕,不让它把整排卡拖成一张空封面卡片。
+    final validFixed = <HomeCard>[];
+    for (final card in section.fixed) {
+      if (card.playlistId.isEmpty) {
+        Logger.warnWithTag(
+          'RECOMMEND',
+          'drop home card without playlistId: name=${card.name}',
+        );
+        continue;
+      }
+      validFixed.add(card);
+    }
+    failed.state = false;
+    if (validFixed.length == section.fixed.length) return section;
+    return HomeRecommendSection(
+      hourBucket: section.hourBucket,
+      homeCount: section.homeCount,
+      degraded: section.degraded,
+      fixed: validFixed,
+      random: section.random,
+    );
+  } catch (e) {
+    Logger.warnWithTag('RECOMMEND', 'recommend section load failed', e);
+    failed.state = true;
+    return const HomeRecommendSection.empty();
+  }
 });
 
 /// 本地随机歌单(按平台):经 /v1/local-recommend 获取本地库按平台分组随机歌单。

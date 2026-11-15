@@ -1,3 +1,5 @@
+import 'package:musicflow_client/data/models/playlist.dart';
+
 /// 首页固定推荐卡(来自主项目插件,如每日推荐/今日漫游/本地推荐)
 class HomeCard {
   final String playlistId;
@@ -8,6 +10,11 @@ class HomeCard {
   final int songCount;
   final String? coverArt;
 
+  /// 服务端标记:该固定卡指向的歌单已不存在(仅 **异常卡** 才带此键,
+  /// 健康卡的服务端响应里根本没有 `missing` 字段)。仅用于日志与降级判断,
+  /// 不影响展示 —— 展示口径由 `HomeRecommendSection.degraded` 统一表达。
+  final bool missing;
+
   HomeCard({
     required this.playlistId,
     required this.name,
@@ -16,17 +23,21 @@ class HomeCard {
     required this.isCombo,
     required this.songCount,
     this.coverArt,
+    this.missing = false,
   });
 
   factory HomeCard.fromJson(Map<String, dynamic> json) {
     return HomeCard(
-      playlistId: json['playlistId'] as String,
+      // 容错:服务端/插件数据缺 id 时不能用硬 cast(`as String` 会抛 CastError
+      // 把整批固定卡拖崩)。空串由 `homeRecommendSectionProvider` 过滤并告警。
+      playlistId: (json['playlistId'] as String?) ?? '',
       name: json['name'] as String? ?? '',
       playlistName: json['playlistName'] as String? ?? '',
-      position: (json['position'] as int?) ?? 0,
+      position: (json['position'] as num?)?.toInt() ?? 0,
       isCombo: json['isCombo'] as bool? ?? false,
-      songCount: (json['songCount'] as int?) ?? 0,
+      songCount: (json['songCount'] as num?)?.toInt() ?? 0,
       coverArt: json['coverArt'] as String?,
+      missing: json['missing'] as bool? ?? false,
     );
   }
 
@@ -38,6 +49,7 @@ class HomeCard {
         'isCombo': isCombo,
         'songCount': songCount,
         if (coverArt != null) 'coverArt': coverArt,
+        if (missing) 'missing': true,
       };
 }
 
@@ -238,4 +250,81 @@ class RecommendChannel {
         'count': count,
         'playlists': playlists.map((e) => e.toJson()).toList(),
       };
+}
+
+/// 首页「为你推荐」区块:服务端一次算好的固定卡 + 随机补位组合。
+///
+/// 来自 `GET /rest/api/v1/home/recommend-section`。与旧实现的本质差别:
+/// - **固定卡零门槛**:服务端不再按 songCount 过滤,客户端也不许再过滤
+///   (旧实现在客户端做 `songCount > 30`,把 30 首的卡全误杀);
+/// - **随机补位由服务端按小时确定性洗牌 + 快照冻结**(`hourBucket` 标识所属小时),
+///   同一小时内三端拿到同一份,不再是各端自己 `shuffle(Random())`;
+/// - `homeCount` 由服务端下发,客户端不再单独请求 `/home/playlist-count`;
+/// - `degraded` 表示有固定卡失效(此时 `fixed` 里的异常卡带 `missing: true`)。
+class HomeRecommendSection {
+  /// 快照所属小时桶(服务端小时级轮换标识),0 表示未知/空结果。
+  final int hourBucket;
+
+  /// 服务端下发的首页卡片总数(固定卡 + 随机补位)。
+  final int homeCount;
+
+  /// 有固定卡失效(服务端判定)。
+  final bool degraded;
+
+  /// 固定推荐卡(已按 position 排好序,客户端原样展示,不过滤)。
+  final List<HomeCard> fixed;
+
+  /// 服务端随机补位的本地歌单(已按小时确定性洗好牌,客户端不得再洗)。
+  final List<Playlist> random;
+
+  const HomeRecommendSection({
+    this.hourBucket = 0,
+    this.homeCount = 0,
+    this.degraded = false,
+    required this.fixed,
+    required this.random,
+  });
+
+  /// 空结果(加载失败/仓库未就绪时的回落值)。
+  const HomeRecommendSection.empty()
+      : hourBucket = 0,
+        homeCount = 0,
+        degraded = false,
+        fixed = const <HomeCard>[],
+        random = const <Playlist>[];
+
+  factory HomeRecommendSection.fromJson(Map<String, dynamic> json) {
+    final fixedRaw = json['fixed'] as List? ?? const <dynamic>[];
+    final randomRaw = json['random'] as List? ?? const <dynamic>[];
+    return HomeRecommendSection(
+      hourBucket: (json['hourBucket'] as num?)?.toInt() ?? 0,
+      homeCount: (json['homeCount'] as num?)?.toInt() ?? 0,
+      degraded: json['degraded'] as bool? ?? false,
+      fixed: fixedRaw
+          .whereType<Map<String, dynamic>>()
+          .map(HomeCard.fromJson)
+          .toList(),
+      random: randomRaw
+          .whereType<Map<String, dynamic>>()
+          .map((e) => Playlist.fromJson(_normalizeRandomPlaylistJson(e)))
+          .toList(),
+    );
+  }
+
+  /// 随机补位项服务端只给 `{id,name,songCount,coverArt}` 四个字段,
+  /// 而 [Playlist.fromJson] 要求 `id`/`name` 为 null 安全 —— 归一化补默认值,
+  /// 避免个别条目缺字段时整批解析崩掉。
+  static Map<String, dynamic> _normalizeRandomPlaylistJson(
+    Map<String, dynamic> raw,
+  ) {
+    return <String, dynamic>{
+      ...raw,
+      'id': (raw['id'] as String?) ?? '',
+      'name': (raw['name'] as String?) ?? '',
+      'songCount': (raw['songCount'] as num?)?.toInt() ?? 0,
+      'duration': (raw['duration'] as num?)?.toInt() ?? 0,
+    };
+  }
+
+  bool get isEmpty => fixed.isEmpty && random.isEmpty;
 }
