@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -131,6 +132,7 @@ Future<T> fetchWithCacheFallback<T>({
         budget: budget,
         gateKey: gateKey,
         gate: gate,
+        previous: cached,
       );
       Logger.infoWithTag(_fallbackLogTag, '$label served from cache (SWR)');
       return cached;
@@ -227,6 +229,7 @@ void _scheduleBackgroundRefresh<T>({
   required Duration budget,
   required String gateKey,
   required ConnectionGate gate,
+  required T? previous,
 }) {
   // 10s 窗口内同一 gateKey 只放行一次：既挡住 `invalidateSelf` 触发的
   // provider 重跑（防自我刷新死循环），也保证窗口过后用户显式刷新能重新
@@ -253,6 +256,20 @@ void _scheduleBackgroundRefresh<T>({
           '$label background cache write failed',
           e,
         );
+      }
+      // 内容和顺序都一模一样：只静默刷新了缓存，**不**重建 provider。
+      // `invalidateSelf` 会让整块走过一帧 AsyncLoading，即便数据没变，
+      // 观感也是闪一下 —— 用户报的就是这个。
+      final freshPrint = _payloadFingerprintOf(fresh);
+      final previousPrint = _payloadFingerprintOf(previous);
+      if (freshPrint != null &&
+          previousPrint != null &&
+          freshPrint == previousPrint) {
+        Logger.debugWithTag(
+          _fallbackLogTag,
+          '$label background refresh: unchanged, skip rebuild',
+        );
+        return;
       }
       // 让 provider 重新 emit 新值。启用 cacheFirst 的区块必须同时把
       // `skipLoadingOnRefresh/skipLoadingOnReload` 保持默认（true），否则
@@ -286,4 +303,21 @@ bool _isEmptyPayload(Object? value) {
   if (value is Map) return value.isEmpty;
   if (value is String) return value.isEmpty;
   return false;
+}
+
+/// 载荷指纹：这些模型都没实现 `operator ==`（`==` 比的是对象地址，永远不等），
+/// `toString()` 又是 `Instance of 'X'`（永远相等，会把真实变化全部吞掉）。
+/// 唯一可信的等值判据是 `toJson()` 序列化后的字符串 —— 数组序列化保留顺序，
+/// 所以「顺序变了」天然被判成不相等，正好符合「内容和位置都不变才跳过」。
+///
+/// 返回 null 表示「无法判断」：调用方必须把 null 当成**不相等**，
+/// 否则任何不可序列化的载荷都会永远不再上屏。
+String? _payloadFingerprintOf(Object? value) {
+  if (value == null) return null;
+  try {
+    return jsonEncode(value);
+  } catch (e) {
+    Logger.debugWithTag(_fallbackLogTag, 'payload fingerprint failed', e);
+    return null;
+  }
 }

@@ -60,11 +60,20 @@ class RecentPlaylistsSection extends ConsumerWidget {
           ),
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
-        // 这两个参数**必须是默认值 true**（原为显式 false）。
+        // 这两个参数**必须是 true**（原为显式 false）。
         // 批 B 的 cache-first SWR 在后台刷新成功后调 `ref.invalidateSelf()`，
         // 那会产生 `AsyncLoading(previous)`；显式 false 会让整块闪回一帧骨架，
         // 正是历史上「闪一下就空了」的观感。
+        //
+        // `skipLoadingOnRefresh` 保持**不写**（走默认 true），覆盖上面这种
+        // 「自己 invalidate」的场景。
+        // `skipLoadingOnReload` 的默认值是 **false**，必须显式置 true：
+        // `recentPlaylistsProvider` 内部 `ref.watch(activeAddressProvider)`，
+        // 冷启动时地址从「探测中」翻成「ok」会把它推着重建；Riverpod 的默认值
+        // 只跳过「自己 invalidate」引起的 loading，**不**跳过「上游依赖变化」
+        // 引起的 loading —— 那正是用户报的「连上服务端后闪一下」。
         playlistsAsync.when(
+          skipLoadingOnReload: true,
           data: (playlists) {
             if (playlists.isEmpty) {
               // 数据驱动解耦:服务端暂无歌单数据时整块隐藏;仅加载失败才保留
@@ -92,6 +101,9 @@ class RecentPlaylistsSection extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final pl = playlists[index];
                     return DiscoverPlaylistCard(
+                      // 稳定 key：歌单更新导致排序变化时，Flutter 复用/移动
+                      // 未变的卡片，只新建真正新增的，避免整条轨道逐格改写。
+                      key: ValueKey<String>('recent-playlist-${pl.id}'),
                       width: kPlaylistCardWidth,
                       title: pl.name,
                       subtitle: loc.discover_track_count('${pl.songCount}'),

@@ -32,6 +32,12 @@
  *      体内都必须有 `gate.wait(`，且 `kConnectionGateBudget` ≤ 10s
  *   R7 反向探针自校验：grep 必然不存在的符号，命中数必须为 0 —— 证明本守卫
  *      不是恒绿（恒绿等于没守），此条失败同样阻断
+ *   R8 区块加载开关：四处 `.when()` 不得再出现 `skipLoadingOnReload: false` /
+ *      `skipLoadingOnRefresh: false`，且必须显式跳过 loading —— 否则「自己
+ *      invalidate」或「上游依赖变化」都会让已上屏的区块闪回一帧骨架
+ *   R9 内容不变不重建：`_scheduleBackgroundRefresh` 体内必须先比对载荷指纹、
+ *      再决定是否 `ref.invalidateSelf()`（顺序反了等于没修；比对块被整段删掉
+ *      则会退化成「每次后台刷新都闪一下」）
  *
  * 用法：node tool/check-home-swr.mjs   （退出码非 0 即阻断）
  */
@@ -649,6 +655,117 @@ record(
     hits.length === 0,
     `${PHANTOMS.join(" / ")} 各 0 处`,
     hits.length ? `命中 ${hits.join(" / ")}` : "各 0 处",
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// R8 区块加载开关：已上屏后不得闪回骨架（`.when()` 的 skip 参数）
+// ─────────────────────────────────────────────────────────────
+// 两类 loading 必须分别跳过（Riverpod 的默认值只覆盖其中一类）：
+//   - `skipLoadingOnRefresh`（默认 true）：自己 `invalidateSelf` 引起的；
+//   - `skipLoadingOnReload`（默认 **false**）：**上游依赖变化**引起的 ——
+//     `recentPlaylistsProvider` 内部 `ref.watch(activeAddressProvider)`，冷启动
+//     地址从「探测中」翻成「ok」就会走这条路，正是「连上服务端后闪一下」。
+const SECTION_SKIP = [
+  {
+    rel: "lib/features/discover/widgets/fixed_recommend_section.dart",
+    needRefresh: true,
+  },
+  {
+    rel: "lib/features/discover/widgets/platform_recommend_section.dart",
+    needRefresh: true,
+  },
+  {
+    rel: "lib/features/discover/widgets/local_platform_recommend_section.dart",
+    needRefresh: true,
+  },
+  {
+    // 刻意**不写** `skipLoadingOnRefresh`（走默认 true），只显式钉 reload。
+    rel: "lib/features/discover/widgets/recent_playlists_section.dart",
+    needRefresh: false,
+  },
+];
+for (const spec of SECTION_SKIP) {
+  const code = codeOf(spec.rel);
+  const missing = [];
+  if (code === null) {
+    missing.push("文件不存在");
+  } else {
+    if (countOf(code, "skipLoadingOnReload\\s*:\\s*false") > 0) {
+      missing.push("出现 skipLoadingOnReload: false");
+    }
+    if (countOf(code, "skipLoadingOnRefresh\\s*:\\s*false") > 0) {
+      missing.push("出现 skipLoadingOnRefresh: false");
+    }
+    if (countOf(code, "skipLoadingOnReload\\s*:\\s*true") < 1) {
+      missing.push("缺 skipLoadingOnReload: true");
+    }
+    if (spec.needRefresh && countOf(code, "skipLoadingOnRefresh\\s*:\\s*true") < 1) {
+      missing.push("缺 skipLoadingOnRefresh: true");
+    }
+  }
+  record(
+    `R8 区块加载开关:${spec.rel.split("/").pop()}`,
+    "区块已经上屏之后，任何一次 loading（自己 invalidate 或上游依赖变化）都会让" +
+      "整块闪回一帧骨架 —— 用户报的就是「闪一下就空了」。skip 参数必须显式打开，" +
+      "且绝不能退回 false",
+    missing.length === 0,
+    spec.needRefresh
+      ? "skipLoadingOnRefresh: true + skipLoadingOnReload: true"
+      : "skipLoadingOnReload: true（skipLoadingOnRefresh 走默认 true）",
+    missing.length ? missing.join(" / ") : "齐全",
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// R9 载荷指纹比对必须在 ref.invalidateSelf() 之前
+// ─────────────────────────────────────────────────────────────
+// 后台刷新成功后无条件 `invalidateSelf()` ⇒ 即便内容一字未变，整块也会走过一帧
+// `AsyncLoading(previous)`（观感是闪一下）。修复就是「内容和顺序都相同 → 只写
+// 缓存、跳过重建」。三条断言缺一不可：函数在、比对块在、**顺序对**。
+{
+  const FP_DEF = "String\\?\\s+_payloadFingerprintOf\\s*\\(";
+  const hasDef = countOf(fetchCode, FP_DEF) >= 1;
+  record(
+    "R9a 内容不变不重建:_payloadFingerprintOf 定义存在",
+    "指纹函数是「内容没变」的唯一判据（`==` 比对象地址、`toString()` 恒相等，" +
+      "两者都会判错）。被删掉就只能退回「无条件重建」",
+    hasDef,
+    "fetch_with_cache_fallback.dart 有 String? _payloadFingerprintOf(",
+    hasDef ? "找到" : "未找到",
+  );
+
+  const bgBody = bodyOfAfterParams(
+    fetchCode,
+    "void _scheduleBackgroundRefresh<T>({",
+  );
+  const fpAt = bgBody.indexOf("_payloadFingerprintOf(");
+  const invAt = bgBody.indexOf("ref.invalidateSelf(");
+  record(
+    "R9b 内容不变不重建:指纹比对出现在 ref.invalidateSelf() 之前",
+    "顺序反了等于没修：先 invalidateSelf 再比对，重建（以及那一帧骨架）已经" +
+      "发生了，比对结果再准也没用",
+    bgBody !== "" && fpAt >= 0 && invAt >= 0 && fpAt < invAt,
+    "体内 index(_payloadFingerprintOf() < index(ref.invalidateSelf()",
+    bgBody === ""
+      ? "_scheduleBackgroundRefresh 函数体未定位"
+      : fpAt < 0
+        ? "体内没有 _payloadFingerprintOf("
+        : invAt < 0
+          ? "体内没有 ref.invalidateSelf("
+          : `比对@${fpAt} / invalidate@${invAt}`,
+  );
+
+  const hasFreshPrint = bgBody.includes("freshPrint");
+  const hasPreviousPrint = bgBody.includes("previousPrint");
+  record(
+    "R9c 内容不变不重建:比对块仍在（freshPrint + previousPrint 都取自体内）",
+    "只留函数定义、把比对块整段删掉，会静默退化成「每次后台刷新都闪一下」——" +
+      "而所有行为用例仍然是绿的（内容最终都对，只是闪）",
+    hasFreshPrint && hasPreviousPrint,
+    "体内同时出现 previousPrint 与 freshPrint",
+    `${hasPreviousPrint ? "有" : "无"} previousPrint / ` +
+      `${hasFreshPrint ? "有" : "无"} freshPrint`,
   );
 }
 

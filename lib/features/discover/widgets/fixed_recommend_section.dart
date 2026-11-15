@@ -39,8 +39,8 @@ class FixedRecommendSection extends ConsumerWidget {
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
         sectionAsync.when(
-          skipLoadingOnRefresh: false,
-          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: true,
+          skipLoadingOnReload: true,
           data: (section) {
             // 空区块的两种含义必须分开处理：
             // - 加载失败(loadFailed) → 显示可重试的错误态，用户知道「是没拉到」；

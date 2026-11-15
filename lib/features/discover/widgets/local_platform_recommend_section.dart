@@ -47,8 +47,8 @@ class LocalPlatformRecommendSection extends ConsumerWidget {
         MusicFlowSectionHeader.compact(title: loc.discover_local_random),
         SizedBox(height: context.musicFlowSpacing.xxs),
         channelsAsync.when(
-          skipLoadingOnRefresh: false,
-          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: true,
+          skipLoadingOnReload: true,
           data: (channels) {
             final allPlaylists =
                 channels.expand((c) => c.playlists).toList();

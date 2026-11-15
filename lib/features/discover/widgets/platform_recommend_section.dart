@@ -157,8 +157,8 @@ class PlatformRecommendSection extends ConsumerWidget {
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
         channelsAsync.when(
-          skipLoadingOnRefresh: false,
-          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: true,
+          skipLoadingOnReload: true,
           data: (result) {
             final channels = result.channels;
             final allPlaylists =
