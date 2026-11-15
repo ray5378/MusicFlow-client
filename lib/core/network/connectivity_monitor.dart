@@ -63,13 +63,33 @@ class ConnectivityMonitor {
     });
   }
 
+  /// 把一次插件回报的结果落地成「当前网络类型」并同步给地址池。
   void _updateNetworkType(List<ConnectivityResult> results) {
     final newType = _resolveNetworkType(results);
+    // 同步给地址池：拦截器据此跳过「延时重试波」（attempt >= 1）。
+    // 放在「类型是否变化」判定**之外**：即使类型没变也要写，否则
+    // 断开 → 重连 → 再断开 时最后一次会漏同步。
+    _addressPool.isNetworkDown = newType == NetworkType.none;
     if (newType != _currentNetworkType) {
       _currentNetworkType = newType;
       _networkTypeController.add(newType);
       Logger.infoWithTag(_tag, 'network type changed: $newType');
     }
+  }
+
+  /// 测试专用入口：把一次插件回报的结果灌进来。
+  ///
+  /// 做成 **static** 而不是给实例加一个公开方法，是因为本类被多处测试用
+  /// `implements ConnectivityMonitor` 伪造（例如
+  /// `test/widgets/b35c_visible_remote_retry_scope_test.dart:32`）——
+  /// 给实例加任何公开成员都会让那些 fake 编译不过（Dart 的 `implements`
+  /// 要求实现全部实例成员），而 static 成员不属于实例接口，天然不受影响。
+  @visibleForTesting
+  static void applyNetworkTypeForTest(
+    ConnectivityMonitor monitor,
+    List<ConnectivityResult> results,
+  ) {
+    monitor._updateNetworkType(results);
   }
 
   NetworkType _resolveNetworkType(List<ConnectivityResult> results) {

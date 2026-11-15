@@ -30,6 +30,18 @@ class AddressPool {
   /// 自动回退开关：手动选择线路后，线路挂掉是否自动切换到可用线路
   bool autoFallback = true;
 
+  /// 物理网络是否已断开（由 [ConnectivityMonitor] 维护）。
+  ///
+  /// 唯一用途：让 `FallbackInterceptor` 跳过「延时重试波」（attempt >= 1）。
+  /// **attempt 0 的零延时重发不受它影响** —— 那是批 A 最想保住的自愈路径。
+  /// 之所以不敢连 attempt 0 一起砍：Windows 桌面 `connectivity_plus` 偶发
+  /// 误报 `none`，砍掉 attempt 0 就把误报的代价从「少两次延时重试」放大成
+  /// 「完全不自愈」。
+  ///
+  /// 默认必须是 `false`（不是 nullable）：所有未初始化场景与既有测试都应当
+  /// 走批 A 的原始行为，只有 monitor 明确报告 `none` 时才翻转。
+  bool isNetworkDown = false;
+
   // Callback to persist changes (e.g. latency updates)
   final Function(ServerAddress address)? onAddressUpdated;
 
@@ -381,6 +393,56 @@ class AddressPool {
   /// 应用探测结果到内存状态并持久化（保留锁定状态）
   void updateProbedAddress(ServerAddress probed) {
     _applyProbeResult(probed);
+  }
+
+  /// 按需探测的节流窗口：失败请求触发的加速探测，全池该窗口内最多 1 次。
+  ///
+  /// 可变 static 是刻意留给测试推进时钟的口子（设成 [Duration.zero]
+  /// 即可绕过窗口），生产代码不要改它。
+  static Duration onDemandProbeInterval = const Duration(seconds: 5);
+
+  DateTime _lastOnDemandProbeAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _onDemandProbeInFlight = false;
+
+  /// 「失败请求」触发的**限速**探测，用来把判死延迟从 30~70s 压到 ~10s。
+  ///
+  /// **绝不能在失败路径上直接 `probeAll()`**：首屏十几条请求同时失败就是
+  /// 十几次全量探测（双地址 = 2×N 个 HEAD），那是拿一个新的风暴去换旧的。
+  /// 这里三重限速：
+  ///   1. 只探**一条**（活跃地址；没有就取最佳候选），不全量；
+  ///   2. 全池 [_lastOnDemandProbeAt] 窗口内最多 1 次；
+  ///   3. 上一次点探测还没结束就直接返回（[_onDemandProbeInFlight]）。
+  ///
+  /// 结果走 [_applyProbeResult] 的**宽容路径**（连续
+  /// [requiredConsecutiveFails] 次才降级为 failed）—— 这是关键：一次失败
+  /// 请求只把状态推向 suspect，不会直接把线路打死。
+  ///
+  /// 刻意用 `DateTime` 而不是 `Timer`：static/长生命周期 Timer 会让 widget
+  /// 测试的 pending-timer 判定失败（同令牌桶当初的理由）。
+  Future<void> probeActiveThrottled() async {
+    if (_onDemandProbeInFlight) return;
+    final target = _activeAddress ??
+        _getNextAvailable() ??
+        (_addresses.isNotEmpty ? _addresses.first : null);
+    if (target == null) return;
+    final now = DateTime.now();
+    if (now.difference(_lastOnDemandProbeAt) < onDemandProbeInterval) return;
+    _lastOnDemandProbeAt = now;
+    _onDemandProbeInFlight = true;
+    try {
+      final probed = await probeAddress(target);
+      _applyProbeResult(probed);
+    } catch (e) {
+      // 探测自身已把异常吞成 failed；这里兜住「归类之外」的错误，避免从
+      // 后台路径裸抛进 zone 变成未捕获异常。
+      Logger.warnWithTag(
+        _tag,
+        'on-demand probe threw for ${target.label}',
+        e,
+      );
+    } finally {
+      _onDemandProbeInFlight = false;
+    }
   }
 
   /// 是否存在一条「健康、未锁定、且不是 [excludeId]」的地址 —— 即自动切线路

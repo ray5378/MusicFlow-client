@@ -216,6 +216,11 @@ void main() {
     // 详情页标题（MusicFlowTopBar.back 标题 = loc.library_album_title）。
     expect(find.text(loc.library_album_title), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    // 批 B：详情页会挂一个走 fetchWithCacheFallback 的请求，该封装现在带
+    // 5s 总预算。请求仍在途时用例结束会留下预算计时器，被 `!timersPending`
+    // 判红 —— 推过预算让它自然收敛（生产上同样收敛到缓存/失败态）。
+    await tester.pump(const Duration(seconds: 6));
   });
 
   testWidgets('长按专辑 tile → 弹出专辑操作弹窗', (tester) async {

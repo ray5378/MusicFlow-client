@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
@@ -89,6 +90,10 @@ class FallbackInterceptor extends Interceptor {
     retryClock = DateTime.now;
     retryBackoff = defaultRetryBackoff;
   }
+
+  /// 当前窗口内已用掉的令牌数（测试断言「断网不消耗令牌」用）。
+  @visibleForTesting
+  static int get retryTokensUsedForTest => _retryStamps.length;
 
   final AddressPool _addressPool;
   final Dio _dio; // The customized Dio instance (with this interceptor)
@@ -283,13 +288,29 @@ class FallbackInterceptor extends Interceptor {
       //    没自愈」，正是本批要修的靶心。
       //    真正要限的是延时波：断网 / 黑洞隧道下 1s、2s 两波会成倍放大请求量。
       var retryAllowed = true;
-      if (attempt >= 1 && !_tryAcquireRetryToken()) {
-        Logger.warnWithTag(
-          _tag,
-          'retry budget exhausted '
-          '($retryTokenLimit/$retryTokenWindow), '
-          'fall through to failover path=${options.path}',
-        );
+      // 断网时跳过**延时**重试波，并且**不消耗令牌**（`||` 短路一来就返回，
+      // 不会走到 `_tryAcquireRetryToken`）：无路由下 SocketException 是即时
+      // 的，1s/2s 两波纯粹白等，还会烧掉 12 枚令牌 —— 挤掉的正是 10s 内
+      // 真正需要的那次重试。
+      //
+      // 只管 `attempt >= 1`：attempt 0 是零延时重发，是批 A 想保住的自愈路径，
+      // 也被 Windows 桌面 `connectivity_plus` 的偶发误报保护着（见
+      // `AddressPool.isNetworkDown` 的注释）。
+      if (attempt >= 1 &&
+          (_addressPool.isNetworkDown || !_tryAcquireRetryToken())) {
+        if (_addressPool.isNetworkDown) {
+          Logger.infoWithTag(
+            _tag,
+            'network down, skip delayed retry path=${options.path}',
+          );
+        } else {
+          Logger.warnWithTag(
+            _tag,
+            'retry budget exhausted '
+            '($retryTokenLimit/$retryTokenWindow), '
+            'fall through to failover path=${options.path}',
+          );
+        }
         retryAllowed = false;
       }
       if (retryAllowed) {

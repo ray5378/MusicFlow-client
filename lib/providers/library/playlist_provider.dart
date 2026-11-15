@@ -173,6 +173,10 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
     failedProvider: playlistsLoadFailedProvider,
     errorMessage: l10nNowCurrent().provider_network_error_playlist,
     emptyValue: <Playlist>[],
+    // 全量歌单可达 317KB 级，5s 预算对它偏紧：显式放宽到 8s。
+    // 这个 provider 服务「加入歌单」弹窗，不做 cache-first（没有首屏收益）；
+    // 它拿到的是 getPlaylists() 全量，本来就不该比首页区块更早被砍。
+    budget: const Duration(seconds: 8),
   );
 });
 
