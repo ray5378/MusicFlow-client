@@ -212,9 +212,13 @@ void main() {
       headResponse = 500;
       pool.setAddresses([addr(id: 'x')]);
       // 探测异常走 failed 判定，但 _applyProbeResult 宽容逻辑：
-      // 单次失败保留原状态（unknown）；自动模式无 ok 可选 → 活跃地址置空。
+      // 单次失败保留原状态（unknown）。
+      //
+      // 口径变更（批 B / T2）：自动模式「没有 ok 可选」时**保持**原活跃地址，
+      // 不再置 null。旧行为会把它清空，于是 isOfflineProvider 判「不在线」，
+      // 服务端真挂时播放器反而去试在线流（弹「无路由」）而不是走本地缓存。
       final active = await pool.probeAll();
-      expect(active, isNull);
+      expect(active?.id, 'x', reason: '没有可选地址时保持原活跃地址，不清空');
       expect(pool.addresses.single.status, ServerAddressStatus.unknown);
     });
 
@@ -227,7 +231,15 @@ void main() {
       expect(pool.activeAddress?.status, ServerAddressStatus.ok);
       await pool.probeAll(); // 第 2 次失败：达到 requiredConsecutiveFails → failed。
       expect(pool.addresses.single.status, ServerAddressStatus.failed);
-      expect(pool.activeAddress, isNull, reason: '唯一地址 failed 且无下一跳');
+      // 口径变更（批 B / T2）：真挂了也要**留住**这条活跃地址 —— 它的
+      // status == failed 正是 isOfflineProvider 判离线的唯一依据；
+      // 置 null 会让「真挂了」漏判成在线（见下一条用例的正例断言）。
+      expect(
+        pool.activeAddress?.id,
+        'only',
+        reason: '唯一地址 failed 时保留活跃地址，供 isOfflineProvider 判离线',
+      );
+      expect(pool.activeAddress?.status, ServerAddressStatus.failed);
     });
 
     test('探测成功后重置连续失败计数', () async {
@@ -247,8 +259,11 @@ void main() {
       expect(pool.activeAddress?.id, 'a');
       headResponse = 500;
       await pool.probeAll();
-      await pool.probeAll(); // a/b 各连续 2 次失败 → 均 failed，active 置空
-      expect(pool.activeAddress, isNull);
+      await pool.probeAll(); // a/b 各连续 2 次失败 → 均 failed
+      // 口径变更（批 B / T2）：不再把活跃地址清成 null —— 保留最后一条
+      // failed 的地址，isOfflineProvider 才能判出「服务端真挂了」。
+      expect(pool.activeAddress, isNotNull);
+      expect(pool.activeAddress?.status, ServerAddressStatus.failed);
       headResponse = 200;
       final active = await pool.probeAll(); // a 恢复 ok → 探测途中 promote
       expect(active?.id, 'a');

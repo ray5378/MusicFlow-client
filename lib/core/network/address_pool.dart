@@ -110,6 +110,11 @@ class AddressPool {
       return;
     }
 
+    // 只认 `ok`。注意 `unknown` 现在有两种含义 ——「初始未探测」和
+    // 「suspect（试过但没通过探测，见 switchTo(manual: false)）」—— 两者都
+    // 恢复不出来。冷启动时若唯一地址处于 suspect，活跃地址会保持 null，
+    // 由 FallbackInterceptor.onRequest 的
+    // `active ?? getNextAvailable() ?? addresses.first` 兜底，不会带空 baseUrl。
     final okAddress = _addresses
         .where((a) => a.status == ServerAddressStatus.ok)
         .firstOrNull;
@@ -181,10 +186,19 @@ class AddressPool {
     }
 
     // 自动模式：选择最优可达地址
+    //
+    // 没有可选地址时**保持**原活跃地址，不要置 null：`isOfflineProvider` 的
+    // 判据是 `activeAddress.status == failed`，把它清成 null 会让「服务端真的
+    // 挂了」漏判成「在线」—— 播放器于是去试在线流并失败（弹「无路由」），
+    // 而不是走本地缓存文件。保留一条 failed 的活跃地址，才让离线判定生效。
     final newActive = _getNextAvailable();
-    _setActiveAddress(newActive);
+    if (newActive != null) _setActiveAddress(newActive);
     if (newActive == null) {
-      Logger.warnWithTag(_tag, 'probeAll completed but no available address');
+      Logger.warnWithTag(
+        _tag,
+        'probeAll completed but no available address '
+        '(keeping active=${_activeAddress?.label ?? 'none'})',
+      );
     }
     return _activeAddress;
   }
@@ -369,24 +383,50 @@ class AddressPool {
     _applyProbeResult(probed);
   }
 
+  /// 是否存在一条「健康、未锁定、且不是 [excludeId]」的地址 —— 即自动切线路
+  /// 真正可信的去处。
+  ///
+  /// **这是「有没有备线」的唯一判据**：重试预算（`FallbackInterceptor.onError`
+  /// 的第 4 步）与判死（[markFailed]）共用它，避免「1 ok + 1 failed」时
+  /// 重试侧判无备线、判死侧判有备线的双标 —— 那种双标会让重试把时间让给一次
+  /// 注定失败的 failover，同时又把唯一健康的地址从候选里剔除。
+  ///
+  /// 刻意走**公开的 [addresses]** 而不是内部 `_addresses`：`addresses` 是
+  /// 可覆写的 getter，测试替身（如 `_FixedPool`）只覆写得到它；用私有字段会
+  /// 让「预算分档 / 判死」这两条判据在替身上恒为 false，等于把判据变成不可测。
+  /// 二者内容一致（[addresses] 就是 `_addresses` 的只读视图）。
+  bool hasHealthyBackup({String? excludeId}) => addresses.any(
+        (a) =>
+            a.id != excludeId &&
+            !a.isLocked &&
+            a.status == ServerAddressStatus.ok,
+      );
+
   /// 标记某地址「本次请求失败」。
   ///
-  /// **单地址（[addresses].length <= 1）刻意跳过判死，这不是遗漏**：
-  /// 唯一线路被判死会同时放大成两处全局故障 ——
-  ///   1. 状态经 [onAddressUpdated] 被持久化成 `failed`，下次冷启动
+  /// **没有可信备线时刻意跳过判死，这不是遗漏**：
+  ///
+  /// 判死的**唯一用途**是给切换让路 —— 唯一调用点在
+  /// `fallback_interceptor.dart` 的第 6 步，紧接着就调 [getNextAvailable]
+  /// 挑下一跳。所以没有备线时判死不但无用，而且有毒：
+  ///   1. 它会把「唯一的健康地址」从 [getNextAvailable] 的候选里剔除，
+  ///      逼第 6 步走 `_getNextAvailable` 的 `index + 1` 兜底分支（那条**不看
+  ///      status**），去 probe 一条我们本来就不信的地址；
+  ///   2. 状态经 [onAddressUpdated] 被持久化成 `failed`，下次冷启动
   ///      [_restoreActiveAddressFromPool] 只认 `status == ok`，恢复不出活跃
   ///      地址，首屏请求便带着空 baseUrl 派发（Uri 无 host → ArgumentError →
   ///      不命中任何重试分支），整屏空白 + 报网络异常；
-  ///   2. `isOfflineProvider` 把 `activeAddress.status == failed` 直接当成
+  ///   3. `isOfflineProvider` 把 `activeAddress.status == failed` 直接当成
   ///      离线，于是封面全占位、播放被拒、遥控不可达。
+  ///
   /// 外网是「单一 HTTPS 反代地址」，根本没有备线可切，判死等于自我否决。
   /// 真实可达性交给 HealthChecker 的周期探测（连续 [requiredConsecutiveFails]
-  /// 次失败才降级），这里只记录一次失败。
+  /// 次失败才降级，见 [_applyProbeResult]），请求路径这里不参与判死。
   void markFailed(ServerAddress addr) {
-    if (_addresses.length <= 1) {
+    if (!hasHealthyBackup(excludeId: addr.id)) {
       Logger.warnWithTag(
         _tag,
-        'markFailed skipped for single-address pool (deliberate design): '
+        'markFailed skipped when no healthy backup (deliberate design): '
         '${addr.label}',
       );
       return;
@@ -484,12 +524,30 @@ class AddressPool {
     }
 
     final probed = await probeAddress(addr);
+    final probedOk = probed.status == ServerAddressStatus.ok;
+    final oldActiveId = _activeAddress?.id;
     ServerAddress? newActive;
 
     for (int i = 0; i < _addresses.length; i++) {
       final current = _addresses[i];
       if (current.id == addr.id) {
-        _addresses[i] = probed.copyWith(isLocked: false);
+        _addresses[i] = probed.copyWith(
+          isLocked: false,
+          // 候选探测失败只降级为 suspect（复用已有的 `unknown`），**不写
+          // failed**：`failed` 会让 `isOfflineProvider` 判全 App 离线（封面
+          // 全占位 + 播放被跳过 + 暂停下载，见其 5 个消费点），而单次探测失败
+          // 远不足以证明它长期不可用。真正的 `failed` 只由
+          // [_applyProbeResult] 在连续 [requiredConsecutiveFails] 次失败后给出。
+          //
+          // 注意 `unknown` 从此多了一层语义 =「suspect（试过但没通过）」，
+          // 不再只是「初始未探测」。[_restoreActiveAddressFromPool] 只认
+          // `ok`，所以 suspect 地址冷启动时恢复不出来 —— 由
+          // FallbackInterceptor.onRequest 的
+          // `active ?? getNextAvailable() ?? first` 兜底，不会空 baseUrl。
+          status: probedOk
+              ? ServerAddressStatus.ok
+              : ServerAddressStatus.unknown,
+        );
         onAddressUpdated?.call(_addresses[i]);
         newActive = _addresses[i];
       } else if (current.isLocked) {
@@ -498,16 +556,25 @@ class AddressPool {
       }
     }
 
-    if (newActive != null && _activeAddress?.id != newActive.id) {
+    // 只有探测通过才真正切过去。探测失败时保持原活跃地址不动 —— 旧实现会把
+    // 活跃地址直接设成这条没通过探测的候选，于是 `isOfflineProvider` 立刻为
+    // true，用户看到的是封面全占位 + 播放被跳过，比「没切成功」糟得多。
+    if (probedOk && newActive != null) {
       _activeAddress = newActive;
-      onActiveAddressChanged?.call(_activeAddress);
-    } else if (newActive != null) {
-      _activeAddress = newActive;
+      if (_activeAddress?.id != oldActiveId) {
+        onActiveAddressChanged?.call(_activeAddress);
+      }
     }
 
-    final ok = _activeAddress?.status == ServerAddressStatus.ok;
-    Logger.infoWithTag(_tag, 'switchTo(auto) result=$ok');
-    return ok;
+    // 返回值语义 =「这条候选探测通过了吗」，**不能**改成读 `_activeAddress`
+    // 的状态：探测失败时活跃地址仍是那条 ok 的旧地址，读它会返回 true，让
+    // 第 6 步误以为已经切好并去重放请求（打在原地）。
+    Logger.infoWithTag(
+      _tag,
+      'switchTo(auto) result=$probedOk probeOk=$probedOk '
+      'active=${_activeAddress?.label ?? 'none'}',
+    );
+    return probedOk;
   }
 
   /// 用户手动锁定某地址（不参与自动切换）

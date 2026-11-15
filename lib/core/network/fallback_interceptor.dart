@@ -5,7 +5,6 @@ import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
-import 'package:musicflow_client/data/models/server_address.dart';
 
 /// 请求兜底拦截器。
 ///
@@ -253,14 +252,10 @@ class FallbackInterceptor extends Interceptor {
       final canSwitch =
           !(_addressPool.isManualMode && _addressPool.autoFallback == false);
       final hasNextHop = canSwitch &&
-          _addressPool.addresses.any(
-            (a) =>
-                a.id != activeAddress?.id &&
-                !a.isLocked &&
-                a.status == ServerAddressStatus.ok,
-          );
-      // 注意 `!a.isLocked` 与第 6 步的**不对称**，这是刻意的、不是 bug：
-      //   * 这里把 locked 排除在「备线」之外 —— 用户手工锁定的线路不该被当成
+          _addressPool.hasHealthyBackup(excludeId: activeAddress?.id);
+      // 注意 `hasHealthyBackup` 里的 `!a.isLocked` 与第 6 步的**不对称**，
+      // 这是刻意的、不是 bug：
+      //   * 它把 locked 排除在「备线」之外 —— 用户手工锁定的线路不该被当成
       //     自动切换的去处，否则「池里另有一条被锁的线」就会把重试预算无端
       //     砍到 1，而第 6 步其实也切不过去，等于白砍；
       //   * 但第 6 步走的是 getNextAvailable()，它的 index+1 兜底分支
@@ -269,6 +264,11 @@ class FallbackInterceptor extends Interceptor {
       //     switchTo(manual: false) 会顺手把它解锁并写回状态。
       // 两处口径不同但结论一致：预算不因「另有一条被锁的线」而缩水，同时
       // 「唯一可用备线被锁」也不会让请求彻底无路可走。
+      //
+      // 判死（`AddressPool.markFailed`）现在**共用同一个判据**
+      // （`hasHealthyBackup`）：否则会出现「重试侧判无备线 → 预算给满」+
+      // 「判死侧判有备线 → 把唯一健康地址剔除」的双标。要改这个判据请只改
+      // `AddressPool.hasHealthyBackup` 一处。
       maxAttempts = hasNextHop ? 1 : maxSameAddressRetries;
       options.extra[_retryBudgetExtraKey] = maxAttempts;
     }

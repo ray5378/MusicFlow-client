@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:musicflow_client/core/design/components/music_flow_message.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/utils/toast_notifier.dart';
@@ -74,5 +75,24 @@ class NetworkErrorNotifier {
     }
     _lastShownAt = now;
     ToastNotifier.show(message, kind: MusicFlowMessageKind.error);
+  }
+
+  /// 测试专用：清空全部 static 状态（启动宽限期起点、节流时间戳、待确认定时器）。
+  ///
+  /// **同一文件的第 2 条用例起必须调用**，否则会静默产生假绿：
+  /// - `_startedAt` 只赋值一次且永不重置 → 后续用例全落在 30s 宽限期内；
+  /// - `_lastShownAt` 带 20s 节流 → 「应当弹 toast」会被吞掉；
+  /// - `_pendingTimer` 未取消 → fake-async 直接判 pending timer 报错。
+  ///
+  /// 特别是「后台刷新失败**不**弹 toast」这类断言：不重置的话，
+  /// 上一条用例刚弹过窗，节流会让它「确实没弹」，用例永远绿。
+  @visibleForTesting
+  static void resetForTest() {
+    _startedAt = null;
+    _lastShownAt = null;
+    _pendingTimer?.cancel();
+    _pendingTimer = null;
+    _pendingMessage = null;
+    _pendingSince = null;
   }
 }
