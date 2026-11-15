@@ -4,8 +4,9 @@
 //   1. **首帧不发请求** —— 后台刷新必须推到事件队列，否则「缓存优先」又变回
 //      远程优先（`_scheduleBackgroundRefresh` 里的 `Future<void>(() async {...})`
 //      就是为此存在，这里的 `fetchCalls == 0` 断言是它的唯一守卫）；
-//   2. **闸生效** —— 同一 refreshKey 本会话只刷一次，否则 `invalidateSelf` →
-//      provider 重跑 → 再刷新，就是自我触发的死循环（架构师点的 P0-3）；
+//   2. **闸生效** —— 同一 `label|refreshKey` 在 10s TTL 窗口内只刷一次，
+//      否则 `invalidateSelf` → provider 重跑 → 再刷新就是自我触发的死循环；
+//      TTL 窗口过后显式刷新放行（一次性 Set 会把手动/下拉刷新永久挡死）；
 //   3. **后台失败静默** —— 用户已经看到内容了，不能再弹「网络异常」，也不能
 //      把整块打成失败态。这条必须先 `NetworkErrorNotifier.resetForTest()`
 //      再断言，否则 20s 节流会让它恒绿（假绿）。
@@ -61,6 +62,7 @@ void main() {
 
   setUp(() {
     NetworkErrorNotifier.resetForTest();
+    refreshClockForTest = DateTime.now;
     resetRefreshGateForTest();
   });
 
@@ -314,6 +316,98 @@ void main() {
       expect(find.text('control-toast'), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 31));
+    });
+
+    test('P0-1 闸键带 label 命名空间：两个区块同一 refreshKey 各刷一次', () {
+      fakeAsync((async) {
+        final container = _container();
+        addTearDown(container.dispose);
+        final ref = _liveRef(container);
+        var fetchCalls = 0;
+
+        // 模拟两个首屏区块：label 不同，但传的是同一个 libraryId。
+        Future<List<String>> run(String label) =>
+            fetchWithCacheFallback<List<String>>(
+          ref: ref,
+          label: label,
+          refreshKey: 'lib-1',
+          cacheFirst: true,
+          fetch: () async {
+            fetchCalls++;
+            return <String>['fresh'];
+          },
+          cacheWrite: (_) async {},
+          cacheRead: () async => <String>['cached'],
+          failedProvider: _flagProvider,
+          errorMessage: 'net-err',
+          emptyValue: const <String>[],
+        );
+
+        unawaited(run('blockA'));
+        unawaited(run('blockB'));
+        async.elapse(Duration.zero);
+        async.flushMicrotasks();
+
+        expect(
+          fetchCalls,
+          2,
+          reason: '闸键只按业务 refreshKey 去重时，先 build 的区块会吃掉'
+              '另一个区块整会话的刷新机会（P0-1）',
+        );
+      });
+    });
+
+    test('P0-2 TTL 闸：窗口内不重复刷新，推进 >10s 后可再次刷新', () {
+      DateTime fakeNow = DateTime(2024, 1, 1);
+      refreshClockForTest = () => fakeNow;
+      addTearDown(() => refreshClockForTest = DateTime.now);
+
+      fakeAsync((async) {
+        final container = _container();
+        addTearDown(container.dispose);
+        final ref = _liveRef(container);
+        var fetchCalls = 0;
+
+        Future<List<String>> run() =>
+            fetchWithCacheFallback<List<String>>(
+          ref: ref,
+          label: 'b-swr-ttl',
+          refreshKey: 'lib-1',
+          cacheFirst: true,
+          fetch: () async {
+            fetchCalls++;
+            return <String>['fresh'];
+          },
+          cacheWrite: (_) async {},
+          cacheRead: () async => <String>['cached'],
+          failedProvider: _flagProvider,
+          errorMessage: 'net-err',
+          emptyValue: const <String>[],
+        );
+
+        unawaited(run());
+        async.elapse(Duration.zero);
+        async.flushMicrotasks();
+        expect(fetchCalls, 1, reason: '首次放行');
+
+        // 窗口内（+5s）：invalidateSelf 触发的重跑仍被挡，不能形成死循环。
+        fakeNow = fakeNow.add(const Duration(seconds: 5));
+        unawaited(run());
+        async.elapse(Duration.zero);
+        async.flushMicrotasks();
+        expect(fetchCalls, 1, reason: '10s 窗口内不重复刷新');
+
+        // 推进超过 TTL（累计 11s）：用户显式刷新必须重新发出远程请求。
+        fakeNow = fakeNow.add(const Duration(seconds: 6));
+        unawaited(run());
+        async.elapse(Duration.zero);
+        async.flushMicrotasks();
+        expect(
+          fetchCalls,
+          2,
+          reason: '一次性 Set 会永久挡住 —— 手动/下拉刷新零远程请求（P0-2）',
+        );
+      });
     });
   });
 }

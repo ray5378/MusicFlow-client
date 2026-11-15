@@ -24,19 +24,33 @@ const String _fallbackLogTag = 'FETCH';
 /// 令牌桶约束但不会真 abort。要真 abort 得给 20+ 调用点传 `CancelToken`。
 const Duration kDefaultRequestBudget = Duration(seconds: 5);
 
-/// 本会话内已后台刷新过的刷新键 —— 防「刷新 → provider 重跑 → 又刷新」死循环。
+/// 每个刷新闸键最近一次放行后台刷新的时刻。
 ///
-/// 键默认等于 [label]；调用方可以传 `refreshKey`（如 `libraryId`）让「切库」
-/// 这件事重新获得一次刷新机会。
-final Set<String> _refreshedLabels = <String>{};
+/// 键是 `'$label|$refreshKey'` 的复合值（见 [_scheduleBackgroundRefresh]）：
+/// `label` 给出区块命名空间，避免两个首屏区块传同一个 `libraryId` 时互相
+/// 吃掉刷新机会；`refreshKey` 保持纯业务维度（如切库后重新获得一次刷新）。
+///
+/// 用**带 TTL 的时刻表**而不是一次性 Set：Set 一旦 `add` 就永不释放，用户
+/// 手动刷新 / 下拉 / 切库 / 入库回调这些 `ref.invalidate` 路径会退化成
+/// 「返回缓存、零远程请求」；TTL 让 10s 窗口内 `invalidateSelf` 触发的
+/// provider 重跑被挡住（防自我刷新死循环），窗口过后的显式刷新重新放行。
+final Map<String, DateTime> _lastRefreshAt = <String, DateTime>{};
+
+/// 闸的时间窗：同一个复合键在此窗口内最多放行一次后台刷新。
+const Duration _kRefreshGateTtl = Duration(seconds: 10);
+
+/// 测试可注入的时钟 —— 让「窗口内 / 窗口外」可被确定性钉住，不用 Timer，
+/// 避免 fake-async 里残留 pending timer 让 widget 测试假绿。
+@visibleForTesting
+DateTime Function() refreshClockForTest = DateTime.now;
 
 /// 测试专用：清空后台刷新闸。
 ///
 /// 同一文件的多条用例必须调用 —— 否则第 2 条起 `_scheduleBackgroundRefresh`
-/// 会因为「这个 label 已刷过」直接 return，`fetchCallCount` 永远是 0，
+/// 会因为「这个 key 刚刷过」直接 return，`fetchCallCount` 永远是 0，
 /// 「后台刷新真的跑了一次」这类断言全变假绿。
 @visibleForTesting
-void resetRefreshGateForTest() => _refreshedLabels.clear();
+void resetRefreshGateForTest() => _lastRefreshAt.clear();
 
 /// 首页各区块统一的「远程优先 + 缓存兜底」加载封装。
 ///
@@ -55,7 +69,8 @@ void resetRefreshGateForTest() => _refreshedLabels.clear();
 /// 本函数只负责「已具备远程条件」后的加载与兜底。
 ///
 /// [cacheFirst]（SWR）：有缓存就**立刻**把缓存交出去，再在后台拉新值
-/// （本会话每个 [label] 只拉一次）。没有缓存时行为与不开启完全一致。
+/// （同一 `label + refreshKey` 在 [_kRefreshGateTtl] 窗口内只拉一次）。
+/// 没有缓存时行为与不开启完全一致。
 Future<T> fetchWithCacheFallback<T>({
   required Ref ref,
   required String label,
@@ -75,13 +90,16 @@ Future<T> fetchWithCacheFallback<T>({
       // 首屏秒出：先把旧值交出去，新鲜值由后台刷新补上。
       // 刻意**不**在这里 `await fetch()` —— 那等于把「缓存优先」又变回远程优先。
       ref.read(failedProvider.notifier).state = false;
+      // 闸键必须带 label 命名空间：recentPlaylists / randomSongs 传的是同一个
+      // libraryId，只按业务 key 去重会让先 build 的区块吃掉另一个的刷新机会。
+      final gateKey = '$label|${refreshKey ?? ''}';
       _scheduleBackgroundRefresh<T>(
         ref: ref,
         label: label,
         fetch: fetch,
         cacheWrite: cacheWrite,
         budget: budget,
-        refreshKey: refreshKey ?? label,
+        gateKey: gateKey,
       );
       Logger.infoWithTag(_fallbackLogTag, '$label served from cache (SWR)');
       return cached;
@@ -155,9 +173,15 @@ void _scheduleBackgroundRefresh<T>({
   required Future<T> Function() fetch,
   required Future<void> Function(T data) cacheWrite,
   required Duration budget,
-  required String refreshKey,
+  required String gateKey,
 }) {
-  if (!_refreshedLabels.add(refreshKey)) return;
+  // 10s 窗口内同一 gateKey 只放行一次：既挡住 `invalidateSelf` 触发的
+  // provider 重跑（防自我刷新死循环），也保证窗口过后用户显式刷新能重新
+  // 发出远程请求 —— 一次性 Set 会把这些 invalidate 路径永久挡死（P0-2）。
+  final now = refreshClockForTest();
+  final last = _lastRefreshAt[gateKey];
+  if (last != null && now.difference(last) < _kRefreshGateTtl) return;
+  _lastRefreshAt[gateKey] = now;
   // 必须推到**事件队列**（`Future(() {...})`）而不是就地执行：
   // 就地调用一个 async 函数会同步执行到第一个 await 之前，也就是 `fetch()`
   // 当场就被调用了 —— 那等于「首帧就发了远程请求」，既有缓存优先的语义
