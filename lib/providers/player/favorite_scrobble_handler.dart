@@ -42,6 +42,15 @@ class FavoriteScrobbleHandler {
           'time': DateTime.now().millisecondsSinceEpoch.toString(),
           'submission': submission.toString(),
         },
+        // 关闭自动重放：这是**有副作用的写操作**，不是纯读取。
+        // `submission=true` 会让服务端的播放计数 +1，重放一次就多算一次播放
+        // （播放历史/推荐/统计全部虚高）；`submission=false` 也是写服务端
+        // 「正在播放」状态。FallbackInterceptor 的同地址重试只对连接类错误
+        // 生效，但「服务端已处理、响应没回来」这类失败恰恰最容易被重放，
+        // 所以必须显式关掉 —— 与 playlist_repository 里 create/update/delete
+        // 歌单的做法一致（重复建歌单、重复删歌单都不可接受）。
+        // 失败由下面的 catch 吞掉并记日志：漏报一次播放记录远好于重复计数。
+        allowFallbackRetry: false,
       );
       Logger.info('Scrobble: $songId (submission: $submission)');
     } catch (e) {

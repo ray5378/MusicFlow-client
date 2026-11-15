@@ -1,10 +1,15 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:musicflow_client/core/network/address_pool.dart';
+import 'package:musicflow_client/core/network/connectivity_monitor.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
+import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/offline/offline_provider.dart';
+import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
 
 class MockDio extends Mock implements Dio {
   @override
@@ -262,20 +267,119 @@ void main() {
   });
 
   group('markFailed', () {
-    test('标记失败：状态更新 + 回调 + 活跃地址同步', () async {
-      pool.setAddresses([addr(id: 'a', status: ServerAddressStatus.ok)]);
+    test('多地址池：状态更新 + 回调 + 活跃地址同步', () async {
+      pool.setAddresses([
+        addr(id: 'a', status: ServerAddressStatus.ok),
+        addr(id: 'b', url: 'https://b.example.com', priority: 1),
+      ]);
+      await pool.probeAll();
       expect(pool.activeAddress?.id, 'a');
+      updatedCallbacks.clear();
+      activeCallbacks.clear();
+
       pool.markFailed(addr(id: 'a'));
-      expect(pool.addresses.first.status, ServerAddressStatus.failed);
+
+      expect(
+        pool.addresses.firstWhere((a) => a.id == 'a').status,
+        ServerAddressStatus.failed,
+      );
       expect(pool.activeAddress?.status, ServerAddressStatus.failed);
       expect(updatedCallbacks.map((a) => a.id), contains('a'));
       expect(activeCallbacks, isNotEmpty);
     });
 
-    test('未知 id → 无操作', () {
+    test('单地址池：跳过判死（状态保持原值、无回调）', () async {
+      // 语义已从「单地址也写 failed」改为「单地址刻意跳过判死」：
+      // 唯一线路被判死会经 onAddressUpdated 持久化成 failed（下次冷启动
+      // _restoreActiveAddressFromPool 只认 status==ok → 恢复不出活跃地址 →
+      // 首屏带空 baseUrl 派发），并让 isOfflineProvider 判离线（封面/播放/
+      // 遥控全降级）。真实可达性交给 HealthChecker 的周期探测（连续 2 次
+      // 失败才降级），这里只记录一次失败。
       pool.setAddresses([addr(id: 'a', status: ServerAddressStatus.ok)]);
+      await pool.probeAll();
+      expect(pool.activeAddress?.id, 'a');
+      updatedCallbacks.clear();
+      activeCallbacks.clear();
+
+      pool.markFailed(addr(id: 'a'));
+
+      expect(
+        pool.addresses.single.status,
+        ServerAddressStatus.ok,
+        reason: '单地址判定失败会连锁触发持久化失败 + 全 App 离线降级',
+      );
+      expect(pool.activeAddress?.status, ServerAddressStatus.ok);
+      expect(updatedCallbacks, isEmpty, reason: '不持久化失败态');
+      expect(activeCallbacks, isEmpty);
+    });
+
+    test('单地址池：markFailed 后 getNextAvailable 仍可用、isOfflineProvider 不判离线',
+        () async {
+      // 上一条只钉住了「status 不变 + 不回调」。但「判死」在运行时有两条真实
+      // 后果链路，必须一并钉住：
+      //   1. getNextAvailable() 若返回 null，同地址重试耗尽后的第 6 步 failover
+      //      就无路可走 —— 外网只有「单一 HTTPS 反代地址」，等于直接失败；
+      //   2. isOfflineProvider 把 activeAddress.status == failed 直接当离线，
+      //      于是封面全占位、播放被拒、遥控不可达。
+      pool.setAddresses([addr(id: 'a', status: ServerAddressStatus.ok)]);
+      await pool.probeAll();
+      expect(pool.activeAddress?.id, 'a');
+
+      pool.markFailed(addr(id: 'a'));
+
+      expect(
+        pool.getNextAvailable()?.id,
+        'a',
+        reason: '单地址被判死后 failover 无路可走，必须仍能返回该地址',
+      );
+
+      Future<bool> offlineWith(ServerAddress? active) async {
+        final container = ProviderContainer(
+          overrides: <Override>[
+            currentNetworkTypeProvider.overrideWith(
+              (ref) => Stream<NetworkType>.value(NetworkType.wifi),
+            ),
+            activeAddressProvider.overrideWith((ref) => active),
+          ],
+        );
+        addTearDown(container.dispose);
+        // 先等 StreamProvider 发出首值：否则首次同步读拿到 loading，valueOrNull
+        // 为 null，`??` 会回落到 connectivityMonitorProvider 的真实网络状态
+        // （测试环境恒为 none → 恒判离线），断言就失去区分力。
+        await container.read(currentNetworkTypeProvider.future);
+        return container.read(isOfflineProvider);
+      }
+
+      expect(
+        await offlineWith(pool.activeAddress),
+        isFalse,
+        reason: '单地址 markFailed 后不得被判离线',
+      );
+      // 反向对照：同一套 provider 组合下，status 真为 failed 时必须判离线。
+      // 缺了这一条，上面的 isFalse 可能只是断言写坏了（假绿）。
+      expect(
+        await offlineWith(
+          pool.activeAddress?.copyWith(status: ServerAddressStatus.failed),
+        ),
+        isTrue,
+        reason: '对照组：status == failed 时 isOfflineProvider 必须为 true',
+      );
+    });
+
+    test('未知 id → 无操作', () async {
+      pool.setAddresses([
+        addr(id: 'a', status: ServerAddressStatus.ok),
+        addr(id: 'b', url: 'https://b.example.com', priority: 1),
+      ]);
+      await pool.probeAll();
+      updatedCallbacks.clear();
+
       pool.markFailed(addr(id: 'ghost'));
-      expect(pool.addresses.single.status, ServerAddressStatus.ok);
+
+      expect(
+        pool.addresses.every((a) => a.status == ServerAddressStatus.ok),
+        isTrue,
+      );
       expect(updatedCallbacks, isEmpty);
     });
   });

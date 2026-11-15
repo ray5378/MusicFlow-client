@@ -369,8 +369,28 @@ class AddressPool {
     _applyProbeResult(probed);
   }
 
-  /// 标记某地址探测失败
+  /// 标记某地址「本次请求失败」。
+  ///
+  /// **单地址（[addresses].length <= 1）刻意跳过判死，这不是遗漏**：
+  /// 唯一线路被判死会同时放大成两处全局故障 ——
+  ///   1. 状态经 [onAddressUpdated] 被持久化成 `failed`，下次冷启动
+  ///      [_restoreActiveAddressFromPool] 只认 `status == ok`，恢复不出活跃
+  ///      地址，首屏请求便带着空 baseUrl 派发（Uri 无 host → ArgumentError →
+  ///      不命中任何重试分支），整屏空白 + 报网络异常；
+  ///   2. `isOfflineProvider` 把 `activeAddress.status == failed` 直接当成
+  ///      离线，于是封面全占位、播放被拒、遥控不可达。
+  /// 外网是「单一 HTTPS 反代地址」，根本没有备线可切，判死等于自我否决。
+  /// 真实可达性交给 HealthChecker 的周期探测（连续 [requiredConsecutiveFails]
+  /// 次失败才降级），这里只记录一次失败。
   void markFailed(ServerAddress addr) {
+    if (_addresses.length <= 1) {
+      Logger.warnWithTag(
+        _tag,
+        'markFailed skipped for single-address pool (deliberate design): '
+        '${addr.label}',
+      );
+      return;
+    }
     final index = _addresses.indexWhere((a) => a.id == addr.id);
     if (index != -1) {
       Logger.warnWithTag(_tag, 'markFailed: ${addr.label}');

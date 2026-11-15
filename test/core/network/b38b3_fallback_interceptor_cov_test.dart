@@ -1,11 +1,13 @@
 // b38b3 —— `lib/core/network/fallback_interceptor.dart` 补测。
 //
-// 未覆盖行（230 lcov）：133 —— `onError` 的「非连接错误」分支里，若此前已有
-// 连续失败计数，会打一条 `reset consecutive failure counter` 日志。
-// 既有 b34b 用例是在计数为 0 时喂 404，故该行从未命中。
+// 覆盖 `onError` 的「非连接错误」分支里，若此前已有连续失败计数，会打一条
+// `reset consecutive failure counter` 日志并清零。
 //
-// 复现路径：先制造 1 次连接错误（计数→1，向上抛），再制造一次非连接错误
-// （如 404 badResponse）→ 进入 else 分支且计数 != 0 → 命中 133。
+// 语义变更说明（批 A）：`_consecutiveFailures` 已不再参与任何判定（重试阈值
+// 由「同地址重试 3 次」承担，切线路由「重试耗尽」承担），只保留为日志/取证
+// 信号。因此本用例改为用「不算失败」的 receiveTimeout 先累加计数（它属连接
+// 类错误但**不重试**，不会把线路切走），再喂 404 命中该分支。
+//
 // 产品代码零改动；只读 lib。
 
 import 'dart:async';
@@ -24,6 +26,9 @@ class _StubAdapter implements HttpClientAdapter {
 
   _Handler handler;
 
+  /// 实际发出的请求数（含重试），用来断言「重试了/没重试」。
+  int requestCount = 0;
+
   @override
   void close({bool force = false}) {}
 
@@ -32,8 +37,10 @@ class _StubAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
-  ) =>
-      handler(options);
+  ) {
+    requestCount++;
+    return handler(options);
+  }
 }
 
 ResponseBody _okBody([String body = '{"ok":true}']) =>
@@ -76,6 +83,8 @@ void main() {
   }
 
   setUp(() {
+    FallbackInterceptor.resetRetryStateForTest();
+    FallbackInterceptor.retryBackoff = (_) => Duration.zero;
     dio = Dio();
     adapter = _StubAdapter((options) async => _okBody());
     dio.httpClientAdapter = adapter;
@@ -84,29 +93,38 @@ void main() {
     dio.interceptors.add(interceptor);
   });
 
-  test('连接失败计数非零后遇到非连接错误：重置计数（命中 133 日志分支）', () async {
+  tearDown(FallbackInterceptor.resetRetryStateForTest);
+
+  test('连接失败计数非零后遇到非连接错误：重置计数并照常向上抛', () async {
     await buildPool();
 
-    // 第 1 次：连接错误 → 计数 1，切换阈值未达，向上抛（不切换）。
+    // 第 1 步：receiveTimeout 属连接类错误 → 计数 1；但按设计不重试、不切换，
+    // 因此既能累加计数，又不会把活跃地址切到 b（保持下一断言的可预测性）。
     adapter.handler = (options) async {
-      if (options.uri.host == 'a.example.com') throw _connErr(options);
+      throw DioException(
+        requestOptions: options,
+        type: DioExceptionType.receiveTimeout,
+      );
+    };
+    final afterFirst = adapter.requestCount;
+    await expectLater(dio.get<String>('/rest/ping'), throwsA(isA<DioException>()));
+    expect(adapter.requestCount - afterFirst, 1, reason: 'receiveTimeout 不重试');
+    expect(pool.activeAddress?.id, 'a');
+
+    // 第 2 步：非连接错误（404）→ 进入 else 分支且计数=1 → 打 reset 日志并清零。
+    adapter.handler = (options) async => ResponseBody.fromString('nope', 404);
+    await expectLater(dio.get<String>('/rest/ping'), throwsA(isA<DioException>()));
+    expect(pool.activeAddress?.id, 'a', reason: '非连接错误不切换线路');
+
+    // 第 3 步：连接错误照常走「同地址重试 → 切备线」，证明拦截器状态未被打乱。
+    adapter.handler = (options) async {
+      if (options.method == 'GET' && options.uri.host == 'a.example.com') {
+        throw _connErr(options);
+      }
       return _okBody();
     };
-    await expectLater(dio.get<String>('/rest/ping'), throwsA(isA<DioException>()));
-    expect(pool.activeAddress?.id, 'a', reason: '仅 1 次失败，不切换');
-
-    // 第 2 次：非连接错误（404）→ 进入 else 分支且计数=1 → 命中 133 并清零。
-    adapter.handler = (options) async =>
-        ResponseBody.fromString('nope', 404);
-    await expectLater(dio.get<String>('/rest/ping'), throwsA(isA<DioException>()));
-
-    // 计数已被 133 分支清零：此时一次连接错误只会到 1，仍不切换。
-    adapter.handler = (options) async {
-      if (options.uri.host == 'a.example.com') throw _connErr(options);
-      return _okBody();
-    };
-    await expectLater(dio.get<String>('/rest/ping'), throwsA(isA<DioException>()));
-    expect(pool.activeAddress?.id, 'a',
-        reason: '非连接错误应把连续失败计数清零（否则此处会切到 b）');
+    final response = await dio.get<String>('/rest/ping');
+    expect(response.statusCode, 200);
+    expect(pool.activeAddress?.id, 'b');
   });
 }
