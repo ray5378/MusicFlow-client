@@ -725,6 +725,67 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get settings_update_downloading => '正在下载更新';
+
+  @override
+  String settings_update_download_progress(
+    String percent,
+    String received,
+    String total,
+  ) {
+    return '已下载 $percent%（$received / $total）';
+  }
+
+  @override
+  String settings_update_download_speed(String speed) {
+    return '速度 $speed';
+  }
+
+  @override
+  String get settings_update_download_cancel => '取消下载';
+
+  @override
+  String settings_update_download_failed(String reason) {
+    return '下载失败：$reason';
+  }
+
+  @override
+  String get settings_update_download_ready => '下载完成，正在打开系统安装器…';
+
+  @override
+  String get settings_update_download_cancelled => '已取消下载';
+
+  @override
+  String get settings_update_install_again => '重新安装';
+
+  @override
+  String get settings_update_install_hint => '已打开系统安装器，请按提示完成安装';
+
+  @override
+  String get settings_update_install_open_failed => '无法打开系统安装器，请在系统设置里允许安装未知应用';
+
+  @override
+  String get settings_update_notification_off_hint =>
+      '通知权限未开启：下载仍会继续，但通知栏看不到进度。';
+
+  @override
+  String get settings_update_notification_open => '去开启';
+
+  @override
+  String get settings_update_need_install_permission_title => '需要「安装未知应用」权限';
+
+  @override
+  String get settings_update_need_install_permission_body =>
+      'Android 要求先允许 MusicFlow 安装应用，才能自动为你装上新版本。接下来会打开系统设置页，请打开「允许来自此来源的应用」。';
+
+  @override
+  String get settings_update_need_install_permission_open => '去开启';
+
+  @override
+  String get settings_update_need_install_permission_cancelled =>
+      '还没有开启「安装未知应用」权限，无法自动安装';
+
+  @override
   String get settings_update_notes => '更新说明';
 
   @override

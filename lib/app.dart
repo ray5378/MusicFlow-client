@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
 import 'package:musicflow_client/features/auth/pages/login_page.dart';
+import 'package:musicflow_client/core/services/app_update_installer.dart';
 import 'package:musicflow_client/features/settings/services/startup_update_checker.dart';
 import 'package:musicflow_client/providers/auth/auth_provider.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
@@ -140,6 +141,14 @@ class App extends ConsumerWidget {
           // 有新版本时弹出可关闭的提示框。
           child: StartupUpdateCheckScope(
             navigatorKey: rootNavigatorKey,
+            // Android 上「发现新版本 → 前往下载」改走内置更新：直下 apk →
+            // 校验 → 唤起系统安装器，全程不离开应用。
+            // 其它平台传 null ⇒ 仍按原样用系统浏览器（行为一个字节都不变）。
+            installer:
+                (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+                ? (updateContext, updateResult) =>
+                      AppUpdateInstaller.install(updateContext, updateResult)
+                : null,
             // Windows 无系统标题栏：窗口控制按钮 + 顶部拖拽条挂在
             // MaterialApp.builder 层（Navigator/Overlay 之外），
             // 保证任何页面、任何弹窗（流转播放、发现新版本……）打开时，
@@ -169,7 +178,6 @@ final _branchNavigatorKeys = <GlobalKey<NavigatorState>>[
 ];
 
 final routerProvider = Provider<GoRouter>((ref) {
-
   // 监听认证状态变化
   ref.listen<AuthState>(authStateProvider, (previous, next) {
     // 登录成功 → 注册本机 peer 并启动心跳保活(对齐主项目前端 registerLocalPeer)。

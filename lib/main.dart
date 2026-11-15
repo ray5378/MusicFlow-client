@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:musicflow_client/core/utils/network_error_notifier.dart';
+import 'package:musicflow_client/core/services/update_artifacts_cleanup.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
@@ -43,8 +44,9 @@ Future<void> main() async {
       // 渲染、窗口透明只剩外框（Windows 尤甚，安卓注册路径不同不触发）。改为
       // 异步应用，绝不阻塞首帧。
       unawaited(
-        LocalStorage.getLoggingEnabled()
-            .then((enabled) => Logger.setLoggingEnabled(enabled)),
+        LocalStorage.getLoggingEnabled().then(
+          (enabled) => Logger.setLoggingEnabled(enabled),
+        ),
       );
 
       // 开启「连接失败」提示的启动宽限期：打开软件后 10 秒内先待确认，
@@ -76,17 +78,23 @@ Future<void> main() async {
 
       // 窗口可见性门控挂在 App 外层：最小化/失焦/切走时停止所有不可见
       // 渲染（TickerMode 全局静音 + appVisibilityProvider 冻结数据驱动 UI）。
-      runApp(
-        const ProviderScope(
-          child: AppVisibilityScope(child: App()),
-        ),
-      );
+      runApp(const ProviderScope(child: AppVisibilityScope(child: App())));
 
       // 修复损坏的 SharedPreferences(备份 + 重建干净起点):进程被强杀时
       // prefs 文件可能半写损坏,导致所有设置/播放状态读默认值(表现为
       // 「关闭后全部清空」)。必须 runApp 之后异步执行——平台通道在 runner
       // OnCreate 阶段才注册,runApp 前 await 会永久挂起。
       unawaited(LocalStorage.repairCorruptPreferences());
+
+      // 内置更新的安装包清理（时机二：每次启动一次）。
+      // 为什么必须在这里而不是「安装完立刻删」：`installApk()` 里 startActivity
+      // 返回的瞬间，系统安装器只是拿到了 content:// URI，**字节流是异步读的** ——
+      // 此时删文件会变成「解析包时出错」。而更新成功后本进程会被系统杀掉替换，
+      // 安装后那段复查代码大概率根本跑不到。真正兜住的就是这一次启动清理：
+      // 靠旁车 meta 判定「meta.version <= 当前运行版本 ⇒ 已经装成功了」。
+      //
+      // fire-and-forget：清理是锦上添花，绝不阻塞首帧，任何异常都在内部吞掉。
+      unawaited(purgeUpdateArtifacts());
     },
     (error, stackTrace) {
       Logger.errorWithTag('APP', 'Uncaught zone error', error, stackTrace);

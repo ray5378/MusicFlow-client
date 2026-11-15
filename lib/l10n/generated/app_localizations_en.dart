@@ -780,6 +780,71 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settings_update_downloading => 'Downloading update';
+
+  @override
+  String settings_update_download_progress(
+    String percent,
+    String received,
+    String total,
+  ) {
+    return '$percent% downloaded ($received / $total)';
+  }
+
+  @override
+  String settings_update_download_speed(String speed) {
+    return 'Speed $speed';
+  }
+
+  @override
+  String get settings_update_download_cancel => 'Cancel download';
+
+  @override
+  String settings_update_download_failed(String reason) {
+    return 'Download failed: $reason';
+  }
+
+  @override
+  String get settings_update_download_ready =>
+      'Download complete, opening the system installer…';
+
+  @override
+  String get settings_update_download_cancelled => 'Download cancelled';
+
+  @override
+  String get settings_update_install_again => 'Install again';
+
+  @override
+  String get settings_update_install_hint =>
+      'The system installer is open — follow the prompts to finish installing';
+
+  @override
+  String get settings_update_install_open_failed =>
+      'Can\'t open the system installer. Allow installing unknown apps in system settings';
+
+  @override
+  String get settings_update_notification_off_hint =>
+      'Notifications are off: the download continues, but progress won\'t show in the notification shade.';
+
+  @override
+  String get settings_update_notification_open => 'Turn on';
+
+  @override
+  String get settings_update_need_install_permission_title =>
+      '\'Install unknown apps\' permission required';
+
+  @override
+  String get settings_update_need_install_permission_body =>
+      'Android requires you to allow MusicFlow to install apps before it can install the new version. System settings will open next — turn on \'Allow from this source\'.';
+
+  @override
+  String get settings_update_need_install_permission_open => 'Turn on';
+
+  @override
+  String get settings_update_need_install_permission_cancelled =>
+      'The \'Install unknown apps\' permission is still off, so the update can\'t be installed automatically';
+
+  @override
   String get settings_update_notes => 'Release notes';
 
   @override

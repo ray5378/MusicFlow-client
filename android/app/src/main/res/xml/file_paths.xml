@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 的路径白名单。必须与 Dart 侧的落点严格对齐，否则
+  FileProvider.getUriForFile 会直接抛「Failed to find configured root」：
+
+  * <external-files-path> 对应 Context.getExternalFilesDir(null)，
+    即 /storage/emulated/0/Android/data/<包名>/files/。
+    系统 DownloadManager 引擎写在这里：.../files/Download/<文件名>
+    （MainActivity 用 setDestinationInExternalFilesDir(ctx, DIRECTORY_DOWNLOADS, fileName)），
+    与 apk_cache_paths.dart 的 kApkDownloadSubdir = 'Download' 一致。
+
+  * <cache-path> 对应 Context.getCacheDir()，即 .../data/<包名>/cache/。
+    dio 降级引擎写在这里：.../cache/updates/<文件名>
+    （path_provider 的 getTemporaryDirectory()），
+    与 apk_cache_paths.dart 的 kApkCacheSubdir = 'updates' 一致。
+
+  path 结尾的斜杠必须保留：它表示「这是个目录」。
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="updates" path="Download/" />
+    <cache-path name="updates_cache" path="updates/" />
+</paths>

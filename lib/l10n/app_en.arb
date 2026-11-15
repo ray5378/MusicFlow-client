@@ -442,6 +442,42 @@
       }
     }
   },
+  "settings_update_downloading": "Downloading update",
+  "settings_update_download_progress": "{percent}% downloaded ({received} / {total})",
+  "@settings_update_download_progress": {
+    "description": "Download progress: percent, bytes received, total bytes",
+    "placeholders": {
+      "percent": {"type": "String"},
+      "received": {"type": "String"},
+      "total": {"type": "String"}
+    }
+  },
+  "settings_update_download_speed": "Speed {speed}",
+  "@settings_update_download_speed": {
+    "description": "Formatted download speed (e.g. 1.2 MB/s)",
+    "placeholders": {
+      "speed": {"type": "String"}
+    }
+  },
+  "settings_update_download_cancel": "Cancel download",
+  "settings_update_download_failed": "Download failed: {reason}",
+  "@settings_update_download_failed": {
+    "description": "Reason the download failed",
+    "placeholders": {
+      "reason": {"type": "String"}
+    }
+  },
+  "settings_update_download_ready": "Download complete, opening the system installer…",
+  "settings_update_download_cancelled": "Download cancelled",
+  "settings_update_install_again": "Install again",
+  "settings_update_install_hint": "The system installer is open — follow the prompts to finish installing",
+  "settings_update_install_open_failed": "Can't open the system installer. Allow installing unknown apps in system settings",
+  "settings_update_notification_off_hint": "Notifications are off: the download continues, but progress won't show in the notification shade.",
+  "settings_update_notification_open": "Turn on",
+  "settings_update_need_install_permission_title": "'Install unknown apps' permission required",
+  "settings_update_need_install_permission_body": "Android requires you to allow MusicFlow to install apps before it can install the new version. System settings will open next — turn on 'Allow from this source'.",
+  "settings_update_need_install_permission_open": "Turn on",
+  "settings_update_need_install_permission_cancelled": "The 'Install unknown apps' permission is still off, so the update can't be installed automatically",
   "settings_update_notes": "Release notes",
   "settings_update_package": "Update package {version}",
   "@settings_update_package": {

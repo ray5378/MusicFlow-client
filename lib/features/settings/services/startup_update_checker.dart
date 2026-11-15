@@ -28,10 +28,15 @@ bool startupUpdateCheckSupported({
 
 /// 应用启动后一次性在后台检查更新。
 ///
-/// 发现新版本则弹出可关闭的提示框（[showUpdateAvailableDialog]），
-/// 用户在框内点「前往下载」后直接用系统浏览器打开下载链接。
+/// 发现新版本则弹出可关闭的提示框（[showUpdateAvailableDialog]）。
 ///
-/// [checker] / [launcher] / [platform] 仅用于测试注入真实实现。
+/// 用户在框内点「前往下载」后：
+/// - 传了 [installer]（Android 生产环境）→ 走**内置更新**：直下 apk → 校验 →
+///   唤起系统安装器，全程不离开应用；
+/// - 没传（默认，含全部既有测试）→ 行为与改造前**完全一致**，用系统浏览器
+///   打开下载链接。
+///
+/// [checker] / [launcher] / [platform] / [installer] 仅用于测试注入真实实现。
 /// [navigatorKey] 为根导航器 key：scope 挂载在 MaterialApp.builder 层时
 /// 其 context 位于 Navigator **之上**，showDialog 找不到 Navigator 会静默失败，
 /// 因此弹窗必须改用 Navigator 之下（overlay）的 context（生产环境必传）。
@@ -41,6 +46,8 @@ Future<bool> runStartupUpdateCheck(
   BuildContext context, {
   Future<UpdateCheckResult> Function()? checker,
   Future<void> Function(String url)? launcher,
+  Future<void> Function(BuildContext context, UpdateCheckResult result)?
+  installer,
   TargetPlatform? platform,
   Duration delay = kStartupUpdateCheckDelay,
   GlobalKey<NavigatorState>? navigatorKey,
@@ -68,6 +75,7 @@ Future<bool> runStartupUpdateCheck(
         result: result,
         platform: platform,
         launcher: launcher ?? _launchInBrowser,
+        installer: installer,
       ),
     );
     return true;
@@ -92,6 +100,8 @@ Future<void> _showUpdateDialogSafely(
   required UpdateCheckResult result,
   required TargetPlatform? platform,
   required Future<void> Function(String url) launcher,
+  Future<void> Function(BuildContext context, UpdateCheckResult result)?
+  installer,
 }) async {
   try {
     await showUpdateAvailableDialog(
@@ -99,6 +109,13 @@ Future<void> _showUpdateDialogSafely(
       result: result,
       platform: platform,
       onDownload: (url) {
+        // 有 installer（仅 Android 生产环境传）→ 内置更新：直下 apk + 唤装。
+        // 没传 → 与改造前逐字一致，交给系统浏览器。
+        final builtIn = installer;
+        if (builtIn != null) {
+          unawaited(builtIn(context, result));
+          return;
+        }
         unawaited(launcher(url));
       },
     );
@@ -131,6 +148,7 @@ class StartupUpdateCheckScope extends StatefulWidget {
     required this.child,
     this.checker,
     this.launcher,
+    this.installer,
     this.delay = kStartupUpdateCheckDelay,
     this.navigatorKey,
   });
@@ -142,6 +160,13 @@ class StartupUpdateCheckScope extends StatefulWidget {
 
   /// 测试注入的打开链接实现（默认系统浏览器）。
   final Future<void> Function(String url)? launcher;
+
+  /// 内置更新入口（仅 Android 生产环境由 app.dart 传入）。
+  ///
+  /// 为 null 时「前往下载」走 [launcher]（系统浏览器），与改造前完全一致；
+  /// 非 null 时改为直下 apk + 唤装（见 `AppUpdateInstaller`）。
+  final Future<void> Function(BuildContext context, UpdateCheckResult result)?
+  installer;
 
   final Duration delay;
 
@@ -178,6 +203,7 @@ class _StartupUpdateCheckScopeState extends State<StartupUpdateCheckScope> {
           context,
           checker: widget.checker,
           launcher: widget.launcher,
+          installer: widget.installer,
           // 延迟已在本 scope 完成，这里不再二次等待。
           delay: Duration.zero,
           navigatorKey: widget.navigatorKey,

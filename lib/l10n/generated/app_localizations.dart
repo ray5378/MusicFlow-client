@@ -1410,6 +1410,106 @@ abstract class AppLocalizations {
   /// **'当前已是最新版本 ({version})'**
   String settings_update_latest(String version);
 
+  /// No description provided for @settings_update_downloading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载更新'**
+  String get settings_update_downloading;
+
+  /// 更新包下载进度：百分比、已下载字节、总字节
+  ///
+  /// In zh, this message translates to:
+  /// **'已下载 {percent}%（{received} / {total}）'**
+  String settings_update_download_progress(
+    String percent,
+    String received,
+    String total,
+  );
+
+  /// 下载速度（已格式化成 KB/s 之类）
+  ///
+  /// In zh, this message translates to:
+  /// **'速度 {speed}'**
+  String settings_update_download_speed(String speed);
+
+  /// No description provided for @settings_update_download_cancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消下载'**
+  String get settings_update_download_cancel;
+
+  /// 下载失败原因
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：{reason}'**
+  String settings_update_download_failed(String reason);
+
+  /// No description provided for @settings_update_download_ready.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载完成，正在打开系统安装器…'**
+  String get settings_update_download_ready;
+
+  /// No description provided for @settings_update_download_cancelled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消下载'**
+  String get settings_update_download_cancelled;
+
+  /// No description provided for @settings_update_install_again.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新安装'**
+  String get settings_update_install_again;
+
+  /// No description provided for @settings_update_install_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已打开系统安装器，请按提示完成安装'**
+  String get settings_update_install_hint;
+
+  /// No description provided for @settings_update_install_open_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开系统安装器，请在系统设置里允许安装未知应用'**
+  String get settings_update_install_open_failed;
+
+  /// No description provided for @settings_update_notification_off_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知权限未开启：下载仍会继续，但通知栏看不到进度。'**
+  String get settings_update_notification_off_hint;
+
+  /// No description provided for @settings_update_notification_open.
+  ///
+  /// In zh, this message translates to:
+  /// **'去开启'**
+  String get settings_update_notification_open;
+
+  /// No description provided for @settings_update_need_install_permission_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要「安装未知应用」权限'**
+  String get settings_update_need_install_permission_title;
+
+  /// No description provided for @settings_update_need_install_permission_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'Android 要求先允许 MusicFlow 安装应用，才能自动为你装上新版本。接下来会打开系统设置页，请打开「允许来自此来源的应用」。'**
+  String get settings_update_need_install_permission_body;
+
+  /// No description provided for @settings_update_need_install_permission_open.
+  ///
+  /// In zh, this message translates to:
+  /// **'去开启'**
+  String get settings_update_need_install_permission_open;
+
+  /// No description provided for @settings_update_need_install_permission_cancelled.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有开启「安装未知应用」权限，无法自动安装'**
+  String get settings_update_need_install_permission_cancelled;
+
   /// No description provided for @settings_update_notes.
   ///
   /// In zh, this message translates to:

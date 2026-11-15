@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
+import 'package:musicflow_client/core/services/app_update_installer.dart';
 import 'package:musicflow_client/core/services/update_checker.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/music_library.dart';
@@ -141,81 +144,100 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-          _SettingsInfoLine(label: loc.settings_current_version, value: result.currentVersion),
-          _SettingsInfoLine(label: loc.settings_latest_version, value: result.latestVersion),
-          if (result.releaseNotes != null &&
-              result.releaseNotes!.isNotEmpty) ...<Widget>[
-            SizedBox(height: ctx.musicFlowSpacing.sm),
-            const MusicFlowDivider(),
-            SizedBox(height: ctx.musicFlowSpacing.md),
-            MusicFlowSectionHeader(title: loc.settings_update_notes),
-            SizedBox(height: ctx.musicFlowSpacing.xs),
-            Text(
-              result.releaseNotes!,
-              style: ctx.musicFlowTypography.body.copyWith(
-                color: ctx.musicFlowColors.muted,
-              ),
+        _SettingsInfoLine(
+          label: loc.settings_current_version,
+          value: result.currentVersion,
+        ),
+        _SettingsInfoLine(
+          label: loc.settings_latest_version,
+          value: result.latestVersion,
+        ),
+        if (result.releaseNotes != null &&
+            result.releaseNotes!.isNotEmpty) ...<Widget>[
+          SizedBox(height: ctx.musicFlowSpacing.sm),
+          const MusicFlowDivider(),
+          SizedBox(height: ctx.musicFlowSpacing.md),
+          MusicFlowSectionHeader(title: loc.settings_update_notes),
+          SizedBox(height: ctx.musicFlowSpacing.xs),
+          Text(
+            result.releaseNotes!,
+            style: ctx.musicFlowTypography.body.copyWith(
+              color: ctx.musicFlowColors.muted,
             ),
-          ],
-          if (result.assets.isNotEmpty) ...<Widget>[
-            SizedBox(height: ctx.musicFlowSpacing.sm),
-            const MusicFlowDivider(),
-            SizedBox(height: ctx.musicFlowSpacing.md),
-            MusicFlowSectionHeader(
-              title: loc.settings_update_assets,
-              description: loc.settings_update_assets_desc,
-            ),
-            SizedBox(height: ctx.musicFlowSpacing.xs),
-            for (final asset in result.assets)
-              Padding(
-                padding: EdgeInsets.only(bottom: ctx.musicFlowSpacing.xs),
-                child: MusicFlowActionRow(
-                  icon: AppIcons.download,
-                  title: asset.name,
-                  subtitle:
-                      '${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB',
-                  trailing: Icon(
-                    AppIcons.chevronRight,
-                    size: 20,
-                    color: ctx.musicFlowColors.muted,
-                  ),
-                  // 直接跳转下载，不再二次确认:用户在上一步已明确点选文件，
-                  // 再弹一层「确定要下载吗」只增加一次无意义的点击。
-                  onPressed: () => _openDownload(asset.name, asset.downloadUrl),
-                ),
-              ),
-          ],
-          SizedBox(height: ctx.musicFlowSpacing.lg),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: ctx.musicFlowSpacing.xs,
-            runSpacing: ctx.musicFlowSpacing.xs,
-            children: <Widget>[
-              MusicFlowButton.ghost(
-                label: loc.settings_later,
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-              if (result.releaseUrl != null ||
-                  _pickPlatformAsset(result) != null)
-                MusicFlowButton.primary(
-                  label: loc.settings_download,
-                  leadingIcon: AppIcons.download,
-                  onPressed: () {
-                    final asset = _pickPlatformAsset(result);
-                    Navigator.of(ctx).pop();
-                    if (asset != null) {
-                      _openDownload(asset.name, asset.downloadUrl);
-                    } else if (result.releaseUrl != null) {
-                      _openDownload(
-                        loc.settings_update_package(result.latestVersion),
-                        result.releaseUrl!,
-                      );
-                    }
-                  },
-                ),
-            ],
           ),
         ],
+        if (result.assets.isNotEmpty) ...<Widget>[
+          SizedBox(height: ctx.musicFlowSpacing.sm),
+          const MusicFlowDivider(),
+          SizedBox(height: ctx.musicFlowSpacing.md),
+          MusicFlowSectionHeader(
+            title: loc.settings_update_assets,
+            description: loc.settings_update_assets_desc,
+          ),
+          SizedBox(height: ctx.musicFlowSpacing.xs),
+          for (final asset in result.assets)
+            Padding(
+              padding: EdgeInsets.only(bottom: ctx.musicFlowSpacing.xs),
+              child: MusicFlowActionRow(
+                icon: AppIcons.download,
+                title: asset.name,
+                subtitle:
+                    '${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB',
+                trailing: Icon(
+                  AppIcons.chevronRight,
+                  size: 20,
+                  color: ctx.musicFlowColors.muted,
+                ),
+                // 直接跳转下载，不再二次确认:用户在上一步已明确点选文件，
+                // 再弹一层「确定要下载吗」只增加一次无意义的点击。
+                //
+                // Android 上的 apk 改走内置更新（直下 + 唤装）；其它文件
+                // （如 Windows 的 setup.exe）仍然交给浏览器。
+                onPressed: () {
+                  if (_canInstallBuiltIn(asset)) {
+                    unawaited(_startBuiltInUpdate(result));
+                    return;
+                  }
+                  _openDownload(asset.name, asset.downloadUrl);
+                },
+              ),
+            ),
+        ],
+        SizedBox(height: ctx.musicFlowSpacing.lg),
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: ctx.musicFlowSpacing.xs,
+          runSpacing: ctx.musicFlowSpacing.xs,
+          children: <Widget>[
+            MusicFlowButton.ghost(
+              label: loc.settings_later,
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+            if (result.releaseUrl != null || _pickPlatformAsset(result) != null)
+              MusicFlowButton.primary(
+                label: loc.settings_download,
+                leadingIcon: AppIcons.download,
+                onPressed: () {
+                  final asset = _pickPlatformAsset(result);
+                  Navigator.of(ctx).pop();
+                  // Android：内置更新（直下 apk → 校验 → 唤装），不跳浏览器。
+                  if (_canInstallBuiltIn(asset)) {
+                    unawaited(_startBuiltInUpdate(result));
+                    return;
+                  }
+                  if (asset != null) {
+                    _openDownload(asset.name, asset.downloadUrl);
+                  } else if (result.releaseUrl != null) {
+                    _openDownload(
+                      loc.settings_update_package(result.latestVersion),
+                      result.releaseUrl!,
+                    );
+                  }
+                },
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -228,6 +250,36 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   /// `assets.first`（列表首个恰为 apk），表现为 Windows 上给用户推 apk。
   ReleaseAsset? _pickPlatformAsset(UpdateCheckResult result) =>
       pickPlatformUpdateAsset(result);
+
+  /// 是否是「内置更新」的目标平台（直下 apk + 唤装）。
+  ///
+  /// 只有 Android 为真 —— 其它平台（尤其 Windows）保持原样跳浏览器，
+  /// 行为一个字节都不变。
+  bool get _useBuiltInUpdate =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  /// 这次的资产能不能走内置更新：平台对 + 挑中的**确实是 apk**。
+  ///
+  /// 第二个条件不能省：发布页可能只发了 zip/exe（例如这一版只有 Linux/Windows
+  /// 包），此时根本没有能装的东西，必须老老实实跳浏览器 —— 否则用户点了
+  /// 「下载」会看到一个挑不出安装包的内部错误，而拿不到本该给他的文件。
+  bool _canInstallBuiltIn(ReleaseAsset? asset) {
+    if (!_useBuiltInUpdate) return false;
+    if (asset == null) return false;
+    return asset.name.toLowerCase().endsWith('.apk');
+  }
+
+  /// 启动内置更新流程（Android）。
+  ///
+  /// 挑不到 apk 资产时 [AppUpdateInstaller] 会自己回退到浏览器，所以这里
+  /// 不需要再判断一次 —— 判断逻辑只留一份，避免两处漂移。
+  Future<void> _startBuiltInUpdate(UpdateCheckResult result) async {
+    Logger.infoWithTag(
+      'UPDATE',
+      'built-in update: ${result.currentVersion} → ${result.latestVersion}',
+    );
+    await AppUpdateInstaller.install(context, result);
+  }
 
   /// 直接跳转浏览器下载，由用户自行完成安装。
   ///
@@ -335,7 +387,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               context.musicFlowSpacing.md,
               context.musicFlowSpacing.sm,
               context.musicFlowSpacing.md,
-              context.musicFlowSpacing.xxl + context.musicFlowShellBottomObstruction,
+              context.musicFlowSpacing.xxl +
+                  context.musicFlowShellBottomObstruction,
             ),
             children: <Widget>[
               MusicFlowSettingsSection(
@@ -440,8 +493,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     title: loc.settings_lyrics_dwell,
                     value: _lyricsDwellLabel(loc, lyricsDwellSeconds),
                     description: loc.settings_lyrics_dwell_desc,
-                    onPressed: () =>
-                        _showLyricsDwellSheet(lyricsDwellSeconds),
+                    onPressed: () => _showLyricsDwellSheet(lyricsDwellSeconds),
                   ),
                   MusicFlowToggleSettingRow(
                     icon: AppIcons.play,
@@ -548,9 +600,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }
 
   void _pushPage(Widget page) {
-    Navigator.of(
-      context,
-    ).push(MusicFlowPageRoute<void>(context: context, builder: (context) => page));
+    Navigator.of(context).push(
+      MusicFlowPageRoute<void>(context: context, builder: (context) => page),
+    );
   }
 
   Future<void> _showLibrarySheet(
@@ -573,7 +625,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               for (final library in libraries)
                 MusicFlowChoiceRow(
                   title: library.name,
-                  description: library.addresses.firstOrNull?.url ?? loc.settings_server_unconfigured,
+                  description:
+                      library.addresses.firstOrNull?.url ??
+                      loc.settings_server_unconfigured,
                   selected: library.id == currentLibrary?.id,
                   icon: AppIcons.library,
                   onPressed: () {
@@ -637,7 +691,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   title: _crossfadeLabel(loc, value),
                   description: value == 0
                       ? loc.settings_crossfade_off_value
-                      : loc.settings_crossfade_smooth(_crossfadeLabel(loc, value)),
+                      : loc.settings_crossfade_smooth(
+                          _crossfadeLabel(loc, value),
+                        ),
                   selected: value == currentValue,
                   icon: AppIcons.timer,
                   onPressed: () => Navigator.of(sheetContext).pop(value),
@@ -671,7 +727,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   title: _lyricsDwellLabel(loc, value),
                   description: value == 3
                       ? loc.settings_lyrics_dwell_default
-                      : loc.settings_lyrics_dwell_resume(_lyricsDwellLabel(loc, value)),
+                      : loc.settings_lyrics_dwell_resume(
+                          _lyricsDwellLabel(loc, value),
+                        ),
                   selected: value == currentValue,
                   icon: AppIcons.lyrics,
                   onPressed: () => Navigator.of(sheetContext).pop(value),
@@ -729,9 +787,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                           SizedBox(height: sheetContext.musicFlowSpacing.xxs),
                           Text(
                             loc.settings_about_subtitle,
-                            style: sheetContext.musicFlowTypography.body.copyWith(
-                              color: sheetContext.musicFlowColors.muted,
-                            ),
+                            style: sheetContext.musicFlowTypography.body
+                                .copyWith(
+                                  color: sheetContext.musicFlowColors.muted,
+                                ),
                           ),
                         ],
                       ),
@@ -749,9 +808,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   size: 20,
                   color: sheetContext.musicFlowColors.muted,
                 ),
-                onPressed: () => _openUrl(
-                  'https://github.com/ray5378/MusicFlow-client',
-                ),
+                onPressed: () =>
+                    _openUrl('https://github.com/ray5378/MusicFlow-client'),
               ),
               SizedBox(height: sheetContext.musicFlowSpacing.sm),
               Text(
@@ -769,7 +827,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   String _languageLabel(AppLanguagePreference pref) {
     return switch (pref) {
-      AppLanguagePreference.system => AppLocalizations.of(context).language_follow_system,
+      AppLanguagePreference.system => AppLocalizations.of(
+        context,
+      ).language_follow_system,
       AppLanguagePreference.zh => AppLocalizations.of(context).language_zh,
       AppLanguagePreference.en => AppLocalizations.of(context).language_en,
     };
@@ -813,13 +873,22 @@ class _ServerSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          _SettingsInfoLine(label: loc.settings_library_label, value: library?.name ?? loc.settings_not_selected),
+          _SettingsInfoLine(
+            label: loc.settings_library_label,
+            value: library?.name ?? loc.settings_not_selected,
+          ),
           _SettingsInfoLine(
             label: loc.settings_current_connection,
             value: activeAddress?.label ?? loc.settings_not_connected,
           ),
-          _SettingsInfoLine(label: loc.settings_server_address, value: activeAddress?.url ?? loc.settings_not_set),
-          _SettingsInfoLine(label: loc.settings_username, value: library?.username ?? loc.settings_not_set),
+          _SettingsInfoLine(
+            label: loc.settings_server_address,
+            value: activeAddress?.url ?? loc.settings_not_set,
+          ),
+          _SettingsInfoLine(
+            label: loc.settings_username,
+            value: library?.username ?? loc.settings_not_set,
+          ),
           _SettingsInfoLine(
             label: loc.settings_auth_type,
             value: library?.authType == MusicLibraryAuthType.apiKey
@@ -876,7 +945,9 @@ class _SettingsInfoLine extends StatelessWidget {
 
 String _crossfadeLabel(AppLocalizations loc, int milliseconds) {
   if (milliseconds <= 0) return loc.settings_crossfade_off;
-  return loc.settings_crossfade_seconds((milliseconds / 1000).toStringAsFixed(1));
+  return loc.settings_crossfade_seconds(
+    (milliseconds / 1000).toStringAsFixed(1),
+  );
 }
 
 String _lyricsDwellLabel(AppLocalizations loc, int seconds) {
