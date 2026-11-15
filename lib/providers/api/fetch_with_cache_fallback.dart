@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/utils/logger.dart';
@@ -23,6 +24,20 @@ const String _fallbackLogTag = 'FETCH';
 /// 令牌桶约束但不会真 abort。要真 abort 得给 20+ 调用点传 `CancelToken`。
 const Duration kDefaultRequestBudget = Duration(seconds: 5);
 
+/// 本会话内已后台刷新过的刷新键 —— 防「刷新 → provider 重跑 → 又刷新」死循环。
+///
+/// 键默认等于 [label]；调用方可以传 `refreshKey`（如 `libraryId`）让「切库」
+/// 这件事重新获得一次刷新机会。
+final Set<String> _refreshedLabels = <String>{};
+
+/// 测试专用：清空后台刷新闸。
+///
+/// 同一文件的多条用例必须调用 —— 否则第 2 条起 `_scheduleBackgroundRefresh`
+/// 会因为「这个 label 已刷过」直接 return，`fetchCallCount` 永远是 0，
+/// 「后台刷新真的跑了一次」这类断言全变假绿。
+@visibleForTesting
+void resetRefreshGateForTest() => _refreshedLabels.clear();
+
 /// 首页各区块统一的「远程优先 + 缓存兜底」加载封装。
 ///
 /// 随机歌曲 / 最近更新歌单 / 所有歌单 等区块**必须共用这一套语义**，
@@ -39,9 +54,8 @@ const Duration kDefaultRequestBudget = Duration(seconds: 5);
 /// `getLastLibraryId()` 回退读缓存秒出（见 [recentPlaylistsProvider]），
 /// 本函数只负责「已具备远程条件」后的加载与兜底。
 ///
-/// [budget] 是这一次远程加载的**总**预算：与拦截器里按帧计算的
-/// `connectTimeout` / `receiveTimeout` 无关，它兜的是「重试叠加后的长尾」。
-/// 各区块可按数据体量单独放宽（全量歌单 317KB 级给 8s）。
+/// [cacheFirst]（SWR）：有缓存就**立刻**把缓存交出去，再在后台拉新值
+/// （本会话每个 [label] 只拉一次）。没有缓存时行为与不开启完全一致。
 Future<T> fetchWithCacheFallback<T>({
   required Ref ref,
   required String label,
@@ -51,8 +65,29 @@ Future<T> fetchWithCacheFallback<T>({
   required StateProvider<bool> failedProvider,
   required String errorMessage,
   required T emptyValue,
+  bool cacheFirst = false,
   Duration budget = kDefaultRequestBudget,
+  String? refreshKey,
 }) async {
+  if (cacheFirst) {
+    final cached = await _readCacheQuietly(label, cacheRead);
+    if (cached != null && !_isEmptyPayload(cached)) {
+      // 首屏秒出：先把旧值交出去，新鲜值由后台刷新补上。
+      // 刻意**不**在这里 `await fetch()` —— 那等于把「缓存优先」又变回远程优先。
+      ref.read(failedProvider.notifier).state = false;
+      _scheduleBackgroundRefresh<T>(
+        ref: ref,
+        label: label,
+        fetch: fetch,
+        cacheWrite: cacheWrite,
+        budget: budget,
+        refreshKey: refreshKey ?? label,
+      );
+      Logger.infoWithTag(_fallbackLogTag, '$label served from cache (SWR)');
+      return cached;
+    }
+  }
+
   try {
     await ref.read(ensureActiveAddressProvider.future);
     final data = await fetch().timeout(
@@ -81,6 +116,8 @@ Future<T> fetchWithCacheFallback<T>({
     // 前台失败 → 触发一次**限速的点探测**，把「判死」延迟从 30~70s 压到 ~10s。
     // 只探一条、全池 5s 内最多一次、上一次未结束直接跳过（见
     // `AddressPool.probeActiveThrottled`）：绝不能在这里 probeAll()。
+    // 后台刷新失败走的是 _scheduleBackgroundRefresh 的 catch，**不**触发
+    // 探测 —— 那是可接受的后台失败，不该为它去打扰整池状态。
     unawaited(_probeActiveQuietly(ref));
     final cached = await _readCacheQuietly(label, cacheRead);
     if (cached != null) {
@@ -110,6 +147,47 @@ Future<T?> _readCacheQuietly<T>(
   }
 }
 
+/// 后台刷新失败只降级为一条 debug 日志：用户**已经看到内容了**，
+/// 这时候弹「网络异常」正是批 A 要消灭的症状。
+void _scheduleBackgroundRefresh<T>({
+  required Ref ref,
+  required String label,
+  required Future<T> Function() fetch,
+  required Future<void> Function(T data) cacheWrite,
+  required Duration budget,
+  required String refreshKey,
+}) {
+  if (!_refreshedLabels.add(refreshKey)) return;
+  // 必须推到**事件队列**（`Future(() {...})`）而不是就地执行：
+  // 就地调用一个 async 函数会同步执行到第一个 await 之前，也就是 `fetch()`
+  // 当场就被调用了 —— 那等于「首帧就发了远程请求」，既有缓存优先的语义
+  // （首屏不再等网络）会被破坏，也让「首帧 fetchCallCount == 0」不可测。
+  unawaited(Future<void>(() async {
+    try {
+      final fresh = await fetch().timeout(budget);
+      try {
+        await cacheWrite(fresh);
+      } catch (e) {
+        Logger.warnWithTag(
+          _fallbackLogTag,
+          '$label background cache write failed',
+          e,
+        );
+      }
+      // 让 provider 重新 emit 新值。启用 cacheFirst 的区块必须同时把
+      // `skipLoadingOnRefresh/skipLoadingOnReload` 保持默认（true），否则
+      // AsyncLoading(previous) 会让区块闪回一帧骨架。
+      ref.invalidateSelf();
+      Logger.infoWithTag(_fallbackLogTag, '$label background refresh applied');
+    } catch (e) {
+      Logger.debugWithTag(
+        _fallbackLogTag,
+        '$label background refresh failed (silent)',
+      );
+    }
+  }));
+}
+
 /// 失败请求触发的加速探测：把它关在 try/catch 里，任何意外都不能从
 /// 后台路径裸抛进 zone。
 Future<void> _probeActiveQuietly(Ref ref) async {
@@ -118,4 +196,14 @@ Future<void> _probeActiveQuietly(Ref ref) async {
   } catch (e) {
     Logger.debugWithTag(_fallbackLogTag, 'on-demand probe skipped', e);
   }
+}
+
+/// 「空载荷」判定：空列表 / 空 Map / 空串都视为「缓存里没有可用数据」，
+/// 否则首次启动缓存写了个空列表之后，SWR 会一直把空列表当成"有缓存"秒出。
+bool _isEmptyPayload(Object? value) {
+  if (value == null) return true;
+  if (value is Iterable) return value.isEmpty;
+  if (value is Map) return value.isEmpty;
+  if (value is String) return value.isEmpty;
+  return false;
 }

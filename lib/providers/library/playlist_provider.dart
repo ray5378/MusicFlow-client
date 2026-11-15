@@ -130,6 +130,10 @@ final recentPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
     failedProvider: recentPlaylistsLoadFailedProvider,
     errorMessage: l10nNowCurrent().provider_network_error_playlist,
     emptyValue: <Playlist>[],
+    // cache-first SWR：有缓存就秒出，再后台拉新值。
+    // 切库（libraryId 变化）时允许重新获得一次刷新机会，所以 refreshKey 用它。
+    cacheFirst: true,
+    refreshKey: resolvedLibraryId,
   );
   return _sortRecentPlaylists(all);
 });

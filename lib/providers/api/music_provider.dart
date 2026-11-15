@@ -92,6 +92,10 @@ final randomSongsProvider = FutureProvider<List<Song>>((ref) async {
     failedProvider: randomSongsLoadFailedProvider,
     errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: [],
+    // cache-first SWR：首页「随机歌曲」以本地缓存秒出，后台再换新一批。
+    // refreshKey 用 libraryId，切库时允许重新刷一次。
+    cacheFirst: true,
+    refreshKey: libraryId,
   );
 });
 

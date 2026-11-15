@@ -52,13 +52,19 @@ class RecentPlaylistsSection extends ConsumerWidget {
           trailing: MusicFlowIconButton(
             icon: AppIcons.refresh,
             label: loc.discover_refresh_recent_playlists,
-            onPressed: () => ref.invalidate(recentPlaylistsProvider),
+            // 刷新途中禁用按钮：区块本身不再因 `invalidateSelf` 闪回骨架
+            // （见下方 when 的 skip 参数），点击反馈改由按钮的禁用态承担。
+            onPressed: playlistsAsync.isRefreshing
+                ? null
+                : () => ref.invalidate(recentPlaylistsProvider),
           ),
         ),
         SizedBox(height: context.musicFlowSpacing.xxs),
+        // 这两个参数**必须是默认值 true**（原为显式 false）。
+        // 批 B 的 cache-first SWR 在后台刷新成功后调 `ref.invalidateSelf()`，
+        // 那会产生 `AsyncLoading(previous)`；显式 false 会让整块闪回一帧骨架，
+        // 正是历史上「闪一下就空了」的观感。
         playlistsAsync.when(
-          skipLoadingOnRefresh: false,
-          skipLoadingOnReload: false,
           data: (playlists) {
             if (playlists.isEmpty) {
               // 数据驱动解耦:服务端暂无歌单数据时整块隐藏;仅加载失败才保留
