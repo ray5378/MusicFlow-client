@@ -212,6 +212,14 @@ class HomeSection {
       visible: json['visible'] as bool? ?? true,
     );
   }
+
+  /// 序列化：与 [HomeSection.fromJson] 严格互逆（用于分区清单的 SWR 缓存）。
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'key': key,
+        'title': title,
+        'sortOrder': sortOrder,
+        'visible': visible,
+      };
 }
 
 /// 平台推荐频道(一个平台/插件对应一个频道)
@@ -311,8 +319,8 @@ class HomeRecommendSection {
     );
   }
 
-  /// 随机补位项服务端只给 `{id,name,songCount,coverArt}` 四个字段,
-  /// 而 [Playlist.fromJson] 要求 `id`/`name` 为 null 安全 —— 归一化补默认值,
+  /// 随机补位项服务端只给 `{id,name,songCount,coverArt}` 四个字段，
+  /// 而 [Playlist.fromJson] 要求 `id`/`name` 为 null 安全 —— 归一化补默认值，
   /// 避免个别条目缺字段时整批解析崩掉。
   static Map<String, dynamic> _normalizeRandomPlaylistJson(
     Map<String, dynamic> raw,
@@ -325,6 +333,18 @@ class HomeRecommendSection {
       'duration': (raw['duration'] as num?)?.toInt() ?? 0,
     };
   }
+
+  /// 序列化：与 [HomeRecommendSection.fromJson] 严格互逆。
+  ///
+  /// 用于首页「为你推荐」区块的 SWR 缓存（`recommendCaches` 表的
+  /// `homeRecommendSection:<libraryId>` scope）。
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'hourBucket': hourBucket,
+        'homeCount': homeCount,
+        'degraded': degraded,
+        'fixed': fixed.map((e) => e.toJson()).toList(),
+        'random': random.map((e) => e.toJson()).toList(),
+      };
 
   bool get isEmpty => fixed.isEmpty && random.isEmpty;
 }

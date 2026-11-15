@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/api/connection_gate.dart';
 
 const String _fallbackLogTag = 'FETCH';
 
@@ -71,6 +72,22 @@ void resetRefreshGateForTest() => _lastRefreshAt.clear();
 /// [cacheFirst]（SWR）：有缓存就**立刻**把缓存交出去，再在后台拉新值
 /// （同一 `label + refreshKey` 在 [_kRefreshGateTtl] 窗口内只拉一次）。
 /// 没有缓存时行为与不开启完全一致。
+///
+/// 批 D（连接就绪闸 + 两档周期重连）：
+/// - 远程请求前先过 [ConnectionGate.wait]：本次会话尚未观察到「真实往返成功」
+///   （`ServerAddress.status == ok`）时最多等 [kConnectionGateBudget]，等到就
+///   放行，等不到也放行 —— 请求不再抢先发在连接建立之前；
+/// - **任何**一次远程失败都 [ConnectionGate.reportFailure]：全局单例
+///   `Reconnector` 接手，冷启动档 1s 一次、失联档 10s 一次探测 `/ping`，
+///   连通后把所有失败区块一次性重拉（不是「一次为限」的自救）。
+///
+/// [addressFailureIsLoadFailure] = false 时，「地址/连接还没就绪」这一类失败
+/// 既不置 [failedProvider] 也不弹网络异常（首页固定卡区块的老口径：地址失败
+/// 不算「固定卡加载失败」，UI 不该因此显示错误态）。
+///
+/// [notifyOnFailure] = false 时，失败仍会置 [failedProvider]（供 UI 走错误
+/// 分支），但不弹全局「网络异常」—— 用于「失败本来就有静默降级语义」的区块
+/// （分区清单回落默认顺序、歌单数回落默认值），避免首屏叠出一片 toast。
 Future<T> fetchWithCacheFallback<T>({
   required Ref ref,
   required String label,
@@ -83,7 +100,20 @@ Future<T> fetchWithCacheFallback<T>({
   bool cacheFirst = false,
   Duration budget = kDefaultRequestBudget,
   String? refreshKey,
+  bool addressFailureIsLoadFailure = true,
+  bool notifyOnFailure = true,
 }) async {
+  // ⚠️ 连接就绪闸的安装**必须**是本函数（即 provider body 同步段）的
+  // 第一条语句：内部要 `Ref.listen`，而它只能在构建期安全调用。Dart 的
+  // async 函数体在第一个 `await` 之前是**同步**执行的，所以这行确实落在
+  // provider 的构建期；放进 `await` 之后的异步回调再装会踩 Riverpod 的
+  // 生命周期坑（订阅挂在已重建/已销毁的 element 上，回调永不触发）。
+  final gate = ConnectionGate.install(
+    ref: ref,
+    label: label,
+    refreshKey: refreshKey,
+  );
+
   if (cacheFirst) {
     final cached = await _readCacheQuietly(label, cacheRead);
     if (cached != null && !_isEmptyPayload(cached)) {
@@ -100,14 +130,20 @@ Future<T> fetchWithCacheFallback<T>({
         cacheWrite: cacheWrite,
         budget: budget,
         gateKey: gateKey,
+        gate: gate,
       );
       Logger.infoWithTag(_fallbackLogTag, '$label served from cache (SWR)');
       return cached;
     }
   }
 
+  // 活跃地址是否已就绪。用来区分「连接还没起来」与「服务器真的回了错」。
+  var addressReady = false;
   try {
+    // 闸在前：先等连接建立（有界预算），再取活跃地址（自身也有 300ms 预算）。
+    await gate.wait();
     await ref.read(ensureActiveAddressProvider.future);
+    addressReady = true;
     final data = await fetch().timeout(
       budget,
       onTimeout: () => throw TimeoutException(
@@ -136,6 +172,12 @@ Future<T> fetchWithCacheFallback<T>({
     // `AddressPool.probeActiveThrottled`）：绝不能在这里 probeAll()。
     // 后台刷新失败走的是 _scheduleBackgroundRefresh 的 catch，**不**触发
     // 探测 —— 那是可接受的后台失败，不该为它去打扰整池状态。
+    // 远程失败 → 交给全局重连器（两档周期重连）。
+    // **不看 `status`**：隧道断掉时持久化恢复的地址仍然是 stale 的 `ok`，
+    // 按 status 判「已连通」会让重连永远不启动 —— 这正是用户报的那个现象。
+    // 缓存兜底成功的路径也要上报：用户看到的是旧数据，连接恢复后必须换成新
+    // 的，否则首页会一直停在过期缓存上。
+    gate.reportFailure();
     unawaited(_probeActiveQuietly(ref));
     final cached = await _readCacheQuietly(label, cacheRead);
     if (cached != null) {
@@ -143,8 +185,18 @@ Future<T> fetchWithCacheFallback<T>({
       Logger.infoWithTag(_fallbackLogTag, '$label fallback to cache');
       return cached;
     }
+    // 「地址还没就绪」被调用方声明为「不算加载失败」：既不置 failed 也不弹窗，
+    // 探测完成 / 地址变化会让 provider 自重算（老口径见首页固定卡区块）。
+    if (!addressReady && !addressFailureIsLoadFailure) {
+      ref.read(failedProvider.notifier).state = false;
+      Logger.warnWithTag(
+        _fallbackLogTag,
+        '$label skipped: address not ready (not a load failure)',
+      );
+      return emptyValue;
+    }
     // 远程失败且无缓存兜底，才向用户提示网络异常。
-    NetworkErrorNotifier.show(errorMessage);
+    if (notifyOnFailure) NetworkErrorNotifier.show(errorMessage);
     ref.read(failedProvider.notifier).state = true;
     Logger.warnWithTag(_fallbackLogTag, '$label cache miss');
     return emptyValue;
@@ -174,6 +226,7 @@ void _scheduleBackgroundRefresh<T>({
   required Future<void> Function(T data) cacheWrite,
   required Duration budget,
   required String gateKey,
+  required ConnectionGate gate,
 }) {
   // 10s 窗口内同一 gateKey 只放行一次：既挡住 `invalidateSelf` 触发的
   // provider 重跑（防自我刷新死循环），也保证窗口过后用户显式刷新能重新
@@ -188,6 +241,9 @@ void _scheduleBackgroundRefresh<T>({
   // （首屏不再等网络）会被破坏，也让「首帧 fetchCallCount == 0」不可测。
   unawaited(Future<void>(() async {
     try {
+      // 后台刷新同样要过闸：隧道/连接还没暖时它必然失败，等于白烧一次
+      // 重试预算，还要吃 `FallbackInterceptor` 的令牌桶。
+      await gate.wait();
       final fresh = await fetch().timeout(budget);
       try {
         await cacheWrite(fresh);

@@ -1,9 +1,16 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/utils/server_url_security.dart';
+
+/// 全局重连器单发探测的硬超时。
+///
+/// 1 秒一次的冷启动重连档必须靠它：用 [AddressPool.probeAddress] 的 10s
+/// 超时会让 1s 档退化成「串行挂死」（上一个还没超时，下一个 tick 永远排不上）。
+const Duration kReconnectProbeTimeout = Duration(seconds: 2);
 
 /// 地址池：管理一个音乐库的多个地址
 class AddressPool {
@@ -29,6 +36,24 @@ class AddressPool {
 
   /// 自动回退开关：手动选择线路后，线路挂掉是否自动切换到可用线路
   bool autoFallback = true;
+
+  /// 本次 app 运行内是否**至少有一次真实探测往返成功**过（会话级 sticky）。
+  ///
+  /// 写入点唯一：[_applyProbeResult] 的成功分支 —— 也就是
+  /// `activeAddressProvider` 的 `status = ok` 的同一个来源，不是第二套真值。
+  ///
+  /// 刻意**不**用「`activeAddressProvider.status == ok`」反推：持久化恢复的
+  /// 地址自带上次的 `status = ok`，那是 stale 的；用它判「曾连通」会把冷启动
+  /// 误判成「已连通过」，两档重连（冷启动 1s / 失联 10s）就地失效 ——
+  /// 而那正是用户报的「一直不重连」现象的根因。
+  bool _everProbedOk = false;
+
+  /// 是否曾经真实连通（只置 true，永不回落）。重连器的档位选择器。
+  bool get sessionEverConnected => _everProbedOk;
+
+  /// 测试用：手工置位「曾连通」（真机只由 [_applyProbeResult] 成功分支写入）。
+  @visibleForTesting
+  void markSessionEverConnected() => _everProbedOk = true;
 
   /// 物理网络是否已断开（由 [ConnectivityMonitor] 维护）。
   ///
@@ -139,6 +164,13 @@ class AddressPool {
       );
     }
   }
+
+  /// 是否有一轮全量探测正在进行（[probeAll] 的 in-flight 复用窗口）。
+  ///
+  /// 连接就绪闸（`ConnectionGate`）用它回答「等不等」这个问题：探测在跑 =
+  /// 连接正在建立，等它落定有意义；没有探测在跑 = 状态已经落定（要么早已
+  /// 成功、要么服务端真的不可用），再等只会白加延迟。
+  bool get isProbing => _probeAllFuture != null;
 
   /// 启动时全量探测，选择最优可达地址
   Future<ServerAddress?> probeAll() async {
@@ -276,6 +308,73 @@ class AddressPool {
     }
   }
 
+  /// 单发快速探测（全局重连器专用）。
+  ///
+  /// 与 [probeAddress] 的区别是「便宜」：走同一个 probe Dio（**不挂
+  /// `FallbackInterceptor`、不占 12 次/10s 令牌桶**），GET `/rest/ping`，
+  /// 单次硬超时 [timeout]（默认 [kReconnectProbeTimeout] = 2s）。
+  ///
+  /// **失败不写状态**：重连档每秒探一次，若把每次失败都经
+  /// [_applyProbeResult] 落盘成 `failed`，两秒后地址就被打成 `failed`
+  /// —— `isOfflineProvider` 会立刻判全 App 离线（封面全占位 + 播放被跳过），
+  /// 而 `_restoreActiveAddressFromPool` 只认 `ok`，下次冷启动恢复不出活跃地址。
+  /// 真正的 `failed` 交给 HealthChecker 的 30s 周期（连续
+  /// [requiredConsecutiveFails] 次才降级）。
+  ///
+  /// **成功一定写状态**：必须走 [_applyProbeResult] 的成功分支，才能同时置
+  /// [sessionEverConnected]、把 `ok` 上报给 `activeAddressProvider`，
+  /// 让离线态（封面 / 播放 / 遥控）跟着一起恢复。
+  Future<bool> probeOnceForReconnect({
+    Duration timeout = kReconnectProbeTimeout,
+  }) async {
+    final target = _activeAddress ??
+        _getNextAvailable() ??
+        (_addresses.isNotEmpty ? _addresses.first : null);
+    if (target == null) return false;
+    final uri = Uri.parse(joinServerUrl(target.url, '/rest/ping'));
+    final start = DateTime.now();
+    try {
+      final response = await _dio
+          .get(
+            uri.toString(),
+            options: Options(
+              validateStatus: (status) => status != null && status < 500,
+              sendTimeout: timeout,
+              receiveTimeout: timeout,
+            ),
+          )
+          .timeout(timeout);
+      if (response.statusCode != 200) {
+        Logger.debugWithTag(
+          _tag,
+          'reconnect probe non-200 (${response.statusCode}) '
+          'for ${target.label}',
+        );
+        return false;
+      }
+      final latency = DateTime.now().difference(start).inMilliseconds;
+      _applyProbeResult(
+        target.copyWith(
+          status: ServerAddressStatus.ok,
+          lastLatencyMs: latency,
+        ),
+      );
+      Logger.infoWithTag(
+        _tag,
+        'reconnect probe ok: ${target.label} latency=${latency}ms',
+      );
+      return true;
+    } catch (e) {
+      // 失败刻意不落状态（见方法注释），只留一条 debug。
+      Logger.debugWithTag(
+        _tag,
+        'reconnect probe failed for ${target.label}',
+        e,
+      );
+      return false;
+    }
+  }
+
   String _summarizeCandidates() {
     return _addresses
         .map(
@@ -305,6 +404,13 @@ class AddressPool {
     var status = probeOk ? ServerAddressStatus.ok : current.status;
     if (probeOk) {
       _consecutiveHealthFails.remove(probed.id);
+      if (!_everProbedOk) {
+        _everProbedOk = true;
+        Logger.infoWithTag(
+          _tag,
+          'session ever connected: first ok probe round-trip',
+        );
+      }
     } else {
       final fails = (_consecutiveHealthFails[probed.id] ?? 0) + 1;
       _consecutiveHealthFails[probed.id] = fails;

@@ -1,0 +1,65 @@
+name: Home SWR Guard
+
+# 首页 SWR 缓存的**阻塞**守卫（与发版链解耦，但失败会标红）：
+#   钉住「凡是客户端首页可以显示的内容模块都必须要有 SWR 缓存」这条用户硬要求。
+#
+# 为什么单开一道而不塞进 Test Suite / UI Guard：
+#   · `Test Suite` 与 `UI Guard` 都是 `continue-on-error` 的**观察**流水线，
+#     失败只显示黄字，锁不住东西 —— 本工作流**刻意不设** continue-on-error；
+#   · 漏补 SWR **编译得过、功能也「对」**（只是首帧白一帧），没有任何单测会红：
+#     断言「首帧 fetchCallCount == 0」的用例只覆盖已经接上 SWR 的 provider，
+#     新加的首页区块根本没人给它写用例；
+#   · 唯一拦得住的是源码级静态断言 + **反向穷举扫描**（扫
+#     lib/features/discover/ 下所有异步 provider，未归类就红）—— 这正是
+#     `tool/check-home-swr.mjs` 干的事，以后新加首页区块忘补 SWR 会自动变红。
+#
+# 两道检查：
+#   1) node tool/check-home-swr.mjs                        —— 源码级静态守卫（R1~R7）
+#   2) flutter test test/providers/library/b_d2_home_swr_test.dart
+#      + test/providers/api/b_d1_connection_gate_test.dart  —— SWR / 闸的行为锁
+#      （hashFiles 保护：与 QA 并行编写时这些文件可能尚未落盘，缺文件不应误红）
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  home-swr-guard:
+    name: home swr guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 源码级静态守卫（首页 SWR 清单 / 反向穷举扫描 / 闸仍在位 / 反向探针）
+        run: node tool/check-home-swr.mjs
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: 首页 SWR 行为锁（有缓存首帧零远程请求 / 老业务规则不回归）
+        if: ${{ hashFiles('test/providers/library/b_d2_home_swr_test.dart') != '' }}
+        run: flutter test test/providers/library/b_d2_home_swr_test.dart
+
+      - name: 连接闸 + 两档重连行为锁（1s/30s 冷启动档 / 10s 失联档 / B1~B6）
+        if: ${{ hashFiles('test/providers/api/b_d1_connection_gate_test.dart') != '' }}
+        run: flutter test test/providers/api/b_d1_connection_gate_test.dart

@@ -10,6 +10,9 @@ import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/api/fetch_with_cache_fallback.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
 
+/// 首页歌单数取不到时的回落值（服务端 `/rest/api/v1/home/playlist-count`）。
+const int kDefaultHomePlaylistCount = 8;
+
 final recommendRepositoryProvider = Provider<RecommendRepository?>((ref) {
   final activeLib = ref.watch(activeLibraryProvider);
   if (activeLib == null) return null;
@@ -30,28 +33,49 @@ final localRecommendChannelsLoadFailedProvider = StateProvider<bool>(
   (ref) => false,
 );
 
+/// 首页分区清单的失败标记。
+///
+/// 分区清单失败时首页会**回落客户端默认顺序**继续渲染（见 discover_page），
+/// 因此这里只记状态、不驱动任何错误 UI。
+final homeSectionsLoadFailedProvider = StateProvider<bool>((ref) => false);
+
+/// 首页歌单数（`/home/playlist-count`）的失败标记。
+///
+/// 该值取不到时静默回落 [kDefaultHomePlaylistCount]，同样不驱动错误 UI。
+final homePlaylistCountLoadFailedProvider = StateProvider<bool>(
+  (ref) => false,
+);
+
 /// 首页分区清单:由服务端决定首页展示哪些分区及其顺序(sortOrder 升序)。
 /// 客户端按此清单逐区渲染,服务端增删分区/调序即生效,实现客户端与服务端解耦。
 /// 失败时返回空清单,由首页回落默认分区顺序,仅保留失败标记供重试。
 ///
 /// 与 randomSongsProvider 对齐 —— **保持数据,不自动释放**:离开发现页再回来
 /// 不重拉;watch 的依赖(活跃库/客户端)变化时 Riverpod 会自动失效重建重拉。
+///
+/// 批 D:接入 [fetchWithCacheFallback] 并开 `cacheFirst` —— 有缓存当帧交清单,
+/// 无缓存才走远程(行为与改造前一致)。
 final homeSectionsProvider = FutureProvider<List<HomeSection>>((ref) async {
   final repository = ref.watch(recommendRepositoryProvider);
   if (repository == null) return const <HomeSection>[];
-  try {
-    await ref.read(ensureActiveAddressProvider.future);
-    final sections = await repository.getHomeSections();
-    Logger.infoWithTag(
-      'RECOMMEND',
-      'home sections loaded, count=${sections.length}',
-    );
-    return sections;
-  } catch (e, stackTrace) {
-    Logger.warnWithTag('RECOMMEND', 'home sections load failed', e);
-    Logger.debugWithTag('RECOMMEND', 'home sections stackTrace', null, stackTrace);
-    return const <HomeSection>[];
-  }
+  final cache = ref.watch(recommendCacheRepositoryProvider);
+  final libraryId = ref.watch(activeLibraryProvider)?.id ?? '';
+
+  return fetchWithCacheFallback<List<HomeSection>>(
+    ref: ref,
+    label: 'homeSections',
+    fetch: () => repository.getHomeSections(),
+    cacheWrite: (sections) => cache.saveHomeSections(libraryId, sections),
+    cacheRead: () => cache.getHomeSections(libraryId),
+    failedProvider: homeSectionsLoadFailedProvider,
+    errorMessage: l10nNowCurrent().core_network_error,
+    emptyValue: const <HomeSection>[],
+    cacheFirst: true,
+    refreshKey: libraryId,
+    // 分区清单没有可见的错误态(失败即回落默认顺序),不该为此弹「网络异常」;
+    // 具体区块自己的失败提示已经够了,叠起来就是一片 toast。
+    notifyOnFailure: false,
+  );
 });
 
 /// 正在导入的平台推荐歌单 id(导入即播放流程中显示 loading)
@@ -63,6 +87,8 @@ final recommendImportingProvider = StateProvider<String?>((ref) => null);
 /// 不重拉;watch 的依赖(活跃库/客户端)变化时 Riverpod 会自动失效重建重拉,
 /// 无需手动 invalidate。走 fetchWithCacheFallback:远程成功写缓存(下次秒出),
 /// 远程失败静默回落缓存,仅「远程失败+缓存未命中」才置 failed 标记。
+///
+/// 批 D:开 `cacheFirst` —— 与「最近更新的歌单」同款 SWR,有缓存当帧秒出。
 final homeCardsProvider = FutureProvider<List<HomeCard>>((ref) async {
   final repository = ref.watch(recommendRepositoryProvider);
   final cache = ref.watch(recommendCacheRepositoryProvider);
@@ -78,6 +104,8 @@ final homeCardsProvider = FutureProvider<List<HomeCard>>((ref) async {
     failedProvider: homeCardsLoadFailedProvider,
     errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: <HomeCard>[],
+    cacheFirst: true,
+    refreshKey: libraryId,
   );
 });
 
@@ -85,6 +113,8 @@ final homeCardsProvider = FutureProvider<List<HomeCard>>((ref) async {
 ///
 /// 保持数据,不自动释放(见 [homeCardsProvider] 注释);/v1/recommend 冷启动
 /// 可达 900ms,失败回落缓存避免白屏等待。
+///
+/// 批 D:开 `cacheFirst` —— 有缓存当帧秒出,后台再拉新值。
 final recommendChannelsProvider = FutureProvider<RecommendResult>((ref) async {
   final repository = ref.watch(recommendRepositoryProvider);
   final cache = ref.watch(recommendCacheRepositoryProvider);
@@ -102,6 +132,8 @@ final recommendChannelsProvider = FutureProvider<RecommendResult>((ref) async {
     failedProvider: recommendChannelsLoadFailedProvider,
     errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: RecommendResult(providerId: '', channels: []),
+    cacheFirst: true,
+    refreshKey: libraryId,
   );
 });
 
@@ -113,15 +145,32 @@ final recommendProviderIdProvider = Provider<AsyncValue<String>>((ref) {
 });
 
 /// 每日推荐插件控制的首页歌单数(含今日漫游+随机歌单,默认 8,范围 1~24)。
+///
+/// 批 D:接 [fetchWithCacheFallback] 并开 `cacheFirst`;失败**仍然静默回
+/// [kDefaultHomePlaylistCount]**(老口径),既不弹窗也不让 UI 出错误态 ——
+/// 这个值只是「多排几张卡」的微调参数,拿不到就用默认值。
 final homePlaylistCountProvider = FutureProvider<int>((ref) async {
   final client = ref.watch(subsonicApiClientProvider);
-  try {
-    await ref.read(ensureActiveAddressProvider.future);
-    final data = await client.getRaw('/rest/api/v1/home/playlist-count');
-    return (data['count'] as num?)?.toInt() ?? 8;
-  } catch (_) {
-    return 8;
-  }
+  final cache = ref.watch(recommendCacheRepositoryProvider);
+  final libraryId = ref.watch(activeLibraryProvider)?.id ?? '';
+
+  return fetchWithCacheFallback<int>(
+    ref: ref,
+    label: 'homePlaylistCount',
+    fetch: () async {
+      final data = await client.getRaw('/rest/api/v1/home/playlist-count');
+      return (data['count'] as num?)?.toInt() ?? kDefaultHomePlaylistCount;
+    },
+    cacheWrite: (count) => cache.saveHomePlaylistCount(libraryId, count),
+    cacheRead: () => cache.getHomePlaylistCount(libraryId),
+    failedProvider: homePlaylistCountLoadFailedProvider,
+    errorMessage: l10nNowCurrent().core_network_error,
+    emptyValue: kDefaultHomePlaylistCount,
+    cacheFirst: true,
+    refreshKey: libraryId,
+    // 失败静默回默认值:老口径,不打扰用户。
+    notifyOnFailure: false,
+  );
 });
 
 /// 首页「为你推荐」区块数据（服务端聚合快照：固定卡 + 随机补位）。
@@ -139,61 +188,88 @@ final homePlaylistCountProvider = FutureProvider<int>((ref) async {
 ///    (生产 873 张库只覆盖最新 400 张)再 `shuffle(Random())`,既有长尾又有偏差。
 /// 3. **失败会置 `homeCardsLoadFailedProvider`** —— 旧实现首屏这条链永远不置位,
 ///    UI 无法区分「真的没卡」和「加载失败」,只能静默降级成纯随机。
+///
+/// 批 D:从手写 try/catch 迁进 [fetchWithCacheFallback] 并开 `cacheFirst`
+/// (与「最近更新的歌单」同款 SWR)。两条老业务规则**原样保留**:
+/// - `repo == null` → 返回 `empty()` 且 `failed = false`(不算失败);
+/// - 服务端回带 `playlistId` 为空的坏卡 → 过滤 + `Logger.warnWithTag`。
+/// 另外「地址失败不算加载失败」的口径靠 `addressFailureIsLoadFailure: false`
+/// 保住:闸预算到期与地址异常都不置 failed,只有真请求失败且无缓存才置 true。
 final homeRecommendSectionProvider =
     FutureProvider<HomeRecommendSection>((ref) async {
   final repo = ref.watch(recommendRepositoryProvider);
-  final failed = ref.read(homeCardsLoadFailedProvider.notifier);
 
+  // 仓库未就绪(冷启动活跃库还没从 drift 恢复)不是加载失败,不该让 UI 出错误态。
   if (repo == null) {
-    failed.state = false;
+    ref.read(homeCardsLoadFailedProvider.notifier).state = false;
     return const HomeRecommendSection.empty();
   }
 
-  // 地址未就绪单独兜:这不算「固定卡加载失败」,不该让 UI 显示错误态,
-  // 只回落空区块。地址探测完成后 provider 会因 watch 依赖变化自动重拉。
-  try {
-    await ref.read(ensureActiveAddressProvider.future);
-  } catch (e) {
-    Logger.warnWithTag('RECOMMEND', 'address not ready', e);
-    failed.state = false;
-    return const HomeRecommendSection.empty();
-  }
+  final cache = ref.watch(recommendCacheRepositoryProvider);
+  final libraryId = ref.watch(activeLibraryProvider)?.id ?? '';
 
-  try {
-    final section = await repo.getHomeRecommendSection();
-    // 服务端可能回带 `playlistId` 为空的坏卡(插件数据缺陷):
-    // 过滤掉并留痕,不让它把整排卡拖成一张空封面卡片。
-    final validFixed = <HomeCard>[];
-    for (final card in section.fixed) {
-      if (card.playlistId.isEmpty) {
-        Logger.warnWithTag(
-          'RECOMMEND',
-          'drop home card without playlistId: name=${card.name}',
-        );
-        continue;
-      }
-      validFixed.add(card);
-    }
-    failed.state = false;
-    if (validFixed.length == section.fixed.length) return section;
-    return HomeRecommendSection(
-      hourBucket: section.hourBucket,
-      homeCount: section.homeCount,
-      degraded: section.degraded,
-      fixed: validFixed,
-      random: section.random,
-    );
-  } catch (e) {
-    Logger.warnWithTag('RECOMMEND', 'recommend section load failed', e);
-    failed.state = true;
-    return const HomeRecommendSection.empty();
-  }
+  return fetchWithCacheFallback<HomeRecommendSection>(
+    ref: ref,
+    label: 'homeRecommendSection',
+    // 坏卡过滤放在 fetch 里(而不是拿到结果之后再处理):缓存写下来的就是
+    // 已经过滤干净的快照,下次 SWR 秒出的内容与本次完全一致。
+    fetch: () async =>
+        _dropCardsWithoutPlaylistId(await repo.getHomeRecommendSection()),
+    cacheWrite: (section) =>
+        cache.saveHomeRecommendSection(libraryId, section),
+    cacheRead: () async {
+      final cached = await cache.getHomeRecommendSection(libraryId);
+      // 空快照不算「有缓存」:否则远程一成功但返回空区块之后,SWR 会一直把
+      // 空区块当成缓存秒出,固定卡永远不会自己回来。
+      if (cached == null || cached.isEmpty) return null;
+      return cached;
+    },
+    failedProvider: homeCardsLoadFailedProvider,
+    errorMessage: l10nNowCurrent().core_network_error,
+    emptyValue: const HomeRecommendSection.empty(),
+    cacheFirst: true,
+    refreshKey: libraryId,
+    // 地址未就绪 / 闸预算到期都不算「固定卡加载失败」(老口径)。
+    addressFailureIsLoadFailure: false,
+    // 区块自己有可见的错误态(loadFailed),不再叠一条全局网络异常提示。
+    notifyOnFailure: false,
+  );
 });
+
+/// 过滤服务端回带的「`playlistId` 为空」坏卡(插件数据缺陷)。
+///
+/// 不这么做的后果:一张空 id 卡会把整排卡拖成一张空封面卡片。过滤后重建对象
+/// 返回,`degraded` 等服务端字段**原样透传**(过滤坏卡不改写服务端的判定)。
+HomeRecommendSection _dropCardsWithoutPlaylistId(HomeRecommendSection section) {
+  var dropped = false;
+  final validFixed = <HomeCard>[];
+  for (final card in section.fixed) {
+    if (card.playlistId.isEmpty) {
+      Logger.warnWithTag(
+        'RECOMMEND',
+        'drop home card without playlistId: name=${card.name}',
+      );
+      dropped = true;
+      continue;
+    }
+    validFixed.add(card);
+  }
+  if (!dropped) return section;
+  return HomeRecommendSection(
+    hourBucket: section.hourBucket,
+    homeCount: section.homeCount,
+    degraded: section.degraded,
+    fixed: validFixed,
+    random: section.random,
+  );
+}
 
 /// 本地随机歌单(按平台):经 /v1/local-recommend 获取本地库按平台分组随机歌单。
 /// 返回的歌单均已入库,客户端直接以本地 id 打开/播放(无需导入刷新)。
 ///
 /// 保持数据,不自动释放(见 [homeCardsProvider] 注释);失败回落缓存避免白屏。
+///
+/// 批 D:开 `cacheFirst` —— 有缓存当帧秒出,后台再拉新值。
 final localRecommendChannelsProvider =
     FutureProvider<List<LocalRecommendChannel>>((ref) async {
   final repository = ref.watch(recommendRepositoryProvider);
@@ -211,5 +287,7 @@ final localRecommendChannelsProvider =
     failedProvider: localRecommendChannelsLoadFailedProvider,
     errorMessage: l10nNowCurrent().core_network_error,
     emptyValue: <LocalRecommendChannel>[],
+    cacheFirst: true,
+    refreshKey: libraryId,
   );
 });
