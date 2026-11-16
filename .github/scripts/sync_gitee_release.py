@@ -2,9 +2,10 @@
 """幂等地把一个 GitHub Release 镜像到 Gitee。
 
 职责（由 GitHub Actions workflow `.github/workflows/sync-to-gitee.yml` 驱动）：
-  1. 按 tag 查询 Gitee Release；已存在则复用（并刷新描述），不存在再创建。
-  2. 把本地 artifacts 目录中的全部附件上传到该 Release；同名附件跳过。
-  3. 失败时输出带 tag 与阶段的清晰错误；成功时把 Gitee Release URL 写入 GITHUB_OUTPUT。
+  1. 幂等地把 Gitee 仓库默认分支设为 main（已是 main 则不修改）。
+  2. 按 tag 查询 Gitee Release；已存在则复用（并刷新描述），不存在再创建。
+  3. 把本地 artifacts 目录中的全部附件上传到该 Release；同名附件跳过。
+  4. 失败时输出带 tag 与阶段的清晰错误；成功时把 Gitee Release URL 写入 GITHUB_OUTPUT。
 
 安全约束：
   - token 只从环境变量 GITEE_TOKEN 读取，不进 argv、不落文件、不进日志。
@@ -285,8 +286,59 @@ class GiteeReleaseSync:
                         ) from exc
                     time.sleep(2 ** (attempt - 1))
 
+    def ensure_default_branch(self) -> None:
+        """幂等地把 Gitee 仓库默认分支设为 main，并复查结果。
+
+        Gitee 的 PATCH /repos/{owner}/{repo} 要求同时提供 name 字段；
+        default_branch 参数即“更新默认分支”。main 分支已由上一个 step 推送。
+        """
+        repo_path = f"/repos/{self.owner}/{self.repo}"
+        repo = self._request(
+            "GET", repo_path, query={"access_token": self.token}
+        )
+        if not isinstance(repo, dict):
+            raise SyncError(
+                f"读取 Gitee 仓库信息失败（tag={self.tag}）：{self._redact(str(repo)[:300])}"
+            )
+
+        current = str(repo.get("default_branch") or "")
+        if current == self.target_commitish:
+            print(
+                f"Gitee 默认分支已是 {self.target_commitish}，无需修改。"
+            )
+            return
+
+        print(
+            f"Gitee 当前默认分支为 {current or '<空>'}，切换为 {self.target_commitish}。"
+        )
+        self._request(
+            "PATCH",
+            repo_path,
+            payload={
+                "access_token": self.token,
+                "name": self.repo,
+                "default_branch": self.target_commitish,
+            },
+        )
+        verify = self._request(
+            "GET", repo_path, query={"access_token": self.token}
+        )
+        actual = (
+            str(verify.get("default_branch") or "")
+            if isinstance(verify, dict)
+            else ""
+        )
+        if actual != self.target_commitish:
+            raise SyncError(
+                f"Gitee 默认分支切换失败（tag={self.tag}）：期望 "
+                f"{self.target_commitish}，实际 {actual or '<空>'}；"
+                "请在 Gitee 仓库「管理 → 分支设置」中手动设为 main。"
+            )
+        print(f"Gitee 默认分支已切换为 {self.target_commitish}。")
+
     def run(self) -> str:
         """执行完整同步，返回 Gitee Release 的网页 URL。"""
+        self.ensure_default_branch()
         existing = self.find_release()
         if existing is not None:
             release_id = existing["id"]

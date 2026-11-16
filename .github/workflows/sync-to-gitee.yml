@@ -5,11 +5,20 @@ name: Sync Release to Gitee
 #
 # 边界：
 #   - 版本号唯一来源仍是 git tag；本 workflow 不改 pubspec.yaml / CHANGELOG / 业务代码。
-#   - Gitee 是下游镜像，GitHub 是唯一真源；Gitee master 上的本地提交会被覆盖。
-# 触发：只监听 release published（草稿保存、edited、deleted 均不触发）。
+#   - Gitee 是下游镜像，GitHub 是唯一真源；Gitee 默认分支由本 workflow 幂等设为 main。
+# 触发：
+#   - release published：正式发版后自动同步；
+#   - workflow_dispatch：手动重放同步（用于端到端验证，不会发新版本）。
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要同步的 Release tag（留空 = GitHub 最新 Release，如 v5.16.3）'
+        required: false
+        type: string
+        default: ''
 
 # 最小权限：读源码 + 读自身 Release 产物，GITHUB_TOKEN 的 contents: read 足够。
 # Gitee 侧完全走仓库 Secret GITEE_TOKEN，与 GITHUB_TOKEN 无关。
@@ -18,22 +27,21 @@ permissions:
 
 # 同一 tag 的重复触发/手动重跑串行执行，避免并发推送与重复上传。
 concurrency:
-  group: sync-to-gitee-${{ github.event.release.tag_name }}
+  group: sync-to-gitee-${{ github.event.release.tag_name || inputs.tag || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   mirror:
-    name: Mirror ${{ github.event.release.tag_name }} to Gitee
+    name: Sync ${{ github.event.release.tag_name || inputs.tag || 'latest' }} to Gitee
     runs-on: ubuntu-latest
-    # 防空 payload / 防御性判断：published 事件正常情况下 draft 必为 false。
-    if: github.event.release.draft == false
+    # 两种触发复用同一个 job：dispatch 直接放行；release 事件仅排除草稿。
+    if: github.event_name == 'workflow_dispatch' || github.event.release.draft == false
     env:
-      TAG: ${{ github.event.release.tag_name }}
-      RELEASE_NAME: ${{ github.event.release.name }}
-      RELEASE_BODY: ${{ github.event.release.body }}
-      PRERELEASE: ${{ github.event.release.prerelease }}
+      EVENT_TAG: ${{ github.event.release.tag_name }}
+      INPUT_TAG: ${{ inputs.tag }}
       GITEE_OWNER: ray5378
       GITEE_REPO: music-flow-client
+      GITEE_DEFAULT_BRANCH: main
       ARTIFACT_DIR: ${{ github.workspace }}/artifacts
       BODY_FILE: ${{ github.workspace }}/.gitee_release_body.md
     steps:
@@ -44,27 +52,55 @@ jobs:
           # 不把 GITHUB_TOKEN 持久化进 .git/config；Gitee 认证用下面的临时 credential helper。
           persist-credentials: false
 
-      - name: Validate release payload and secret
+      # 单一入口解析 tag 与 Release 元数据，release / dispatch 两条触发路径在此汇合，
+      # 后续步骤只认 $TAG，不存在两套分叉逻辑。
+      - name: Resolve tag and release metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_TAG}" ]; then
+            TAG="${INPUT_TAG}"
+          elif [ -n "${EVENT_TAG}" ]; then
+            TAG="${EVENT_TAG}"
+          else
+            TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "::error::无法确定要同步的 tag（dispatch 输入与 release 事件均为空）。"
+            exit 1
+          fi
+
+          release_json="${RUNNER_TEMP}/github_release.json"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "${release_json}"
+
+          # body 用文件传递：可能含换行/引号/任意字符，绝不拼进命令行。
+          jq -r '.body // ""' "${release_json}" > "${BODY_FILE}"
+          # 随机分隔符：即便 tag 或 release 名称含换行，也无法向 $GITHUB_ENV 注入变量。
+          delimiter="__MUSICFLOW_GITEE_EOF_${RANDOM}${RANDOM}__"
+          {
+            echo "TAG<<${delimiter}"
+            printf '%s\n' "${TAG}"
+            echo "${delimiter}"
+            echo "RELEASE_NAME<<${delimiter}"
+            jq -r '.name // .tag_name' "${release_json}"
+            echo "${delimiter}"
+            echo "PRERELEASE=$(jq -r '.prerelease // false' "${release_json}")"
+            echo "ASSET_COUNT=$(jq '.assets | length' "${release_json}")"
+          } >> "${GITHUB_ENV}"
+
+          echo "已解析：tag=${TAG}, assets=$(jq '.assets | length' "${release_json}")"
+
+      - name: Validate secret
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${TAG}" ]; then
-            echo "::error::release 事件缺少 tag_name，无法同步到 Gitee。"
-            exit 1
-          fi
           if [ -z "${GITEE_TOKEN:-}" ]; then
             echo "::error::仓库 Secret GITEE_TOKEN 未配置，拒绝同步 ${TAG}。"
             exit 1
           fi
           echo "开始同步：tag=${TAG}, name=${RELEASE_NAME:-<空>}, prerelease=${PRERELEASE}"
-
-      # body 可能含换行/引号/任意字符：通过 env 传入再落盘，绝不拼进命令行。
-      - name: Save release body to file
-        run: |
-          set -euo pipefail
-          printf '%s' "${RELEASE_BODY}" > "${BODY_FILE}"
-          echo "Release body 已保存（$(wc -c < "${BODY_FILE}") 字节）。"
 
       - name: Download all GitHub release assets
         env:
@@ -72,9 +108,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${ARTIFACT_DIR}"
-          asset_count="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.assets | length')"
-          echo "GitHub Release ${TAG} 共有 ${asset_count} 个附件。"
-          if [ "${asset_count}" -gt 0 ]; then
+          echo "GitHub Release ${TAG} 共有 ${ASSET_COUNT} 个附件。"
+          if [ "${ASSET_COUNT}" -gt 0 ]; then
             gh release download "${TAG}" --dir "${ARTIFACT_DIR}" --clobber --repo "${GITHUB_REPOSITORY}"
           fi
           echo "待同步附件："
@@ -91,7 +126,7 @@ jobs:
             exit 1
           fi
 
-          # credential helper 的脚本体在 heredoc 中保持字面量，token 只从环境变量读取。
+          # credential helper 的脚本体在 quoted heredoc 中保持字面量，token 只从环境变量读取。
           # 于是：.git/config 里只有脚本路径，git/curl 的 argv 与 CI 日志中都没有明文 token。
           helper="${RUNNER_TEMP}/gitee-credential-helper.sh"
           cat > "${helper}" <<'HELPER'
@@ -103,22 +138,17 @@ jobs:
 
           git remote add gitee "https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}.git"
 
-          # Gitee 默认分支是 master，GitHub 是 main。Gitee 仓库当前的 master 只是
-          # 初始化时的 "Initial commit"（仅两个 README），与 GitHub 历史无交集，
-          # 正常 push 必然 non-fast-forward，因此：
-          #   1) main  : 新建/快进，镜像 GitHub main；
-          #   2) tag   : 推送本次发布的版本 tag；
-          #   3) master: 从 GitHub main 强推覆盖（Gitee 是单向镜像，GitHub 是唯一真源）。
-          # 同时保留两个分支可让 Gitee 默认分支有真实代码，且 /blob/main/... 链接可用。
+          # 只推 GitHub main 与本次 tag，不主动推 master。
+          # Gitee 当前只有 master（初始化桩提交）且 0 tag，main 为新建分支；
+          # 默认分支切换由下面的 Python 助手通过 Gitee API 幂等完成。
           git push --atomic gitee \
-            "refs/remotes/origin/main:refs/heads/main" \
+            "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}" \
             "refs/tags/${TAG}:refs/tags/${TAG}"
-          git push --force gitee "refs/remotes/origin/main:refs/heads/master"
 
           rm -f "${helper}"
-          echo "源码 + tag ${TAG} 已推送到 Gitee（main / master 均已镜像）。"
+          echo "源码 + tag ${TAG} 已推送到 Gitee（main）。"
 
-      - name: Create or reuse Gitee Release and upload assets
+      - name: Set Gitee default branch, create or reuse Release, upload assets
         id: sync
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -133,5 +163,5 @@ jobs:
             echo ""
             echo "- Tag: \`${TAG}\`"
             echo "- Gitee Release: ${{ steps.sync.outputs.gitee_release_url }}"
-            echo "- 源码: https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}/tree/main"
+            echo "- 源码(main，默认分支): https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}/tree/main"
           } >> "${GITHUB_STEP_SUMMARY}"
