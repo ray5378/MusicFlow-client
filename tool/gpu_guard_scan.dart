@@ -11,6 +11,9 @@ import 'dart:io';
 
 const List<String> gateMarkers = [
   'appVisibilityProvider',
+  // isRenderingActiveProvider = appVisibilityProvider && windowOccludedProvider
+  // （app_visibility_provider.dart 派生），是更严格的窗口可见性门控。
+  'isRenderingActiveProvider',
   'effectiveIsPlayingProvider',
   'frozenPositionProvider',
   'frozenLyricLineProvider',

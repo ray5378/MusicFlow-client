@@ -216,17 +216,21 @@ class _ConnectionBeaconState extends ConsumerState<ConnectionBeacon>
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
-    return SizedBox.square(
-      dimension: _slotSize,
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          if (animate) _PulseRing(controller: _controller, color: color),
-          // 中心点常亮、**不缩放**：让环去表达跳动，点保持稳定，
-          // 否则两者一起动会互相抢注意力。
-          dot,
-        ],
+    // RepaintBoundary 隔离：扩散环每帧重绘只发生在本边界内，
+    // 不连带胶囊文字与父级（gpu_guard_scan 防线要求）。
+    return RepaintBoundary(
+      child: SizedBox.square(
+        dimension: _slotSize,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            if (animate) _PulseRing(controller: _controller, color: color),
+            // 中心点常亮、**不缩放**：让环去表达跳动，点保持稳定，
+            // 否则两者一起动会互相抢注意力。
+            dot,
+          ],
+        ),
       ),
     );
   }
