@@ -92,6 +92,12 @@ class UpdateAvailableContent extends StatelessWidget {
       children: <Widget>[
         _InfoLine(label: loc.settings_current_version, value: result.currentVersion),
         _InfoLine(label: loc.settings_latest_version, value: result.latestVersion),
+        // 所选通道 gitee 检查失败、自动回退 GitHub 成功时，如实标注来源。
+        if (result.viaFallback)
+          _InfoLine(
+            label: loc.settings_update_channel_title,
+            value: loc.update_source_fallback,
+          ),
         if (hasNotes) ...<Widget>[
           SizedBox(height: spacing.sm),
           const MusicFlowDivider(),

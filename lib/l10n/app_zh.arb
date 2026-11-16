@@ -107,7 +107,7 @@
   "settings_cancel": "取消",
   "settings_check_update": "检查更新",
   "settings_check_update_checking_semantics": "检查更新，正在连接 GitHub Releases",
-  "settings_check_update_desc": "从 GitHub Releases 检查最新版本",
+  "settings_check_update_desc": "检查最新版本并下载更新包",
   "settings_clear": "清空",
   "settings_configure": "配置",
   "settings_configure_fanart": "配置 Fanart.tv",
@@ -3703,5 +3703,11 @@
   },
   "study_removed_from_folder": "已移回根目录",
   "study_dir_scanning": "正在扫描目录…",
-  "study_dir_no_audio": "该目录下没有学习内容"
+  "study_dir_no_audio": "该目录下没有学习内容",
+  "settings_update_channel_title": "更新通道",
+  "settings_update_channel_desc": "选择检查与下载更新使用的来源",
+  "settings_update_channel_gitee": "默认通道，国内直连更快",
+  "settings_update_channel_github": "备用通道",
+  "update_source_fallback": "来自 GitHub 备用通道",
+  "settings_update_check_failed_both": "Gitee 与 GitHub 更新通道都检查失败，请稍后重试。"
 }

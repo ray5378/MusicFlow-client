@@ -47,6 +47,9 @@ class LocalStorage {
   static const String _keyCategoryNavOrder = 'category_nav_order_v1';
   static const String _keySidebarNavOrder = 'sidebar_nav_order_v1';
 
+  /// 更新通道（UpdateChannel.name：gitee / github）。默认 gitee。
+  static const String _keyUpdateChannel = 'update_channel';
+
   /// 本安装的「临时端 ID」——服务端用它把同一账号下多个播放端(网页标签页 /
   /// 多个客户端)的播放队列隔离开，谁也不会覆盖谁。
   ///
@@ -104,6 +107,18 @@ class LocalStorage {
   static Future<void> setStatusLyricsEnabled(bool value) async {
     final prefs = await getPrefs();
     await prefs.setBool(_keyStatusLyricsEnabled, value);
+  }
+
+  /// 读取更新通道（未设置返回 null，由调用方回落到默认 gitee）。
+  static Future<String?> getUpdateChannel() async {
+    final prefs = await getPrefs();
+    return prefs.getString(_keyUpdateChannel);
+  }
+
+  /// 保存更新通道（UpdateChannel.name：gitee / github）。
+  static Future<void> setUpdateChannel(String value) async {
+    final prefs = await getPrefs();
+    await prefs.setString(_keyUpdateChannel, value);
   }
 
 

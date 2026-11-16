@@ -235,7 +235,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '检查更新，正在连接 GitHub Releases';
 
   @override
-  String get settings_check_update_desc => '从 GitHub Releases 检查最新版本';
+  String get settings_check_update_desc => '检查最新版本并下载更新包';
 
   @override
   String get settings_clear => '清空';
@@ -3501,4 +3501,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get study_dir_no_audio => '该目录下没有学习内容';
+
+  @override
+  String get settings_update_channel_title => '更新通道';
+
+  @override
+  String get settings_update_channel_desc => '选择检查与下载更新使用的来源';
+
+  @override
+  String get settings_update_channel_gitee => '默认通道，国内直连更快';
+
+  @override
+  String get settings_update_channel_github => '备用通道';
+
+  @override
+  String get update_source_fallback => '来自 GitHub 备用通道';
+
+  @override
+  String get settings_update_check_failed_both =>
+      'Gitee 与 GitHub 更新通道都检查失败，请稍后重试。';
 }

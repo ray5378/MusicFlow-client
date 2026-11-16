@@ -255,7 +255,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settings_check_update_desc =>
-      'Check for the latest version on GitHub Releases';
+      'Check for the latest version and download updates';
 
   @override
   String get settings_clear => 'Clear';
@@ -3682,4 +3682,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get study_dir_no_audio => 'No study content in this folder';
+
+  @override
+  String get settings_update_channel_title => 'Update channel';
+
+  @override
+  String get settings_update_channel_desc =>
+      'Choose where update checks and downloads come from';
+
+  @override
+  String get settings_update_channel_gitee =>
+      'Default; faster direct connection in China';
+
+  @override
+  String get settings_update_channel_github => 'Fallback';
+
+  @override
+  String get update_source_fallback => 'via GitHub fallback';
+
+  @override
+  String get settings_update_check_failed_both =>
+      'Both Gitee and GitHub update checks failed. Please try again later.';
 }

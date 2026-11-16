@@ -107,7 +107,7 @@
   "settings_cancel": "Cancel",
   "settings_check_update": "Check for updates",
   "settings_check_update_checking_semantics": "Checking for updates; connecting to GitHub Releases",
-  "settings_check_update_desc": "Check for the latest version on GitHub Releases",
+  "settings_check_update_desc": "Check for the latest version and download updates",
   "settings_clear": "Clear",
   "settings_configure": "Configure",
   "settings_configure_fanart": "Configure Fanart.tv",
@@ -3703,5 +3703,11 @@
   },
   "study_removed_from_folder": "Moved back to the root",
   "study_dir_scanning": "Scanning folder…",
-  "study_dir_no_audio": "No study content in this folder"
+  "study_dir_no_audio": "No study content in this folder",
+  "settings_update_channel_title": "Update channel",
+  "settings_update_channel_desc": "Choose where update checks and downloads come from",
+  "settings_update_channel_gitee": "Default; faster direct connection in China",
+  "settings_update_channel_github": "Fallback",
+  "update_source_fallback": "via GitHub fallback",
+  "settings_update_check_failed_both": "Both Gitee and GitHub update checks failed. Please try again later."
 }

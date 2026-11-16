@@ -533,7 +533,7 @@ abstract class AppLocalizations {
   /// No description provided for @settings_check_update_desc.
   ///
   /// In zh, this message translates to:
-  /// **'从 GitHub Releases 检查最新版本'**
+  /// **'检查最新版本并下载更新包'**
   String get settings_check_update_desc;
 
   /// No description provided for @settings_clear.
@@ -6313,6 +6313,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'该目录下没有学习内容'**
   String get study_dir_no_audio;
+
+  /// No description provided for @settings_update_channel_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新通道'**
+  String get settings_update_channel_title;
+
+  /// No description provided for @settings_update_channel_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择检查与下载更新使用的来源'**
+  String get settings_update_channel_desc;
+
+  /// No description provided for @settings_update_channel_gitee.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认通道，国内直连更快'**
+  String get settings_update_channel_gitee;
+
+  /// No description provided for @settings_update_channel_github.
+  ///
+  /// In zh, this message translates to:
+  /// **'备用通道'**
+  String get settings_update_channel_github;
+
+  /// No description provided for @update_source_fallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自 GitHub 备用通道'**
+  String get update_source_fallback;
+
+  /// No description provided for @settings_update_check_failed_both.
+  ///
+  /// In zh, this message translates to:
+  /// **'Gitee 与 GitHub 更新通道都检查失败，请稍后重试。'**
+  String get settings_update_check_failed_both;
 }
 
 class _AppLocalizationsDelegate

@@ -23,6 +23,7 @@ import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
+import 'package:musicflow_client/providers/settings/update_channel_provider.dart';
 import 'package:musicflow_client/providers/settings/update_download_provider.dart';
 import 'package:musicflow_client/providers/ui/theme_provider.dart';
 import 'package:musicflow_client/providers/ui/locale_provider.dart';
@@ -84,7 +85,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     setState(() => _isCheckingUpdate = true);
 
     try {
-      final result = await UpdateChecker.check();
+      // 按用户设置的更新通道检查（默认 gitee）；gitee 失败自动回退 GitHub。
+      final channel = ref.read(updateChannelProvider);
+      final result = await UpdateChecker.check(channel: channel);
       if (!mounted) return;
 
       if (result.hasUpdate) {
@@ -106,6 +109,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       _showMessage(
         error is TimeoutException
             ? loc.discover_error_desc_check_route
+            : error is UpdateChannelsExhaustedException
+            ? loc.settings_update_check_failed_both
             : loc.settings_update_check_failed_generic,
         kind: MusicFlowMessageKind.error,
       );
@@ -117,7 +122,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   void _showUpdateDialog(UpdateCheckResult result) {
     final ctx = context;
     final loc = AppLocalizations.of(ctx);
-    final subtitle = loc.settings_update_found;
+    final subtitle = result.viaFallback
+        ? '${loc.settings_update_found} · ${loc.update_source_fallback}'
+        : loc.settings_update_found;
     final title = '${result.currentVersion} → ${result.latestVersion}';
 
     if (isWindowsDesktop) {
@@ -162,6 +169,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           label: loc.settings_latest_version,
           value: result.latestVersion,
         ),
+        // 所选通道 gitee 检查失败、自动回退 GitHub 成功时，如实标注来源。
+        if (result.viaFallback)
+          _SettingsInfoLine(
+            label: loc.settings_update_channel_title,
+            value: loc.update_source_fallback,
+          ),
         if (result.releaseNotes != null &&
             result.releaseNotes!.isNotEmpty) ...<Widget>[
           SizedBox(height: ctx.musicFlowSpacing.sm),
@@ -191,8 +204,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               child: MusicFlowActionRow(
                 icon: AppIcons.download,
                 title: asset.name,
-                subtitle:
-                    '${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB',
+                // Gitee 资产不带 size（解析为 0）：0 时隐藏体积，避免显示 0.0 MB。
+                subtitle: asset.size > 0
+                    ? '${(asset.size / (1024 * 1024)).toStringAsFixed(1)} MB'
+                    : null,
                 trailing: Icon(
                   AppIcons.chevronRight,
                   size: 20,
@@ -639,6 +654,26 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     ),
                     onPressed: () => _pushPage(const LogViewerPage()),
                   ),
+                  // 更新通道（gitee 默认 / github 备用）：选中即存，立即生效于
+                  // 后续检查；gitee 失败时自动回退 GitHub 并在结果里标注来源。
+                  Consumer(
+                    builder: (rowContext, rowRef, _) {
+                      final rowLoc = AppLocalizations.of(rowContext);
+                      final channel = rowRef.watch(updateChannelProvider);
+                      return MusicFlowSettingRow(
+                        icon: AppIcons.refresh,
+                        title: rowLoc.settings_update_channel_title,
+                        description: rowLoc.settings_update_channel_desc,
+                        value: _channelTitle(channel),
+                        trailing: Icon(
+                          AppIcons.chevronRight,
+                          size: 20,
+                          color: rowContext.musicFlowColors.muted,
+                        ),
+                        onPressed: _showUpdateChannelSheet,
+                      );
+                    },
+                  ),
                   // 更新行四态（只在 Android 内置更新下生效）：
                   //   空闲/失败 → 「检查更新」
                   //   下载中   → 「正在下载」+ 百分比（点开会重新弹进度浮层）
@@ -882,6 +917,46 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     );
     if (selected == null) return;
     ref.read(lyricsScrollDwellProvider.notifier).setDwell(selected);
+  }
+
+  /// 通道显示名（选择行与设置行共用一份口径；品牌名不做本地化）。
+  String _channelTitle(UpdateChannel channel) =>
+      channel == UpdateChannel.gitee ? 'Gitee' : 'GitHub';
+
+  /// 更新通道选择：两选一（gitee / github），选中即持久化并即时生效。
+  Future<void> _showUpdateChannelSheet() async {
+    final loc = AppLocalizations.of(context);
+    final current = ref.read(updateChannelProvider);
+    await showMusicFlowBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (sheetContext) => MusicFlowBottomSheet(
+        title: loc.settings_update_channel_title,
+        subtitle: loc.settings_update_channel_desc,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            for (final channel in UpdateChannel.values)
+              MusicFlowChoiceRow(
+                title: _channelTitle(channel),
+                description: channel == UpdateChannel.gitee
+                    ? loc.settings_update_channel_gitee
+                    : loc.settings_update_channel_github,
+                selected: channel == current,
+                icon: AppIcons.refresh,
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(
+                    ref
+                        .read(updateChannelProvider.notifier)
+                        .setChannel(channel),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showAboutSheet() {

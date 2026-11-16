@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:musicflow_client/core/services/update_checker.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/features/settings/widgets/update_available_dialog.dart';
+import 'package:musicflow_client/providers/settings/update_channel_provider.dart';
 
 /// 启动后延迟多久再发起更新检查。
 ///
@@ -26,9 +28,28 @@ bool startupUpdateCheckSupported({
   return target == TargetPlatform.windows || target == TargetPlatform.android;
 }
 
+/// 默认通道读取：从 [updateChannelProvider] 取当前通道。
+///
+/// 挂载在 MaterialApp.builder 层的 scope 其 context 位于 Navigator 之上，
+/// 但仍在 ProviderScope 之内，containerOf 可用；拿不到时按默认 gitee 兜底
+/// （更新检查是锦上添花，绝不因通道读取失败影响启动）。
+Future<UpdateChannel> _defaultChannelReader(BuildContext context) async {
+  try {
+    final container = ProviderScope.containerOf(context, listen: false);
+    return container.read(updateChannelProvider);
+  } catch (error) {
+    Logger.errorWithTag('UPDATE', 'read update channel failed', error);
+    return UpdateChannel.gitee;
+  }
+}
+
 /// 应用启动后一次性在后台检查更新。
 ///
 /// 发现新版本则弹出可关闭的提示框（[showUpdateAvailableDialog]）。
+///
+/// 检查通道：未注入 [checker] 时按用户设置的更新通道走
+/// （通道来自 [channelReader]，默认读 [updateChannelProvider]，缺省 gitee）；
+/// gitee 通道失败会自动回退 GitHub 并在结果上打 viaFallback 标注。
 ///
 /// 用户在框内点「前往下载」后：
 /// - 传了 [installer]（Android 生产环境）→ 走**内置更新**：直下 apk → 校验 →
@@ -36,7 +57,8 @@ bool startupUpdateCheckSupported({
 /// - 没传（默认，含全部既有测试）→ 行为与改造前**完全一致**，用系统浏览器
 ///   打开下载链接。
 ///
-/// [checker] / [launcher] / [platform] / [installer] 仅用于测试注入真实实现。
+/// [checker] / [launcher] / [platform] / [installer] / [channelReader] 仅用于
+/// 测试注入真实实现。
 /// [navigatorKey] 为根导航器 key：scope 挂载在 MaterialApp.builder 层时
 /// 其 context 位于 Navigator **之上**，showDialog 找不到 Navigator 会静默失败，
 /// 因此弹窗必须改用 Navigator 之下（overlay）的 context（生产环境必传）。
@@ -51,13 +73,20 @@ Future<bool> runStartupUpdateCheck(
   TargetPlatform? platform,
   Duration delay = kStartupUpdateCheckDelay,
   GlobalKey<NavigatorState>? navigatorKey,
+  Future<UpdateChannel> Function(BuildContext context)? channelReader,
 }) async {
   if (!startupUpdateCheckSupported(platform: platform)) return false;
   if (delay > Duration.zero) await Future<void>.delayed(delay);
   if (!context.mounted) return false;
 
   try {
-    final result = await (checker ?? UpdateChecker.check)();
+    // 未注入 checker（生产路径）时按用户通道检查；注入 checker 的既有测试
+    // 行为一个字节都不变。
+    final effectiveChecker = checker ?? () async {
+      final channel = await (channelReader ?? _defaultChannelReader)(context);
+      return UpdateChecker.check(channel: channel);
+    };
+    final result = await effectiveChecker();
     if (!result.hasUpdate) return false;
 
     // 弹窗上下文：优先用根 Navigator 的 overlay context（在 Navigator 之下），
@@ -151,11 +180,12 @@ class StartupUpdateCheckScope extends StatefulWidget {
     this.installer,
     this.delay = kStartupUpdateCheckDelay,
     this.navigatorKey,
+    this.channelReader,
   });
 
   final Widget child;
 
-  /// 测试注入的检查实现（默认 [UpdateChecker.check]）。
+  /// 测试注入的检查实现（默认按用户通道调 [UpdateChecker.check]）。
   final Future<UpdateCheckResult> Function()? checker;
 
   /// 测试注入的打开链接实现（默认系统浏览器）。
@@ -174,6 +204,9 @@ class StartupUpdateCheckScope extends StatefulWidget {
   /// MaterialApp.builder 层时其自身 context 在 Navigator 之上，见
   /// [runStartupUpdateCheck]）。生产环境由 app.dart 传入。
   final GlobalKey<NavigatorState>? navigatorKey;
+
+  /// 测试注入的通道读取实现（默认读 [updateChannelProvider]）。
+  final Future<UpdateChannel> Function(BuildContext context)? channelReader;
 
   @override
   State<StartupUpdateCheckScope> createState() =>
@@ -207,6 +240,7 @@ class _StartupUpdateCheckScopeState extends State<StartupUpdateCheckScope> {
           // 延迟已在本 scope 完成，这里不再二次等待。
           delay: Duration.zero,
           navigatorKey: widget.navigatorKey,
+          channelReader: widget.channelReader,
         ),
       );
     });

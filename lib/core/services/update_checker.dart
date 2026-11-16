@@ -15,6 +15,10 @@ import 'package:musicflow_client/core/utils/logger.dart';
 ///
 /// 没有匹配到首选后缀时回退第一个资源，没有资源则返回 null(调用方应改用
 /// 发布页 URL)。[isInstallerBuild] 为兼容旧调用保留，现已不参与决策。
+///
+/// 资产挑选只认文件名后缀，与更新通道无关：Gitee 与 GitHub 发布的资产名
+/// 完全一致（同一 CI 产物双向上传），Gitee 自动追加的 `vX.Y.Z.zip/tar.gz`
+/// 是 tag 归档直链，不会被本函数误选（Windows 分支只认 windows-setup.exe）。
 ReleaseAsset? pickPlatformUpdateAsset(
   UpdateCheckResult result, {
   TargetPlatform? platform,
@@ -46,6 +50,13 @@ ReleaseAsset? pickPlatformUpdateAsset(
   return result.assets.first;
 }
 
+/// 更新检查/下载通道。
+///
+/// - [gitee]：默认通道，国内网络直连更快，也不受 GitHub 匿名 API 限流影响；
+/// - [github]：备用通道。Gitee 检查失败时自动回退到它（结果带
+///   [UpdateCheckResult.viaFallback] 标注）；用户显式选择 github 时不回退。
+enum UpdateChannel { gitee, github }
+
 /// Represents the result of an update check.
 @immutable
 class UpdateCheckResult {
@@ -55,10 +66,10 @@ class UpdateCheckResult {
   /// Current app version string (e.g. "0.3.2").
   final String currentVersion;
 
-  /// Latest release version string from GitHub (e.g. "0.4.0").
+  /// Latest release version string (e.g. "0.4.0").
   final String latestVersion;
 
-  /// HTML URL of the latest release page on GitHub.
+  /// HTML URL of the latest release page.
   final String? releaseUrl;
 
   /// Release notes body (markdown).
@@ -67,6 +78,10 @@ class UpdateCheckResult {
   /// Direct download URLs for release assets (APK, etc.).
   final List<ReleaseAsset> assets;
 
+  /// 本次结果是否实际来自**备用通道**（所选通道 gitee 检查失败后自动回退
+  /// GitHub 成功）。UI 据此展示「来自 GitHub 备用通道」标注。
+  final bool viaFallback;
+
   const UpdateCheckResult({
     required this.hasUpdate,
     required this.currentVersion,
@@ -74,7 +89,19 @@ class UpdateCheckResult {
     this.releaseUrl,
     this.releaseNotes,
     this.assets = const [],
+    this.viaFallback = false,
   });
+
+  /// 返回带「来自备用通道」标注的结果副本（其余字段逐字保留）。
+  UpdateCheckResult withFallbackFlag() => UpdateCheckResult(
+    hasUpdate: hasUpdate,
+    currentVersion: currentVersion,
+    latestVersion: latestVersion,
+    releaseUrl: releaseUrl,
+    releaseNotes: releaseNotes,
+    assets: assets,
+    viaFallback: true,
+  );
 }
 
 @immutable
@@ -90,15 +117,39 @@ class ReleaseAsset {
   });
 }
 
-/// Service that checks for app updates via GitHub Releases API.
+/// 所选通道与备用通道**都**检查失败时抛出（设置页据此展示
+/// 「两个通道都试过」的稳定文案；原始错误只进日志）。
+class UpdateChannelsExhaustedException implements Exception {
+  /// 首选通道（gitee）的原始错误。
+  final Object giteeError;
+
+  /// 备用通道（github）的原始错误。
+  final Object githubError;
+
+  const UpdateChannelsExhaustedException(this.giteeError, this.githubError);
+
+  @override
+  String toString() =>
+      'UpdateChannelsExhaustedException(gitee: $giteeError, github: $githubError)';
+}
+
+/// Service that checks for app updates via Gitee / GitHub Releases API.
 class UpdateChecker {
   static const _logTag = 'UPDATE';
+
+  // GitHub（备用通道）。
   static const _owner = 'ray5378';
   static const _repo = 'MusicFlow-client';
-  static const _apiUrl =
+  static const _githubApiUrl =
       'https://api.github.com/repos/$_owner/$_repo/releases/latest';
   static const _releasesAtomUrl =
       'https://github.com/$_owner/$_repo/releases.atom';
+
+  // Gitee（默认通道）。
+  static const _giteeOwner = 'ray5378';
+  static const _giteeRepo = 'music-flow-client';
+  static const _giteeApiUrl =
+      'https://gitee.com/api/v5/repos/$_giteeOwner/$_giteeRepo/releases/latest';
 
   static final _dio = Dio(
     BaseOptions(
@@ -108,15 +159,73 @@ class UpdateChecker {
     ),
   );
 
-  /// Check for updates against the latest GitHub release.
-  static Future<UpdateCheckResult> check() async {
-    Logger.infoWithTag(_logTag, 'checking for updates…');
+  /// 检查更新（默认走 gitee 通道）。
+  ///
+  /// - [channel] == [UpdateChannel.github]：只走 GitHub，失败如实抛错
+  ///   （用户显式选择了备用通道，不再反向回退）；
+  /// - [channel] == [UpdateChannel.gitee]（默认）：先走 Gitee，失败自动
+  ///   回退 GitHub 并在结果上打 [UpdateCheckResult.viaFallback] 标注；
+  ///   两边都失败抛 [UpdateChannelsExhaustedException]。
+  ///
+  /// [currentVersionOverride] / [giteeFetcher] / [githubFetcher] 仅测试注入。
+  static Future<UpdateCheckResult> check({
+    UpdateChannel channel = UpdateChannel.gitee,
+    String? currentVersionOverride,
+    Future<UpdateCheckResult> Function()? giteeFetcher,
+    Future<UpdateCheckResult> Function()? githubFetcher,
+  }) async {
+    Logger.infoWithTag(_logTag, 'checking for updates… channel=${channel.name}');
 
-    final packageInfo = await PackageInfo.fromPlatform();
-    final currentVersion = packageInfo.version; // e.g. "0.3.2"
+    // currentVersionOverride 已给定时跳过 PackageInfo（纯注入路径无需平台通道，
+    // 测试环境也因此不触 MethodChannel / 网络）。
+    final currentVersion = currentVersionOverride ??
+        (await PackageInfo.fromPlatform()).version;
+
+    if (channel == UpdateChannel.github) {
+      return _github(currentVersion, githubFetcher: githubFetcher);
+    }
 
     try {
-      final response = await _dio.get(_apiUrl);
+      final giteeResult = await (giteeFetcher ?? () async {
+        return _checkViaGitee(currentVersion);
+      })();
+      return giteeResult;
+    } catch (giteeError, giteeSt) {
+      Logger.errorWithTag(
+        _logTag,
+        'gitee update check failed, falling back to github',
+        giteeError,
+        giteeSt,
+      );
+      try {
+        final result = await _github(currentVersion, githubFetcher: githubFetcher);
+        return result.withFallbackFlag();
+      } catch (githubError, githubSt) {
+        Logger.errorWithTag(
+          _logTag,
+          'github fallback update check also failed',
+          githubError,
+          githubSt,
+        );
+        throw UpdateChannelsExhaustedException(giteeError, githubError);
+      }
+    }
+  }
+
+  /// GitHub 通道：JSON API 失败兜底 releases.atom（行为与改造前一致）。
+  static Future<UpdateCheckResult> _github(
+    String currentVersion, {
+    Future<UpdateCheckResult> Function()? githubFetcher,
+  }) async {
+    return githubFetcher != null
+        ? githubFetcher()
+        : _checkViaGitHub(currentVersion);
+  }
+
+  /// GitHub Releases API 检查（原 [check] 的 GitHub 分支，逐字保留）。
+  static Future<UpdateCheckResult> _checkViaGitHub(String currentVersion) async {
+    try {
+      final response = await _dio.get(_githubApiUrl);
       final data = response.data as Map<String, dynamic>;
 
       // tag_name is typically "v0.4.0" or "0.4.0"
@@ -170,6 +279,79 @@ class UpdateChecker {
         throw e;
       }
     }
+  }
+
+  /// Gitee Releases API 检查。
+  ///
+  /// 与 GitHub 的字段差异（对本仓 Release 实测）：
+  /// - `html_url` 为 **null** → 自行拼接 `https://gitee.com/{owner}/{repo}/releases/tag/{tag}`，
+  ///   否则浏览器回退会拿到 null；
+  /// - `assets[].size` 为 **null** → 解析为 0（下载层的落盘大小校验对 0 跳过，
+  ///   UI 对 0 隐藏体积显示）；
+  /// - `tag_name / name / body / assets[].browser_download_url` 与 GitHub 同名同义。
+  ///
+  /// 解析逻辑独立成 [parseGiteeRelease] 纯函数供测试；本方法只负责网络取数。
+  static Future<UpdateCheckResult> _checkViaGitee(String currentVersion) async {
+    final response = await _dio.get(
+      _giteeApiUrl,
+      options: Options(headers: <String, String>{'Accept': 'application/json'}),
+    );
+    return parseGiteeRelease(
+      response.data as Map<String, dynamic>,
+      currentVersion: currentVersion,
+    );
+  }
+
+  /// 解析 Gitee `/releases/latest` 响应为 [UpdateCheckResult]（纯函数）。
+  ///
+  /// [data] 形状按真机实测：`tag_name: "v5.16.3"`、`html_url: null`、
+  /// `assets[].size: null`（Gitee 会自动追加 zip/tar.gz 归档资产）。
+  /// 解析不到 tag 时抛 [FormatException]。
+  @visibleForTesting
+  static UpdateCheckResult parseGiteeRelease(
+    Map<String, dynamic> data, {
+    required String currentVersion,
+  }) {
+    final tagName = (data['tag_name'] as String?) ?? '';
+    if (tagName.isEmpty) {
+      throw const FormatException('gitee release: empty tag_name');
+    }
+    final latestVersion = tagName.startsWith('v')
+        ? tagName.substring(1)
+        : tagName;
+
+    // Gitee 的 html_url 为 null，必须自行拼接发布页地址（浏览器回退用）。
+    final releaseUrl =
+        (data['html_url'] as String?) ??
+        'https://gitee.com/$_giteeOwner/$_giteeRepo/releases/tag/$tagName';
+    final releaseNotes = data['body'] as String?;
+
+    final rawAssets = data['assets'] as List<dynamic>? ?? [];
+    final assets = rawAssets.map((a) {
+      final m = a as Map<String, dynamic>;
+      return ReleaseAsset(
+        name: m['name'] as String? ?? '',
+        downloadUrl: m['browser_download_url'] as String? ?? '',
+        // Gitee 资产不带 size，缺省 0（下载层与 UI 都按 0 兜底）。
+        size: m['size'] as int? ?? 0,
+      );
+    }).toList();
+
+    final hasUpdate = _compareVersions(currentVersion, latestVersion) < 0;
+
+    Logger.infoWithTag(
+      _logTag,
+      'current=$currentVersion latest=$latestVersion hasUpdate=$hasUpdate',
+    );
+
+    return UpdateCheckResult(
+      hasUpdate: hasUpdate,
+      currentVersion: currentVersion,
+      latestVersion: latestVersion,
+      releaseUrl: releaseUrl,
+      releaseNotes: releaseNotes,
+      assets: assets,
+    );
   }
 
   /// releases.atom 兜底检查:解析第一条 entry 的 tag(订阅流最新在前)。

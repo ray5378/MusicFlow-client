@@ -1321,7 +1321,8 @@ void main() {
       await tapCheckUpdate(tester);
 
       expect(fakeHttp.calls.length, 1);
-      expect(fakeHttp.calls.single, contains('api.github.com'));
+      // 默认通道是 gitee：唯一一次请求打到 Gitee Releases API。
+      expect(fakeHttp.calls.single, contains('gitee.com/api/v5'));
       expect(
         find.textContaining(loc!.settings_update_latest('1.0.0')),
         findsOneWidget,
@@ -1334,11 +1335,12 @@ void main() {
 
       await tapCheckUpdate(tester);
 
-      // 主路径 + atom 兜底各一次请求。
-      expect(fakeHttp.calls.length, 2);
+      // 默认通道 gitee 失败 → 回退 GitHub API 失败 → atom 兜底失败：共 3 次。
+      expect(fakeHttp.calls.length, 3);
       expect(fakeHttp.calls.last, contains('releases.atom'));
+      // gitee 与 GitHub 两条通道都失败 → 展示「两个通道都失败」稳定文案。
       expect(
-        find.textContaining(loc!.settings_update_check_failed_generic),
+        find.textContaining(loc!.settings_update_check_failed_both),
         findsOneWidget,
         reason: '[AS-D-062 已修复] SocketException 也不把原文给用户',
       );
@@ -1473,7 +1475,8 @@ void main() {
 
   // =========================================================================
   group('诊断区块：日志与关于', () {
-    testWidgets('39 既无资源也无发布页链接 → 弹窗不出现「前往下载」', (tester) async {
+    testWidgets('39 无资源 → 不渲染资源列表；gitee 发布页链接兜底保留「前往下载」',
+      (tester) async {
       fakeHttp.body = releaseJson(tag: 'v2.0.0', body: '只有说明');
       await pumpPage(tester);
 
@@ -1481,8 +1484,8 @@ void main() {
 
       expect(find.text(loc!.settings_update_found), findsOneWidget);
       expect(find.text(loc!.settings_update_assets), findsNothing);
-      // 两个条件都为 false → 主按钮整块不渲染。
-      expect(find.text(loc!.settings_download), findsNothing);
+      // 无资源但 gitee 通道始终能拼出发布页链接 → 主按钮保留（点它跳发布页）。
+      expect(find.text(loc!.settings_download), findsOneWidget);
       expect(find.text(loc!.settings_later), findsOneWidget);
 
       await tester.tap(find.text(loc!.settings_later));
