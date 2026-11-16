@@ -22,7 +22,8 @@ jobs:
           git config user.email probe@example.invalid
           git config user.name probe
           echo probe > probe.txt
-          git commit -qam probe
+          git add probe.txt
+          git commit -qm probe
           helper="${tmp}/cred.sh"
           cat > "${helper}" <<'HELPER'
           #!/usr/bin/env bash
