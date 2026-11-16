@@ -28,6 +28,8 @@ class MainActivity : AudioServiceFragmentActivity() {
         private const val APK_INSTALL_CHANNEL = "com.musicflow.app/apk_install"
         // 内置更新：后台下载（系统 DownloadManager，通知栏进度，杀进程不断）。
         private const val APK_DOWNLOAD_CHANNEL = "com.musicflow.app/apk_download"
+        // 平台信息：当前只有 Android API level（媒体通知布局按 30 分叉要用）。
+        private const val PLATFORM_INFO_CHANNEL = "com.musicflow.app/platform_info"
         private const val NEARBY_PERMISSION_REQ = 31001
 
         private var multicastLock: WifiManager.MulticastLock? = null
@@ -96,6 +98,21 @@ class MainActivity : AudioServiceFragmentActivity() {
             APK_DOWNLOAD_CHANNEL
         ).setMethodCallHandler { call, result ->
             _apkDownloadHandler(call, result)
+        }
+
+        // 链路 E：平台信息（API level）。
+        // 为什么需要：媒体通知的布局在 Android 11（API 30）发生分叉 ——
+        // 30 起由 SystemUI 用 MediaSession 元数据渲染，只有「标题 + 歌手」两行；
+        // 30 以下走 audio_service 自建的 MediaStyle 通知，标题/歌手/subText 三行
+        // 都会渲染。Dart 侧据此决定歌词写进副标题（30+）还是第三行（<30）。
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PLATFORM_INFO_CHANNEL
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "androidSdkInt" -> result.success(Build.VERSION.SDK_INT)
+                else -> result.notImplemented()
+            }
         }
     }
 

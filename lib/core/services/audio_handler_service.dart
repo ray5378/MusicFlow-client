@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/player/audio_load_config.dart';
+import 'package:musicflow_client/core/services/android_platform_info.dart';
 import 'package:musicflow_client/core/services/notification_permission_service.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
@@ -265,7 +266,14 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
       nextSongId: item.id,
       lastLyric: _lastLyric,
     );
-    mediaItem.add(applyNotificationLyric(base: item, lyric: _lastLyric) ?? item);
+    mediaItem.add(
+      applyNotificationLyric(
+        base: item,
+        lyric: _lastLyric,
+        threeLineLayout: AndroidPlatformInfo.useLegacyThreeLineNotification,
+      ) ??
+          item,
+    );
 
     // 立即设置为播放状态，激活 MediaSession
     playbackState.add(
@@ -307,6 +315,7 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
       base: base,
       lyric: _lastLyric,
       current: mediaItem.valueOrNull,
+      threeLineLayout: AndroidPlatformInfo.useLegacyThreeLineNotification,
     );
     if (next == null) return;
     mediaItem.add(next);
@@ -417,28 +426,48 @@ String? resolvePreservedLyric({
 
 /// 纯函数（单测锁定）：算出「按通知栏形态改写后的 MediaItem」，无需更新返回 null。
 ///
+/// 两种布局按 Android 版本分叉（见 [AndroidPlatformInfo]）：
+///
+/// | API | 标题 | 副标题 | 第三行 subText |
+/// |-----|------|--------|----------------|
+/// | >= 30（SystemUI 媒体卡片） | 歌名 | 歌词（无歌词留空） | 不渲染 |
+/// | < 30（自建 MediaStyle 通知） | 歌名 | 歌手 | 歌词（无歌词回落专辑） |
+///
 /// - [base] 是切歌时的原始 MediaItem（title = 纯歌名），**必须**用它派生，
-///   不能拿已改写过的当前项当底稿（歌名会被反复污染）；
-/// - 主标题**恒为纯歌名**，不拼接歌手（用户要求通知栏不出现歌手）；
-/// - [lyric] 非空 → artist 副标题换成该行；为空 → 副标题写成 [kNotificationEmptyLyric]
-///   （留空，不回落歌手）；
-/// - [current] 是当前已推给平台的项，用于去重：同曲同 id 同 title 同副标题
-///   就不重推（每次 metadata 更新在原生侧都会重解析封面位图并重建通知）。
+///   不能拿已改写过的当前项当底稿；
+/// - [lyric] 为空时：30+ 副标题留 [kNotificationEmptyLyric]（绝不回落歌手，
+///   否则会被误认为「歌词没加载」）；< 30 第三行回落专辑名；
+/// - [current] 用于去重：同曲同 id 同歌词就不重推（每次 metadata 更新在原生侧
+///   都会重新解析封面位图并重建通知）。
 MediaItem? applyNotificationLyric({
   required MediaItem base,
   required String? lyric,
   MediaItem? current,
+  bool threeLineLayout = false,
 }) {
   final line = lyric?.trim();
   final hasLine = line != null && line.isNotEmpty;
-  final target = base.copyWith(
-    artist: hasLine ? line : kNotificationEmptyLyric,
-  );
+
+  final MediaItem target;
+  if (threeLineLayout) {
+    // Android 10 及以下：MediaStyle 标题/歌手/subText 三行都在。
+    target = base.copyWith(
+      artist: base.artist ?? kNotificationEmptyLyric,
+      displayDescription: hasLine ? line : base.album,
+    );
+  } else {
+    // Android 11+：只有两行，副标题整行让给歌词。
+    target = base.copyWith(
+      artist: hasLine ? line : kNotificationEmptyLyric,
+    );
+  }
+
   final cur = current;
   if (cur != null &&
       cur.id == target.id &&
       cur.title == target.title &&
-      cur.artist == target.artist) {
+      cur.artist == target.artist &&
+      cur.displayDescription == target.displayDescription) {
     return null;
   }
   return target;
@@ -446,6 +475,9 @@ MediaItem? applyNotificationLyric({
 
 /// 初始化 AudioService
 Future<MusicFlowAudioHandler> initAudioService() async {
+  // 通知栏文本布局按 Android 版本分叉（30+ 两行 / <30 三行），必须在任何
+  // mediaItem 推送之前拿到 API level；读失败降级为新布局，不阻塞启动。
+  await AndroidPlatformInfo.load();
   // 缓冲标定取全 App 单一常量源（原两份复制粘贴，2026-10-13 合并，防漂移）。
   final audioPlayer = AudioPlayer(
     audioLoadConfiguration: kAudioLoadConfiguration,

@@ -1,22 +1,25 @@
-// 通知栏歌词：applyNotificationLyric / resolvePreservedLyric 语义钉子。
+// 通知栏歌词：applyNotificationLyric / resolvePreservedLyric / 版本分叉 语义钉子。
 //
 // 数据链路：currentLyricLineProvider（播放进度二分同步歌词得到的当前行）
 // → MusicFlowAudioHandler.updateNotificationLyric → applyNotificationLyric
-// → mediaItem.add → Android SystemUI 渲染。
+// → mediaItem.add → 系统渲染。
 //
-// 布局约束（AOSP 取证）：Android 11+ 的媒体通知由 SystemUI 直接拿 MediaSession
-// 元数据渲染，MediaDataManager 只读 DISPLAY_TITLE/TITLE 与 METADATA_KEY_ARTIST，
-// MediaData 里没有 album/description 字段——audio_service 的 displayDescription
-// / setSubText 在 Android 11+ 上没有任何消费方（v5.17.2 静默失效根因）。
+// 布局按 Android 版本分叉（两套都必须在测试里钉住，否则改一边会悄悄弄坏另一边）：
+//  - API >= 30（Android 11 起）：SystemUI 用 MediaSession 元数据渲染媒体卡片，
+//    只读 DISPLAY_TITLE/TITLE 与 METADATA_KEY_ARTIST 两行，MediaData 里连
+//    album/description 字段都没有 —— 写 displayDescription 是零消费方（v5.17.2
+//    静默失效根因）。所以副标题整行让给歌词，无歌词留空（不回落歌手，否则会被
+//    误认为「歌词没加载」）。
+//  - API < 30：audio_service 自建 MediaStyle 通知，标题/歌手/subText 三行都渲染。
+//    此时歌手留在副标题，歌词写进第三行（displayDescription），无歌词回落专辑。
 //
-// 三条产品决定（用户 2026-11-17 明确要求）：
-//  1. 主标题只能是纯歌名，通知栏不出现歌手；
-//  2. 副标题整行只放歌词，无歌词时留空——**绝不回落歌手**，否则用户会把
-//     「歌手占位」当成「歌词没加载」；
-//  3. 同曲重推 mediaItem（交叉淡入/预加载/metadata 刷新）必须带回已显示的
-//     歌词行，否则副标题会被反复打回空白、卡在「不加载」的样子。
+// 另有两条与版本无关的硬约束：
+//  1. 主标题只能是纯歌名，任何版本都不拼「歌名 - 歌手」；
+//  2. 同曲重推 mediaItem（交叉淡入/预加载/metadata 刷新）必须带回已显示的歌词，
+//     否则副标题会被反复打回空白、卡在「不加载」的样子。
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/core/services/android_platform_info.dart';
 import 'package:musicflow_client/core/services/audio_handler_service.dart';
 
 /// 切歌时 player_provider 构建的原始 MediaItem（title = 纯歌名）。
@@ -157,6 +160,85 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('Android 10 及以下（API < 30）：MediaStyle 三行布局', () {
+    test('歌词写进第三行 subText，副标题仍是歌手', () {
+      final next = applyNotificationLyric(
+        base: _base(),
+        lyric: '今夜的月光',
+        current: _base().copyWith(displayDescription: '专辑'),
+        threeLineLayout: true,
+      );
+      expect(next, isNotNull);
+      expect(next!.title, '歌名');
+      expect(next.artist, '歌手', reason: '老版本三行布局要保留歌手');
+      expect(next.displayDescription, '今夜的月光');
+    });
+
+    test('无歌词 → 第三行回落专辑，副标题仍是歌手', () {
+      final next = applyNotificationLyric(
+        base: _base(),
+        lyric: null,
+        current: _base().copyWith(displayDescription: '今夜的月光'),
+        threeLineLayout: true,
+      );
+      expect(next, isNotNull);
+      expect(next!.artist, '歌手');
+      expect(next.displayDescription, '专辑');
+    });
+
+    test('逐行推进不叠加、歌手不丢', () {
+      var current = _base().copyWith(displayDescription: '专辑');
+      for (final line in ['第一行', '第二行', '第三行']) {
+        final next = applyNotificationLyric(
+          base: _base(),
+          lyric: line,
+          current: current,
+          threeLineLayout: true,
+        );
+        expect(next!.displayDescription, line);
+        expect(next.artist, '歌手');
+        expect(next.title, '歌名');
+        current = next;
+      }
+    });
+
+    test('同曲同歌词重复推送 → null（去重键含第三行）', () {
+      expect(
+        applyNotificationLyric(
+          base: _base(),
+          lyric: '今夜的月光',
+          current: _base().copyWith(displayDescription: '今夜的月光'),
+          threeLineLayout: true,
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('版本分叉判据（AndroidPlatformInfo）', () {
+    tearDown(() => AndroidPlatformInfo.debugSetSdkInt(0));
+
+    test('API 29（Android 10）→ 三行布局', () {
+      AndroidPlatformInfo.debugSetSdkInt(29);
+      expect(AndroidPlatformInfo.useLegacyThreeLineNotification, isTrue);
+    });
+
+    test('API 30（Android 11）→ 两行布局（分界线本身不算老布局）', () {
+      AndroidPlatformInfo.debugSetSdkInt(30);
+      expect(AndroidPlatformInfo.useLegacyThreeLineNotification, isFalse);
+    });
+
+    test('API 34 → 两行布局', () {
+      AndroidPlatformInfo.debugSetSdkInt(34);
+      expect(AndroidPlatformInfo.useLegacyThreeLineNotification, isFalse);
+    });
+
+    test('未知（0 / 桌面 / 读取失败）→ 降级为新布局', () {
+      AndroidPlatformInfo.debugSetSdkInt(0);
+      expect(AndroidPlatformInfo.useLegacyThreeLineNotification, isFalse);
     });
   });
 }
