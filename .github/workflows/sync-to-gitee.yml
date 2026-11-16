@@ -44,14 +44,13 @@ jobs:
     # 三种触发复用同一个 job：
     #   - dispatch：直接放行；
     #   - release 事件：排除草稿；
-    #   - workflow_run：仅放行 Build Client 成功、且 head_branch 是 vX.Y.Z 形态
-    #     （Build Client 只在 tag push 时跑，防御式过滤 main 分支的普通 run）。
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'release' && github.event.release.draft == false) ||
-      (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        matches(github.event.workflow_run.head_branch, '^v[0-9]+\.[0-9]+\.[0-9]+$'))
+    #   - workflow_run：仅放行 Build Client 成功、且 head_branch 以 v 开头且含
+    #     「.」（发版 tag vX.Y.Z 形态；Build Client 只在 tag push 时跑，防御式
+    #     过滤 main 分支的普通 run）。
+    # 注意：if 表达式必须单行、不得混入 # 注释/URL —— GitHub 表达式没有
+    # matches()（只有 contains/startsWith/endsWith 等），折叠标量里 # 也不是
+    # 注释，混入任何多余文本都会 HTTP 422 解析失败。
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.draft == false) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') && contains(github.event.workflow_run.head_branch, '.'))
     env:
       EVENT_TAG: ${{ github.event.release.tag_name }}
       WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
