@@ -31,6 +31,7 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/random_songs_push_provider.dart';
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
 import 'package:musicflow_client/widgets/app_drawer.dart';
+import 'package:musicflow_client/widgets/music_flow_app_shell/connection_beacon.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_app_shell.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_shell_navigation.dart';
@@ -486,48 +487,69 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       // 根级指针位置捕获:桌面端锚点弹窗据此定位到触发按钮附近。
       child: MusicFlowTapAnchorScope(
         child: SizedBox.expand(
-          child: MusicFlowAppShell(
-            scaffoldKey: scaffoldKey,
-            drawer:
-                widget.drawerOverride ??
-                AppDrawer(
-                  // [D-042] 已接线：AppDrawer 在抽屉动画完全收起、内容被
-                  // DrawerController 卸载时回调 onReturnFocus（手势 / 遮罩 /
-                  // 返回键 / Navigator.pop / closeDrawer 各关闭路径的单一
-                  // 收敛点，见 lib/widgets/app_drawer.dart [D-042]），
-                  // _restoreMusicFlowAppDrawerFocus 据此把焦点还给
-                  // openMusicFlowAppDrawer 记录的触发控件。
-                  // 守卫用例：test/widgets/b41e3_drawer_focus_test.dart。
-                  onReturnFocus: _restoreMusicFlowAppDrawerFocus,
+          // clipBehavior: none —— 保持改动前「子级不被父级裁剪」的行为
+          // （原先 shell 直接挂在 SizedBox.expand 下，SizedBox 不裁剪）。
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              Positioned.fill(
+                child: MusicFlowAppShell(
+                  scaffoldKey: scaffoldKey,
+                  drawer:
+                      widget.drawerOverride ??
+                      AppDrawer(
+                        // [D-042] 已接线：AppDrawer 在抽屉动画完全收起、内容被
+                        // DrawerController 卸载时回调 onReturnFocus（手势 / 遮罩 /
+                        // 返回键 / Navigator.pop / closeDrawer 各关闭路径的单一
+                        // 收敛点，见 lib/widgets/app_drawer.dart [D-042]），
+                        // _restoreMusicFlowAppDrawerFocus 据此把焦点还给
+                        // openMusicFlowAppDrawer 记录的触发控件。
+                        // 守卫用例：test/widgets/b41e3_drawer_focus_test.dart。
+                        onReturnFocus: _restoreMusicFlowAppDrawerFocus,
+                        onOpenPage: _openPageInContentArea,
+                      ),
+                  body: widget.navigationShell,
+                  destinations: destinations,
+                  selectedBranchIndex: currentBranchIsVisible
+                      ? currentBranchIndex
+                      : discoverBranchIndex,
+                  onDestinationSelected: (branchIndex) {
+                    _goToBranch(
+                      branchIndex,
+                      initialLocation: branchIndex == currentBranchIndex,
+                    );
+                  },
+                  miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
+                  showMiniPlayer: hasMiniPlayer,
+                  networkStatus: networkStatus,
+                  showNavigationBar: false,
+                  onOpenDrawer: openMusicFlowAppDrawer,
+                  // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
+                  // 顺序由本地持久化的拖拽排序决定（长按条目可拖动）。
+                  libraryEntries: _libraryEntries(loc, navOrder),
+                  onLibraryEntriesReordered: (oldIndex, newIndex) {
+                    unawaited(
+                      ref
+                          .read(navOrderProvider.notifier)
+                          .reorderSidebar(oldIndex, newIndex),
+                    );
+                  },
                   onOpenPage: _openPageInContentArea,
                 ),
-            body: widget.navigationShell,
-            destinations: destinations,
-            selectedBranchIndex: currentBranchIsVisible
-                ? currentBranchIndex
-                : discoverBranchIndex,
-            onDestinationSelected: (branchIndex) {
-              _goToBranch(
-                branchIndex,
-                initialLocation: branchIndex == currentBranchIndex,
-              );
-            },
-            miniPlayer: widget.miniPlayerOverride ?? const MiniPlayer(),
-            showMiniPlayer: hasMiniPlayer,
-            networkStatus: networkStatus,
-            showNavigationBar: false,
-            onOpenDrawer: openMusicFlowAppDrawer,
-            // Windows 宽屏侧栏曲库快捷入口(对齐箭头音乐 windowsui)。
-            // 顺序由本地持久化的拖拽排序决定（长按条目可拖动）。
-            libraryEntries: _libraryEntries(loc, navOrder),
-            onLibraryEntriesReordered: (oldIndex, newIndex) {
-              unawaited(
-                ref
-                    .read(navOrderProvider.notifier)
-                    .reorderSidebar(oldIndex, newIndex),
-              );
-            },
-            onOpenPage: _openPageInContentArea,
+              ),
+              const PositionedDirectional(
+                top: 0,
+                start: 0,
+                end: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Center(child: ConnectionBeacon()),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

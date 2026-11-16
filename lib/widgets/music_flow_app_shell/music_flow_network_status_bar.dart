@@ -2,9 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:musicflow_client/core/design/components/music_flow_message.dart';
 import 'package:musicflow_client/core/design/music_flow_design.dart';
-import 'package:musicflow_client/core/utils/network_error_notifier.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 
 /// The reachability states surfaced by MusicFlow's application shell.
@@ -33,8 +31,8 @@ class MusicFlowNetworkStatusBar extends StatefulWidget {
   final Duration recoveryDisplayDuration;
   final bool includeBottomSafeArea;
 
-  /// 启动后该窗口内的「连接达到」视为冷启动连上,静默恢复不弹提示。
-  /// 可注入以便测试(测试时钟无法推进 DateTime.now 的真实时间)。
+  /// 保留仅为兼容既有调用方（既有测试会传）：心跳提示接管「已连接」语义后，
+  /// 本窗口不再参与任何判断 —— 恢复连通只收起内联横幅。
   final Duration startupSilentRecoveryWindow;
 
   @override
@@ -44,12 +42,10 @@ class MusicFlowNetworkStatusBar extends StatefulWidget {
 class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
   Timer? _recoveryTimer;
   late _MusicFlowNetworkBannerState _bannerState;
-  late final DateTime _createdAt;
 
   @override
   void initState() {
     super.initState();
-    _createdAt = DateTime.now();
     _bannerState = _stateForStatus(widget.status);
   }
 
@@ -65,21 +61,6 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
       return;
     }
 
-    // 「连接不到服务器」只在真正离线(本机断网)时才弹轻提示；
-    // weak 仅代表可用线路健康瞬时波动/重试中，已通过内联横幅「网络不稳定」表达，
-    // 不弹较重提示，避免「已连接并正在播放」时仍误报连接不到服务器。
-    // 提示统一经 NetworkErrorNotifier，享受启动宽限期与节流去重。
-    if (widget.status == MusicFlowNetworkStatus.offline &&
-        oldWidget.status != MusicFlowNetworkStatus.offline) {
-      // didUpdateWidget 发生在 build 阶段,此时同步插入 Toast 会触发对 Overlay
-      // 的 markNeedsBuild(setState during build)。推迟到当前帧结束再通知。
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final loc = AppLocalizations.of(context);
-        NetworkErrorNotifier.show(loc.widgets_network_cannot_reach_server);
-      });
-    }
-
     setState(() {
       _bannerState = _stateForStatus(widget.status);
     });
@@ -91,30 +72,10 @@ class _MusicFlowNetworkStatusBarState extends State<MusicFlowNetworkStatusBar> {
     super.dispose();
   }
 
+  /// 恢复连通：收起内联横幅，改由心跳提示（绿色「已连接」）表达。
   void _showRecovery() {
     setState(() {
       _bannerState = _MusicFlowNetworkBannerState.hidden;
-    });
-    // 启动后前 30 秒内连接上的场景视为「冷启动连上」,静默恢复即可,
-    // 不弹「网络已恢复」的成功 Toast(横幅已隐藏)。30 秒后再恢复则正常提示。
-    if (DateTime.now().difference(_createdAt) <
-        widget.startupSilentRecoveryWindow) {
-      return;
-    }
-    final recoveredText = AppLocalizations.of(context).widgets_network_recovered;
-    // 网络恢复：释放内联横幅空间，改为右上角成功 Toast。didUpdateWidget 发生在
-    // build 阶段,推迟到帧结束再插入 Overlay,避免 setState during build。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final overlay = Overlay.maybeOf(context, rootOverlay: true);
-      if (overlay == null) return;
-      insertMusicFlowToast(
-        overlay,
-        recoveredText,
-        kind: MusicFlowMessageKind.success,
-        duration: widget.recoveryDisplayDuration,
-        startAutoDismissOnInsert: true,
-      );
     });
   }
 

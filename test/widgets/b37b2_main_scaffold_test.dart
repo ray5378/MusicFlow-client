@@ -42,6 +42,7 @@ import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
+import 'package:musicflow_client/providers/ui/connection_beacon_provider.dart';
 import 'package:musicflow_client/widgets/main_scaffold.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/music_flow_network_status_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -183,6 +184,8 @@ class _Bench {
         ),
         dlnaCastProvider.overrideWith(() => _RecordingDlnaCast()),
         statusLyricsControllerProvider.overrideWithValue(lyrics),
+        // 心跳提示固定成 hidden：见文件末尾 _HiddenConnectionBeacon。
+        connectionBeaconProvider.overrideWith(_HiddenConnectionBeacon.new),
       ],
     );
     addTearDown(container.dispose);
@@ -334,4 +337,17 @@ void main() {
   //     ChildBackButtonDispatcher 先吃掉，BackButtonListener 收不到
   //     （见 lib/widgets/main_scaffold.dart [D-044]）。
   // -------------------------------------------------------------------------
+}
+
+
+/// main_scaffold 现在挂载了 `ConnectionBeacon`（连接心跳提示）：它的状态机在
+/// 冷启动时会 arm 400ms 显示延迟 + 60s 上限定时器，取消靠 `ref.onDispose`，
+/// 而容器要到 `addTearDown` 才 dispose —— 晚于框架的
+/// 「A Timer is still pending even after the widget tree was disposed」检查。
+///
+/// 本文件只测外壳行为，不测心跳提示：把它固定成 hidden，
+/// 既不起定时器也不起呼吸动画（hidden 时 `_syncBreathing` 直接 stop）。
+class _HiddenConnectionBeacon extends ConnectionBeaconController {
+  @override
+  ConnectionBeaconState build() => const ConnectionBeaconState();
 }
