@@ -2,6 +2,12 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.17.3]
+
+### Fix
+
+- 修复通知栏不显示实时歌词：Android 11+ 的媒体通知由 SystemUI 直接用 MediaSession 元数据渲染，只认标题与歌手两行，写 displayDescription 无人消费；改为占用副标题（歌手）行，无同步歌词时还原歌手名。
+
 ## [5.17.2]
 
 ### Feature

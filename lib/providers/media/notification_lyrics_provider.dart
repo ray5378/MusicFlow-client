@@ -9,8 +9,14 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 ///
 /// 把 [currentLyricLineProvider]（与迷你播放条 / 桌面歌词窗同一数据源：
 /// 按当前播放进度在同步歌词里二分出的那一行）逐行推送到系统媒体通知的
-/// displayDescription —— audio_service 原生侧映射为 MediaStyle 的
-/// setSubText（展开态第三行）；无同步歌词时该行保持专辑名不变。
+/// **副标题行**（MediaItem.artist → METADATA_KEY_ARTIST）；无同步歌词 /
+/// 歌词行消失时还原真实歌手。
+///
+/// 为什么是 artist：Android 11+ 的媒体通知由 SystemUI 用 MediaSession 元数据
+/// 直接渲染，AOSP MediaDataManager 只取 `DISPLAY_TITLE ?? TITLE` 与
+/// `METADATA_KEY_ARTIST`，`MediaData` 里没有 album/description 字段 ——
+/// 写 displayDescription（setSubText）在 Android 11+ 上无人消费，就是
+/// v5.17.2 「通知栏不显示歌词」的根因。通知栏只有两行，「底部那行」= artist。
 ///
 /// 播放期间 Flutter 引擎因媒体前台服务（audio_service）存活，App 退到
 /// 后台 / 熄屏后本控制器仍能随进度 tick 逐行更新通知。

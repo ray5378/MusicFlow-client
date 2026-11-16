@@ -147,9 +147,17 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     }
   }
 
+  /// 切歌时的「原始」MediaItem（artist = 真实歌手，未含歌词行）。
+  ///
+  /// 通知栏歌词是**改写 artist 后**再推一份 mediaItem，所以后续每行歌词都必须
+  /// 从这份底稿重新派生——拿已经写过歌词的 mediaItem 当底稿，歌手名就再也
+  /// 回不来了。
+  MediaItem? _baseMediaItem;
+
   /// 更新媒体信息（歌曲切换时调用）
   @override
   Future<void> updateMediaItem(MediaItem item) async {
+    _baseMediaItem = item;
     mediaItem.add(item);
 
     // 立即设置为播放状态，激活 MediaSession
@@ -168,17 +176,25 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
-  /// 通知栏实时歌词：把当前歌词行写进媒体通知的 displayDescription
-  /// （audio_service 原生侧映射为 MediaStyle 的 setSubText，展开态第三行）。
-  /// 只动 metadata、不碰 playbackState —— 进度条与播放态仍由
-  /// positionStream/playingStream 自行推进，歌词更新不会打断它们。
-  /// 无歌词行时回落专辑名（清掉上一首的残留歌词行）。由
-  /// notificationLyricsControllerProvider 逐行调用；切歌时新 MediaItem
-  /// 不带 displayDescription，通知自动回到专辑名。
+  /// 通知栏实时歌词：把当前歌词行写进媒体通知的**副标题行（artist）**。
+  ///
+  /// 为什么是 artist 而不是「第三行」：Android 11+ 的媒体通知由 SystemUI 直接
+  /// 用 MediaSession 元数据渲染（AOSP `MediaDataManager` 只取
+  /// `DISPLAY_TITLE ?? TITLE` 与 `METADATA_KEY_ARTIST`，`MediaData` 结构里
+  /// 连 album/description 字段都没有），audio_service 写进 displayDescription
+  /// 的 setSubText 在 Android 11+ 上**没有任何消费方**。所以通知栏只有两行可用，
+  /// 「底部那行」就是 artist 行——有歌词时占用它，无歌词时还原真实歌手。
+  ///
+  /// 每次都从[_baseMediaItem]重新派生，只动 metadata 不碰 playbackState：
+  /// 进度条/播放态仍由 positionStream/playingStream 推进，歌词刷新不打断它们。
   void updateNotificationLyric(String? lyric) {
-    final item = mediaItem.valueOrNull;
-    if (item == null) return;
-    final next = applyNotificationLyric(item: item, lyric: lyric);
+    final base = _baseMediaItem;
+    if (base == null) return;
+    final next = applyNotificationLyric(
+      base: base,
+      lyric: lyric,
+      current: mediaItem.valueOrNull,
+    );
     if (next == null) return;
     mediaItem.add(next);
   }
@@ -263,25 +279,26 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 }
 
 /// 纯函数（单测锁定）：算出「写入歌词行后的 MediaItem」，无需更新返回 null。
-/// - [lyric] 非空 → displayDescription 换成该行（与当前相同则不推）；
-/// - [lyric] 为空 → 回落专辑名；当前本来就没在展示歌词（null 或已是专辑名）
-///   时不推，避免每首歌开场多推一帧无意义的 metadata 更新。
-/// 注意 MediaItem.copyWith 的 null 语义是「保持原值」，无法把字段清回 null，
-/// 所以清歌词走「回落专辑名」而不是置空。
+///
+/// - [base] 是切歌时的原始 MediaItem（artist = 真实歌手），**必须**用它派生，
+///   不能拿已写过歌词的当前项当底稿（歌手名会永久丢失）；
+/// - [lyric] 非空 → artist 换成该行；为空 → 还原 [base] 的歌手行；
+/// - [current] 是当前已推给平台的项，用于去重：同曲同 artist 就不重推
+///   （每次 metadata 更新在原生侧都会重解析封面位图并重建通知）。
 MediaItem? applyNotificationLyric({
-  required MediaItem item,
+  required MediaItem base,
   required String? lyric,
+  MediaItem? current,
 }) {
   final line = lyric?.trim();
-  if (line != null && line.isNotEmpty) {
-    return line == item.displayDescription
-        ? null
-        : item.copyWith(displayDescription: line);
+  final target = (line == null || line.isEmpty)
+      ? base
+      : base.copyWith(artist: line);
+  final cur = current;
+  if (cur != null && cur.id == target.id && cur.artist == target.artist) {
+    return null;
   }
-  final album = item.album;
-  final current = item.displayDescription;
-  if (album == null || current == null || current == album) return null;
-  return item.copyWith(displayDescription: album);
+  return target;
 }
 
 /// 初始化 AudioService
