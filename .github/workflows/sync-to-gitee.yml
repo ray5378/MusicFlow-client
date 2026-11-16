@@ -1,19 +1,23 @@
 name: Sync Release to Gitee
 
-# GitHub Release 发布成功后，把「源码 + tag 镜像」与「Release 全部产物」单向同步到
+# 把「源码 + tag 镜像」与「Release 全部产物」单向同步到
 # https://gitee.com/ray5378/music-flow-client
 #
 # 边界：
 #   - 版本号唯一来源仍是 git tag；本 workflow 不改 pubspec.yaml / CHANGELOG / 业务代码。
 #   - Gitee 是下游镜像，GitHub 是唯一真源；Gitee 默认分支由本 workflow 幂等设为 main。
-# 触发：
-#   - workflow_run（Build Client completed）：CI 用 GITHUB_TOKEN 创建的 Release 不会
-#     触发 release 事件（GitHub 官方递归限制），workflow_run 不受此限制 —— 发版
-#     workflow 跑完即自动同步。tag push 时 head_branch 就是 tag 名（如 v5.17.0），
-#     仅放行 conclusion=success 且 head_branch 形如 vX.Y.Z 的 run；
+# 触发（参照插件仓 sync-gitee.yml 的成功实践）：
+#   - push tags：一手事件、没有 GITHUB_TOKEN 递归限制 —— tag push 即刻镜像
+#     源码+tag（Build Client 还在跑也不影响，源码先行）；
+#   - workflow_run（Build Client completed）：产物上线后由本 run 幂等补传
+#     Release 附件；仅放行 conclusion=success 且 head_branch 是 vX.Y.Z 形态；
 #   - release published：人工发布/补发 Release 时自动同步；
 #   - workflow_dispatch：手动重放同步（用于端到端验证，不会发新版本）。
+# 分段语义：①源码+tag 镜像必做；②Release 产物同步仅在 GitHub Release 存在且
+# 非 draft 时执行（不存在就跳过并说明，等后续触发的 run 补传）。
 on:
+  push:
+    tags: ["*"]
   workflow_run:
     workflows: ["Build Client"]
     types: [completed]
@@ -34,26 +38,24 @@ permissions:
 
 # 同一 tag 的重复触发/手动重跑串行执行，避免并发推送与重复上传。
 concurrency:
-  group: sync-to-gitee-${{ github.event.release.tag_name || inputs.tag || github.event.workflow_run.head_branch || github.run_id }}
+  group: sync-to-gitee-${{ github.event.release.tag_name || inputs.tag || github.event.workflow_run.head_branch || github.ref_name || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   mirror:
-    name: Sync ${{ github.event.release.tag_name || inputs.tag || github.event.workflow_run.head_branch || 'latest' }} to Gitee
+    name: Sync ${{ github.event.release.tag_name || inputs.tag || github.event.workflow_run.head_branch || github.ref_name || 'latest' }} to Gitee
     runs-on: ubuntu-latest
-    # 三种触发复用同一个 job：
+    # 四种触发复用同一个 job（单行表达式：GHA 没有 matches()，折叠标量里的
+    # # 也不是注释，混入任何多余文本都会 HTTP 422）：
     #   - dispatch：直接放行；
+    #   - push：仅放行 refs/tags/v*（main push 不触发）；
     #   - release 事件：排除草稿；
-    #   - workflow_run：仅放行 Build Client 成功、且 head_branch 以 v 开头且含
-    #     「.」（发版 tag vX.Y.Z 形态；Build Client 只在 tag push 时跑，防御式
-    #     过滤 main 分支的普通 run）。
-    # 注意：if 表达式必须单行、不得混入 # 注释/URL —— GitHub 表达式没有
-    # matches()（只有 contains/startsWith/endsWith 等），折叠标量里 # 也不是
-    # 注释，混入任何多余文本都会 HTTP 422 解析失败。
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.draft == false) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') && contains(github.event.workflow_run.head_branch, '.'))
+    #   - workflow_run：仅放行 Build Client 成功、且 head_branch 是 vX.Y.Z 形态。
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'release' && github.event.release.draft == false) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') && contains(github.event.workflow_run.head_branch, '.'))
     env:
       EVENT_TAG: ${{ github.event.release.tag_name }}
       WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      PUSH_REF_NAME: ${{ github.event_name == 'push' && github.ref_name || '' }}
       INPUT_TAG: ${{ inputs.tag }}
       GITEE_OWNER: ray5378
       GITEE_REPO: music-flow-client
@@ -65,14 +67,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # 不把 GITHUB_TOKEN 持久化进 .git/config；Gitee 认证用下面的临时 credential helper。
+          # 不把 GITHUB_TOKEN 持久化进 .git/config；Gitee 认证用 remote URL 内嵌 token。
           persist-credentials: false
 
-      # 单一入口解析 tag 与 Release 元数据，workflow_run / release / dispatch 三条触发
-      # 路径在此汇合，后续步骤只认 $TAG，不存在多套分叉逻辑。
-      # 优先级：dispatch 输入 > release 事件 tag > workflow_run 的 head_branch
-      # （tag push 时即 tag 名）> GitHub 最新 Release。
-      - name: Resolve tag and release metadata
+      # 单一入口解析 tag 与 Release 可用性，push / workflow_run / release / dispatch
+      # 四条触发路径在此汇合，后续步骤只认 $TAG。
+      # 优先级：dispatch 输入 > release 事件 tag > workflow_run head_branch（tag
+      # push 时即 tag 名）> push 的 tag ref > GitHub 最新 Release。
+      # HAS_RELEASE=false（Release 不存在或仍是草稿）时只镜像源码+tag，产物等
+      # 后续 workflow_run/release 触发的 run 幂等补传。
+      - name: Resolve tag and release availability
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -83,33 +87,52 @@ jobs:
             TAG="${EVENT_TAG}"
           elif [ -n "${WORKFLOW_RUN_BRANCH}" ]; then
             TAG="${WORKFLOW_RUN_BRANCH}"
+          elif [ -n "${PUSH_REF_NAME}" ]; then
+            TAG="${PUSH_REF_NAME}"
           else
             TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
           fi
           if [ -z "${TAG}" ]; then
-            echo "::error::无法确定要同步的 tag（dispatch 输入 / release 事件 / workflow_run head_branch 均为空）。"
+            echo "::error::无法确定要同步的 tag（dispatch 输入 / release 事件 / workflow_run head_branch / push ref 均为空）。"
             exit 1
           fi
 
-          release_json="${RUNNER_TEMP}/github_release.json"
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "${release_json}"
-
-          # body 用文件传递：可能含换行/引号/任意字符，绝不拼进命令行。
-          jq -r '.body // ""' "${release_json}" > "${BODY_FILE}"
-          # 随机分隔符：即便 tag 或 release 名称含换行，也无法向 $GITHUB_ENV 注入变量。
+          # 随机分隔符：即便 tag 含换行，也无法向 $GITHUB_ENV 注入变量。
           delimiter="__MUSICFLOW_GITEE_EOF_${RANDOM}${RANDOM}__"
           {
             echo "TAG<<${delimiter}"
             printf '%s\n' "${TAG}"
             echo "${delimiter}"
-            echo "RELEASE_NAME<<${delimiter}"
-            jq -r '.name // .tag_name' "${release_json}"
-            echo "${delimiter}"
-            echo "PRERELEASE=$(jq -r '.prerelease // false' "${release_json}")"
-            echo "ASSET_COUNT=$(jq '.assets | length' "${release_json}")"
           } >> "${GITHUB_ENV}"
 
-          echo "已解析：tag=${TAG}, assets=$(jq '.assets | length' "${release_json}")"
+          release_json="${RUNNER_TEMP}/github_release.json"
+          HAS_RELEASE=false
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "${release_json}" 2>/dev/null; then
+            if [ "$(jq -r '.draft // false' "${release_json}")" = "true" ]; then
+              echo "::notice::GitHub Release ${TAG} 仍是草稿，跳过产物同步（发布后由 release 事件触发补传）。"
+            else
+              HAS_RELEASE=true
+            fi
+          else
+            echo "::notice::GitHub Release ${TAG} 不存在（tag push 时 Build Client 可能尚未创建），本次只镜像源码+tag，产物由后续 workflow_run/release 触发的 run 补传。"
+          fi
+
+          if [ "${HAS_RELEASE}" = "true" ]; then
+            # body 用文件传递：可能含换行/引号/任意字符，绝不拼进命令行。
+            jq -r '.body // ""' "${release_json}" > "${BODY_FILE}"
+            {
+              echo "RELEASE_NAME<<${delimiter}"
+              jq -r '.name // .tag_name' "${release_json}"
+              echo "${delimiter}"
+              echo "PRERELEASE=$(jq -r '.prerelease // false' "${release_json}")"
+              echo "ASSET_COUNT=$(jq '.assets | length' "${release_json}")"
+              echo "HAS_RELEASE=${HAS_RELEASE}"
+            } >> "${GITHUB_ENV}"
+            echo "已解析：tag=${TAG}, release=可用, assets=$(jq '.assets | length' "${release_json}")"
+          else
+            echo "HAS_RELEASE=${HAS_RELEASE}" >> "${GITHUB_ENV}"
+            echo "已解析：tag=${TAG}, release=不可用（仅镜像源码）"
+          fi
 
       - name: Validate secret
         env:
@@ -120,9 +143,10 @@ jobs:
             echo "::error::仓库 Secret GITEE_TOKEN 未配置，拒绝同步 ${TAG}。"
             exit 1
           fi
-          echo "开始同步：tag=${TAG}, name=${RELEASE_NAME:-<空>}, prerelease=${PRERELEASE}"
+          echo "开始同步：tag=${TAG}, release=${HAS_RELEASE}"
 
       - name: Download all GitHub release assets
+        if: env.HAS_RELEASE == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -148,17 +172,11 @@ jobs:
             exit 1
           fi
 
-          # credential helper 的脚本体在 quoted heredoc 中保持字面量，token 只从环境变量读取。
-          # 于是：.git/config 里只有脚本路径，git/curl 的 argv 与 CI 日志中都没有明文 token。
-          helper="${RUNNER_TEMP}/gitee-credential-helper.sh"
-          cat > "${helper}" <<'HELPER'
-          #!/usr/bin/env bash
-          printf 'username=%s\npassword=%s\n' "${GITEE_USERNAME}" "${GITEE_TOKEN}"
-          HELPER
-          chmod 700 "${helper}"
-          git config --global "credential.https://gitee.com.helper" "!${helper}"
-
-          git remote add gitee "https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}.git"
+          # 认证用 remote URL 内嵌 token（插件仓 sync-gitee.yml 验证过的做法）。
+          # token 只从 secret 环境变量读取；::add-mask:: 加一层保险（Actions 本身
+          # 也会自动掩码 secret 值），git 的 push 输出只显示分支行、不回显 URL。
+          echo "::add-mask::${GITEE_TOKEN}"
+          git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITEE_OWNER}/${GITEE_REPO}.git"
 
           # 分叉保护：若 Gitee main 已存在且不是 GitHub main 的祖先（历史分叉），
           # 立即报错并要求在 230（内网主机）重新做一次全量代推，绝不强推覆盖。
@@ -170,29 +188,39 @@ jobs:
             if ! git merge-base --is-ancestor "${remote_main_sha}" refs/remotes/origin/main; then
               echo "::error::Gitee ${GITEE_DEFAULT_BRANCH} (${remote_main_sha}) 与 GitHub main 历史分叉，拒绝推送。"
               echo "::error::请在内网主机 230 上重新执行一次全量代推（push main + tags），不要强推覆盖。"
-              rm -f "${helper}"
               exit 1
             fi
           fi
 
           # 只推 GitHub main 与本次 tag，不主动推 master；默认分支切换由 Python 助手
           # 通过 Gitee API 幂等完成。不用 --atomic（Gitee 不支持，会 hang）。
-          # 分两条普通 push + timeout，任一条失败都能明确报错并退出，绝不无限等待。
-          if ! timeout 600 git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"; then
-            echo "::error::Gitee main 分支推送失败或超时（tag=${TAG}）。"
-            rm -f "${helper}"
+          # 整组推送重试 3 次、间隔 15s（runner→Gitee 偶发 SSL 超时，插件仓实战
+          # 经验）；每条 push 带 timeout，任一条失败都能明确报错。
+          push_done=0
+          for attempt in 1 2 3; do
+            echo "开始第 ${attempt}/3 次推送（main + tag ${TAG}）..."
+            if timeout 600 git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"; then
+              if timeout 600 git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"; then
+                push_done=1
+                break
+              fi
+              echo "::error::tag ${TAG} 推送失败（第 ${attempt} 次）。"
+            else
+              echo "::error::Gitee main 推送失败或超时（第 ${attempt} 次，tag=${TAG}）。"
+            fi
+            if [ "${attempt}" -lt 3 ]; then
+              echo "15s 后重试..."
+              sleep 15
+            fi
+          done
+          if [ "${push_done}" != "1" ]; then
+            echo "::error::推送重试 3 次仍失败（tag=${TAG}），放弃同步。"
             exit 1
           fi
-          if ! timeout 600 git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"; then
-            echo "::error::Gitee tag ${TAG} 推送失败或超时。"
-            rm -f "${helper}"
-            exit 1
-          fi
-
-          rm -f "${helper}"
           echo "源码 + tag ${TAG} 已推送到 Gitee（main）。"
 
       - name: Set Gitee default branch, create or reuse Release, upload assets
+        if: env.HAS_RELEASE == 'true'
         id: sync
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -206,6 +234,10 @@ jobs:
             echo "## Gitee 同步完成"
             echo ""
             echo "- Tag: \`${TAG}\`"
-            echo "- Gitee Release: ${{ steps.sync.outputs.gitee_release_url }}"
+            if [ "${HAS_RELEASE}" = "true" ]; then
+              echo "- Gitee Release: ${{ steps.sync.outputs.gitee_release_url }}"
+            else
+              echo "- Release 产物：GitHub Release ${TAG} 不存在或仍是草稿，本次仅镜像源码+tag，产物由后续触发的 run 补传。"
+            fi
             echo "- 源码(main，默认分支): https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}/tree/main"
           } >> "${GITHUB_STEP_SUMMARY}"
