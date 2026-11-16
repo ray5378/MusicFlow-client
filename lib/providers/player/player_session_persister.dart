@@ -133,6 +133,35 @@ class PlaybackSessionPersister {
   /// 用户视角就是「销毁没生效，Mini 播放器一会儿又冒出歌名」。
   int _sessionGeneration = 0;
 
+  /// 启动恢复是否已经跑完（无论成败，finally 置真，b54a）。
+  ///
+  /// 首次连通的重恢复用它区分「初次恢复还没跑/还在跑」与「已经跑完」：
+  /// 前者绝不并发第二次恢复 —— 初次恢复的快照请求自带连接闸（b54a），
+  /// 连通后它自己会拿到服务端快照。
+  bool _restorePlaybackSessionRan = false;
+
+  /// 启动恢复实际采用的「基线 updatedAt」（b54a）：本地胜出时是本地会话
+  /// 文件里的 `updatedAt`；服务端胜出时是服务端快照的 `updatedAt`；本地无
+  /// 会话时保持 0。首次连通的重恢复用它做新鲜度竞速的本地基准 —— 刻意
+  /// 不重读磁盘：恢复后的立即落盘会把文件的 `updatedAt` 刷成「写盘时刻」，
+  /// 那是写时间戳不是内容时间戳，拿它当基准服务端永远竞速失败。
+  int _restoreBaselineUpdatedAt = 0;
+
+  /// 初次恢复采用时的会话代际（b54a）：首次连通重恢复的代际守卫基准。
+  /// 刻意不用「调用时刻的 _sessionGeneration」：清空/销毁可能发生在重恢复
+  /// 被调用**之前**（连通事件与用户操作谁先谁后不确定），只比调用前后会漏。
+  int _restoreGeneration = 0;
+
+  /// 启动恢复实际应用的队列 id 序列（b54a，供重恢复判断用户是否已改动队列）。
+  List<String> _restoredQueueIds = const <String>[];
+
+  /// 首次连通重恢复的会话级 once 标志（b54a）：只补拉比对一次，防重复触发。
+  bool _reconnectRestoreDone = false;
+
+  /// 测试观察点：首次连通重恢复入口被调用的次数（b54a；宿主接线测试用它
+  /// 取证「连通事件真的触发了重恢复」，once/守卫行为由独立单测覆盖）。
+  int debugReconnectRestoreCalls = 0;
+
   /// 测试注入点：每轮落盘**真正写盘之前**的挂起点。单测用它把一轮写人为拉长，
   /// 稳定复现「写完前状态又变了 → 旧实现静默丢弃这次写入」的竞态。
   Future<void> Function()? debugBeforePersistWrite;
@@ -492,6 +521,12 @@ class PlaybackSessionPersister {
       );
       restored = true;
 
+      // b54a：记录本次恢复采用的基线与队列指纹，供「首次连通重恢复」
+      // （[restoreServerSnapshotAfterReconnect]）做新鲜度比对与用户操作保护。
+      _restoreBaselineUpdatedAt = fromServer ? serverUpdatedAt : localUpdatedAt;
+      _restoreGeneration = _sessionGeneration;
+      _restoredQueueIds = <String>[for (final s in queue) s.id];
+
       // 本地为准:把队列镜像给服务端(告诉服务端这是本次要恢复的队列)。
       // 服务端为准:内容一致,无需回推,避免 MB 级冗余上行。
       if (!fromServer) {
@@ -512,6 +547,8 @@ class PlaybackSessionPersister {
       );
     } finally {
       _restoreStartedAtMs = null;
+      // b54a：无论成败（含被代际守卫作废），初次恢复都已「落定」。
+      _restorePlaybackSessionRan = true;
       if (aborted) {
         // 恢复在最后一步被作废（见代际守卫）：销毁那次的「立即落盘」曾被
         // 「恢复中」闸门挡下（schedulePersist 在恢复期间直接
@@ -526,6 +563,157 @@ class PlaybackSessionPersister {
       // 落成新的本地会话,下次启动两侧一致。
       schedulePersist(immediate: true);
     }
+  }
+
+  /// 首次真实连通后的「服务端快照重恢复」（b54a，宿主在连接信号首次翻真时
+  /// 调用，见 player_provider 对 `sessionEverConnectedProvider` 的监听）。
+  ///
+  /// 背景：启动恢复跑在连接建立之前，快照请求多半拉不到 → 回退本地；连接
+  /// 建立之后没有任何人重跑恢复，播放控制区因此常常最后上屏甚至一直空
+  /// （首页区块都过连接闸，连上就出，唯独播放控制没人管）。本方法在**首次**
+  /// 连通时补拉一次服务端快照，沿用 [restorePlaybackSession] 的
+  /// 「服务端快照 vs 本地基线 updatedAt」竞速判据，服务端确实更新才采用并
+  /// 上屏（本地秒恢复路径不受影响 —— 本地恢复照旧先跑，这里只是补拉比对）。
+  ///
+  /// 守卫清单（任一命中即放弃采用，只读不动状态）：
+  ///   * 会话级 once：只补拉比对一次（防重复连通触发）；
+  ///   * 初次恢复没跑完/还在跑：它的快照请求自带连接闸，连通后自己会拿到
+  ///     服务端快照，绝不并发第二次恢复；
+  ///   * 会话代际已变（用户清空/销毁）：销毁是终结语义，重恢复无权复活；
+  ///   * 服务端不比基线新（沿用 updatedAt 竞速，防「本地新、服务端旧」反杀）；
+  ///   * 用户已自行改动队列（切歌/加歌后内存队列 ≠ 恢复队列）：不覆盖用户操作；
+  ///   * 服务端快照与当前队列同内容：无需重启当曲，纯 no-op。
+  Future<void> restoreServerSnapshotAfterReconnect() async {
+    if (!host.mounted || _disposed) return;
+    debugReconnectRestoreCalls += 1;
+    // 会话级 once：无论后续走向如何，首次连通只补拉比对这一次。
+    if (_reconnectRestoreDone) return;
+    _reconnectRestoreDone = true;
+
+    // 初次恢复还没落定（没跑完或还在跑）：它的快照请求带连接闸，连通后
+    // 自然拿到服务端快照，不需要（也不能）并发第二次恢复。
+    if (!_restorePlaybackSessionRan || isRestoringPlaybackSession) {
+      Logger.infoWithTag(
+        _logTag,
+        'reconnect restore skipped: initial restore not settled '
+        '(ran=$_restorePlaybackSessionRan '
+        'restoring=$isRestoringPlaybackSession)',
+      );
+      return;
+    }
+
+    Map<String, dynamic>? snap;
+    try {
+      snap = await host.fetchLocalQueueForRestore();
+    } catch (e) {
+      Logger.debugWithTag(
+        _logTag,
+        'reconnect restore: server queue snapshot unavailable: $e',
+      );
+      return;
+    }
+    if (!host.mounted || _disposed) return;
+    if (snap == null) {
+      Logger.infoWithTag(
+        _logTag,
+        'reconnect restore skipped: no server snapshot',
+      );
+      return;
+    }
+    final serverQueue = <Song>[
+      for (final it in (snap['items'] as List))
+        if (it is Map) queueItemToSong(it.map((k, v) => MapEntry(k.toString(), v))),
+    ];
+    if (serverQueue.isEmpty) return;
+    final serverUpdatedAt = (snap['updatedAt'] as num?)?.toInt() ?? 0;
+
+    // ── 代际守卫：初次恢复采用的代际已被「清空/销毁」作废 → 整段放弃 ──
+    // 基准是初次恢复记录的 [_restoreGeneration]：销毁可能发生在本方法被
+    // 调用之前，也可能在下面的 fetch 期间 —— 同一个比较都能拦住。
+    if (_sessionGeneration != _restoreGeneration) {
+      Logger.infoWithTag(
+        _logTag,
+        'reconnect restore aborted: session generation changed '
+        '(restore=$_restoreGeneration now=$_sessionGeneration)',
+      );
+      return;
+    }
+    // ── 新鲜度竞速（与 restorePlaybackSession 同判据）──
+    if (serverUpdatedAt <= _restoreBaselineUpdatedAt) {
+      Logger.infoWithTag(
+        _logTag,
+        'reconnect restore skipped: server snapshot not newer '
+        '(serverUpdatedAt=$serverUpdatedAt '
+        'baseline=$_restoreBaselineUpdatedAt)',
+      );
+      return;
+    }
+    // ── 用户操作保护：恢复后用户已自行改动队列 → 不覆盖 ──
+    final currentIds = <String>[for (final s in host.state.queue) s.id];
+    if (!_queueIdsEqual(currentIds, _restoredQueueIds)) {
+      Logger.infoWithTag(
+        _logTag,
+        'reconnect restore skipped: user mutated queue after restore',
+      );
+      return;
+    }
+    // ── 同内容 no-op：队列一致时重启当曲纯属打扰 ──
+    if (_queueIdsEqual(currentIds, <String>[for (final s in serverQueue) s.id])) {
+      Logger.infoWithTag(
+        _logTag,
+        'reconnect restore skipped: server snapshot equals current queue',
+      );
+      return;
+    }
+
+    // ── 采用服务端快照（与 restorePlaybackSession 的 useServer 分支同构）──
+    final idx = (snap['currentIndex'] as num?)?.toInt() ?? 0;
+    final restoredIndex = (idx < 0 || idx >= serverQueue.length) ? 0 : idx;
+    // 恢复服务端播放模式(persist: false,不回写配置;与初次恢复一致)。
+    final modeStr = snap['playMode'] as String?;
+    final mode = switch (modeStr) {
+      'shuffle' => PlaybackMode.shuffle,
+      'one' => PlaybackMode.one,
+      'all' => PlaybackMode.all,
+      _ => PlaybackMode.order,
+    };
+    unawaited(host.setPlaybackMode(mode, persist: false));
+    // 正在播/配置了自动续播都继续播（fire-and-forget，与初次恢复同一姿势：
+    // 恢复只负责恢复状态，加载与重试交给播放器既有看门狗）。
+    final autoPlay =
+        host.state.isPlaying || await LocalStorage.getAutoPlayOnLaunch();
+    unawaited(
+      host.playSong(
+        serverQueue[restoredIndex],
+        queue: serverQueue,
+        index: restoredIndex,
+        autoPlay: autoPlay,
+      ).catchError((Object e) {
+        Logger.warnWithTag(_logTag, 'post-reconnect-restore load failed', e);
+      }),
+    );
+    // 服务端快照无来源 → null（与初次恢复的服务端分支一致，见该处注释）。
+    host.queueOrigin = null;
+    // 基线与队列指纹随采用结果前移（once 标志兜底，此处只为状态自洽）。
+    _restoreBaselineUpdatedAt = serverUpdatedAt;
+    _restoredQueueIds = <String>[for (final s in serverQueue) s.id];
+    Logger.infoWithTag(
+      _logTag,
+      'playback session re-restored FROM SERVER on first connect '
+      'queue=${serverQueue.length} index=$restoredIndex '
+      'serverUpdatedAt=$serverUpdatedAt',
+    );
+    // 把服务端内容落成新的本地会话，下次启动两侧一致。
+    schedulePersist(immediate: true);
+  }
+
+  /// 队列 id 序列相等（重恢复的用户操作保护/同内容判定用）。
+  bool _queueIdsEqual(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   List<Song> _parsePlaybackSessionQueue(Object? rawQueue) {

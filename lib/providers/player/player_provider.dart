@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/l10n/localizations.dart';
+import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/models/peer.dart';
@@ -3301,7 +3302,40 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
     _initConnectivityRetryHandling(generation);
     _init(generation);
 
+    // 6) b54a：首次真实连通 → 触发一次播放会话重恢复（服务端快照补拉比对）。
+    //    监听的是 [AddressPool] 的首连回调而不是任何 provider：
+    //    `sessionEverConnectedProvider` 是快照 Provider，`_everProbedOk` 翻真
+    //    时不会重建/通知；持久化恢复的地址自带上次的 `status = ok`（stale），
+    //    真实首连成功时 `_setActiveAddress` 判 `changed == false` 也不回调 ——
+    //    只有 AddressPool 首连回调是可靠的事件源。回调里同步触发，天然早于/
+    //    独立于首页区块的 ConnectionGate 重拉，播放控制因此成为「连接建立后」
+    //    最优先加载的内容。once / 代际 / 用户操作保护守卫都在 persister 内
+    //    （[PlaybackSessionPersister.restoreServerSnapshotAfterReconnect]）。
+    final AddressPool? everConnectedPool = _tryReadEverConnectedPool();
+    if (everConnectedPool != null) {
+      void onFirstRealConnect() {
+        if (!_isRunCurrent(generation)) return;
+        unawaited(sessionPersister.restoreServerSnapshotAfterReconnect());
+      }
+
+      everConnectedPool.addOnSessionEverConnected(onFirstRealConnect);
+      ref.onDispose(() {
+        everConnectedPool.removeOnSessionEverConnected(onFirstRealConnect);
+      });
+    }
+
     return initial;
+  }
+
+  /// b54a：读地址池（首连回调注册用）。地址池不可用（极端时序/测试容器）
+  /// 时返回 null，首连重恢复退化为「无触发」，不拖垮播放器启动。
+  AddressPool? _tryReadEverConnectedPool() {
+    try {
+      return _ref.read(addressPoolProvider);
+    } catch (e) {
+      Logger.debugWithTag(_playerLogTag, 'address pool unavailable', e);
+      return null;
+    }
   }
 
   /// 逐 run 拆卸：等价旧 `同步通知基类.dispose()` 的清理集合。

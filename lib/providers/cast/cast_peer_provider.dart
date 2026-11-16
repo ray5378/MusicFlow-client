@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:musicflow_client/core/network/address_pool.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/peer.dart';
 export 'package:musicflow_client/providers/cast/cast_peer_state.dart';
@@ -15,6 +16,7 @@ import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dar
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/api/connection_gate.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/player/queue_origin_provider.dart';
 
@@ -450,8 +452,79 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
 
   String? _lastPushedLocalMode;
 
+  /// 恢复快照请求的连接闸等待（b54a）。
+  ///
+  /// 背景：快照请求跑在启动恢复路径上，冷启动时多半还没连通，请求发出去
+  /// 必然失败回退本地 —— 而首页区块都过 [ConnectionGate.wait] 等连通才拉，
+  /// 播放控制反而最后上屏。这里让快照请求也过闸：等待本次会话**首次真实
+  /// 连通**（[AddressPool.sessionEverConnected]，唯一写入点是探测成功的
+  /// 分支；刻意**不**用 `sessionConnectedProvider`/`status == ok` 反推 ——
+  /// 持久化恢复的地址自带上次的 `ok`，那是 stale 的），语义与
+  /// [kConnectionGateBudget] 对齐：等到放行、[restoreSnapshotGateBudget]
+  /// 到期也放行 —— 闸是加速器，不是门禁。
+  ///
+  /// 等待信号用 [AddressPool.addOnSessionEverConnected] 回调而不是监听
+  /// `sessionEverConnectedProvider`：后者是快照 Provider，`_everProbedOk`
+  /// 翻真时不会重建/通知，监听它永远收不到事件。地址池为空（首装未配置
+  /// 服务器）没有可等的连接，直接放行；没有探测在飞时顺手踢一轮
+  /// `probeAll`（复用其 in-flight 去重，不会变成探测风暴）。
+  Future<void> _waitForRestoreConnectionGate() async {
+    final AddressPool? pool = _tryReadAddressPool();
+    if (pool == null || pool.addresses.isEmpty) return;
+    if (pool.sessionEverConnected) return;
+    if (!pool.isProbing) {
+      unawaited(() async {
+        try {
+          await pool.probeAll();
+        } catch (e) {
+          Logger.debugWithTag(
+            'CAST-PEER',
+            'restore gate probe settle error: $e',
+          );
+        }
+      }());
+    }
+    final waiter = Completer<void>();
+    void onFirstConnect() {
+      if (!waiter.isCompleted) waiter.complete();
+    }
+
+    pool.addOnSessionEverConnected(onFirstConnect);
+    try {
+      await waiter.future.timeout(restoreSnapshotGateBudget);
+      Logger.debugWithTag('CAST-PEER', 'restore snapshot gate released');
+    } on TimeoutException {
+      // 预算到期 → 照常尽力发出。绝不抛错、绝不阻塞启动恢复。
+      Logger.debugWithTag(
+        'CAST-PEER',
+        'restore snapshot gate budget exhausted, proceed best-effort',
+      );
+    } finally {
+      pool.removeOnSessionEverConnected(onFirstConnect);
+    }
+  }
+
+  /// 测试注入点：连接闸等待（fetchLocalQueueForRestore 在 FLUTTER_TEST 下
+  /// 入口短路，闸的分支覆盖走这里；见 b39b2 waitForLocalPeerIdForTest 先例）。
+  @visibleForTesting
+  Future<void> waitForRestoreConnectionGateForTest() =>
+      _waitForRestoreConnectionGate();
+
+  AddressPool? _tryReadAddressPool() {
+    try {
+      return ref.read(addressPoolProvider);
+    } catch (e) {
+      Logger.debugWithTag('CAST-PEER', 'address pool unavailable: $e');
+      return null;
+    }
+  }
+
   /// 拉取服务端的本机队列快照(启动恢复「新鲜度竞速」用,见
   /// _restorePlaybackSession)。
+  ///
+  /// b54a:服务端请求前先过连接闸([_waitForRestoreConnectionGate]),等本次
+  /// 会话首次真实连通再发 —— 冷启动抢跑只会白打一次必败请求,然后回退本地,
+  /// 而连接建立后没有任何人重跑恢复。
   ///
   /// 返回原始快照(items/currentIndex/playMode/updatedAt),失败或空队列
   /// 返回 null,绝不抛出 —— 恢复流程不能被它卡死。未注册时**事件驱动**等待
@@ -464,6 +537,10 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
     if (Platform.environment['FLUTTER_TEST'] != null) return null;
     final pid = await _waitForLocalPeerId();
     if (pid == null || pid.isEmpty) return null;
+    // 连接闸(b54a):等本次会话首次真实连通再发,别让快照请求抢跑在连接
+    // 建立之前(与首页区块的 ConnectionGate.wait 同一动机)。
+    await _waitForRestoreConnectionGate();
+    if (!_mounted) return null;
     // 恢复窗口预算必须短:快照拉不到就回退本地会话,不能拖住启动。
     const budget = Duration(seconds: 5);
     try {

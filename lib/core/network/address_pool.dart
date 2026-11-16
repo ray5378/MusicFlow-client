@@ -55,6 +55,51 @@ class AddressPool {
   @visibleForTesting
   void markSessionEverConnected() => _everProbedOk = true;
 
+  // ── 首次真实连通回调（b54a）────────────────────────────
+  // 「本次会话首次探测往返成功」是一个**事件**而不是可轮询的状态：
+  // `sessionEverConnectedProvider` 是快照 Provider，`_everProbedOk` 翻真时
+  // 不会重建/通知；而持久化恢复的地址自带上次的 `status = ok`，本轮探测
+  // 成功时 `_setActiveAddress` 判 `changed == false` 不回调，
+  // `activeAddressProvider` 也收不到。所以给需要「首连」语义的调用方
+  // （播放会话重恢复、恢复快照连接闸）提供这个多播回调，唯一触发点在
+  // [_applyProbeResult] 的成功分支（与 `_everProbedOk` 翻真同一处）。
+  final List<void Function()> _sessionEverConnectedListeners =
+      <void Function()>[];
+
+  /// 注册「首次真实连通」回调（重复触发不存在：`_everProbedOk` 只翻一次）。
+  /// 调用方必须在自身拆卸时用 [removeOnSessionEverConnected] 摘除。
+  void addOnSessionEverConnected(void Function() listener) =>
+      _sessionEverConnectedListeners.add(listener);
+
+  /// 摘除「首次真实连通」回调。
+  void removeOnSessionEverConnected(void Function() listener) {
+    _sessionEverConnectedListeners.remove(listener);
+  }
+
+  void _notifySessionEverConnected() {
+    // 快照遍历：回调里可能 add/remove（理论上不会，防御一下并发修改）。
+    for (final listener in List<void Function()>.of(
+      _sessionEverConnectedListeners,
+    )) {
+      try {
+        listener();
+      } catch (e) {
+        // 单个回调异常不拖累其他等待方，也不允许裸抛进探测流程。
+        Logger.warnWithTag(_tag, 'session-ever-connected listener threw', e);
+      }
+    }
+  }
+
+  /// 当前已注册的「首次真实连通」回调数（测试用：验证等待方摘除干净）。
+  @visibleForTesting
+  int get debugSessionEverConnectedListenerCount =>
+      _sessionEverConnectedListeners.length;
+
+  /// 测试用：手工触发「首次真实连通」广播（真机只由 [_applyProbeResult]
+  /// 成功分支触发；测试替身没有真实探测，用这个模拟事件）。
+  @visibleForTesting
+  void notifySessionEverConnectedForTest() => _notifySessionEverConnected();
+
   /// 物理网络是否已断开（由 [ConnectivityMonitor] 维护）。
   ///
   /// 唯一用途：让 `FallbackInterceptor` 跳过「延时重试波」（attempt >= 1）。
@@ -410,6 +455,8 @@ class AddressPool {
           _tag,
           'session ever connected: first ok probe round-trip',
         );
+        // b54a：首连事件广播（播放会话重恢复 / 恢复快照连接闸等待方）。
+        _notifySessionEverConnected();
       }
     } else {
       final fails = (_consecutiveHealthFails[probed.id] ?? 0) + 1;

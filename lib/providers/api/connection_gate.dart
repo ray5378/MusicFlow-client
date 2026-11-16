@@ -21,6 +21,22 @@ const String _gateLogTag = 'CONN_GATE';
 ///   绝不置 `failed`、绝不弹「网络异常」。
 const Duration kConnectionGateBudget = Duration(seconds: 6);
 
+/// 播放会话恢复快照请求的连接闸等待预算（b54a）。
+///
+/// 与 [kConnectionGateBudget] 的**语义**完全一致（等到放行、预算到期也放行
+/// —— 闸是加速器不是门禁），但时长刻意**更短**：快照请求跑在启动恢复路径上，
+/// 它后面的 `playSong` 才是「本地会话秒恢复」的落点，等满 6s 会把本地恢复
+/// 也一起拖住。冷启动重连档的探测间隔是 1s，可达服务器 2s 内必然给出结论；
+/// 更慢的连接由「首次连通后的重恢复」（`PlaybackSessionPersister.
+/// restoreServerSnapshotAfterReconnect`）兜底补拉，两条路径互补。
+const Duration kRestoreSnapshotGateBudget = Duration(seconds: 2);
+
+/// 恢复快照连接闸预算（可注入，测试用）：与 [kColdStartReconnectInterval]
+/// 等注入点同一模式，用例把它调短以便确定性覆盖「到期放行」分支。
+/// 刻意**不**加 `@visibleForTesting`：cast_peer_provider 在生产路径上读它，
+/// 注解会把生产使用变成 analyze warning（可见性守卫只适合「仅测试用」成员）。
+Duration restoreSnapshotGateBudget = kRestoreSnapshotGateBudget;
+
 /// 冷启动档的重连间隔：还没真实连通过时，每秒探一次。
 const Duration kColdStartReconnectInterval = Duration(seconds: 1);
 
@@ -414,6 +430,7 @@ class Reconnector {
 @visibleForTesting
 void resetConnectionGateForTest() {
   Reconnector.instance.resetForTest();
+  restoreSnapshotGateBudget = kRestoreSnapshotGateBudget;
 }
 
 /// 一次「provider 构建」的连接就绪闸。
