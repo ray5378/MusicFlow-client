@@ -119,6 +119,8 @@ jobs:
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GITEE_USERNAME: ray5378
+          # 认证失败时禁止 git 交互式索要密码，否则 CI 会一直 hang。
+          GIT_TERMINAL_PROMPT: 0
         run: |
           set -euo pipefail
           if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
@@ -141,9 +143,18 @@ jobs:
           # 只推 GitHub main 与本次 tag，不主动推 master。
           # Gitee 当前只有 master（初始化桩提交）且 0 tag，main 为新建分支；
           # 默认分支切换由下面的 Python 助手通过 Gitee API 幂等完成。
-          # 不用 --atomic：Gitee 服务端未必支持 atomic push，分开推更容易定位失败。
-          git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"
-          git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"
+          # 不用 --atomic：Gitee 不支持 atomic push 会让服务端 hang（真机 run 43852699916 已证实）。
+          # 分两条普通 push + timeout，任一条失败都能明确报错并退出，绝不无限等待。
+          if ! timeout 180 git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"; then
+            echo "::error::Gitee main 分支推送失败或超时（tag=${TAG}）。"
+            rm -f "${helper}"
+            exit 1
+          fi
+          if ! timeout 180 git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"; then
+            echo "::error::Gitee tag ${TAG} 推送失败或超时。"
+            rm -f "${helper}"
+            exit 1
+          fi
 
           rm -f "${helper}"
           echo "源码 + tag ${TAG} 已推送到 Gitee（main）。"
