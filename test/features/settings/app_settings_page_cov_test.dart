@@ -62,7 +62,9 @@ import 'package:musicflow_client/data/models/server_address.dart';
 import 'package:musicflow_client/data/repositories/auth_repository.dart';
 import 'package:musicflow_client/data/repositories/library_repository.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
+import 'package:musicflow_client/core/services/update_checker.dart';
 import 'package:musicflow_client/features/settings/pages/app_settings_page.dart';
+import 'package:musicflow_client/features/settings/widgets/update_available_dialog.dart';
 import 'package:musicflow_client/features/settings/pages/audio_quality_page.dart';
 import 'package:musicflow_client/features/settings/pages/cover_providers_page.dart';
 import 'package:musicflow_client/features/settings/pages/language_settings_page.dart';
@@ -102,6 +104,10 @@ class FakeHttpState {
   String body = '{}';
   Object? failWith;
 
+  /// 非空时：URL 包含任一片段的请求直接抛 [failWith]（缺省
+  /// SocketException）—— 用来模拟「单通道失败、回退通道成功」。
+  List<String> failUrlContains = <String>[];
+
   /// 非空时 `openUrl` 会先等它 —— 用来把「检查中」的中间态钉住。
   Future<void>? gate;
 
@@ -112,6 +118,7 @@ class FakeHttpState {
     statusCode = 200;
     body = '{}';
     failWith = null;
+    failUrlContains = <String>[];
     gate = null;
   }
 }
@@ -438,6 +445,9 @@ class _FakeHttpClient implements HttpClient {
     if (gate != null) await gate;
     final failure = owner.failWith;
     if (failure != null) throw failure;
+    if (owner.failUrlContains.any(url.toString().contains)) {
+      throw failure ?? const SocketException('blocked url');
+    }
     return _FakeRequest(method, url)
       ..responseStatus = owner.statusCode
       ..responseBody = owner.bodyBytes;
@@ -1491,6 +1501,65 @@ void main() {
       await tester.tap(find.text(loc!.settings_later));
       await settle(tester, frames: 10);
       expect(launchedUrls, isEmpty);
+    });
+
+    // b43b：备用通道标注的 UI 渲染断言 —— 防止误删 viaFallback 文案拼接。
+    testWidgets('40 gitee 失败回退 GitHub 成功 → 弹窗副标题与内容行都标注备用通道',
+        (tester) async {
+      fakeHttp.body = releaseJson(tag: 'v2.0.0');
+      // 只让 gitee 通道的请求失败：回退 GitHub 仍拿到上面的正常响应。
+      fakeHttp.failUrlContains = <String>['gitee.com'];
+      await pumpPage(tester);
+
+      await tapCheckUpdate(tester);
+
+      // 副标题拼接：「发现新版本 · 来自 GitHub 备用通道」（单个 Text）。
+      expect(
+        find.textContaining(
+          '${loc!.settings_update_found} · ${loc!.update_source_fallback}',
+        ),
+        findsOneWidget,
+      );
+      // 弹窗内容的信息行：「更新通道 → 来自 GitHub 备用通道」。
+      expect(find.text(loc!.update_source_fallback), findsOneWidget);
+    });
+
+    testWidgets('41 UpdateAvailableContent viaFallback=true/false → 标注行出现/不出现',
+        (tester) async {
+      UpdateCheckResult resultOf(bool viaFallback) => UpdateCheckResult(
+            hasUpdate: true,
+            currentVersion: '1.0.0',
+            latestVersion: '2.0.0',
+            releaseUrl: 'https://example.test/release',
+            viaFallback: viaFallback,
+          );
+
+      Widget host(UpdateCheckResult result) => MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+            theme: AppTheme.light(),
+            home: _LocProbe(
+              child: Scaffold(
+                body: UpdateAvailableContent(
+                  result: result,
+                  onDownload: () {},
+                ),
+              ),
+            ),
+          );
+
+      // 正例：viaFallback=true → 渲染「更新通道 / 来自 GitHub 备用通道」。
+      await tester.pumpWidget(host(resultOf(true)));
+      await settle(tester);
+      expect(find.text(loc!.settings_update_channel_title), findsOneWidget);
+      expect(find.text(loc!.update_source_fallback), findsOneWidget);
+
+      // 反例：viaFallback=false → 不渲染标注行（防「恒显示」回归）。
+      await tester.pumpWidget(host(resultOf(false)));
+      await settle(tester);
+      expect(find.text(loc!.settings_update_channel_title), findsNothing);
+      expect(find.text(loc!.update_source_fallback), findsNothing);
     });
 
     testWidgets('37 查看日志 → push LogViewerPage', (tester) async {
