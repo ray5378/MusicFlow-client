@@ -206,7 +206,19 @@ class _ConnectionBeaconState extends ConsumerState<ConnectionBeacon>
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: typography.metadata.copyWith(color: colors.muted),
+              // [b43a] 根因：本胶囊挂在 main_scaffold 顶层 Stack 的
+              // PositionedDirectional 下，位于 Scaffold/Material 子树之外，
+              // 该子树的 DefaultTextStyle 是 MaterialApp 的 fallback 样式
+              // （framework material/app.dart：黄色 + TextDecoration.underline
+              // + TextDecorationStyle.double，debugLabel 'fallback style;
+              // consider putting your text in a Material'）。
+              // TextStyle.merge 会透传 decoration：copyWith 不指定 decoration
+              // 时 fallback 的黄色双下划线就会落到文字上。必须显式置
+              // TextDecoration.none（置 null 会继续继承 fallback）。
+              style: typography.metadata.copyWith(
+                color: colors.muted,
+                decoration: TextDecoration.none,
+              ),
             ),
           ),
         ],

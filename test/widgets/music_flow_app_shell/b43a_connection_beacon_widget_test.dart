@@ -271,4 +271,57 @@ void main() {
     expect(_ring, findsNothing);
     expect(find.byType(MusicFlowSurface), findsNothing);
   });
+
+  testWidgets('胶囊 Text 显式关掉 decoration（MaterialApp fallback 警告样式不透传）', (
+    tester,
+  ) async {
+    // 与真机一致的场景：胶囊直接挂在 MaterialApp home 顶层、不经过
+    // Scaffold/Material —— 此时 DefaultTextStyle 就是 MaterialApp 的
+    // fallback 样式（黄色双下划线）。组件若未显式
+    // `decoration: TextDecoration.none`，其 copyWith 未指定 decoration 时
+    // 会继承 fallback（merge 规则：上层 null 保留下层值）。
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer(
+      overrides: <Override>[
+        connectionBeaconProvider.overrideWith(
+          () => _StubBeacon(
+            const ConnectionBeaconState(phase: ConnectionBeaconPhase.connected),
+          ),
+        ),
+        isRenderingActiveProvider.overrideWithValue(true),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
+          theme: AppTheme.dark(),
+          home: const Align(
+            alignment: Alignment.topCenter,
+            child: ConnectionBeacon(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final loc = _locOf(tester);
+    final Text text = tester.widget<Text>(
+      find.text(loc.connection_beacon_connected),
+    );
+    expect(
+      text.style?.decoration,
+      TextDecoration.none,
+      reason: '必须显式置 none 而不是 null：null 会继承 MaterialApp '
+          'fallback 样式的黄色双下划线（b43a 真机根因）',
+    );
+  });
 }
