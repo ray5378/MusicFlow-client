@@ -1,7 +1,6 @@
 name: Gitee connectivity probe
 
-# 临时只读探测 workflow（结束后删除）：判断 GitHub hosted runner 到 Gitee 的
-# API v5 与 git smart HTTP 是否可达，用于决定同步架构。
+# 临时只读探测 workflow（结束后删除）：定位 runner → Gitee 的真实故障层。
 on:
   workflow_dispatch:
 
@@ -12,30 +11,54 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: DNS and baseline connectivity
+      - name: Gitee git receive-pack discovery (unauthenticated)
         run: |
-          echo "=== DNS gitee.com ==="
-          getent hosts gitee.com || echo "DNS_FAIL"
-          echo "=== baseline baidu ==="
-          timeout 20 curl -sS -o /dev/null -w 'BAIDU_HTTP=%{http_code} time=%{time_total}\n' https://www.baidu.com || echo "BAIDU_FAIL_OR_TIMEOUT"
+          timeout 30 curl -sS -o /dev/null -w 'RECV_HTTP=%{http_code} time=%{time_total}\n' 'https://gitee.com/ray5378/music-flow-client.git/info/refs?service=git-receive-pack' || echo "RECV_FAIL_OR_TIMEOUT"
 
-      - name: Gitee API v5 GET (public repo, no token)
+      - name: Gitee authenticated receive-pack discovery via Basic auth
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          timeout 30 curl -sS -o /tmp/gitee_api.out -w 'API_HTTP=%{http_code} time=%{time_total}\n' 'https://gitee.com/api/v5/repos/ray5378/music-flow-client' || echo "API_FAIL_OR_TIMEOUT"
-          echo '--- body head ---'
-          head -c 200 /tmp/gitee_api.out 2>/dev/null || true
+          echo "token_present=$([ -n "${GITEE_TOKEN}" ] && echo yes || echo no)"
+          timeout 30 curl -sS -o /tmp/recv.out -w 'AUTH_RECV_HTTP=%{http_code} time=%{time_total}\n' --user "ray5378:${GITEE_TOKEN}" 'https://gitee.com/ray5378/music-flow-client.git/info/refs?service=git-receive-pack' || echo "AUTH_RECV_FAIL_OR_TIMEOUT"
+          head -c 120 /tmp/recv.out 2>/dev/null || true
           echo
 
-      - name: Gitee git smart HTTP GET (no auth)
+      - name: Gitee authenticated API v5 GET /user
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          timeout 30 curl -sS -o /tmp/gitee_git.out -w 'GIT_HTTP=%{http_code} time=%{time_total}\n' 'https://gitee.com/ray5378/music-flow-client.git/info/refs?service=git-upload-pack' || echo "GIT_FAIL_OR_TIMEOUT"
-          echo '--- body head ---'
-          head -c 120 /tmp/gitee_git.out 2>/dev/null || true
-          echo
+          timeout 30 curl -sS -o /tmp/user.out -w 'AUTH_API_HTTP=%{http_code} time=%{time_total}\n' "https://gitee.com/api/v5/user?access_token=${GITEE_TOKEN}" || echo "AUTH_API_FAIL_OR_TIMEOUT"
+          python3 -c "import json; d=json.load(open('/tmp/user.out')); print('login=',d.get('login'))" 2>/dev/null || true
 
-      - name: Gitee API v5 POST unauthenticated (must be rejected, proves reachability only)
+      - name: git ls-remote over HTTPS (unauthenticated)
         run: |
-          timeout 30 curl -sS -X POST -o /tmp/gitee_post.out -w 'POST_HTTP=%{http_code} time=%{time_total}\n' -H 'Content-Type: application/json' -d '{"name":"probe"}' 'https://gitee.com/api/v5/repos/ray5378/music-flow-client/releases' || echo "POST_FAIL_OR_TIMEOUT"
-          echo '--- body head ---'
-          head -c 200 /tmp/gitee_post.out 2>/dev/null || true
-          echo
+          timeout 30 git ls-remote https://gitee.com/ray5378/music-flow-client.git HEAD 2>&1 | head -5 || echo "LSREMOTE_FAIL_OR_TIMEOUT"
+
+      - name: git push --dry-run with credential helper (no ref change)
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -u
+          tmp="$(mktemp -d)"
+          cd "${tmp}"
+          git init -q -b main
+          git config user.email probe@example.invalid
+          git config user.name probe
+          echo probe > probe.txt
+          git add probe.txt
+          git commit -qm probe
+          helper="${tmp}/cred.sh"
+          cat > "${helper}" <<'HELPER'
+          #!/usr/bin/env bash
+          printf 'username=ray5378\npassword=%s\n' "${GITEE_TOKEN}"
+          HELPER
+          chmod 700 "${helper}"
+          git config --global "credential.https://gitee.com.helper" "!${helper}"
+          git remote add gitee https://gitee.com/ray5378/music-flow-client.git
+          set +e
+          timeout 60 git push --dry-run gitee main 2>&1 | head -30
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "DRYRUN_EXIT=${rc}"
+          git config --global --unset-all "credential.https://gitee.com.helper" || true
