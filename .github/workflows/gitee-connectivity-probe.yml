@@ -1,6 +1,6 @@
 name: Gitee connectivity probe
 
-# 临时探测 workflow（结束后删除）：验证 runner 真实 push pack 数据是否被 Gitee 卡住。
+# 临时探测 workflow（结束后删除）：测量 runner 推送完整仓库到 Gitee 的真实耗时。
 on:
   workflow_dispatch:
 
@@ -11,20 +11,17 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Real tiny push to throwaway branch, then delete it
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Time a full-repo push to throwaway branch
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -u
-          tmp="$(mktemp -d)"
-          cd "${tmp}"
-          git init -q -b main
-          git config user.email probe@example.invalid
-          git config user.name probe
-          echo probe > probe.txt
-          git add probe.txt
-          git commit -qm probe
-          helper="${tmp}/cred.sh"
+          helper="${RUNNER_TEMP}/cred.sh"
           cat > "${helper}" <<'HELPER'
           #!/usr/bin/env bash
           printf 'username=ray5378\npassword=%s\n' "${GITEE_TOKEN}"
@@ -32,11 +29,15 @@ jobs:
           chmod 700 "${helper}"
           git config --global "credential.https://gitee.com.helper" "!${helper}"
           git remote add gitee https://gitee.com/ray5378/music-flow-client.git
+          start=$(date +%s)
           set +e
-          timeout 90 git push gitee "HEAD:refs/heads/probe-gitee-connectivity" 2>&1 | head -40
+          timeout 600 git push gitee "refs/remotes/origin/main:refs/heads/probe-full-push" 2>&1 | tail -20
           rc=${PIPESTATUS[0]}
           set -e
-          echo "REALPUSH_EXIT=${rc}"
-          echo "--- cleanup ---"
-          timeout 30 curl -sS -o /dev/null -w 'DELETE_REF_HTTP=%{http_code}\n' -X DELETE "https://gitee.com/api/v5/repos/ray5378/music-flow-client/git/refs/heads/probe-gitee-connectivity?access_token=${GITEE_TOKEN}" || echo DELETE_FAIL
+          end=$(date +%s)
+          echo "FULLPUSH_EXIT=${rc} ELAPSED=$((end-start))s"
+          set +e
+          timeout 90 git push gitee --delete refs/heads/probe-full-push 2>&1 | tail -5
+          echo "DELETE_EXIT=${PIPESTATUS[0]}"
+          set -e
           git config --global --unset-all "credential.https://gitee.com.helper" || true
