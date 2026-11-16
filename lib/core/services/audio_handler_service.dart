@@ -147,18 +147,20 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     }
   }
 
-  /// 切歌时的「原始」MediaItem（artist = 真实歌手，未含歌词行）。
+  /// 切歌时的「原始」MediaItem（title = 纯歌名，artist = 真实歌手）。
   ///
-  /// 通知栏歌词是**改写 artist 后**再推一份 mediaItem，所以后续每行歌词都必须
-  /// 从这份底稿重新派生——拿已经写过歌词的 mediaItem 当底稿，歌手名就再也
-  /// 回不来了。
+  /// 通知栏把主标题改写成「歌名 - 歌手」、副标题改写成歌词行之后再推一份
+  /// mediaItem，所以后续每行歌词都必须从这份底稿重新派生——拿已经改写过的
+  /// mediaItem 当底稿，歌手名会永久丢失、歌名还会被反复拼接。
   MediaItem? _baseMediaItem;
 
   /// 更新媒体信息（歌曲切换时调用）
   @override
   Future<void> updateMediaItem(MediaItem item) async {
     _baseMediaItem = item;
-    mediaItem.add(item);
+    // 立刻按通知栏形态推送（主标题「歌名 - 歌手」+ 副标题歌手），不等第一句
+    // 歌词：切歌瞬间通知栏与锁屏就是最终布局，不会先闪一下纯歌名。
+    mediaItem.add(applyNotificationLyric(base: item, lyric: null) ?? item);
 
     // 立即设置为播放状态，激活 MediaSession
     playbackState.add(
@@ -176,14 +178,14 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
-  /// 通知栏实时歌词：把当前歌词行写进媒体通知的**副标题行（artist）**。
+  /// 通知栏实时歌词：主标题保持「歌名 - 歌手」，副标题行放当前歌词。
   ///
-  /// 为什么是 artist 而不是「第三行」：Android 11+ 的媒体通知由 SystemUI 直接
-  /// 用 MediaSession 元数据渲染（AOSP `MediaDataManager` 只取
+  /// 为什么要把歌手并进主标题：Android 11+ 的媒体通知由 SystemUI 直接用
+  /// MediaSession 元数据渲染（AOSP `MediaDataManager` 只取
   /// `DISPLAY_TITLE ?? TITLE` 与 `METADATA_KEY_ARTIST`，`MediaData` 结构里
   /// 连 album/description 字段都没有），audio_service 写进 displayDescription
-  /// 的 setSubText 在 Android 11+ 上**没有任何消费方**。所以通知栏只有两行可用，
-  /// 「底部那行」就是 artist 行——有歌词时占用它，无歌词时还原真实歌手。
+  /// 的 setSubText 在 Android 11+ 上**没有任何消费方**。通知栏只有两行，
+  /// 想同时保留歌手信息就只能合并进标题，把副标题整行让给歌词。
   ///
   /// 每次都从[_baseMediaItem]重新派生，只动 metadata 不碰 playbackState：
   /// 进度条/播放态仍由 positionStream/playingStream 推进，歌词刷新不打断它们。
@@ -278,12 +280,33 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   }
 }
 
-/// 纯函数（单测锁定）：算出「写入歌词行后的 MediaItem」，无需更新返回 null。
+/// 通知栏副标题在「无歌词」时回落的歌手名占位符（player_provider 侧兜底）。
+const String _unknownArtist = 'Unknown Artist';
+
+/// 通知栏主标题：把歌名与歌手合并成「歌名 - 歌手」。
 ///
-/// - [base] 是切歌时的原始 MediaItem（artist = 真实歌手），**必须**用它派生，
-///   不能拿已写过歌词的当前项当底稿（歌手名会永久丢失）；
-/// - [lyric] 非空 → artist 换成该行；为空 → 还原 [base] 的歌手行；
-/// - [current] 是当前已推给平台的项，用于去重：同曲同 artist 就不重推
+/// - 歌手缺失或为 'Unknown Artist' 占位符时只用歌名，不拼出
+///   「歌名 - Unknown Artist」这种噪声；
+/// - 底稿已是合并形态（`歌名 - 歌手`）时原样返回，避免重复拼接（幂等）。
+///
+/// 公开给单测锁定；handler 内部只经 [applyNotificationLyric] 使用。
+String notificationTitleFor(MediaItem base) {
+  final artist = (base.artist ?? '').trim();
+  if (artist.isEmpty || artist == _unknownArtist) return base.title;
+  final title = base.title.trim();
+  if (title.isEmpty) return base.title;
+  if (title.endsWith(' - $artist')) return base.title;
+  return '$title - $artist';
+}
+
+/// 纯函数（单测锁定）：算出「按通知栏形态改写后的 MediaItem」，无需更新返回 null。
+///
+/// - [base] 是切歌时的原始 MediaItem（title = 纯歌名，artist = 真实歌手），
+///   **必须**用它派生，不能拿已改写过的当前项当底稿（歌手名会永久丢失、
+///   歌名会被反复拼接后缀）；
+/// - 主标题恒为「歌名 - 歌手」（见 [notificationTitleFor]）；
+/// - [lyric] 非空 → artist 副标题换成该行；为空 → 还原 [base] 的歌手行；
+/// - [current] 是当前已推给平台的项，用于去重：同曲同 title 同 artist 就不重推
 ///   （每次 metadata 更新在原生侧都会重解析封面位图并重建通知）。
 MediaItem? applyNotificationLyric({
   required MediaItem base,
@@ -291,11 +314,17 @@ MediaItem? applyNotificationLyric({
   MediaItem? current,
 }) {
   final line = lyric?.trim();
-  final target = (line == null || line.isEmpty)
-      ? base
-      : base.copyWith(artist: line);
+  final hasLine = line != null && line.isNotEmpty;
+  final title = notificationTitleFor(base);
+  final target = base.copyWith(
+    title: title,
+    artist: hasLine ? line : base.artist,
+  );
   final cur = current;
-  if (cur != null && cur.id == target.id && cur.artist == target.artist) {
+  if (cur != null &&
+      cur.id == target.id &&
+      cur.title == target.title &&
+      cur.artist == target.artist) {
     return null;
   }
   return target;

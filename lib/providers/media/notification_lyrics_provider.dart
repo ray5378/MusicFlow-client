@@ -12,6 +12,10 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 /// **副标题行**（MediaItem.artist → METADATA_KEY_ARTIST）；无同步歌词 /
 /// 歌词行消失时还原真实歌手。
 ///
+/// 主标题同时改写成「歌名 - 歌手」（见 audio_handler_service 的
+/// notificationTitleFor）：通知栏只有两行，把歌手并进标题才能既显示歌词
+/// 又不丢歌手信息。
+///
 /// 为什么是 artist：Android 11+ 的媒体通知由 SystemUI 用 MediaSession 元数据
 /// 直接渲染，AOSP MediaDataManager 只取 `DISPLAY_TITLE ?? TITLE` 与
 /// `METADATA_KEY_ARTIST`，`MediaData` 里没有 album/description 字段 ——
