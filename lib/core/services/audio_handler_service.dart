@@ -235,22 +235,37 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 
   /// 切歌时的「原始」MediaItem（title = 纯歌名，artist = 真实歌手）。
   ///
-  /// 通知栏把主标题改写成「歌名 - 歌手」、副标题改写成歌词行之后再推一份
-  /// mediaItem，所以后续每行歌词都必须从这份底稿重新派生——拿已经改写过的
-  /// mediaItem 当底稿，歌手名会永久丢失、歌名还会被反复拼接。
+  /// 通知栏副标题会被改写成歌词行后再推一份 mediaItem，所以每行歌词都必须
+  /// 从这份底稿重新派生——拿已经改写过的 mediaItem 当底稿，歌名/歌手会被
+  /// 一次次叠加污染。
   MediaItem? _baseMediaItem;
+
+  /// 当前曲目最后推送的那行歌词（null = 无歌词，副标题留空）。
+  ///
+  /// 存在的唯一理由：**同曲重推 mediaItem 时不能被清空**。切歌后播放器还会
+  /// 因为交叉淡入/预加载/metadata 刷新再调几次 [updateMediaItem]，若每次都
+  /// 按「无歌词」重推，副标题就会被反复打回空白，而 controller 只在歌词行
+  /// *变化*时才推——于是通知栏卡在空白直到下一句歌词，表现为「切歌后歌词
+  /// 不加载」。这里记住当前行，同曲重推时原样带回；换曲才清空。
+  String? _lastLyric;
 
   /// 更新媒体信息（歌曲切换时调用）
   @override
   Future<void> updateMediaItem(MediaItem item) async {
+    final previousSongId = _baseMediaItem?.id;
     _baseMediaItem = item;
     // 收藏状态随曲目重置：extras 由 player_provider 按 Song.starred 写成
     // '1'/'0'（Bundle 只安全承载基础类型）。这里必须在下面那次 playbackState
     // 广播之前赋值，否则新歌第一帧的心形会沿用上一首的状态。
     _favoriteStarred = item.extras?['starred'] == '1';
-    // 立刻按通知栏形态推送（主标题「歌名 - 歌手」+ 副标题歌手），不等第一句
-    // 歌词：切歌瞬间通知栏与锁屏就是最终布局，不会先闪一下纯歌名。
-    mediaItem.add(applyNotificationLyric(base: item, lyric: null) ?? item);
+    // 同曲重推（交叉淡入 / metadata 刷新）保留已显示的歌词行；换曲则清空，
+    // 副标题空着等新歌词到达，绝不用歌手名占位。
+    _lastLyric = resolvePreservedLyric(
+      previousSongId: previousSongId,
+      nextSongId: item.id,
+      lastLyric: _lastLyric,
+    );
+    mediaItem.add(applyNotificationLyric(base: item, lyric: _lastLyric) ?? item);
 
     // 立即设置为播放状态，激活 MediaSession
     playbackState.add(
@@ -268,23 +283,29 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
-  /// 通知栏实时歌词：主标题保持「歌名 - 歌手」，副标题行放当前歌词。
+  /// 通知栏实时歌词：主标题保持纯歌名，副标题行整行放当前歌词。
   ///
-  /// 为什么要把歌手并进主标题：Android 11+ 的媒体通知由 SystemUI 直接用
-  /// MediaSession 元数据渲染（AOSP `MediaDataManager` 只取
+  /// 布局依据（AOSP 取证）：Android 11+ 的媒体通知由 SystemUI 直接用
+  /// MediaSession 元数据渲染（`MediaDataManager` 只取
   /// `DISPLAY_TITLE ?? TITLE` 与 `METADATA_KEY_ARTIST`，`MediaData` 结构里
   /// 连 album/description 字段都没有），audio_service 写进 displayDescription
-  /// 的 setSubText 在 Android 11+ 上**没有任何消费方**。通知栏只有两行，
-  /// 想同时保留歌手信息就只能合并进标题，把副标题整行让给歌词。
+  /// 的 setSubText 在 Android 11+ 上**没有任何消费方**。所以通知栏只有两行：
+  /// 歌名 + 副标题，副标题独占歌词。
+  ///
+  /// 无歌词时副标题**留空**（不是回落到歌手）：歌手占位会让人误以为「歌词
+  /// 没加载」，而切歌到新歌词到达之间必然有这个空窗，宁可空一行也不要给错
+  /// 信息。歌手信息仍在 App 内（迷你条/播放页）与锁屏的其它区域可查。
   ///
   /// 每次都从[_baseMediaItem]重新派生，只动 metadata 不碰 playbackState：
   /// 进度条/播放态仍由 positionStream/playingStream 推进，歌词刷新不打断它们。
   void updateNotificationLyric(String? lyric) {
     final base = _baseMediaItem;
     if (base == null) return;
+    final line = lyric?.trim();
+    _lastLyric = (line == null || line.isEmpty) ? null : line;
     final next = applyNotificationLyric(
       base: base,
-      lyric: lyric,
+      lyric: _lastLyric,
       current: mediaItem.valueOrNull,
     );
     if (next == null) return;
@@ -370,34 +391,39 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   }
 }
 
-/// 通知栏副标题在「无歌词」时回落的歌手名占位符（player_provider 侧兜底）。
-const String _unknownArtist = 'Unknown Artist';
+/// 副标题「无歌词」时写入的空串。
+///
+/// 为什么是空串而不是回落到歌手：SystemUI 只在 `METADATA_KEY_ARTIST` 为
+/// **null** 时才 fallback 到通知正文，空串会被原样渲染成空行（TextView 高度
+/// 归零，视觉上不占位）。给歌手名反而是在「没有歌词」时给出错误信息。
+const String kNotificationEmptyLyric = '';
 
-/// 通知栏主标题：把歌名与歌手合并成「歌名 - 歌手」。
+/// 换曲 / 同曲重推 mediaItem 时，决定副标题沿用的歌词行。
 ///
-/// - 歌手缺失或为 'Unknown Artist' 占位符时只用歌名，不拼出
-///   「歌名 - Unknown Artist」这种噪声；
-/// - 底稿已是合并形态（`歌名 - 歌手`）时原样返回，避免重复拼接（幂等）。
-///
-/// 公开给单测锁定；handler 内部只经 [applyNotificationLyric] 使用。
-String notificationTitleFor(MediaItem base) {
-  final artist = (base.artist ?? '').trim();
-  if (artist.isEmpty || artist == _unknownArtist) return base.title;
-  final title = base.title.trim();
-  if (title.isEmpty) return base.title;
-  if (title.endsWith(' - $artist')) return base.title;
-  return '$title - $artist';
+/// - 同曲（[previousSongId] == [nextSongId]）：返回 [lastLyric]。
+///   交叉淡入、预加载完成、metadata 刷新都会再调一次 updateMediaItem，
+///   每次都按「无歌词」重推会把已显示的歌词打回空白，而 controller 只在
+///   歌词行*变化*时才推 → 通知栏卡在空白直到下一句，表现为「切歌后歌词
+///   不加载」。
+/// - 换曲（或首次推送 [previousSongId] 为 null）：返回 null —— 上一首的
+///   歌词绝不能跟着新歌上屏。
+String? resolvePreservedLyric({
+  required String? previousSongId,
+  required String nextSongId,
+  required String? lastLyric,
+}) {
+  return previousSongId == nextSongId ? lastLyric : null;
 }
 
 /// 纯函数（单测锁定）：算出「按通知栏形态改写后的 MediaItem」，无需更新返回 null。
 ///
-/// - [base] 是切歌时的原始 MediaItem（title = 纯歌名，artist = 真实歌手），
-///   **必须**用它派生，不能拿已改写过的当前项当底稿（歌手名会永久丢失、
-///   歌名会被反复拼接后缀）；
-/// - 主标题恒为「歌名 - 歌手」（见 [notificationTitleFor]）；
-/// - [lyric] 非空 → artist 副标题换成该行；为空 → 还原 [base] 的歌手行；
-/// - [current] 是当前已推给平台的项，用于去重：同曲同 title 同 artist 就不重推
-///   （每次 metadata 更新在原生侧都会重解析封面位图并重建通知）。
+/// - [base] 是切歌时的原始 MediaItem（title = 纯歌名），**必须**用它派生，
+///   不能拿已改写过的当前项当底稿（歌名会被反复污染）；
+/// - 主标题**恒为纯歌名**，不拼接歌手（用户要求通知栏不出现歌手）；
+/// - [lyric] 非空 → artist 副标题换成该行；为空 → 副标题写成 [kNotificationEmptyLyric]
+///   （留空，不回落歌手）；
+/// - [current] 是当前已推给平台的项，用于去重：同曲同 id 同 title 同副标题
+///   就不重推（每次 metadata 更新在原生侧都会重解析封面位图并重建通知）。
 MediaItem? applyNotificationLyric({
   required MediaItem base,
   required String? lyric,
@@ -405,10 +431,8 @@ MediaItem? applyNotificationLyric({
 }) {
   final line = lyric?.trim();
   final hasLine = line != null && line.isNotEmpty;
-  final title = notificationTitleFor(base);
   final target = base.copyWith(
-    title: title,
-    artist: hasLine ? line : base.artist,
+    artist: hasLine ? line : kNotificationEmptyLyric,
   );
   final cur = current;
   if (cur != null &&
