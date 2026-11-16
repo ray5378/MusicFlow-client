@@ -341,7 +341,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settings_disable => '停用';
 
   @override
-  String get settings_download => '前往下载';
+  String get settings_download => '下载并安装';
 
   @override
   String get settings_download_confirm_body =>

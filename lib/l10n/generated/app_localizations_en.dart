@@ -369,7 +369,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settings_disable => 'Disable';
 
   @override
-  String get settings_download => 'Go to download';
+  String get settings_download => 'Download & install';
 
   @override
   String get settings_download_confirm_body =>

@@ -111,7 +111,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(shown, isTrue);
 
-    await tester.tap(find.text('前往下载'));
+    await tester.tap(find.text('下载并安装'));
     await tester.pumpAndSettle();
 
     expect(launched, isNotEmpty,

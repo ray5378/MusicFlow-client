@@ -198,7 +198,7 @@ void main() {
       expect(shown, isTrue);
       expect(find.text('发现新版本 3.5.0'), findsOneWidget);
       // Windows 平台挑单文件安装包（绿色版 zip 已下线）。
-      await tester.tap(find.text('前往下载'));
+      await tester.tap(find.text('下载并安装'));
       await tester.pumpAndSettle();
       expect(launched, <String>['https://example.test/windows-setup.exe']);
       debugDefaultTargetPlatformOverride = null;
@@ -223,7 +223,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('前往下载'));
+      await tester.tap(find.text('下载并安装'));
       await tester.pumpAndSettle();
       expect(launched, <String>['https://example.test/android.apk']);
       debugDefaultTargetPlatformOverride = null;

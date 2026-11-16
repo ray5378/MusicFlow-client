@@ -725,7 +725,7 @@ abstract class AppLocalizations {
   /// No description provided for @settings_download.
   ///
   /// In zh, this message translates to:
-  /// **'前往下载'**
+  /// **'下载并安装'**
   String get settings_download;
 
   /// No description provided for @settings_download_confirm_body.
