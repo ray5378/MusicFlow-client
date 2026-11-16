@@ -29,6 +29,7 @@ import 'package:musicflow_client/providers/ui/nav_order_provider.dart';
 import 'package:musicflow_client/providers/ui/navigation_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/random_songs_push_provider.dart';
+import 'package:musicflow_client/providers/media/notification_lyrics_provider.dart';
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
 import 'package:musicflow_client/widgets/app_drawer.dart';
 import 'package:musicflow_client/widgets/music_flow_app_shell/connection_beacon.dart';
@@ -169,6 +170,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     _initTrayListener();
     // 激活 Windows 桌面歌词控制器(启动时恢复开关状态并监听歌词)。
     ref.read(statusLyricsControllerProvider);
+    // 激活 Android 通知栏实时歌词控制器(仅移动平台真正监听,桌面为 no-op)。
+    ref.read(notificationLyricsControllerProvider);
     // 激活随机歌曲歌单「服务端推送」客户端:连接主项目 WebSocket,收到
     // random-songs-changed 信号时通知客户端按需重拉,替代客户端轮询。
     ref.read(randomSongsPushProvider);

@@ -168,6 +168,21 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
+  /// 通知栏实时歌词：把当前歌词行写进媒体通知的 displayDescription
+  /// （audio_service 原生侧映射为 MediaStyle 的 setSubText，展开态第三行）。
+  /// 只动 metadata、不碰 playbackState —— 进度条与播放态仍由
+  /// positionStream/playingStream 自行推进，歌词更新不会打断它们。
+  /// 无歌词行时回落专辑名（清掉上一首的残留歌词行）。由
+  /// notificationLyricsControllerProvider 逐行调用；切歌时新 MediaItem
+  /// 不带 displayDescription，通知自动回到专辑名。
+  void updateNotificationLyric(String? lyric) {
+    final item = mediaItem.valueOrNull;
+    if (item == null) return;
+    final next = applyNotificationLyric(item: item, lyric: lyric);
+    if (next == null) return;
+    mediaItem.add(next);
+  }
+
   // ===== 播放控制 =====
 
   @override
@@ -245,6 +260,28 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   Future<void> dispose() async {
     await _audioPlayer.dispose();
   }
+}
+
+/// 纯函数（单测锁定）：算出「写入歌词行后的 MediaItem」，无需更新返回 null。
+/// - [lyric] 非空 → displayDescription 换成该行（与当前相同则不推）；
+/// - [lyric] 为空 → 回落专辑名；当前本来就没在展示歌词（null 或已是专辑名）
+///   时不推，避免每首歌开场多推一帧无意义的 metadata 更新。
+/// 注意 MediaItem.copyWith 的 null 语义是「保持原值」，无法把字段清回 null，
+/// 所以清歌词走「回落专辑名」而不是置空。
+MediaItem? applyNotificationLyric({
+  required MediaItem item,
+  required String? lyric,
+}) {
+  final line = lyric?.trim();
+  if (line != null && line.isNotEmpty) {
+    return line == item.displayDescription
+        ? null
+        : item.copyWith(displayDescription: line);
+  }
+  final album = item.album;
+  final current = item.displayDescription;
+  if (album == null || current == null || current == album) return null;
+  return item.copyWith(displayDescription: album);
 }
 
 /// 初始化 AudioService
