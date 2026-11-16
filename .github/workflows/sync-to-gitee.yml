@@ -7,9 +7,16 @@ name: Sync Release to Gitee
 #   - 版本号唯一来源仍是 git tag；本 workflow 不改 pubspec.yaml / CHANGELOG / 业务代码。
 #   - Gitee 是下游镜像，GitHub 是唯一真源；Gitee 默认分支由本 workflow 幂等设为 main。
 # 触发：
-#   - release published：正式发版后自动同步；
+#   - workflow_run（Build Client completed）：CI 用 GITHUB_TOKEN 创建的 Release 不会
+#     触发 release 事件（GitHub 官方递归限制），workflow_run 不受此限制 —— 发版
+#     workflow 跑完即自动同步。tag push 时 head_branch 就是 tag 名（如 v5.17.0），
+#     仅放行 conclusion=success 且 head_branch 形如 vX.Y.Z 的 run；
+#   - release published：人工发布/补发 Release 时自动同步；
 #   - workflow_dispatch：手动重放同步（用于端到端验证，不会发新版本）。
 on:
+  workflow_run:
+    workflows: ["Build Client"]
+    types: [completed]
   release:
     types: [published]
   workflow_dispatch:
@@ -27,17 +34,27 @@ permissions:
 
 # 同一 tag 的重复触发/手动重跑串行执行，避免并发推送与重复上传。
 concurrency:
-  group: sync-to-gitee-${{ github.event.release.tag_name || inputs.tag || github.run_id }}
+  group: sync-to-gitee-${{ github.event.release.tag_name || inputs.tag || github.event.workflow_run.head_branch || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   mirror:
-    name: Sync ${{ github.event.release.tag_name || inputs.tag || 'latest' }} to Gitee
+    name: Sync ${{ github.event.release.tag_name || inputs.tag || github.event.workflow_run.head_branch || 'latest' }} to Gitee
     runs-on: ubuntu-latest
-    # 两种触发复用同一个 job：dispatch 直接放行；release 事件仅排除草稿。
-    if: github.event_name == 'workflow_dispatch' || github.event.release.draft == false
+    # 三种触发复用同一个 job：
+    #   - dispatch：直接放行；
+    #   - release 事件：排除草稿；
+    #   - workflow_run：仅放行 Build Client 成功、且 head_branch 是 vX.Y.Z 形态
+    #     （Build Client 只在 tag push 时跑，防御式过滤 main 分支的普通 run）。
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && github.event.release.draft == false) ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        matches(github.event.workflow_run.head_branch, '^v[0-9]+\.[0-9]+\.[0-9]+$'))
     env:
       EVENT_TAG: ${{ github.event.release.tag_name }}
+      WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
       INPUT_TAG: ${{ inputs.tag }}
       GITEE_OWNER: ray5378
       GITEE_REPO: music-flow-client
@@ -52,8 +69,10 @@ jobs:
           # 不把 GITHUB_TOKEN 持久化进 .git/config；Gitee 认证用下面的临时 credential helper。
           persist-credentials: false
 
-      # 单一入口解析 tag 与 Release 元数据，release / dispatch 两条触发路径在此汇合，
-      # 后续步骤只认 $TAG，不存在两套分叉逻辑。
+      # 单一入口解析 tag 与 Release 元数据，workflow_run / release / dispatch 三条触发
+      # 路径在此汇合，后续步骤只认 $TAG，不存在多套分叉逻辑。
+      # 优先级：dispatch 输入 > release 事件 tag > workflow_run 的 head_branch
+      # （tag push 时即 tag 名）> GitHub 最新 Release。
       - name: Resolve tag and release metadata
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,11 +82,13 @@ jobs:
             TAG="${INPUT_TAG}"
           elif [ -n "${EVENT_TAG}" ]; then
             TAG="${EVENT_TAG}"
+          elif [ -n "${WORKFLOW_RUN_BRANCH}" ]; then
+            TAG="${WORKFLOW_RUN_BRANCH}"
           else
             TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
           fi
           if [ -z "${TAG}" ]; then
-            echo "::error::无法确定要同步的 tag（dispatch 输入与 release 事件均为空）。"
+            echo "::error::无法确定要同步的 tag（dispatch 输入 / release 事件 / workflow_run head_branch 均为空）。"
             exit 1
           fi
 
