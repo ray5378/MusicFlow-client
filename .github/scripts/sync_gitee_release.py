@@ -26,10 +26,23 @@ import urllib.request
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+# stdout 在 CI 里是管道（块缓冲）：不显式开行缓冲的话，中间进度全部滞留在
+# 缓冲区里，一旦卡住日志一片空白（v5.17.0 实测 28 分钟零输出）。
+# line_buffering 让每次 print 立即落盘，配合下面的超时才能定位卡点。
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except (AttributeError, ValueError):  # stdout 被替换成非常规对象时兜底
+    pass
+
 API_BASE = "https://gitee.com/api/v5"
 MAX_ATTEMPTS = 4
 RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
-REQUEST_TIMEOUT_SECONDS = 180
+# 普通请求（GET/PATCH/POST JSON）的单次 socket 空闲超时：挂起转异常走重试。
+REQUEST_TIMEOUT_SECONDS = 60
+# attach_files 大文件上传：urlopen 的 timeout 是「单次 socket 操作空闲上限」
+# 而非总时长——慢速但持续推进的传输不会触发，只惩罚真挂起；挂起转异常后
+# 走既有的指数退避重试（重试会从头传该文件）。
+UPLOAD_TIMEOUT_SECONDS = 900
 
 
 class SyncError(RuntimeError):
@@ -168,8 +181,13 @@ class GiteeReleaseSync:
                 url, data=body, headers=headers, method=method
             )
             try:
+                request_timeout = (
+                    UPLOAD_TIMEOUT_SECONDS
+                    if files is not None
+                    else REQUEST_TIMEOUT_SECONDS
+                )
                 with urllib.request.urlopen(
-                    request, timeout=REQUEST_TIMEOUT_SECONDS
+                    request, timeout=request_timeout
                 ) as response:
                     raw = response.read().decode("utf-8", errors="replace")
                 if not raw.strip():
@@ -197,7 +215,13 @@ class GiteeReleaseSync:
                         f"{target} 网络失败（tag={self.tag}）：{last_error}"
                     ) from exc
 
-            time.sleep(min(2 ** (attempt - 1), 8))
+            wait = min(2 ** (attempt - 1), 8)
+            print(
+                f"{target} 第 {attempt}/{MAX_ATTEMPTS} 次尝试失败，"
+                f"{wait}s 后重试：{last_error}",
+                flush=True,
+            )
+            time.sleep(wait)
 
         raise SyncError(
             f"{target} 重试 {MAX_ATTEMPTS} 次仍失败（tag={self.tag}）：{last_error}"
@@ -287,6 +311,12 @@ class GiteeReleaseSync:
                         break
 
                 try:
+                    started = time.monotonic()
+                    print(
+                        f"tag={self.tag}：开始上传 {asset.name}"
+                        f"（{len(data)} 字节，第 {attempt}/{MAX_ATTEMPTS} 次尝试）",
+                        flush=True,
+                    )
                     self._request(
                         "POST",
                         path,
@@ -295,9 +325,11 @@ class GiteeReleaseSync:
                             ("file", (asset.name, data)),
                         ],
                     )
+                    elapsed = time.monotonic() - started
                     print(
                         f"tag={self.tag}：已上传附件 {asset.name}"
-                        f"（{len(data)} 字节）"
+                        f"（{len(data)} 字节，耗时 {elapsed:.1f}s）",
+                        flush=True,
                     )
                     known.add(asset.name)
                     break
@@ -306,7 +338,13 @@ class GiteeReleaseSync:
                         raise SyncError(
                             f"上传附件 {asset.name} 失败（tag={self.tag}）：{exc}"
                         ) from exc
-                    time.sleep(2 ** (attempt - 1))
+                    wait = 2 ** (attempt - 1)
+                    print(
+                        f"tag={self.tag}：附件 {asset.name} 第 {attempt} 次上传失败，"
+                        f"{wait}s 后重试：{exc}",
+                        flush=True,
+                    )
+                    time.sleep(wait)
 
     def ensure_default_branch(self) -> None:
         """每次同步都 PATCH 默认分支为 main，再 GET 复查结果。
