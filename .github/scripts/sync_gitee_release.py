@@ -111,6 +111,18 @@ class GiteeReleaseSync:
         buffer.extend(f"--{boundary}--\r\n".encode("utf-8"))
         return bytes(buffer), f"multipart/form-data; boundary={boundary}"
 
+    @staticmethod
+    def _encode_form(fields: Dict[str, Any]) -> bytes:
+        """按 Gitee Swagger 的 formData 契约编码请求体。
+
+        布尔值转成小写 true/false（Python 默认会生成 True/False）。
+        """
+        normalized = {
+            key: ("true" if value else "false") if isinstance(value, bool) else value
+            for key, value in fields.items()
+        }
+        return urllib.parse.urlencode(normalized).encode("utf-8")
+
     def _request(
         self,
         method: str,
@@ -118,12 +130,17 @@ class GiteeReleaseSync:
         *,
         query: Optional[Dict[str, str]] = None,
         payload: Optional[Dict[str, Any]] = None,
+        form: Optional[Dict[str, Any]] = None,
         files: Optional[Sequence[Tuple[str, Any]]] = None,
     ) -> Any:
         """发起带重试的 Gitee API 请求，返回解析后的 JSON（可能为 None）。
 
-        token 通过 query / JSON body / multipart 字段传入，始终在进程内部构造，
-        绝不会出现在命令行参数中。日志里的目标标识只含 method + path。
+        token 通过 query / JSON body / form body / multipart 字段传入，始终在进程内部
+        构造，绝不会出现在命令行参数中。日志里的目标标识只含 method + path。
+
+        Gitee Swagger 契约：POST /releases 声明 consumes: application/json；
+        PATCH /repos/{owner}/{repo} 与 PATCH /releases/{id} 的参数全是 formData 且
+        未声明 JSON consumes，必须走 application/x-www-form-urlencoded。
         """
         url = f"{self.api_base}{path}"
         if query:
@@ -134,6 +151,11 @@ class GiteeReleaseSync:
         if payload is not None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             headers["Content-Type"] = "application/json; charset=utf-8"
+        elif form is not None:
+            body = self._encode_form(form)
+            headers["Content-Type"] = (
+                "application/x-www-form-urlencoded; charset=utf-8"
+            )
         elif files is not None:
             body, content_type = self._encode_multipart(files)
             headers["Content-Type"] = content_type
@@ -220,7 +242,7 @@ class GiteeReleaseSync:
             "prerelease": self.prerelease,
         }
         try:
-            self._request("PATCH", path, payload=payload)
+            self._request("PATCH", path, form=payload)
             return True
         except SyncError as exc:
             print(f"::warning::Gitee Release 描述刷新失败（不影响同步）：{exc}")
@@ -292,7 +314,8 @@ class GiteeReleaseSync:
         PATCH 本身幂等（重复设置为同一值无副作用），因此不做“已是 main 就跳过”
         的短路，确保任何一次同步都会把仓库收敛到 main。
         Gitee 的 PATCH /repos/{owner}/{repo} 要求同时提供 name 字段；
-        default_branch 参数即“更新默认分支”。main 分支已由上一个 step 推送。
+        default_branch 参数即“更新默认分支”。按 Swagger 契约这两个字段都是
+        formData，需以 x-www-form-urlencoded 提交。main 分支已由上一个 step 推送。
         """
         repo_path = f"/repos/{self.owner}/{self.repo}"
         before = self._request(
@@ -311,7 +334,7 @@ class GiteeReleaseSync:
         patched = self._request(
             "PATCH",
             repo_path,
-            payload={
+            form={
                 "access_token": self.token,
                 "name": self.repo,
                 "default_branch": self.target_commitish,

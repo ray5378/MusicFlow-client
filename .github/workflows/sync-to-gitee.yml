@@ -141,9 +141,9 @@ jobs:
           # 只推 GitHub main 与本次 tag，不主动推 master。
           # Gitee 当前只有 master（初始化桩提交）且 0 tag，main 为新建分支；
           # 默认分支切换由下面的 Python 助手通过 Gitee API 幂等完成。
-          git push --atomic gitee \
-            "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}" \
-            "refs/tags/${TAG}:refs/tags/${TAG}"
+          # 不用 --atomic：Gitee 服务端未必支持 atomic push，分开推更容易定位失败。
+          git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"
+          git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"
 
           rm -f "${helper}"
           echo "源码 + tag ${TAG} 已推送到 Gitee（main）。"
