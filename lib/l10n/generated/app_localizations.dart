@@ -5522,6 +5522,18 @@ abstract class AppLocalizations {
   /// **'已切换线路：{name}'**
   String core_network_switched_notice(String name);
 
+  /// core_notification_favorite
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get core_notification_favorite;
+
+  /// core_notification_unfavorite
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏'**
+  String get core_notification_unfavorite;
+
   /// core_pull_to_refresh
   ///
   /// In zh, this message translates to:

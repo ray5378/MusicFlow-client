@@ -3192,6 +3192,14 @@
       }
     }
   },
+  "core_notification_favorite": "收藏",
+  "@core_notification_favorite": {
+    "description": "core_notification_favorite"
+  },
+  "core_notification_unfavorite": "取消收藏",
+  "@core_notification_unfavorite": {
+    "description": "core_notification_unfavorite"
+  },
   "core_pull_to_refresh": "下拉刷新",
   "@core_pull_to_refresh": {
     "description": "core_pull_to_refresh"

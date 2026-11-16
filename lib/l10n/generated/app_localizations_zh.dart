@@ -3039,6 +3039,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get core_notification_favorite => '收藏';
+
+  @override
+  String get core_notification_unfavorite => '取消收藏';
+
+  @override
   String get core_pull_to_refresh => '下拉刷新';
 
   @override

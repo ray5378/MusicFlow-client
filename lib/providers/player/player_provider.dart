@@ -664,6 +664,13 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       // 通知栏/锁屏的播放键绕开本 notifier 直接驱动 just_audio，必须让它
       // 先问一句「现在还有歌吗」—— 否则清空会话后仍能从系统播控中心出声。
       _audioHandler?.canPlay = () => state.currentSong != null;
+      // 通知栏心形按钮：只做转发，业务判定统一走 toggleSongFavorite
+      // （它负责服务端落库、队列与当前曲的就地更新、收藏类 provider 失效）。
+      _audioHandler?.onToggleFavorite = () {
+        final currentSong = state.currentSong;
+        if (currentSong == null) return Future<bool?>.value(null);
+        return toggleSongFavorite(currentSong);
+      };
     } catch (e) {
       Logger.warn('AudioService not available: $e');
       // 缓冲标定取全 App 单一常量源（原两份复制粘贴，2026-10-13 合并，防漂移）。
@@ -1771,6 +1778,9 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       artUri: safeCoverArtUrl != null && safeCoverArtUrl.isNotEmpty
           ? Uri.parse(safeCoverArtUrl)
           : null,
+      // 通知栏心形的初值：handler 不持有 Songs 模型，只能靠 extras 带过去
+      // （Bundle 只安全承载基础类型，用 '1'/'0' 而不是 bool）。
+      extras: {'starred': song.starred ? '1' : '0'},
     );
 
     _audioHandler?.updateMediaItem(mediaItem);
@@ -3147,6 +3157,10 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       currentSong: updatedCurrentSong,
       queue: updatedQueue,
     );
+    // 通知栏心形跟着亮/灭：当前曲被收藏时才有可对齐的图标状态。
+    if (updatedCurrentSong != null && updatedCurrentSong.id == song.id) {
+      _audioHandler?.setFavoriteState(newStarred);
+    }
     _favoriteHandler.invalidateFavoriteProviders(albumId: song.albumId);
     return newStarred;
   }
@@ -3180,6 +3194,10 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       currentSong: updatedCurrentSong,
       queue: updatedQueue,
     );
+    // 别的端点了红心：通知栏心形也要同步亮/灭。
+    if (currentSong != null && currentSong.id == songId) {
+      _audioHandler?.setFavoriteState(starred);
+    }
     _favoriteHandler.invalidateFavoriteProviders(albumId: updatedCurrentSong?.albumId);
   }
 

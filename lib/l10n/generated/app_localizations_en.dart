@@ -3195,6 +3195,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get core_notification_favorite => 'Add to favorites';
+
+  @override
+  String get core_notification_unfavorite => 'Remove from favorites';
+
+  @override
   String get core_pull_to_refresh => 'Pull to refresh';
 
   @override

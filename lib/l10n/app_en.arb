@@ -3192,6 +3192,14 @@
       }
     }
   },
+  "core_notification_favorite": "Add to favorites",
+  "@core_notification_favorite": {
+    "description": "core_notification_favorite"
+  },
+  "core_notification_unfavorite": "Remove from favorites",
+  "@core_notification_unfavorite": {
+    "description": "core_notification_unfavorite"
+  },
   "core_pull_to_refresh": "Pull to refresh",
   "@core_pull_to_refresh": {
     "description": "core_pull_to_refresh"

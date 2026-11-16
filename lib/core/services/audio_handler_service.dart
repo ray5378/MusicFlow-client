@@ -2,12 +2,40 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:musicflow_client/core/l10n/localizations.dart';
 import 'package:musicflow_client/core/player/audio_load_config.dart';
 import 'package:musicflow_client/core/services/notification_permission_service.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/core/theme/color_scheme.dart';
 
 const musicFlowPlaybackSystemActions = <MediaAction>{MediaAction.seek};
+
+/// 通知栏收藏按钮的 custom action 名：`MediaControl.custom(name:)` 与
+/// [MusicFlowAudioHandler.customAction] 的 `name` 必须一致，系统点击后原样回传。
+const String kNotificationFavoriteAction = 'toggleFavorite';
+
+/// 收藏已开启（实心红心）的 Android drawable 资源名。
+const String kNotificationFavoriteIconOn = 'drawable/ic_notif_favorite';
+
+/// 收藏未开启（空心红心）的 Android drawable 资源名。
+const String kNotificationFavoriteIconOff = 'drawable/ic_notif_favorite_border';
+
+/// 通知栏收藏按钮（纯函数，单测锁定图标/名称/文案契约）。
+///
+/// 图标只能是「包内 drawable 资源名」：SystemUI 用
+/// `Icon.createWithResource(packageName, customAction.icon)` 加载，资源缺失
+/// 时按钮会变成空白方块——两个 drawable 必须随代码一起打包。
+MediaControl notificationFavoriteControl({
+  required bool starred,
+  required String label,
+}) {
+  return MediaControl.custom(
+    androidIcon:
+        starred ? kNotificationFavoriteIconOn : kNotificationFavoriteIconOff,
+    label: label,
+    name: kNotificationFavoriteAction,
+  );
+}
 
 /// 音频处理器 - 处理后台播放和通知栏控制
 class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
@@ -29,6 +57,20 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   /// 按一下播放就能让已清空的会话出声，而 App 内迷你条正显示「未在播放」。
   /// 默认 true（未注册时不改变原有行为）。
   bool Function()? canPlay;
+
+  /// 「切换当前歌收藏」——由上层（PlayerNotifier）注册。
+  ///
+  /// 通知栏心形按钮点下去走的是原生 → [customAction]，本 handler 拿不到
+  /// 收藏的业务依赖（队列、服务端接口、本地镜像）；所以只做转发，返回切换后
+  /// 的 starred（失败返回 null，图标保持原样）。未注册时按钮点击静默无操作。
+  Future<bool?> Function()? onToggleFavorite;
+
+  /// 当前歌是否已收藏：决定通知栏心形是实心还是空心。
+  ///
+  /// 唯一真源是播放状态里的 `Song.starred`，本 handler 只缓存一份用于画图标；
+  /// 每次切歌由 [updateMediaItem] 从 MediaItem.extras 重置，其它入口（迷你条、
+  /// 列表页、服务端推送）改收藏后由上层调 [setFavoriteState] 对齐。
+  bool _favoriteStarred = false;
   Duration _positionOffset = Duration.zero;
 
   /// 投屏/直投期间的合成进度：本机已暂停，位置不再自增，改为由投屏侧进度驱动，
@@ -123,12 +165,56 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   }
 
   /// 获取控制按钮
+  ///
+  /// 收藏按钮排在最后：Android 13 的 SystemUI 把标准键填进前三个槽
+  /// （play / next / prev），自定义 action 只会落到展开态的第 4、5 个槽
+  /// （AOSP `MediaDataManager.createMediaButton`）。所以它只出现在下拉展开后
+  /// 的一排按钮里，不挤占折叠态那三个常用键。
   List<MediaControl> _getControls(bool playing) {
     return [
       MediaControl.skipToPrevious,
       if (playing) MediaControl.pause else MediaControl.play,
       MediaControl.skipToNext,
+      _favoriteControl(),
     ];
+  }
+
+  /// 收藏按钮：文案随语言偏好走 [l10nNowCurrent]（handler 没有 BuildContext；
+  /// CI 的 `check-l10n.mjs --gate-cjk` 禁止硬编码文案）。
+  MediaControl _favoriteControl() {
+    final loc = l10nNowCurrent();
+    return notificationFavoriteControl(
+      starred: _favoriteStarred,
+      label: _favoriteStarred
+          ? loc.core_notification_unfavorite
+          : loc.core_notification_favorite,
+    );
+  }
+
+  /// 同步通知栏心形状态（收藏可能从任何入口改变：通知按钮、迷你条、列表页、
+  /// 其它端推送）。变化时重推一次 playbackState —— 图标不同即
+  /// [MediaControl] 不相等，原生侧才会更新按钮。
+  void setFavoriteState(bool starred) {
+    if (_favoriteStarred == starred) return;
+    _favoriteStarred = starred;
+    _broadcastState();
+  }
+
+  /// 接收通知栏自定义按钮点击：目前只有收藏。
+  ///
+  /// 只转发给 [onToggleFavorite]，拿返回值后再对一次图标——业务侧虽然也会
+  /// 调 [setFavoriteState]，但这里兜底能保证「点了就该变」的直觉行为不会
+  /// 因为上层某条路径漏同步而失效（幂等，重复设置同值直接早退）。
+  @override
+  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (name == kNotificationFavoriteAction) {
+      final toggle = onToggleFavorite;
+      if (toggle == null) return null;
+      final next = await toggle();
+      if (next != null) setFavoriteState(next);
+      return null;
+    }
+    return super.customAction(name, extras);
   }
 
   /// 获取处理状态
@@ -158,6 +244,10 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   @override
   Future<void> updateMediaItem(MediaItem item) async {
     _baseMediaItem = item;
+    // 收藏状态随曲目重置：extras 由 player_provider 按 Song.starred 写成
+    // '1'/'0'（Bundle 只安全承载基础类型）。这里必须在下面那次 playbackState
+    // 广播之前赋值，否则新歌第一帧的心形会沿用上一首的状态。
+    _favoriteStarred = item.extras?['starred'] == '1';
     // 立刻按通知栏形态推送（主标题「歌名 - 歌手」+ 副标题歌手），不等第一句
     // 歌词：切歌瞬间通知栏与锁屏就是最终布局，不会先闪一下纯歌名。
     mediaItem.add(applyNotificationLyric(base: item, lyric: null) ?? item);
