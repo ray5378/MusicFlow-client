@@ -460,6 +460,7 @@
     }
   },
   "settings_update_download_cancel": "取消下载",
+  "settings_update_download_background": "后台下载",
   "settings_update_download_failed": "下载失败：{reason}",
   "@settings_update_download_failed": {
     "description": "下载失败原因",
@@ -3146,6 +3147,9 @@
   "search_add_to_library": "加入库",
   "search_scope_title": "搜索范围",
   "search_scope_select_title": "选择搜索范围",
+  "connection_beacon_connecting": "连接中…",
+  "connection_beacon_reconnecting": "连接已断开，正在重连",
+  "connection_beacon_connected": "已连接",
   "core_back": "返回",
   "@core_back": {
     "description": "core_back"

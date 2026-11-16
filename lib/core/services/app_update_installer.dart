@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
@@ -12,6 +13,7 @@ import 'package:musicflow_client/core/services/update_checker.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/features/settings/widgets/update_download_sheet.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/settings/update_download_provider.dart';
 
 const String _logTag = 'APP_UPDATE';
 
@@ -24,8 +26,11 @@ const String _logTag = 'APP_UPDATE';
 ///    回来后**必须再查一次**（用户可能点了返回没开）；
 /// 3. 通知权限（Android 13+）—— 未授权**不阻断**，但要如实告诉用户
 ///    通知栏不会有进度；
-/// 4. 弹下载浮层：后台由系统 DownloadManager 下载 + 通知栏进度；
-/// 5. 下完校验通过 → `installApk(path)` 唤起系统安装器。
+/// 4. **去重 + 启动下载**：[UpdateDownloadController] 是下载的唯一入口 ——
+///    同一版本已在下载 / 已下好时**不新建 service、不重下**，只弹浮层；
+/// 5. 弹下载浮层：后台由系统 DownloadManager 下载 + 通知栏进度（浮层只是
+///    展示层，拖掉它不影响下载）；
+/// 6. 下完校验通过 → 回到前台时 `installApk(path)` 唤起系统安装器。
 ///
 /// ## 清理安装包的三个时机（顺序不能乱）
 ///
@@ -97,6 +102,29 @@ class AppUpdateInstaller {
     if (!context.mounted) return;
 
     final loc = AppLocalizations.of(context);
+
+    final container = ProviderScope.containerOf(context, listen: false);
+    final controller = container.read(updateDownloadControllerProvider.notifier);
+
+    // 无条件交给 controller.start()：它内部已经覆盖三种情况
+    //   ① 同版本在下载 → 只记依赖（供 installNow/retry 复用），不重下；
+    //   ② 同版本已下好 → 记依赖 + 自动唤装；
+    //   ③ 新版本 → 真正开下。
+    // 调用方再分叉一次只会漏掉依赖注入（历史上就是这里漏的：
+    // 走了「复用」分支不调 start()，于是浮层里「再次安装」拿不到 installer）。
+    await controller.start(
+      asset: asset,
+      version: result.latestVersion,
+      installer: apkInstaller,
+      downloadService: downloadService,
+      notificationGranted: notificationGranted,
+      notificationTitle: loc.settings_update_found_version(
+        result.latestVersion,
+      ),
+      notificationDescription: loc.settings_update_downloading,
+    );
+    if (!context.mounted) return;
+
     await showUpdateDownloadSheet(
       context,
       asset: asset,
@@ -212,7 +240,7 @@ class AppUpdateInstaller {
     );
     if (!opened) return false;
     // 从设置页回来是**异步**的：必须先等到 resumed，再复查一次权限。
-    await _waitForAppResume();
+    await waitForAppResume();
     final now = await installer.canRequestPackageInstalls(
       platform: platform,
       isWeb: isWeb,
@@ -229,7 +257,11 @@ class AppUpdateInstaller {
   }
 
   /// 等到 App 从后台回到前台（超时按已回来处理，让后续复查给出结论）。
-  static Future<void> _waitForAppResume({
+  ///
+  /// 公开给 [UpdateDownloadController] 复用：「安装未知应用」授权缺失时，
+  /// 控制器同样需要「跳设置页 → 等回前台 → 复查授权 → 自动重试一次」，
+  /// 这段时序必须只有一份实现，否则两处迟早走偏。
+  static Future<void> waitForAppResume({
     Duration timeout = const Duration(seconds: 45),
   }) async {
     if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {

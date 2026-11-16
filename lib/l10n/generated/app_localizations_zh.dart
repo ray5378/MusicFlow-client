@@ -745,6 +745,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settings_update_download_cancel => '取消下载';
 
   @override
+  String get settings_update_download_background => '后台下载';
+
+  @override
   String settings_update_download_failed(String reason) {
     return '下载失败：$reason';
   }
@@ -2997,6 +3000,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get search_scope_select_title => '选择搜索范围';
+
+  @override
+  String get connection_beacon_connecting => '连接中…';
+
+  @override
+  String get connection_beacon_reconnecting => '连接已断开，正在重连';
+
+  @override
+  String get connection_beacon_connected => '已连接';
 
   @override
   String get core_back => '返回';

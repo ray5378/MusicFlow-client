@@ -800,6 +800,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settings_update_download_cancel => 'Cancel download';
 
   @override
+  String get settings_update_download_background => 'Download in background';
+
+  @override
   String settings_update_download_failed(String reason) {
     return 'Download failed: $reason';
   }
@@ -3152,6 +3155,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get search_scope_select_title => 'Select a search scope';
+
+  @override
+  String get connection_beacon_connecting => 'Connecting…';
+
+  @override
+  String get connection_beacon_reconnecting => 'Connection lost, reconnecting';
+
+  @override
+  String get connection_beacon_connected => 'Connected';
 
   @override
   String get core_back => 'Back';

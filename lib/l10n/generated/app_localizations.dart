@@ -1438,6 +1438,12 @@ abstract class AppLocalizations {
   /// **'取消下载'**
   String get settings_update_download_cancel;
 
+  /// No description provided for @settings_update_download_background.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台下载'**
+  String get settings_update_download_background;
+
   /// 下载失败原因
   ///
   /// In zh, this message translates to:
@@ -5449,6 +5455,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'选择搜索范围'**
   String get search_scope_select_title;
+
+  /// No description provided for @connection_beacon_connecting.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接中…'**
+  String get connection_beacon_connecting;
+
+  /// No description provided for @connection_beacon_reconnecting.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接已断开，正在重连'**
+  String get connection_beacon_reconnecting;
+
+  /// No description provided for @connection_beacon_connected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已连接'**
+  String get connection_beacon_connected;
 
   /// core_back
   ///

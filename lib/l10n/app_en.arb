@@ -460,6 +460,7 @@
     }
   },
   "settings_update_download_cancel": "Cancel download",
+  "settings_update_download_background": "Download in background",
   "settings_update_download_failed": "Download failed: {reason}",
   "@settings_update_download_failed": {
     "description": "Reason the download failed",
@@ -3146,6 +3147,9 @@
   "search_add_to_library": "Add to library",
   "search_scope_title": "Search scope",
   "search_scope_select_title": "Select a search scope",
+  "connection_beacon_connecting": "Connecting…",
+  "connection_beacon_reconnecting": "Connection lost, reconnecting",
+  "connection_beacon_connected": "Connected",
   "core_back": "Back",
   "@core_back": {
     "description": "core_back"

@@ -23,6 +23,7 @@ import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
+import 'package:musicflow_client/providers/settings/update_download_provider.dart';
 import 'package:musicflow_client/providers/ui/theme_provider.dart';
 import 'package:musicflow_client/providers/ui/locale_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -49,6 +50,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   bool _autoPlayOnLaunch = false;
   bool _defaultControlCurrentClient = false;
   bool _loggingEnabled = false;
+
+  /// 最近一次「发现新版本」的检测结果。
+  ///
+  /// 下载控制器里只有下载状态、没有 [ReleaseAsset] / 版本上下文，所以
+  /// 「下载中」这一行没法自己把进度浮层重新弹出来。这里留一份结果，
+  /// 用户再点一次时重走 [AppUpdateInstaller.install]（其内部同版本去重
+  /// 分支会发现「正在下 / 已下好」并直接把浮层展示出来，不会重下）。
+  UpdateCheckResult? _lastResult;
 
   @override
   void initState() {
@@ -79,6 +88,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
       if (!mounted) return;
 
       if (result.hasUpdate) {
+        _lastResult = result;
         _showUpdateDialog(result);
       } else {
         final loc = AppLocalizations.of(context);
@@ -322,6 +332,63 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   }) {
     if (!mounted) return;
     showMusicFlowMessage(context, message, kind: kind);
+  }
+
+  /// 「下载中」这一行被点：把进度浮层重新弹出来。
+  ///
+  /// 控制器不持有 [ReleaseAsset]，没法直接弹浮层，所以借上次的检测结果重走
+  /// [AppUpdateInstaller.install]：它内部会先问控制器，同版本「正在下」或
+  /// 「已下好」都直接展示浮层，**不会重下几十 MB**。
+  ///
+  /// 没有历史结果（例如本次启动由「启动结算」直接灌进 completed 态）时，
+  /// 退回重新检查一次更新，让用户拿到完整的更新对话框。
+  void _reopenProgressSheet() {
+    final result = _lastResult;
+    if (result == null) {
+      unawaited(_checkForUpdates());
+      return;
+    }
+    unawaited(_startBuiltInUpdate(result));
+  }
+
+  /// 「已就绪」这一行被点：唤起系统安装器。
+  ///
+  /// [UpdateDownloadController.installNow] 返回 false 说明安装器没被拉起
+  /// （缺「安装未知应用」授权、包被系统清理等），给一条稳定提示，
+  /// 原文已经进 Logger 了。
+  Future<void> _installReadyUpdate() async {
+    // 先取好本地化再 await：避免 await 之后碰 BuildContext。
+    final loc = AppLocalizations.of(context);
+    final opened = await ref
+        .read(updateDownloadControllerProvider.notifier)
+        .installNow();
+    if (opened) return;
+    // mounted 由 _showMessage 内部兜住。
+    _showMessage(
+      loc.settings_update_install_open_failed,
+      kind: MusicFlowMessageKind.error,
+    );
+  }
+
+  /// 失败原因只给一句能看懂的：原始 message 已进日志，超长则截断。
+  String _shortReason(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return '-';
+    if (raw.length <= 160) return raw;
+    return '${raw.substring(0, 157)}…';
+  }
+
+  /// 字节数 → 人类可读（与下载浮层同一口径，避免两处显示差一位小数）。
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const units = <String>['B', 'KB', 'MB', 'GB'];
+    var value = bytes.toDouble();
+    var unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    final digits = value >= 100 || unit == 0 ? 0 : 1;
+    return '${value.toStringAsFixed(digits)} ${units[unit]}';
   }
 
   @override
@@ -572,17 +639,91 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                     ),
                     onPressed: () => _pushPage(const LogViewerPage()),
                   ),
-                  MusicFlowSettingRow(
-                    icon: AppIcons.refresh,
-                    title: loc.settings_check_update,
-                    description: loc.settings_check_update_desc,
-                    semanticLabel: _isCheckingUpdate
-                        ? loc.settings_check_update_checking_semantics
-                        : null,
-                    trailing: _isCheckingUpdate
-                        ? const MusicFlowSkeleton.circle(size: 20)
-                        : null,
-                    onPressed: _isCheckingUpdate ? null : _checkForUpdates,
+                  // 更新行四态（只在 Android 内置更新下生效）：
+                  //   空闲/失败 → 「检查更新」
+                  //   下载中   → 「正在下载」+ 百分比（点开会重新弹进度浮层）
+                  //   已就绪   → 「已下载完成」+ 版本（点开唤起系统安装器）
+                  // 非 Android（Windows / Web）退化成改动前那一行，逐字一致。
+                  Consumer(
+                    builder: (rowContext, rowRef, _) {
+                      final rowLoc = AppLocalizations.of(rowContext);
+                      final downloadState = rowRef.watch(
+                        updateDownloadControllerProvider,
+                      );
+                      if (_useBuiltInUpdate) {
+                        switch (downloadState.stage) {
+                          case UpdateDownloadStage.downloading:
+                            return MusicFlowSettingRow(
+                              icon: AppIcons.download,
+                              title: rowLoc.settings_update_downloading,
+                              description: rowLoc
+                                  .settings_update_download_progress(
+                                    '${downloadState.percent}',
+                                    _formatBytes(
+                                      downloadState.progress?.received ?? 0,
+                                    ),
+                                    _formatBytes(
+                                      downloadState.progress?.total ?? 0,
+                                    ),
+                                  ),
+                              trailing: Text(
+                                '${downloadState.percent}%',
+                                style: rowContext.musicFlowTypography.body
+                                    .copyWith(
+                                      color: rowContext.musicFlowColors.muted,
+                                      fontSize: 12,
+                                    ),
+                              ),
+                              onPressed: _reopenProgressSheet,
+                            );
+                          case UpdateDownloadStage.completed:
+                            // 不变式由控制器保证：completed 一定带非空 apkPath
+                            // （结算回来却没扫到包时它自己回落 idle），所以这里
+                            // 不必再判空，避免同一约束在 UI 层重复一份、日后漂移。
+                            final readyVersion = downloadState.version;
+                            return MusicFlowSettingRow(
+                              icon: AppIcons.download,
+                              title: rowLoc.settings_update_download_ready,
+                              description: readyVersion == null
+                                  ? ''
+                                  : rowLoc.settings_update_found_version(
+                                      readyVersion,
+                                    ),
+                              trailing: Icon(
+                                AppIcons.chevronRight,
+                                size: 20,
+                                color: rowContext.musicFlowColors.muted,
+                              ),
+                              onPressed: () => unawaited(_installReadyUpdate()),
+                            );
+                          case UpdateDownloadStage.idle:
+                          case UpdateDownloadStage.failed:
+                            break;
+                        }
+                      }
+                      // 空闲 / 失败（以及检查更新的全平台通用形态）。
+                      // 失败态描述换成「下载失败 + 一句话原因」，
+                      // 点击仍走检查更新：重新检测会拿到新的 result。
+                      final downloadFailed =
+                          _useBuiltInUpdate &&
+                          downloadState.stage == UpdateDownloadStage.failed;
+                      return MusicFlowSettingRow(
+                        icon: AppIcons.refresh,
+                        title: rowLoc.settings_check_update,
+                        description: downloadFailed
+                            ? rowLoc.settings_update_download_failed(
+                                _shortReason(downloadState.errorMessage),
+                              )
+                            : rowLoc.settings_check_update_desc,
+                        semanticLabel: _isCheckingUpdate
+                            ? rowLoc.settings_check_update_checking_semantics
+                            : null,
+                        trailing: _isCheckingUpdate
+                            ? const MusicFlowSkeleton.circle(size: 20)
+                            : null,
+                        onPressed: _isCheckingUpdate ? null : _checkForUpdates,
+                      );
+                    },
                   ),
                   MusicFlowSettingRow(
                     icon: AppIcons.info,

@@ -12,6 +12,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:musicflow_client/app.dart';
 import 'package:musicflow_client/core/network/cover_pressure_observer.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
+import 'package:musicflow_client/providers/settings/update_download_provider.dart';
 import 'package:musicflow_client/providers/ui/app_visibility_provider.dart';
 
 /// 图片内存缓存字节上限。用户拍板固定 128MB（2026-10-08），
@@ -76,9 +77,24 @@ Future<void> main() async {
         return true;
       };
 
+      // 显式持有 container：purgeUpdateArtifacts 的结算结果要灌进
+      // updateDownloadControllerProvider，而它是 fire-and-forget 启动任务，
+      // 拿不到 widget 树的 ref。
+      //
+      // 用 [UncontrolledProviderScope] 而不是 `ProviderScope`：后者会自己
+      // new 一个 container 且外部拿不到，改成外部持有即可。
+      // container 不手动 dispose：进程结束即释放，提前 dispose 反而会让
+      // 后台在途下载的状态没了归处。
+      final container = ProviderContainer();
       // 窗口可见性门控挂在 App 外层：最小化/失焦/切走时停止所有不可见
       // 渲染（TickerMode 全局静音 + appVisibilityProvider 冻结数据驱动 UI）。
-      runApp(const ProviderScope(child: AppVisibilityScope(child: App())));
+      // 层级关系与改动前一致：Scope → AppVisibilityScope → App。
+      runApp(
+        UncontrolledProviderScope(
+          container: container,
+          child: const AppVisibilityScope(child: App()),
+        ),
+      );
 
       // 修复损坏的 SharedPreferences(备份 + 重建干净起点):进程被强杀时
       // prefs 文件可能半写损坏,导致所有设置/播放状态读默认值(表现为
@@ -93,8 +109,23 @@ Future<void> main() async {
       // 安装后那段复查代码大概率根本跑不到。真正兜住的就是这一次启动清理：
       // 靠旁车 meta 判定「meta.version <= 当前运行版本 ⇒ 已经装成功了」。
       //
+      // 顺便把待收尾下载的结算结果灌回下载控制器：上次「下完了但没来得及
+      // 唤装」的包，这次启动后设置页更新行要能直接显示「已就绪，可安装」。
+      //
       // fire-and-forget：清理是锦上添花，绝不阻塞首帧，任何异常都在内部吞掉。
-      unawaited(purgeUpdateArtifacts());
+      unawaited(
+        purgeUpdateArtifacts(
+          onPendingSettled: (outcome, {version, apkPath}) {
+            container
+                .read(updateDownloadControllerProvider.notifier)
+                .restoreFromSettlement(
+                  outcome: outcome,
+                  version: version,
+                  apkPath: apkPath,
+                );
+          },
+        ),
+      );
     },
     (error, stackTrace) {
       Logger.errorWithTag('APP', 'Uncaught zone error', error, stackTrace);

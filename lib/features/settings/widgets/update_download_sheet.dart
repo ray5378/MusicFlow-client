@@ -1,22 +1,32 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/design/music_flow_design.dart';
 import 'package:musicflow_client/core/services/apk_download_service.dart';
 import 'package:musicflow_client/core/services/apk_installer.dart';
 import 'package:musicflow_client/core/services/notification_permission_service.dart';
 import 'package:musicflow_client/core/services/update_checker.dart';
-import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
+import 'package:musicflow_client/providers/settings/update_download_provider.dart';
 
-const String _logTag = 'APK_SHEET';
-
-/// 弹出「下载更新包」浮层，内部自带三态：下载中 / 失败（可重试）/ 完成（自动唤装）。
+/// 弹出「下载更新包」浮层。
 ///
-/// 下载本身交给 [ApkDownloadService]：Android 上走系统 `DownloadManager`
-/// （后台不断 + 通知栏进度），其它平台走 Dio。
+/// ## 这是一个**纯展示**浮层
+///
+/// 下载任务归 [UpdateDownloadController] 所有（与 App 进程同生命周期），
+/// 本浮层只 `ref.watch` 它的状态来画进度 / 失败 / 完成。
+///
+/// 因此：
+///
+/// - **拖掉浮层 ≠ 取消下载**：下载继续（`DownloadManager` 在后台跑，通知栏
+///   仍有进度），下完后照样自动唤装；
+/// - 只有点「取消下载」才会真正打断下载并删包。
+///
+/// `asset` / `installer` / `downloadService` / `notificationGranted` 等参数保留
+/// 只为**兼容既有调用点**：真正的启动动作由调用方（`AppUpdateInstaller`）
+/// 直接调 `controller.start(...)` 完成。
 Future<void> showUpdateDownloadSheet(
   BuildContext context, {
   required ReleaseAsset asset,
@@ -51,8 +61,11 @@ Future<void> showUpdateDownloadSheet(
   );
 }
 
-/// 下载浮层正文（三态）。
-class UpdateDownloadSheet extends StatefulWidget {
+/// 下载浮层正文（四态：下载中 / 失败 / 完成 / 已取消）。
+///
+/// 所有状态都来自 [updateDownloadControllerProvider]，本类**不持有**任何
+/// 下载相关的可变状态，也不发起下载。
+class UpdateDownloadSheet extends ConsumerStatefulWidget {
   const UpdateDownloadSheet({
     super.key,
     required this.asset,
@@ -65,145 +78,65 @@ class UpdateDownloadSheet extends StatefulWidget {
     this.notificationDescription,
   });
 
+  /// 当前要下载的资产（进度文案里「总量」的兜底来源）。
   final ReleaseAsset asset;
   final String latestVersion;
   final String currentVersion;
+
+  /// 保留仅为了兼容既有调用点；下载与唤装现在由控制器负责。
   final ApkInstaller installer;
+
+  /// 保留仅为了兼容既有调用点。
   final ApkDownloadService downloadService;
+
+  /// 通知权限（未授予仍会下载，只是通知栏看不到进度）。
   final bool notificationGranted;
   final String? notificationTitle;
   final String? notificationDescription;
 
   @override
-  State<UpdateDownloadSheet> createState() => _UpdateDownloadSheetState();
+  ConsumerState<UpdateDownloadSheet> createState() =>
+      _UpdateDownloadSheetState();
 }
 
-enum _SheetStage { downloading, failed, completed }
+class _UpdateDownloadSheetState extends ConsumerState<UpdateDownloadSheet> {
+  /// **必须在 `initState` 里先抓成字段**：`ref` 在 `dispose()` 之后不可用，
+  /// 而 `dispose()` 里要通知控制器「浮层已经不在屏上了」。
+  late final UpdateDownloadController _controller;
 
-class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
-  _SheetStage _stage = _SheetStage.downloading;
-  ApkDownloadProgress? _progress;
-  String? _errorMessage;
-  CancelToken? _cancelToken;
-  String? _apkPath;
-  bool _cancelled = false;
+  /// 防止重复 pop（取消提示与用户手动关闭可能撞在一起）。
+  bool _closing = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_start());
+    _controller = ref.read(updateDownloadControllerProvider.notifier);
+    // 不能在 build 期改 provider：等这一帧画完再置可见性。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.setSheetVisible(true);
+    });
   }
 
   @override
   void dispose() {
-    // 页面销毁（用户拖掉浮层）时取消下载，避免后台继续下一份用户已经不想要
-    // 的包。DownloadManager 引擎会连带删掉文件。
-    _cancelToken?.cancel();
+    // ⚠️ 这里只报告"视图关了"。绝**不**取消下载、绝不删包 —— 那正是本文件
+    // 改造前的 bug（拖掉浮层 = 取消下载 + 删包，几十 MB 白下）。
+    //
+    // 也**不能**在这里同步改 provider：`ConsumerStatefulElement.unmount()`
+    // 是「先 `super.unmount()`（触发本 dispose）→ 再关闭订阅」，同步写状态
+    // 会对已经 defunct 的元素 `markNeedsBuild`（debug 断言 / 订阅泄漏）。
+    // 丢进微任务，等 unmount 彻底收尾后再置。
+    final controller = _controller;
+    Future<void>.microtask(() => controller.setSheetVisible(false));
     super.dispose();
   }
 
-  Future<void> _start() async {
-    final token = CancelToken();
-    _cancelToken = token;
-    if (mounted) {
-      setState(() {
-        _stage = _SheetStage.downloading;
-        _errorMessage = null;
-        _progress = null;
-        _cancelled = false;
-      });
-    }
-    try {
-      final file = await widget.downloadService.download(
-        widget.asset,
-        cancelToken: token,
-        version: widget.latestVersion,
-        notificationTitle: widget.notificationTitle,
-        notificationDescription: widget.notificationDescription,
-        onProgress: (progress) {
-          if (!mounted) return;
-          setState(() => _progress = progress);
-        },
-      );
-      if (!mounted) return;
-      _apkPath = file.path;
-      setState(() => _stage = _SheetStage.completed);
-      await _install(file.path);
-    } on ApkDownloadException catch (e) {
-      if (!mounted) return;
-      if (_cancelled) {
-        _popWithCancelNotice();
-        return;
-      }
-      Logger.warnWithTag(_logTag, 'apk download failed: ${e.message}');
-      setState(() {
-        _stage = _SheetStage.failed;
-        _errorMessage = e.message;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      Logger.errorWithTag(_logTag, 'apk download threw', e);
-      setState(() {
-        _stage = _SheetStage.failed;
-        _errorMessage = '$e';
-      });
-    }
-  }
-
-  Future<void> _install(String path) async {
-    final loc = AppLocalizations.of(context);
-    final opened = await widget.installer.installApk(path);
-    if (!mounted) return;
-    if (opened) {
-      showMusicFlowMessage(
-        context,
-        loc.settings_update_install_hint,
-        kind: MusicFlowMessageKind.success,
-      );
-      Navigator.of(context).maybePop();
-      // 辅助复查（大概率跑不到：更新成功后本进程会被系统杀掉替换）。
-      unawaited(_scheduleRecheck(path));
-      return;
-    }
-    showMusicFlowMessage(
-      context,
-      loc.settings_update_install_open_failed,
-      kind: MusicFlowMessageKind.error,
-    );
-    unawaited(widget.installer.openUnknownSourcesSettings());
-  }
-
-  Future<void> _scheduleRecheck(String path) async {
-    try {
-      await Future<void>.delayed(const Duration(seconds: 3));
-      final applied = await widget.downloadService.recheckInstalledVersion(
-        apkPath: path,
-        previousVersion: widget.currentVersion,
-      );
-      if (applied) {
-        Logger.infoWithTag(_logTag, 'update applied, apk purged');
-      }
-    } catch (e) {
-      Logger.debugWithTag(_logTag, 'post-install recheck skipped', e);
-    }
-  }
-
-  void _popWithCancelNotice() {
-    final loc = AppLocalizations.of(context);
-    showMusicFlowMessage(context, loc.settings_update_download_cancelled);
+  /// 只关视图，不碰下载任务。
+  void _closeView() {
+    if (_closing) return;
+    _closing = true;
     Navigator.of(context).maybePop();
-  }
-
-  void _cancel() {
-    if (_cancelled) return;
-    _cancelled = true;
-    _cancelToken?.cancel();
-    // DM 引擎靠轮询里的 isCancelled 分支收尾；dio 引擎靠 CancelToken。
-    // 两者都会自己删半截文件 + 删 meta，所以这里不再动文件。
-  }
-
-  void _retry() {
-    unawaited(_start());
   }
 
   @override
@@ -214,6 +147,20 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
     final textStyle = context.musicFlowTypography.body.copyWith(
       color: colors.muted,
     );
+    final state = ref.watch(updateDownloadControllerProvider);
+
+    // 用户点了「取消下载」：下载层已经把半截包删干净，这里只补一句提示 + 关视图。
+    ref.listen<UpdateDownloadState>(updateDownloadControllerProvider, (
+      previous,
+      next,
+    ) {
+      final cancelled =
+          previous?.stage == UpdateDownloadStage.downloading &&
+          next.stage == UpdateDownloadStage.idle;
+      if (!cancelled || !mounted) return;
+      showMusicFlowMessage(context, loc.settings_update_download_cancelled);
+      _closeView();
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -233,7 +180,7 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
           const MusicFlowDivider(),
         ],
         SizedBox(height: spacing.sm),
-        ..._buildBody(context, loc, textStyle, spacing),
+        ..._buildBody(context, loc, textStyle, spacing, state),
       ],
     );
   }
@@ -243,10 +190,11 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
     AppLocalizations loc,
     TextStyle textStyle,
     MusicFlowSpacing spacing,
+    UpdateDownloadState state,
   ) {
-    switch (_stage) {
-      case _SheetStage.downloading:
-        final progress = _progress;
+    switch (state.stage) {
+      case UpdateDownloadStage.downloading:
+        final progress = state.progress;
         final fraction = progress?.fraction ?? 0.0;
         final percent = (fraction * 100).round();
         return <Widget>[
@@ -279,18 +227,25 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
           SizedBox(height: spacing.lg),
           Wrap(
             alignment: WrapAlignment.end,
+            spacing: spacing.xs,
+            runSpacing: spacing.xs,
             children: <Widget>[
+              // 「取消下载」是真取消（打断下载 + 删包），和「后台下载」语义不同。
               MusicFlowButton.ghost(
                 label: loc.settings_update_download_cancel,
-                onPressed: _cancel,
+                onPressed: _controller.cancel,
+              ),
+              MusicFlowButton.primary(
+                label: loc.settings_update_download_background,
+                onPressed: _closeView,
               ),
             ],
           ),
         ];
-      case _SheetStage.failed:
+      case UpdateDownloadStage.failed:
         return <Widget>[
           Text(
-            loc.settings_update_download_failed(_shortReason(_errorMessage)),
+            loc.settings_update_download_failed(_shortReason(state.errorMessage)),
             style: context.musicFlowTypography.body.copyWith(
               color: context.musicFlowColors.error,
             ),
@@ -303,33 +258,50 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
             children: <Widget>[
               MusicFlowButton.ghost(
                 label: loc.settings_later,
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: _closeView,
               ),
               MusicFlowButton.primary(
                 label: loc.widgets_retry,
                 leadingIcon: AppIcons.refresh,
-                onPressed: _retry,
+                // 参数全在控制器里，浮层不必持有 asset/installer/service。
+                onPressed: () => unawaited(_controller.retry()),
               ),
             ],
           ),
         ];
-      case _SheetStage.completed:
+      case UpdateDownloadStage.completed:
         return <Widget>[
           MusicFlowProgressBar(value: 1, height: 6),
           SizedBox(height: spacing.sm),
           Text(loc.settings_update_download_ready, style: textStyle),
-          if (_apkPath != null) ...<Widget>[
+          if (state.apkPath != null) ...<Widget>[
             SizedBox(height: spacing.lg),
             Wrap(
               alignment: WrapAlignment.end,
               children: <Widget>[
                 MusicFlowButton.primary(
                   label: loc.settings_update_install_again,
-                  onPressed: () => unawaited(_install(_apkPath!)),
+                  onPressed: () => unawaited(_controller.installNow()),
                 ),
               ],
             ),
           ],
+        ];
+      case UpdateDownloadStage.idle:
+        // 正常情况走到这里之前已经被 ref.listen 关掉了；留一个兜底视图，
+        // 避免"取消了但浮层没关"时出现空白面板。
+        return <Widget>[
+          Text(loc.settings_update_download_cancelled, style: textStyle),
+          SizedBox(height: spacing.lg),
+          Wrap(
+            alignment: WrapAlignment.end,
+            children: <Widget>[
+              MusicFlowButton.ghost(
+                label: loc.settings_later,
+                onPressed: _closeView,
+              ),
+            ],
+          ),
         ];
     }
   }
