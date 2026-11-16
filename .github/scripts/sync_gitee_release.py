@@ -287,31 +287,28 @@ class GiteeReleaseSync:
                     time.sleep(2 ** (attempt - 1))
 
     def ensure_default_branch(self) -> None:
-        """幂等地把 Gitee 仓库默认分支设为 main，并复查结果。
+        """每次同步都 PATCH 默认分支为 main，再 GET 复查结果。
 
+        PATCH 本身幂等（重复设置为同一值无副作用），因此不做“已是 main 就跳过”
+        的短路，确保任何一次同步都会把仓库收敛到 main。
         Gitee 的 PATCH /repos/{owner}/{repo} 要求同时提供 name 字段；
         default_branch 参数即“更新默认分支”。main 分支已由上一个 step 推送。
         """
         repo_path = f"/repos/{self.owner}/{self.repo}"
-        repo = self._request(
+        before = self._request(
             "GET", repo_path, query={"access_token": self.token}
         )
-        if not isinstance(repo, dict):
-            raise SyncError(
-                f"读取 Gitee 仓库信息失败（tag={self.tag}）：{self._redact(str(repo)[:300])}"
-            )
-
-        current = str(repo.get("default_branch") or "")
-        if current == self.target_commitish:
-            print(
-                f"Gitee 默认分支已是 {self.target_commitish}，无需修改。"
-            )
-            return
-
-        print(
-            f"Gitee 当前默认分支为 {current or '<空>'}，切换为 {self.target_commitish}。"
+        current = (
+            str(before.get("default_branch") or "")
+            if isinstance(before, dict)
+            else "<读取失败>"
         )
-        self._request(
+        print(
+            f"Gitee 当前默认分支：{current or '<空>'}；"
+            f"本次同步强制收敛为 {self.target_commitish}。"
+        )
+
+        patched = self._request(
             "PATCH",
             repo_path,
             payload={
@@ -320,6 +317,12 @@ class GiteeReleaseSync:
                 "default_branch": self.target_commitish,
             },
         )
+        patched_branch = (
+            str(patched.get("default_branch") or "")
+            if isinstance(patched, dict)
+            else ""
+        )
+        print(f"Gitee PATCH 返回 default_branch={patched_branch or '<未返回>'}")
         verify = self._request(
             "GET", repo_path, query={"access_token": self.token}
         )
@@ -334,7 +337,7 @@ class GiteeReleaseSync:
                 f"{self.target_commitish}，实际 {actual or '<空>'}；"
                 "请在 Gitee 仓库「管理 → 分支设置」中手动设为 main。"
             )
-        print(f"Gitee 默认分支已切换为 {self.target_commitish}。")
+        print(f"Gitee 默认分支已确认为 {self.target_commitish}。")
 
     def run(self) -> str:
         """执行完整同步，返回 Gitee Release 的网页 URL。"""
