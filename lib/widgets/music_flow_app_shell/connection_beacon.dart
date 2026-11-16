@@ -147,7 +147,12 @@ class _ConnectionBeaconState extends ConsumerState<ConnectionBeacon>
             ? Semantics(
                 key: ValueKey<ConnectionBeaconPhase>(state.phase),
                 container: true,
-                liveRegion: true,
+                // 刻意**不**开 `liveRegion`（b43a 真机回归结论，2026-10）：
+                // liveRegion 节点在内容变化时会被系统无障碍服务自动抢焦点，
+                // 厂商无障碍服务的焦点指示器（黄色双线样式）正好画在这行
+                // 文字上 —— 普通用户看到的就是「连接中/已连接」下面凭空
+                // 多出两条平行黄线。禁掉之后视障用户仍可手动聚焦读取
+                // label（container + label 都保留），只是失去自动播报。
                 label: label,
                 child: ExcludeSemantics(
                   child: _buildPill(

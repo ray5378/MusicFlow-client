@@ -5,7 +5,8 @@
 //      并且真的在心跳（扩散环直径随时间从 8 长到 ~24，中心点常亮不缩放）；
 //   2) 绿态：文案 == connected，中心点用 colors.accent；
 //   3) 减少动效：扩散环整个不渲染，只留静态中心点；
-//   4) Semantics：liveRegion == true + 文案进 label；
+//   4) Semantics：liveRegion 关闭（b43a 真机回归：厂商无障碍焦点指示器会在
+//      liveRegion 节点上画双黄线，普通用户可见）且文案仍进 label；
 //   5) hidden：只渲染 SizedBox.shrink，没有可见胶囊。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -229,7 +230,9 @@ void main() {
     }
   });
 
-  testWidgets('Semantics：liveRegion == true 且文案进 label', (tester) async {
+  testWidgets('Semantics：不开 liveRegion（防厂商焦点双黄线）且文案进 label', (
+    tester,
+  ) async {
     final handle = tester.ensureSemantics();
 
     await _pumpBeacon(
@@ -246,7 +249,10 @@ void main() {
         const ValueKey<ConnectionBeaconPhase>(ConnectionBeaconPhase.waiting),
       ),
     );
-    expect(node, containsSemantics(isLiveRegion: true));
+    // b43a 真机结论：liveRegion 节点被系统无障碍服务自动抢焦点时，厂商
+    // 无障碍服务的焦点指示器（黄色双线）画在文字上。禁用 liveRegion，
+    // 视障用户仍可手动聚焦读取 label。
+    expect(node, containsSemantics(isLiveRegion: false));
     expect(node.label, loc.connection_beacon_connecting);
 
     handle.dispose();
