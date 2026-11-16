@@ -2,6 +2,12 @@
 
 本文件记录各版本的主要变更。版本号遵循语义化版本，仅在打 `vX.Y.Z` tag 时由 CI 构建并发布（产物：Android APK / Windows 安装包）。
 
+## [5.16.3]
+
+### Fix
+
+- 连接状态心跳胶囊的双黄线根因修正：胶囊文字挂在 MaterialApp 的 fallback 警告样式（黄色 `TextDecoration.underline` + `double`，用于提示「文字缺少 Material 祖先」）之下，而胶囊样式未显式清掉 decoration，导致黄线透传渲染；现已在胶囊文字样式上显式置 `TextDecoration.none`，两端（Android/Windows）黄线彻底消除。此前 v5.16.1/v5.16.2 两轮（去 liveRegion、摘语义树）方向不对，均未触及此根因。
+
 ## [5.16.2]
 
 ### Fix
