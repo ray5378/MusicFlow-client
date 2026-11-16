@@ -140,17 +140,30 @@ jobs:
 
           git remote add gitee "https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}.git"
 
-          # 只推 GitHub main 与本次 tag，不主动推 master。
-          # Gitee 当前只有 master（初始化桩提交）且 0 tag，main 为新建分支；
-          # 默认分支切换由下面的 Python 助手通过 Gitee API 幂等完成。
-          # 不用 --atomic：Gitee 不支持 atomic push 会让服务端 hang（真机 run 43852699916 已证实）。
+          # 分叉保护：若 Gitee main 已存在且不是 GitHub main 的祖先（历史分叉），
+          # 立即报错并要求在 230（内网主机）重新做一次全量代推，绝不强推覆盖。
+          # 背景：runner→Gitee 推增量没问题，但推完整历史（约 36MB pack）会被
+          # Gitee 服务端拖到超时（实测 600s 仍失败），因此首次全量由 230 代推完成，
+          # CI 之后的每次发版只推增量，几秒内完成。
+          remote_main_sha="$(timeout 60 git ls-remote gitee "refs/heads/${GITEE_DEFAULT_BRANCH}" | awk '{print $1}')"
+          if [ -n "${remote_main_sha}" ]; then
+            if ! git merge-base --is-ancestor "${remote_main_sha}" refs/remotes/origin/main; then
+              echo "::error::Gitee ${GITEE_DEFAULT_BRANCH} (${remote_main_sha}) 与 GitHub main 历史分叉，拒绝推送。"
+              echo "::error::请在内网主机 230 上重新执行一次全量代推（push main + tags），不要强推覆盖。"
+              rm -f "${helper}"
+              exit 1
+            fi
+          fi
+
+          # 只推 GitHub main 与本次 tag，不主动推 master；默认分支切换由 Python 助手
+          # 通过 Gitee API 幂等完成。不用 --atomic（Gitee 不支持，会 hang）。
           # 分两条普通 push + timeout，任一条失败都能明确报错并退出，绝不无限等待。
-          if ! timeout 180 git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"; then
+          if ! timeout 600 git push gitee "refs/remotes/origin/main:refs/heads/${GITEE_DEFAULT_BRANCH}"; then
             echo "::error::Gitee main 分支推送失败或超时（tag=${TAG}）。"
             rm -f "${helper}"
             exit 1
           fi
-          if ! timeout 180 git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"; then
+          if ! timeout 600 git push gitee "refs/tags/${TAG}:refs/tags/${TAG}"; then
             echo "::error::Gitee tag ${TAG} 推送失败或超时。"
             rm -f "${helper}"
             exit 1
