@@ -1,0 +1,41 @@
+name: Gitee connectivity probe
+
+# 临时只读探测 workflow（结束后删除）：判断 GitHub hosted runner 到 Gitee 的
+# API v5 与 git smart HTTP 是否可达，用于决定同步架构。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: DNS and baseline connectivity
+        run: |
+          echo "=== DNS gitee.com ==="
+          getent hosts gitee.com || echo "DNS_FAIL"
+          echo "=== baseline baidu ==="
+          timeout 20 curl -sS -o /dev/null -w 'BAIDU_HTTP=%{http_code} time=%{time_total}\n' https://www.baidu.com || echo "BAIDU_FAIL_OR_TIMEOUT"
+
+      - name: Gitee API v5 GET (public repo, no token)
+        run: |
+          timeout 30 curl -sS -o /tmp/gitee_api.out -w 'API_HTTP=%{http_code} time=%{time_total}\n' 'https://gitee.com/api/v5/repos/ray5378/music-flow-client' || echo "API_FAIL_OR_TIMEOUT"
+          echo '--- body head ---'
+          head -c 200 /tmp/gitee_api.out 2>/dev/null || true
+          echo
+
+      - name: Gitee git smart HTTP GET (no auth)
+        run: |
+          timeout 30 curl -sS -o /tmp/gitee_git.out -w 'GIT_HTTP=%{http_code} time=%{time_total}\n' 'https://gitee.com/ray5378/music-flow-client.git/info/refs?service=git-upload-pack' || echo "GIT_FAIL_OR_TIMEOUT"
+          echo '--- body head ---'
+          head -c 120 /tmp/gitee_git.out 2>/dev/null || true
+          echo
+
+      - name: Gitee API v5 POST unauthenticated (must be rejected, proves reachability only)
+        run: |
+          timeout 30 curl -sS -X POST -o /tmp/gitee_post.out -w 'POST_HTTP=%{http_code} time=%{time_total}\n' -H 'Content-Type: application/json' -d '{"name":"probe"}' 'https://gitee.com/api/v5/repos/ray5378/music-flow-client/releases' || echo "POST_FAIL_OR_TIMEOUT"
+          echo '--- body head ---'
+          head -c 200 /tmp/gitee_post.out 2>/dev/null || true
+          echo
