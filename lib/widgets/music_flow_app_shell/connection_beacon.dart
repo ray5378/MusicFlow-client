@@ -144,23 +144,27 @@ class _ConnectionBeaconState extends ConsumerState<ConnectionBeacon>
           return FadeTransition(opacity: animation, child: child);
         },
         child: visible
-            ? Semantics(
+            // b43a 最终结论（真机 v5.16.1，2026-10）：即使去掉 `liveRegion`，
+            // 双黄线仍在 —— 线不是自动播报的产物，而是系统侧服务（识屏/朗读/
+            // 自动跳过类无障碍服务）对「文本节点内容在变化」这一事实本身的
+            // 视觉高亮，直接画在 Semantics 文本节点上。心跳胶囊是启动阶段
+            // 唯一频繁变化的文本节点（连接中→已连接→隐藏），因此成了稳定的
+            // 高亮目标。
+            //
+            // 胶囊是纯视觉的瞬时状态指示器：文字瞬时变化、不可交互、也不
+            // 承载唯一信息入口（连接状态在设置页/诊断日志里另有稳定入口）。
+            // 因此把它**整体从无障碍树摘除**（ExcludeSemantics）：读屏用户
+            // 不再听到这条瞬时提示，但系统服务也没有了可标注的节点，双黄线
+            // 从根上消失。若未来需要向视障用户提供连接状态，正确做法是走
+            // 系统通知渠道，而不是恢复这个会被厂商服务标注的 Semantics
+            // 文本节点。
+            ? ExcludeSemantics(
                 key: ValueKey<ConnectionBeaconPhase>(state.phase),
-                container: true,
-                // 刻意**不**开 `liveRegion`（b43a 真机回归结论，2026-10）：
-                // liveRegion 节点在内容变化时会被系统无障碍服务自动抢焦点，
-                // 厂商无障碍服务的焦点指示器（黄色双线样式）正好画在这行
-                // 文字上 —— 普通用户看到的就是「连接中/已连接」下面凭空
-                // 多出两条平行黄线。禁掉之后视障用户仍可手动聚焦读取
-                // label（container + label 都保留），只是失去自动播报。
-                label: label,
-                child: ExcludeSemantics(
-                  child: _buildPill(
-                    context: context,
-                    state: state,
-                    label: label,
-                    reduceMotion: reduceMotion,
-                  ),
+                child: _buildPill(
+                  context: context,
+                  state: state,
+                  label: label,
+                  reduceMotion: reduceMotion,
                 ),
               )
             : const SizedBox.shrink(

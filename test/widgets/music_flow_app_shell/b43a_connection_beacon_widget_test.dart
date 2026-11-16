@@ -5,8 +5,9 @@
 //      并且真的在心跳（扩散环直径随时间从 8 长到 ~24，中心点常亮不缩放）；
 //   2) 绿态：文案 == connected，中心点用 colors.accent；
 //   3) 减少动效：扩散环整个不渲染，只留静态中心点；
-//   4) Semantics：liveRegion 关闭（b43a 真机回归：厂商无障碍焦点指示器会在
-//      liveRegion 节点上画双黄线，普通用户可见）且文案仍进 label；
+//   4) 无障碍：胶囊整体摘出无障碍树（b43a 最终结论：liveRegion 去除后真机
+//      v5.16.1 双黄线仍在 —— 线是系统侧服务对 Semantics 文本节点本身的高亮，
+//      摘出后服务没有可标注节点），且视觉文案不变；
 //   5) hidden：只渲染 SizedBox.shrink，没有可见胶囊。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -230,7 +231,7 @@ void main() {
     }
   });
 
-  testWidgets('Semantics：不开 liveRegion（防厂商焦点双黄线）且文案进 label', (
+  testWidgets('胶囊整体摘出无障碍树（系统服务无高亮目标）且视觉文案不变', (
     tester,
   ) async {
     final handle = tester.ensureSemantics();
@@ -244,16 +245,17 @@ void main() {
     );
     final loc = _locOf(tester);
 
-    final node = tester.getSemantics(
-      find.byKey(
-        const ValueKey<ConnectionBeaconPhase>(ConnectionBeaconPhase.waiting),
-      ),
+    // b43a 最终结论（真机 v5.16.1）：liveRegion 去除后双黄线仍在 —— 线是
+    // 系统侧服务对 Semantics 文本节点本身的高亮（`liveRegion` 只控制自动
+    // 播报，不阻止服务发现并标注该节点）。胶囊整体摘出无障碍树后，服务
+    // 再也没有可标注的节点。整棵树不得存在任何带该文案的 Semantics 节点。
+    expect(
+      find.bySemanticsLabel(loc.connection_beacon_connecting),
+      findsNothing,
+      reason: '胶囊必须整体摘出无障碍树（ExcludeSemantics），无高亮目标',
     );
-    // b43a 真机结论：liveRegion 节点被系统无障碍服务自动抢焦点时，厂商
-    // 无障碍服务的焦点指示器（黄色双线）画在文字上。禁用 liveRegion，
-    // 视障用户仍可手动聚焦读取 label。
-    expect(node, containsSemantics(isLiveRegion: false));
-    expect(node.label, loc.connection_beacon_connecting);
+    // 视觉不丢：文案仍正常显示在胶囊 Text 上。
+    expect(find.text(loc.connection_beacon_connecting), findsOneWidget);
 
     handle.dispose();
   });
