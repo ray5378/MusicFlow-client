@@ -37,6 +37,8 @@ import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
 import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
 import 'package:musicflow_client/providers/player/crossfade_provider.dart';
+// 通知栏的控制命令直接转调首页那套 effective 入口（同一份实现，不另写分支）。
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_cache_daemon.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
@@ -1843,10 +1845,13 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
 
   // ==================== 通知栏的远端控制路由 ====================
   //
-  // 通知栏和首页是同一套语义：用户选了哪个设备，通知栏就显示那个设备的状态、
-  // 按下去就控制那个设备。判据直接复用首页那套「选择」判定（链路 B 直投选中
-  // 优先于链路 A 投屏选中），而不是「谁正在出声」—— 后者会随设备缓冲/暂停/
-  // 离线抖动，导致同一次点击在不同时刻打到不同设备上。
+  // 通知栏和首页是同一套语义，也是**同一份实现**：命令直接转调
+  // effective_playback_provider 里的入口（首页按钮调的是同一批函数），
+  // 链路优先级、失败回退、日志全部只有一处定义，不会各改一处而漂移。
+  //
+  // 判据复用首页那套「选择」：链路 B 直投选中优先于链路 A 投屏选中，
+  // 而不是「谁正在出声」—— 后者会随设备缓冲/暂停/离线抖动，
+  // 导致同一次点击在不同时刻打到不同设备上。
 
   /// 通知栏当前控制目标是不是远端设备。
   ///
@@ -1862,53 +1867,25 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
     }
   }
 
-  /// 通知栏播放键：确保「当前选中的设备」在播。
-  Future<void> _remoteResume() async {
-    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
-      await ref.read(dlnaCastProvider.notifier).resume();
-      return;
-    }
-    final cast = ref.read(castPeerControllerProvider);
-    // peer 没有独立 resume：已在播就什么都不用做，否则 toggle 会把它按停。
-    if (cast.activePeer == null || cast.status.playing) return;
-    await ref.read(castPeerControllerProvider.notifier).toggle();
-  }
+  /// 通知栏播放键：确保「当前选中的设备」在播（不是 toggle）。
+  Future<void> _remoteResume() => resumeEffectivePlaybackWith(ref.read);
 
-  /// 通知栏暂停键：确保「当前选中的设备」暂停（两条链路都幂等）。
-  Future<void> _remotePause() async {
-    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
-      await ref.read(dlnaCastProvider.notifier).pause();
-      return;
-    }
-    await ref.read(castPeerControllerProvider.notifier).pause();
-  }
+  /// 通知栏暂停键：两条链路都幂等。
+  Future<void> _remotePause() => pauseEffectivePlaybackWith(ref.read);
 
   /// 通知栏下一首：命令当前选中的设备换歌（绝不在本机开播）。
   Future<void> _remoteNext() async {
-    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
-      await ref.read(dlnaCastProvider.notifier).next();
-      return;
-    }
-    await ref.read(castPeerControllerProvider.notifier).next();
+    await nextEffectivePlaybackWith(ref.read);
   }
 
-  /// 通知栏上一首：同 [_remoteNext]。
+  /// 通知栏上一首。
   Future<void> _remotePrevious() async {
-    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
-      await ref.read(dlnaCastProvider.notifier).previous();
-      return;
-    }
-    await ref.read(castPeerControllerProvider.notifier).previous();
+    await previousEffectivePlaybackWith(ref.read);
   }
 
   /// 通知栏进度跳转：设备进度条上的 seek 必须下发给设备本身。
-  Future<void> _remoteSeek(Duration position) async {
-    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
-      await ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
-      return;
-    }
-    await ref.read(castPeerControllerProvider.notifier).seek(position);
-  }
+  Future<void> _remoteSeek(Duration position) =>
+      seekEffectivePlaybackWith(ref.read, position);
 
 
   /// 启动播放但不阻塞当前流程。

@@ -129,80 +129,126 @@ final effectiveCurrentSongProvider = Provider<Song?>((ref) {
 });
 
 /// 当前控制目标名称：本机或设备名（对齐主项目前端 currentPeerName）。
-String currentPlayerName(CastPeerState cast) => cast.targetName;/// 播放/暂停：链路 B 直投→指挥 DLNA 设备；投屏→命令后端；否则驱动本地播放器。
-Future<void> toggleEffectivePlayback(WidgetRef ref) async {
-  if (ref.read(_dlnaCastingProvider)) {
-    await ref.read(dlnaCastProvider.notifier).toggle();
+String currentPlayerName(CastPeerState cast) => cast.targetName;
+
+/// 「读 provider」的最小能力。
+///
+/// [WidgetRef]（UI 侧）与 [Ref]（Notifier 侧）都满足这个形状，而命令路由只用到
+/// read。抽出来之后，通知栏在 Notifier 里就能**直接复用首页这套入口**，而不是
+/// 再写一份「投屏/直投/本机」的三路分支 —— 两份实现迟早会因为只改了一处而漂移。
+typedef ProviderRead = T Function<T>(ProviderListenable<T> provider);
+
+/// 播放/暂停：链路 B 直投→指挥 DLNA 设备；投屏→命令后端；否则驱动本地播放器。
+Future<void> toggleEffectivePlaybackWith(ProviderRead read) async {
+  if (read(_dlnaCastingProvider)) {
+    await read(dlnaCastProvider.notifier).toggle();
     return;
   }
-  await ref.read(castPeerControllerProvider.notifier).toggle();
+  await read(castPeerControllerProvider.notifier).toggle();
+}
+
+/// [toggleEffectivePlaybackWith] 的 UI 入口（首页 / 迷你条 / 桌面歌词共用）。
+Future<void> toggleEffectivePlayback(WidgetRef ref) =>
+    toggleEffectivePlaybackWith(ref.read);
+
+/// 确保「当前选中设备」在播。
+///
+/// 首页按钮是 toggle（图标反映状态，点一下必然翻转）；系统播控中心的 play 键
+/// 表达的是「继续播放」这一确定意图，所以先看有效播放态再决定，避免状态短暂
+/// 不同步（2s 轮询窗口）时把正在播的设备按停。
+Future<void> resumeEffectivePlaybackWith(ProviderRead read) async {
+  if (read(effectiveIsPlayingProvider)) return;
+  await toggleEffectivePlaybackWith(read);
 }
 
 /// 播放模式循环切换：链路 B 直投→设备模式；投屏→后端；本机→本地播放器。
 /// 对齐迷你播放条模式按钮的路由(mini_player onCyclePlayMode),
 /// 桌面歌词浮窗模式按钮与迷你条共用本入口。
-Future<void> cycleEffectivePlayMode(WidgetRef ref) async {
-  if (ref.read(_dlnaCastingProvider)) {
-    await ref.read(dlnaCastProvider.notifier).cyclePlayMode();
+Future<void> cycleEffectivePlayModeWith(ProviderRead read) async {
+  if (read(_dlnaCastingProvider)) {
+    await read(dlnaCastProvider.notifier).cyclePlayMode();
     return;
   }
-  final cast = ref.read(castPeerControllerProvider);
+  final cast = read(castPeerControllerProvider);
   if (cast.activePeer != null) {
-    await ref.read(castPeerControllerProvider.notifier).cyclePlayMode();
+    await read(castPeerControllerProvider.notifier).cyclePlayMode();
     return;
   }
-  await ref.read(playerProvider.notifier).cyclePlaybackMode();
+  await read(playerProvider.notifier).cyclePlaybackMode();
 }
+
+/// [cycleEffectivePlayModeWith] 的 UI 入口。
+Future<void> cycleEffectivePlayMode(WidgetRef ref) =>
+    cycleEffectivePlayModeWith(ref.read);
 
 /// 暂停（定时停止等场景的显式暂停）:链路 B 直投→指挥 DLNA 设备暂停;
 /// 链路 A 投屏→后端暂停;本机→本地暂停。cast_peer.pause() 内部无 activePeer
 /// 时会自动回退到本机暂停,因此这里统一经由它即可。
-Future<void> pauseEffectivePlayback(WidgetRef ref) async {
-  if (ref.read(_dlnaCastingProvider)) {
-    await ref.read(dlnaCastProvider.notifier).pause();
+Future<void> pauseEffectivePlaybackWith(ProviderRead read) async {
+  if (read(_dlnaCastingProvider)) {
+    await read(dlnaCastProvider.notifier).pause();
     return;
   }
-  await ref.read(castPeerControllerProvider.notifier).pause();
+  await read(castPeerControllerProvider.notifier).pause();
 }
 
+/// [pauseEffectivePlaybackWith] 的 UI 入口。
+Future<void> pauseEffectivePlayback(WidgetRef ref) =>
+    pauseEffectivePlaybackWith(ref.read);
+
 /// 跳转进度。
-Future<void> seekEffectivePlayback(WidgetRef ref, Duration position) async {
+Future<void> seekEffectivePlaybackWith(
+  ProviderRead read,
+  Duration position,
+) async {
   // 路由留痕:三条链路的行为完全不同,排障第一问就是"这次 seek 走的哪条"。
-  if (ref.read(_dlnaCastingProvider)) {
+  if (read(_dlnaCastingProvider)) {
     Logger.debugWithTag(
       'EFFECTIVE-SEEK',
       'seek ${position.inMilliseconds}ms → linkB direct-cast',
     );
-    await ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
+    await read(dlnaCastProvider.notifier).seek(position.inSeconds);
     return;
   }
-  final peer = ref.read(castPeerControllerProvider).activePeer;
+  final peer = read(castPeerControllerProvider).activePeer;
   Logger.debugWithTag(
     'EFFECTIVE-SEEK',
     'seek ${position.inMilliseconds}ms → ${peer == null ? 'local player (no cast peer)' : 'linkA remote peer=${peer.peerId}'}',
   );
-  await ref.read(castPeerControllerProvider.notifier).seek(position);
+  await read(castPeerControllerProvider.notifier).seek(position);
 }
+
+/// [seekEffectivePlaybackWith] 的 UI 入口。
+Future<void> seekEffectivePlayback(WidgetRef ref, Duration position) =>
+    seekEffectivePlaybackWith(ref.read, position);
 
 /// 下一首。
-Future<bool> nextEffectivePlayback(WidgetRef ref) async {
-  if (ref.read(_dlnaCastingProvider)) {
-    await ref.read(dlnaCastProvider.notifier).next();
+Future<bool> nextEffectivePlaybackWith(ProviderRead read) async {
+  if (read(_dlnaCastingProvider)) {
+    await read(dlnaCastProvider.notifier).next();
     return true;
   }
-  await ref.read(castPeerControllerProvider.notifier).next();
+  await read(castPeerControllerProvider.notifier).next();
   return true;
 }
 
+/// [nextEffectivePlaybackWith] 的 UI 入口。
+Future<bool> nextEffectivePlayback(WidgetRef ref) =>
+    nextEffectivePlaybackWith(ref.read);
+
 /// 上一首。
-Future<bool> previousEffectivePlayback(WidgetRef ref) async {
-  if (ref.read(_dlnaCastingProvider)) {
-    await ref.read(dlnaCastProvider.notifier).previous();
+Future<bool> previousEffectivePlaybackWith(ProviderRead read) async {
+  if (read(_dlnaCastingProvider)) {
+    await read(dlnaCastProvider.notifier).previous();
     return true;
   }
-  await ref.read(castPeerControllerProvider.notifier).previous();
+  await read(castPeerControllerProvider.notifier).previous();
   return true;
 }
+
+/// [previousEffectivePlaybackWith] 的 UI 入口。
+Future<bool> previousEffectivePlayback(WidgetRef ref) =>
+    previousEffectivePlaybackWith(ref.read);
 
 /// **统一播放入口** —— 播放专辑/歌单/列表(对齐主项目前端 UI-routed playQueue):
 /// - 投屏(选中远端 peer):命令**后端**以该队列在设备播放(客户端是远程遥控器);

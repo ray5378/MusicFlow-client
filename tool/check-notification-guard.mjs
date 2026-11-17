@@ -38,6 +38,7 @@
  *   R22 切歌不拽进度：updateMediaItem 不许硬写零进度
  *   R23 判据是「选择」：isRemoteTarget 只看 activePeer/isCasting，不看 status.playing
  *   R24 歌词歌源：歌词表按 effectiveCurrentSongProvider 拉，不读本机 currentSong
+ *   R25 命令复用：通知栏五个命令必须转调首页那套 effective 入口，不许自写分支
  *
  * 用法：node tool/check-notification-guard.mjs   （退出码非 0 即阻断）
  */
@@ -623,6 +624,23 @@ assertContains(
   "effectiveCurrentSongProvider",
   "换歌判断沿用本机 currentSong 会把上一首的歌词挂到设备那首歌上",
 );
+
+// ── R25 通知栏命令 = 首页同一份实现 ───────────────────────
+for (const [fn, entry] of [
+  ["_remoteResume", "resumeEffectivePlaybackWith"],
+  ["_remotePause", "pauseEffectivePlaybackWith"],
+  ["_remoteNext", "nextEffectivePlaybackWith"],
+  ["_remotePrevious", "previousEffectivePlaybackWith"],
+  ["_remoteSeek", "seekEffectivePlaybackWith"],
+]) {
+  assertContains(
+    `R25 ${fn} 复用首页 effective 入口`,
+    functionBody(playerProvider, fn) ?? "",
+    entry,
+    "通知栏不许再写一份「投屏/直投/本机」分支：两份实现迟早因为只改一处而漂移，"
+      + "表现为「首页控制正常、通知栏控制错设备」",
+  );
+}
 
 // ── R17 反向探针（本守卫必须能失败）────────────────────────
 const probe = "__notificationGuardProbe_absent_symbol__";
