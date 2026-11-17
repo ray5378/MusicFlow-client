@@ -38,24 +38,55 @@ MediaControl notificationFavoriteControl({
   );
 }
 
+/// 老系统（Android 12 及以下）的收藏按钮：借「快进」标准动作承载。
+///
+/// **为什么还需要第二个收藏按钮**：自定义 action（[MediaControl.custom]）在
+/// audio_service 原生层走 `customActions` 分支，**不会**进 `nativeActions`
+/// （`AudioService.setState` 里二者互斥）；而 Android 10~12 的 SystemUI 只从
+/// 通知的 action 列表取按钮——于是无论折叠态让出多少槽位，自定义心形都不会出现。
+///
+/// 这里借一个 App 永远不用的标准动作 `fastForward`：图标和文案仍是自己的心形
+/// （原生 `createAction` 用的就是本控件的 `androidIcon`），点击经
+/// MediaButtonReceiver → `KEYCODE_MEDIA_FAST_FORWARD` → [MusicFlowAudioHandler.fastForward]，
+/// 再转给 `onToggleFavorite`。
+///
+/// 两条通道同时下发是安全的：旧系统只认 `nativeActions`（看到这个），
+/// Android 13+ 只认 PlaybackState 的四个标准键 + `customActions`（看到
+/// [notificationFavoriteControl] 那个），两边各自只渲染出一个心形。
+///
+/// 代价：耳机 / 车机的物理「快进」键等价于收藏（音乐 App 里快进键基本不用）。
+MediaControl notificationFavoriteBridgeControl({
+  required bool starred,
+  required String label,
+}) {
+  return MediaControl(
+    androidIcon:
+        starred ? kNotificationFavoriteIconOn : kNotificationFavoriteIconOff,
+    label: label,
+    action: MediaAction.fastForward,
+  );
+}
+
 /// 通知栏按钮列表（纯函数，单测锁定「三个按钮 + 顺序」契约）。
 ///
-/// 折叠态只显示前三个，所以这个列表就是折叠态那三格的全部内容：
-/// 收藏 / 播放暂停 / 下一首。**刻意没有「上一首」**：AOSP 13
-/// `MediaDataManager.createActionsFromState` 的槽位分配是
-/// `play/pause A B C D`，其中 `A = previous, else custom action`——标准
-/// 「上一首」缺席时，第一个自定义按钮会被直接填进 A 槽。而 audio_service 的
-/// `AUTO_ENABLED_ACTIONS` 并没有打开 `ACTION_SKIP_TO_PREVIOUS`（只按本列表
+/// Android 13+ 的折叠态只取三格，内容就是：心形 / 播放暂停 / 下一首。
+/// **刻意没有「上一首」**：AOSP 13 `MediaDataManager.createActionsFromState`
+/// 的槽位分配是 `play/pause A B C D`，其中 `A = previous, else custom action`
+/// ——标准「上一首」缺席时，第一个自定义按钮会被直接填进 A 槽。而 audio_service
+/// 的 `AUTO_ENABLED_ACTIONS` 并没有打开 `ACTION_SKIP_TO_PREVIOUS`（只按本列表
 /// 置位），所以只要这里不传 skipToPrevious，收藏就必然出现在折叠态。
 ///
-/// 收藏写在最前是为了 Android 10/11/12 的 MediaStyle 路径：那条路径按本列表
-/// 原样从左到右画（`setShowActionsInCompactView([0, 1, 2])`），收藏放第一位
-/// 才能和 Android 13 系统重排后的「心形 / 播放 / 下一首」对得上。
+/// [favoriteBridge] 必须排最前：旧系统按本列表顺序生成通知的 `nativeActions`，
+/// 再用 `setShowActionsInCompactView([0, 1, 2])` 取前三格；它排第一位才能落在
+/// 折叠态最左，和 Android 13 上 custom 填 A 槽的位置对齐。列表里两个收藏控件
+/// 不会同时出现——旧系统看不见 custom，13+ 不渲染 fastForward。
 List<MediaControl> notificationControls({
   required bool playing,
   required MediaControl favorite,
+  required MediaControl favoriteBridge,
 }) {
   return [
+    favoriteBridge,
     favorite,
     if (playing) MediaControl.pause else MediaControl.play,
     MediaControl.skipToNext,
@@ -189,30 +220,44 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
-  /// 获取控制按钮（折叠态那三格，顺序与取舍见 [notificationControls]）。
+  /// 获取控制按钮（顺序与取舍见 [notificationControls]）。
   ///
-  /// 上一首已从通知栏移除，位置让给收藏：折叠态只有三格，而系统不会把
-  /// 自定义按钮排到标准键前面（AOSP `MediaDataManager.createActionsFromState`
-  /// 固定 `play/pause A B C D`），所以「减掉一个标准键」是让收藏进折叠态的
-  /// 唯一办法。耳机线控、锁屏物理键、App 内播放页仍走 [skipToPrevious]，
-  /// 功能本身没有删。
+  /// 上一首已从通知栏移除，位置让给收藏。两条收藏通道同时下发：
+  /// Android 13+ 用 custom action 填 A 槽；Android 12 及以下的自定义 action
+  /// 进不了通知的 nativeActions，只能靠 [notificationFavoriteBridgeControl]
+  /// 借标准「快进」键出现。耳机线控、锁屏物理键、App 内播放页的上一首仍在。
   List<MediaControl> _getControls(bool playing) {
     return notificationControls(
       playing: playing,
       favorite: _favoriteControl(),
+      favoriteBridge: _favoriteBridgeControl(),
     );
   }
 
-  /// 收藏按钮：文案随语言偏好走 [l10nNowCurrent]（handler 没有 BuildContext；
-  /// CI 的 `check-l10n.mjs --gate-cjk` 禁止硬编码文案）。
+  /// 收藏按钮（Android 13+ 的 custom action 通道）。
   MediaControl _favoriteControl() {
-    final loc = l10nNowCurrent();
     return notificationFavoriteControl(
       starred: _favoriteStarred,
-      label: _favoriteStarred
-          ? loc.core_notification_unfavorite
-          : loc.core_notification_favorite,
+      label: _favoriteLabel(),
     );
+  }
+
+  /// 收藏按钮（Android 12 及以下的标准动作通道，见
+  /// [notificationFavoriteBridgeControl]）。
+  MediaControl _favoriteBridgeControl() {
+    return notificationFavoriteBridgeControl(
+      starred: _favoriteStarred,
+      label: _favoriteLabel(),
+    );
+  }
+
+  /// 收藏按钮文案随语言偏好走 [l10nNowCurrent]（handler 没有 BuildContext；
+  /// CI 的 `check-l10n.mjs --gate-cjk` 禁止硬编码文案）。
+  String _favoriteLabel() {
+    final loc = l10nNowCurrent();
+    return _favoriteStarred
+        ? loc.core_notification_unfavorite
+        : loc.core_notification_favorite;
   }
 
   /// 同步通知栏心形状态（收藏可能从任何入口改变：通知按钮、迷你条、列表页、
@@ -226,19 +271,37 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 
   /// 接收通知栏自定义按钮点击：目前只有收藏。
   ///
-  /// 只转发给 [onToggleFavorite]，拿返回值后再对一次图标——业务侧虽然也会
-  /// 调 [setFavoriteState]，但这里兜底能保证「点了就该变」的直觉行为不会
-  /// 因为上层某条路径漏同步而失效（幂等，重复设置同值直接早退）。
+  /// 两个来源都要接：Android 13+ 的 custom action 走这里；Android 12 及以下
+  /// 走标准 fastForward 通道（见 [notificationFavoriteBridgeControl]），
+  /// 由 [fastForward] 接住。
   @override
   Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
     if (name == kNotificationFavoriteAction) {
-      final toggle = onToggleFavorite;
-      if (toggle == null) return null;
-      final next = await toggle();
-      if (next != null) setFavoriteState(next);
+      await _toggleFavoriteFromNotification();
       return null;
     }
     return super.customAction(name, extras);
+  }
+
+  /// 老系统收藏按钮的落点：那条通知 action 是标准「快进」键
+  /// （`KEYCODE_MEDIA_FAST_FORWARD`），点击会回到 [fastForward]。本 handler
+  /// 没有快进语义（App 也没做快进 UI），整条通道让给收藏。
+  ///
+  /// 副作用：耳机 / 车机的物理快进键等价于收藏——音乐 App 里这个键基本不用，
+  /// 判定可接受。若将来要恢复快进，得换 `rewind` 或改原生补丁。
+  @override
+  Future<void> fastForward() => _toggleFavoriteFromNotification();
+
+  /// 通知栏收藏的公共落点。
+  ///
+  /// 只转发给 [onToggleFavorite]，拿返回值后再对一次图标——业务侧虽然也会
+  /// 调 [setFavoriteState]，但这里兜底能保证「点了就该变」的直觉行为不会
+  /// 因为上层某条路径漏同步而失效（幂等，重复设置同值直接早退）。
+  Future<void> _toggleFavoriteFromNotification() async {
+    final toggle = onToggleFavorite;
+    if (toggle == null) return;
+    final next = await toggle();
+    if (next != null) setFavoriteState(next);
   }
 
   /// 获取处理状态
