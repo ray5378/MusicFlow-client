@@ -5,6 +5,10 @@
     <!-- 链路 B（局域网 DLNA 直投）：Wi-Fi 多播（SSDP） -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <!-- 投屏保活：Wi-Fi 高性能锁（createWifiLock 需要 CHANGE_WIFI_STATE）。
+         熄屏后 Wi-Fi 进省电模式 → 内网请求超时 → 轮询连不上 → 通知栏的进度/
+         歌词/歌名全冻在最后一拍。这把锁让 Wi-Fi 保持全速，两条链路共用。 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
     <!-- Android 13+：查找附近设备（本地网络发现，不定位） -->
     <uses-permission
         android:name="android.permission.NEARBY_WIFI_DEVICES"

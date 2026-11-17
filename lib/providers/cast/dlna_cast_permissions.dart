@@ -65,6 +65,59 @@ Future<void> releaseCastWakeLock() async {
   }
 }
 
+/// 持有 Wi-Fi 高性能锁（投屏后台保活的另一半）：熄屏后 Wi-Fi 射频不进省电模式。
+///
+/// **为什么唤醒锁不够**：[acquireCastWakeLock] 只保证 CPU 不挂起 —— Dart 的
+/// 300ms 歌词 timer、250ms 平滑进度 tick、2s 状态轮询都还能触发，但每一次
+/// HTTP 请求都要过 Wi-Fi。息屏后 Wi-Fi 进 power-save，内网 RTT 从个位数 ms
+/// 涨到秒级，状态轮询的 6s 预算直接 TimeoutException。
+///
+/// 症状：退到后台几秒后，通知栏的进度条/歌词/歌名同时冻住（三者都读轮询结果），
+/// 而回前台 Wi-Fi 恢复全速后一切自动接上。这把锁就是针对它。
+///
+/// 引用计数防重叠释放。仅 Android、幂等。
+Future<void> acquireCastWifiLock() async {
+  if (!Platform.isAndroid) return;
+  final needsHold = _keepalive.acquireWifiLock();
+  if (!needsHold) return; // 已持有，引用数增加即可，不重复 acquire
+  try {
+    await _dlnaPlatformChannel.invokeMethod('acquireWifiLock');
+  } catch (e) {
+    Logger.debugWithTag('DLNA-KEEPALIVE', 'acquireWifiLock failed: $e');
+  }
+}
+
+/// 释放 Wi-Fi 高性能锁（引用计数归零才真正释放）。仅 Android、幂等。
+Future<void> releaseCastWifiLock() async {
+  if (!Platform.isAndroid) return;
+  final needRelease = _keepalive.releaseWifiLock();
+  if (!needRelease) return; // 引用数仍在 1 之上，不真正释放
+  try {
+    await _dlnaPlatformChannel.invokeMethod('releaseWifiLock');
+  } catch (e) {
+    Logger.debugWithTag('DLNA-KEEPALIVE', 'releaseWifiLock failed: $e');
+  }
+}
+
+/// 投屏保活「锁」的合体入口：唤醒锁（保 CPU）+ Wi-Fi 高性能锁（保射频）。
+///
+/// 两支锁必须成对持有：只持唤醒锁 → timer 会触发但请求超时；只持 Wi-Fi 锁 →
+/// 射频醒着但 CPU 睡下去，timer 根本不跑。两条链路（A 服务端投流 / B 局域网
+/// 直投）共用本入口，成对 acquire / release。
+///
+/// 权限类（通知权限、电池优化豁免）不在本函数里做，见
+/// [requestBackgroundCastPerms] —— 那个会弹系统框，只在用户主动发起投屏时调用。
+Future<void> acquireCastKeepAlive() async {
+  await acquireCastWakeLock();
+  await acquireCastWifiLock();
+}
+
+/// 释放 [acquireCastKeepAlive] 持有的两支锁（顺序无关，各自引用计数）。
+Future<void> releaseCastKeepAlive() async {
+  await releaseCastWifiLock();
+  await releaseCastWakeLock();
+}
+
 /// 后台投屏续播的前置权限/豁免（幂等、全静默失败降级，不阻断投屏）：
 ///  1. Android 13+ 请求通知权限 —— 音乐播放通知（AudioService 媒体前台服务）
 ///     若被系统拦截/不显示，进程退回后台即可能被冻结，曲末轮询随之中断。

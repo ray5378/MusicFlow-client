@@ -39,6 +39,8 @@
  *   R23 判据是「选择」：isRemoteTarget 只看 activePeer/isCasting，不看 status.playing
  *   R24 歌词歌源：歌词表按 effectiveCurrentSongProvider 拉，不读本机 currentSong
  *   R25 命令复用：通知栏五个命令必须转调首页那套 effective 入口，不许自写分支
+ *   R26 断网不冻：轮询失败只标 offline，绝不把设备状态清成默认值；恢复后强制全量
+ *   R27 后台保活：投屏选中即持唤醒锁 + Wi-Fi 高性能锁，回本机/销毁必归还
  *
  * 用法：node tool/check-notification-guard.mjs   （退出码非 0 即阻断）
  */
@@ -58,6 +60,12 @@ const PATHS = {
   effectiveSource: "lib/providers/player/effective_playback_provider.dart",
   playerProvider: "lib/providers/player/player_provider.dart",
   peerSession: "lib/providers/cast/cast_peer_session.dart",
+  peerProvider: "lib/providers/cast/cast_peer_provider.dart",
+  castPermissions: "lib/providers/cast/dlna_cast_permissions.dart",
+  castKeepalive: "lib/core/dlna/dlna_keepalive.dart",
+  mainActivity:
+    "android/app/src/main/kotlin/com/musicflow/app/MainActivity.kt",
+  manifest: "android/app/src/main/AndroidManifest.xml",
 };
 
 const results = [];
@@ -214,6 +222,11 @@ const lyricsSourceRaw = readText(PATHS.lyricsSource);
 const effectiveSourceRaw = readText(PATHS.effectiveSource);
 const playerProviderRaw = readText(PATHS.playerProvider);
 const peerSessionRaw = readText(PATHS.peerSession);
+const peerProviderRaw = readText(PATHS.peerProvider);
+const castPermissionsRaw = readText(PATHS.castPermissions);
+const castKeepaliveRaw = readText(PATHS.castKeepalive);
+const mainActivityRaw = readText(PATHS.mainActivity);
+const manifestRaw = readText(PATHS.manifest);
 
 for (const [label, raw] of [
   ["实心心形", heartFullRaw],
@@ -225,6 +238,11 @@ for (const [label, raw] of [
   ["有效播放目标", effectiveSourceRaw],
   ["播放器 notifier", playerProviderRaw],
   ["投屏会话段", peerSessionRaw],
+  ["投屏轮询段", peerProviderRaw],
+  ["投屏保活入口", castPermissionsRaw],
+  ["保活引用计数", castKeepaliveRaw],
+  ["原生 MainActivity", mainActivityRaw],
+  ["AndroidManifest", manifestRaw],
 ]) {
   assertTrue(
     `${label}文件可读`,
@@ -243,7 +261,12 @@ if (
   !lyricsSourceRaw ||
   !effectiveSourceRaw ||
   !playerProviderRaw ||
-  !peerSessionRaw
+  !peerSessionRaw ||
+  !peerProviderRaw ||
+  !castPermissionsRaw ||
+  !castKeepaliveRaw ||
+  !mainActivityRaw ||
+  !manifestRaw
 ) {
   for (const r of results) {
     if (!r.ok) console.log(`[FAIL] ${r.name}\n       期望: ${r.expected}\n       实际: ${r.actual}`);
@@ -261,6 +284,10 @@ const lyricsSource = stripDartComments(lyricsSourceRaw);
 const effectiveSource = stripDartComments(effectiveSourceRaw);
 const playerProvider = stripDartComments(playerProviderRaw);
 const peerSession = stripDartComments(peerSessionRaw);
+const peerProvider = stripDartComments(peerProviderRaw);
+const castPermissions = stripDartComments(castPermissionsRaw);
+const castKeepalive = stripDartComments(castKeepaliveRaw);
+const manifest = stripXmlComments(manifestRaw);
 
 // ── R1 图标资源 ────────────────────────────────────────────
 assertTrue(
@@ -641,6 +668,109 @@ for (const [fn, entry] of [
       + "表现为「首页控制正常、通知栏控制错设备」",
   );
 }
+
+// ── R26 断网不许冻死通知栏 ─────────────────────────────────
+const pollFailureBody = functionBody(peerProvider, "_handlePollFailure");
+assertTrue(
+  "R26a _handlePollFailure 函数体存在",
+  pollFailureBody !== null,
+  "能取到函数体",
+  pollFailureBody === null ? "取不到（改名/搬文件了？）" : `${pollFailureBody.length} 字符`,
+  "取不到函数体时下面几条断言会全部空转，必须先钉住它",
+);
+assertAbsent(
+  "R26b 轮询失败不许清设备状态",
+  pollFailureBody ?? "",
+  "status:",
+  "旧实现连续失败 3 次就 status: const PeerStatus() 整份清零，把「这次没请求到」"
+    + "当成「设备已经停了」：playing→false 让平滑进度停走、duration→0 让通知栏进度条"
+    + "失去刻度、castQueue 不更新让歌名/歌词卡在最后一首。这三条读数线同源，"
+    + "于是「退后台几秒后整块冻住」，回前台网络恢复又自动好 —— 这正是用户报的那个 bug",
+);
+assertAbsent(
+  "R26c 全文件禁止远端状态清成默认值",
+  peerProvider,
+  "status: const PeerStatus()",
+  "同样的清零在别的失败分支里也不许出现（任何一处都会让通知栏整块冻结）",
+);
+assertContains(
+  "R26d 失败只置 offline 标记",
+  pollFailureBody ?? "",
+  "offline: true",
+  "断网期间唯一正确的读数就是「最后一次已知状态 + 继续外推」，只打标记不改数据",
+);
+assertContains(
+  "R26e 离线期间固定快重试",
+  pollFailureBody ?? "",
+  "kPeerOfflinePollInterval",
+  "指数退避到 15s 会让用户从后台切回来时干等十几秒才接上真值，观感就是「回前台也不动」",
+);
+assertContains(
+  "R26f 断网恢复强制全量拉队",
+  peerProvider,
+  "state.offline;",
+  "轻量轮询只换当前槽位那一首、靠 total 判断队列变化；断网期间设备换歌又换回来时 total 没变，"
+    + "不强制全量就会一直显示错歌（歌名/歌手/歌词一起错到下次真换歌）",
+);
+
+// ── R27 后台保活（链路 A 曾经完全没有）──────────────────────
+assertContains(
+  "R27a 选中投屏即持保活",
+  functionBody(peerSession, "switchTo") ?? "",
+  "_acquireCastKeepAlive()",
+  "等第一次轮询失败再补已经来不及 —— 那正是通知栏冻住的时刻。链路 B(DLNA) 早就接了，"
+    + "链路 A 一直漏着，这是「投屏退后台几秒后整块冻住」的直接缺口",
+);
+assertContains(
+  "R27b 回本机必归还保活",
+  functionBody(peerSession, "backToLocal") ?? "",
+  "_releaseCastKeepAlive()",
+  "不归还的话唤醒锁与 Wi-Fi 锁会一直挂着白耗电",
+);
+assertContains(
+  "R27c 销毁时必须归还保活",
+  peerProvider,
+  "_releaseCastKeepAlive();",
+  "ref.onDispose / 重新 build 时若不归还，原生锁会跟着泄漏（且引用计数再也回不到 0）",
+);
+const keepAliveBody = functionBody(castPermissions, "acquireCastKeepAlive");
+assertTrue(
+  "R27d 保活 = 唤醒锁 + Wi-Fi 锁",
+  (keepAliveBody ?? "").includes("acquireCastWakeLock") &&
+    (keepAliveBody ?? "").includes("acquireCastWifiLock"),
+  "两支锁都要",
+  keepAliveBody === null ? "取不到函数体" : keepAliveBody.replace(/\s+/g, " ").slice(0, 80),
+  "唤醒锁只保 CPU 不保射频：熄屏后 Wi-Fi 进省电，内网请求超时 → 轮询失败 → "
+    + "通知栏的进度/歌词/歌名同时冻住。只持一把必然复发",
+);
+assertContains(
+  "R27e Wi-Fi 锁的引用计数是独立的",
+  castKeepalive,
+  "acquireWifiLock()",
+  "与唤醒锁共用计数会出现「一方释放把另一方减穿」→ 另一条链路失去保活",
+);
+assertContains(
+  "R27f 清单声明 CHANGE_WIFI_STATE",
+  manifest,
+  "android.permission.CHANGE_WIFI_STATE",
+  "createWifiLock 需要这个权限，缺了会在运行时抛 SecurityException（被 catch 静默降级 → 症状照旧）",
+);
+assertTrue(
+  "R27g 原生实现 Wi-Fi 高性能锁",
+  mainActivityRaw.includes("acquireWifiLock") &&
+    mainActivityRaw.includes("WIFI_MODE_FULL_HIGH_PERF") &&
+    mainActivityRaw.includes("setReferenceCounted(false)"),
+  "acquireWifiLock + FULL_HIGH_PERF + 原生关引用计数",
+  `acquire=${mainActivityRaw.includes("acquireWifiLock")} perf=${mainActivityRaw.includes("WIFI_MODE_FULL_HIGH_PERF")}`,
+  "只用 FULL_HIGH_PERF（LOW_LATENCY 是前台模式，投屏全在后台会不被认）；"
+    + "引用计数必须关掉原生那份，由 Dart 侧统一计，否则两边各计一次会过早释放",
+);
+assertContains(
+  "R27h 投屏选中时申请后台权限",
+  functionBody(peerSession, "_acquireCastKeepAlive") ?? "",
+  "requestBackgroundCastPerms",
+  "通知权限（13+）+ 电池优化豁免：媒体前台服务被拦、进程被 ROM 冻结时，锁也救不回来",
+);
 
 // ── R17 反向探针（本守卫必须能失败）────────────────────────
 const probe = "__notificationGuardProbe_absent_symbol__";

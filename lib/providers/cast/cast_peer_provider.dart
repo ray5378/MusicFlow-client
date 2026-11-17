@@ -12,6 +12,7 @@ import 'package:musicflow_client/data/models/peer.dart';
 export 'package:musicflow_client/providers/cast/cast_peer_state.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_policy.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_state.dart';
+import 'package:musicflow_client/providers/cast/dlna_cast_permissions.dart';
 import 'package:musicflow_client/providers/cast/peer_remote_control_provider.dart';
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/sources/local_storage.dart';
@@ -43,8 +44,10 @@ part 'cast_peer_queue.dart';
 /// 3. 播放模式同步:setPlayMode/cyclePlayMode 下发,轮询回读后端 playMode。
 /// 4. 投屏中加歌/点歌:enqueueSongs / jumpTo / playQueueOnPeer / playSongOnPeer。
 /// 5. 队列编辑:removeQueueItem / reorderQueue(投屏队列面板)。
-/// 6. 平滑进度:2s 轮询(失败退避至 15s)+ 桌面 500ms / 手机 250ms 插值 tick。
-/// 7. 离线/被移除:连续 3 次轮询失败置 offline,切回/移除时停止定时器。
+/// 6. 平滑进度:2s 轮询(失败退避至 8s,判定离线后改 3s 固定快重试)+ 桌面 500ms /
+///    手机 250ms 插值 tick。
+/// 7. 离线/被移除:连续 3 次轮询失败**只置 offline 标记**(设备状态原样保留,断网期间
+///    按最后一次已知状态继续外推),恢复后第一拍强制全量重拉队列;切回/移除时停止定时器。
 /// 8. 静音:setMuted 下发 /mute。
 /// 9. 群组/AirPlay 差异化:switcher 按 kind 区分图标/标签(群组/离线)。
 /// 10. 投屏失败:queue/play 失败返回 false,保持本机,不产生脏状态。
@@ -82,6 +85,21 @@ const Duration kQueueFetchBudget = Duration(seconds: 60);
 /// 补注册一次 —— 不抑制就会把服务端日志刷满「认证失败」。窗口内停止补注册与心跳,
 /// 只留一条 warn;用户重新登录(registerAndHeartbeat)会立即解除。
 const Duration kAuthRejectedCooldown = Duration(minutes: 5);
+
+/// 连续轮询失败到第几拍，判定「这台设备现在连不上」（置 `offline`）。
+///
+/// 注意它**只用来打标**，绝不改写设备状态 —— 旧实现在这里把 `status` 整份
+/// 清成 `const PeerStatus()`，把「这次没请求到」当成「设备已经停了」，于是
+/// 进度条、歌词、歌名三条线同时冻死（详见 [_handlePollFailure] 的注释）。
+const int kPeerOfflineFailureThreshold = 3;
+
+/// 离线（连不上）期间的固定重试间隔。
+///
+/// 为什么不沿用指数退避（2→4→8→15s）：用户从后台切回前台的第一个动作就是看
+/// 通知栏，若正撞上 15s 的退避空窗，要干等十几秒才接上真值，观感就是「回前台
+/// 也不动」。断网期间每拍只有两个小请求（status + queue?size=1），3s 一拍
+/// 的开销可忽略，换来的是「网络一回来立刻接上」。
+const Duration kPeerOfflinePollInterval = Duration(seconds: 3);
 
 /// **主通道**（`POST /rest/api/v1/play`，服务端内容点播）的超时预算。
 ///
@@ -128,6 +146,12 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
   Future<bool> switchTo(PeerInfo peer);
   Future<void> backToLocal({bool resumeLocal = false});
   Future<void> stopCasting();
+
+  /// 释放投屏后台保活（实现与会话段同址：`cast_peer_session.dart`）。
+  ///
+  /// 声明在基类是必需的：`ref.onDispose` 在基类里，而基类看不见 `on` 它的
+  /// mixin 成员（Dart 只让 mixin 的 `this` 看见 `on` 类型）。
+  void _releaseCastKeepAlive();
   void _watchLocalQueue();
   Future<bool> playContentOnPeer({
     required String type,
@@ -168,6 +192,8 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
     ref.onDispose(() {
       _mounted = false;
       _stopTimers();
+      // 进程内的原生保活（唤醒锁 / Wi-Fi 高性能锁）不能跟着 notifier 泄漏。
+      _releaseCastKeepAlive();
       _peersTimer?.cancel();
       _peersTimer = null;
       stopHeartbeat();
@@ -261,7 +287,14 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
   /// 离开本机时的本地播放状态快照(回本机时恢复,保证「切换前设备」逻辑不丢)。
   LocalPlaybackSnapshot? _localSnapshot;
 
-  /// 自适应轮询间隔(2s 基准,失败翻倍,上限 15s)。
+  /// 本控制器是否持有投屏后台保活（唤醒锁 + Wi-Fi 高性能锁）。
+  ///
+  /// 只做「成对」校验：重复 acquire 不再加引用，未持有时的 release 直接忽略 ——
+  /// 否则会把 DLNA 直投那条链路（共用同一个引用计数器）的引用数减穿。
+  bool _castKeepAliveHeld = false;
+
+  /// 自适应轮询间隔(2s 基准,失败翻倍上限 8s;判定离线后改固定快重试,
+  /// 见 [kPeerOfflinePollInterval])。
   Duration _pollInterval = const Duration(seconds: 2);
 
   /// 平滑进度插值间隔:桌面 500ms(降低 Windows 高频重建),手机 250ms。
@@ -928,7 +961,10 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
       var idx = state.castIndex;
       var mode = state.playMode;
       var items = state.castQueue;
-      var needFull = fullQueue || items.isEmpty;
+      // 断网恢复后的第一拍强制全量：轻量路径只换「当前槽位那一首」，靠 `total`
+      // 判断队列是否变化。断网期间设备那边如果换过歌又换回来（total 没变），
+      // 轻量路径抓不到 → 歌名/歌手/歌词要错到下一次真换歌为止。
+      var needFull = fullQueue || items.isEmpty || state.offline;
       var knownTotal = items.length;
       // 服务端权威洗牌序列(镜像)。轻量路径也会带下来(shuffleOrder/shufflePos
       // 都在响应外层,不随分页丢失),所以每次 tick 都能对齐,不必补拉全量。
@@ -1038,6 +1074,15 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
       }
 
       // 成功:回落基准间隔,清除离线标记。
+      if (state.offline) {
+        Logger.infoWithTag(
+          'CAST-PEER',
+          'poll recovered after $_failureCount failures '
+              '(peer=$peerId, resyncing queue=${items.length} index=$idx '
+              'playing=${effectiveStatus.playing} '
+              'position=${effectiveStatus.positionSeconds}s)',
+        );
+      }
       _failureCount = 0;
       _pollInterval = const Duration(seconds: 2);
       // 队列补拉又是数秒 await:落地前再验一次令牌与控制目标,过期作废。
@@ -1136,12 +1181,41 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
     }
   }
 
+  /// 轮询失败：**只标「连不上」，绝不改写设备状态**。
+  ///
+  /// 旧实现连续失败 3 次就 `status: const PeerStatus()` 整份清零，等于把「这次
+  /// 没请求到」当成「设备已经停了」。退到后台后（Wi-Fi 进省电 / 进程被压）内网
+  /// 请求超时，三条读数线就在同一刻一起冻死：
+  ///   - `playing` 变 false → `nextSmoothPosition` 首行直接返回原值（进度冻住）；
+  ///   - `duration` 变 0 → 通知栏进度条失去刻度，系统也不再按 speed 外推；
+  ///   - `castQueue` / `castIndex` 不再更新 → 歌名、歌手、歌词停在最后一首，
+  ///     设备那边切歌了客户端也看不见。
+  /// 而回前台网络恢复后状态又被真值填回来 —— 这正是「退后台几秒后整块冻结、
+  /// 回前台立刻正常」的成因。
+  ///
+  /// 断网期间唯一正确的读数就是「最后一次已知状态 + 按 playing 继续外推」：
+  /// 真值恢复后第一拍即被校正，误差只存在于断网这一段。代价是设备真的停了而我们
+  /// 又恰好断网时会「多演一会儿」—— 这比网络一抖就整块冻死好得多。
   void _handlePollFailure() {
     _failureCount++;
-    _pollInterval = Duration(seconds: (_pollInterval.inSeconds * 2).clamp(2, 15));
-    if (_failureCount >= 3) {
-      state = state.copyWith(offline: true, status: const PeerStatus());
+    final wasOffline = state.offline;
+    if (_failureCount >= kPeerOfflineFailureThreshold && !wasOffline) {
+      // 只置标记：status / smoothPositionSeconds / castQueue / castIndex 全部原样保留。
+      state = state.copyWith(offline: true);
+      Logger.warnWithTag(
+        'CAST-PEER',
+        'poll failed $_failureCount times → offline '
+            '(keeping last known state: playing=${state.status.playing} '
+            'position=${state.smoothPositionSeconds}s '
+            'duration=${state.status.durationSeconds}s '
+            'index=${state.castIndex} queue=${state.castQueue.length})',
+      );
     }
+    // 离线期间固定快重试；未到阈值时才按 2→4→8 翻倍（上限压到 8s，别把
+    // 「偶尔失败一次」也拖成十几秒的盲区）。
+    _pollInterval = state.offline
+        ? kPeerOfflinePollInterval
+        : Duration(seconds: (_pollInterval.inSeconds * 2).clamp(2, 8));
   }
 
   Future<dynamic> _post(

@@ -118,8 +118,39 @@ mixin CastPeerSession on CastPeerControllerBase {
     }
   }
 
-  // ==================== 流转播放 ====================
+  // ==================== 后台保活（仅 Android）====================
 
+  /// 申请/释放投屏后台保活。
+  ///
+  /// 链路 A（服务端投流）与链路 B（局域网直投）用同一套原生锁，此前**只有 B 接了**
+  /// —— 这是「投屏退到后台几秒后通知栏整块冻住」的直接缺口：
+  ///
+  /// - 通知栏的进度 / 歌词 / 歌名全都读 2s 轮询结果；
+  /// - 熄屏后 CPU 与 Wi-Fi 都会进省电：CPU 睡了则 250ms 平滑 tick 与 2s 轮询
+  ///   一起停，Wi-Fi 睡了则请求直接超时。任一发生，三条读数线同时冻死；
+  /// - 回前台系统解除省电 → 第一拍轮询成功 → 一切自动恢复（用户实测正是如此）。
+  ///
+  /// 所以这里必须把「CPU + Wi-Fi + 前台服务权限」三样一起补上，缺一条都会复发。
+  void _acquireCastKeepAlive() {
+    if (_castKeepAliveHeld) return;
+    _castKeepAliveHeld = true;
+    // acquireCastKeepAlive = PARTIAL WakeLock（CPU）+ Wi-Fi 高性能锁（射频）。
+    unawaited(acquireCastKeepAlive());
+    // 通知权限（Android 13+）+ 电池优化豁免：媒体前台服务不被拦，进程不被
+    // 国产 ROM 的后台冻结策略掐掉。幂等、静默失败降级，不阻断投屏。
+    unawaited(requestBackgroundCastPerms());
+    Logger.infoWithTag('CAST-PEER', 'cast keep-alive acquired (wake+wifi lock)');
+  }
+
+  @override
+  void _releaseCastKeepAlive() {
+    if (!_castKeepAliveHeld) return;
+    _castKeepAliveHeld = false;
+    unawaited(releaseCastKeepAlive());
+    Logger.infoWithTag('CAST-PEER', 'cast keep-alive released');
+  }
+
+  // ==================== 流转播放 ====================
   /// 流转播放 = **纯 UI 控制目标切换**(对齐主项目前端 switchPeer):
   /// 只改控制目标,不推本地队列、不自动投屏;
   /// 选中远端 peer 时开始状态轮询,由轮询拉取其队列让 UI 镜像设备当前播放。
@@ -162,6 +193,9 @@ mixin CastPeerSession on CastPeerControllerBase {
     // 一选中就让通知栏切到远端态(播放态/进度随后由 _advanceSmooth 每拍刷新)。
     _syncNotificationCast();
     _startPolling(peer.peerId);
+    // 后台保活必须在选中瞬间就位上(见 [_acquireCastKeepAlive]):等第一次轮询
+    // 失败再补已经来不及 —— 那正是通知栏冻住的时刻。
+    _acquireCastKeepAlive();
     // 不等周期 tick:_startPolling 首拍立即 _tick,且此时 castQueue 已被
     // 上面清空 → 首拍必然走 needFull 全量拉取,新目标的真实状态即刻上屏
     // (不要再显式 pollOnce,会重复拉状态破坏「status called(1)」契约)。
@@ -177,6 +211,8 @@ mixin CastPeerSession on CastPeerControllerBase {
   @override
   Future<void> backToLocal({bool resumeLocal = false}) async {
     _stopTimers();
+    // 不再遥控远端了，后台保活立刻归还（否则锁一直挂着白耗电）。
+    _releaseCastKeepAlive();
     final snapshot = _localSnapshot;
     _localSnapshot = null;
     if (snapshot != null) {

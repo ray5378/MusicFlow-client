@@ -38,6 +38,16 @@ class MainActivity : AudioServiceFragmentActivity() {
         // 视觉维持 FULL 走 mediaPlayback 前台服务，CPU 用 PARTIAL 保持 timer 触发。
         private const val CAST_WAKE_LOCK_TAG = "musicflow:dlna_cast"
 
+        // 投屏期间的 Wi-Fi 高性能锁。
+        //
+        // 为什么必须有它：PARTIAL WakeLock 只保证 **CPU** 不挂起，不保证 Wi-Fi 射频
+        // 全速。熄屏后 Wi-Fi 进省电模式，内网请求的 RTT 会从个位数 ms 涨到秒级，
+        // 客户端 6s 的状态轮询直接 TimeoutException —— 而通知栏的进度/歌词/歌名
+        // 全部由这份轮询结果驱动，于是「退后台几秒后整块冻住，回前台立刻恢复」。
+        // 这把锁让 Wi-Fi 在熄屏期间保持全速（两条链路共用）。
+        private var wifiLock: WifiManager.WifiLock? = null
+        private const val CAST_WIFI_LOCK_TAG = "musicflow:cast_wifi"
+
         // 与 android/app/src/main/res/xml/file_paths.xml 的 authority 必须一致
         // （清单里注册为 ${applicationId}.fileprovider）。
         private const val APK_FILE_PROVIDER_SUFFIX = ".fileprovider"
@@ -391,6 +401,40 @@ class MainActivity : AudioServiceFragmentActivity() {
                     result.success(true)
                 } catch (e: Exception) {
                     result.error("RELEASE_WAKE_LOCK_FAILED", e.message, null)
+                }
+            }
+            // 投屏期间的 Wi-Fi 高性能锁：与上面的 PARTIAL WakeLock 配对使用。
+            // WakeLock 保住 CPU（timer 能触发），这把锁保住 Wi-Fi（请求别超时），
+            // 二者缺一都会表现为「退后台几秒后通知栏不再更新」。
+            // 同样不开启原生引用计数（由 Dart 侧统一计数，isHeld 幂等防重叠）。
+            "acquireWifiLock" -> {
+                try {
+                    val wifiManager = getApplicationContext()
+                        .getSystemService(WIFI_SERVICE) as WifiManager
+                    // 只用 FULL_HIGH_PERF，不切 LOW_LATENCY：后者是「前台低延迟」模式，
+                    // 应用不在前台时系统会直接不认（投屏恰恰全是后台场景）。
+                    // FULL_HIGH_PERF 自 API 29 起标记 deprecated，但各版本仍然被当作
+                    // 「别让 Wi-Fi 射频睡下去」的权威锁，且不要求前台。
+                    @Suppress("DEPRECATION")
+                    val mode = WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                    val lock = wifiLock ?: wifiManager.createWifiLock(mode, CAST_WIFI_LOCK_TAG).also {
+                        // 引用计数在 Dart 侧（DlnaKeepaliveController），原生侧关掉，
+                        // 否则两边各计一次会导致过早释放。
+                        it.setReferenceCounted(false)
+                        wifiLock = it
+                    }
+                    if (!lock.isHeld) lock.acquire()
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("ACQUIRE_WIFI_LOCK_FAILED", e.message, null)
+                }
+            }
+            "releaseWifiLock" -> {
+                try {
+                    if (wifiLock?.isHeld == true) wifiLock?.release()
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("RELEASE_WIFI_LOCK_FAILED", e.message, null)
                 }
             }
             // 电池优化豁免：国产 ROM 后台冻结常导致投屏轮询 timer 停摆，即使前台服务

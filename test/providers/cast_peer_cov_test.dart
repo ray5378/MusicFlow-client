@@ -117,11 +117,15 @@ class _RecPlayer extends TestPlayerNotifier {
 
 /// 一次网络调用（捕获用例断言用）。
 class _Req {
-  _Req(this.method, this.path, this.data);
+  _Req(this.method, this.path, this.data, [this.query]);
 
   final String method;
   final String path;
   final Map<String, dynamic>? data;
+
+  /// 查询参数：`null` = 全量拉取（`fetchQueue(full: true)` 不传 query）。
+  /// 「断网恢复后强制全量」这条断言靠它判「这一拍走的是全量还是轻量」。
+  final Map<String, dynamic>? query;
 
   @override
   String toString() => '$method $path $data';
@@ -281,7 +285,7 @@ void main() {
     Map<String, dynamic>? data,
     Map<String, dynamic>? query,
   ) {
-    reqs.add(_Req(method, path, data));
+    reqs.add(_Req(method, path, data, query));
     if (onCall != null) return onCall!(method, path, data, query);
     return defaultCall(method, path, data, query);
   }
@@ -1012,8 +1016,9 @@ void main() {
 
   // ==================== 七、轮询 / seek 护栏 / 离线 ====================
 
-  test('轮询连续失败 3 次置 offline 并清空状态', () async {
+  test('轮询连续失败 3 次只置 offline，绝不清设备状态', () async {
     await ctrl.switchTo(dlnaPeer);
+    final before = ctrl.state;
     onCall = (m, p, d, q) {
       if (p.endsWith('/status')) throw StateError('poll boom');
       return defaultCall(m, p, d, q);
@@ -1024,7 +1029,62 @@ void main() {
     await expectLater(ctrl.pollOnce(), completes);
 
     expect(ctrl.state.offline, isTrue);
-    expect(ctrl.state.status.state, '');
+    // 旧实现把 status 清成 PeerStatus()：playing→false 让 nextSmoothPosition
+    // 直接返回原值、duration→0 让通知栏进度条失去刻度 —— 通知栏的进度/歌词/
+    // 歌名三条线同源，于是一起冻死。这里钉住「断网不改数据」。
+    expect(ctrl.state.status.state, before.status.state);
+    expect(ctrl.state.status.state, isNotEmpty);
+    expect(ctrl.state.status.playing, before.status.playing);
+    expect(ctrl.state.status.durationSeconds, before.status.durationSeconds);
+    expect(ctrl.state.smoothPositionSeconds, before.smoothPositionSeconds);
+    expect(ctrl.state.castIndex, before.castIndex);
+    expect(ctrl.state.castQueue.length, before.castQueue.length);
+  });
+
+  test('断网恢复的第一拍强制全量拉队（不靠 total 猜）', () async {
+    await ctrl.switchTo(dlnaPeer);
+    // switchTo 内部 unawaited 起了首拍 tick（此时 castQueue 为空 → needFull），
+    // 必须等它落地再开始计数，否则基线条数会被它算进来。
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // 基线：在线时走轻量路径 —— 一拍只发 **1** 次 /queue（offset=<len>&size=1）。
+    reqs = <_Req>[];
+    await ctrl.pollOnce();
+    final normalQueueFetches =
+        reqs.where((r) => r.path.endsWith('/queue')).length;
+    expect(normalQueueFetches, 1, reason: '在线时应当是轻量路径');
+
+    // 断网：连续 3 拍失败 → offline（status 抛错，但 queue 仍成功）。
+    onCall = (m, p, d, q) {
+      if (p.endsWith('/status')) throw StateError('poll boom');
+      return defaultCall(m, p, d, q);
+    };
+    await ctrl.pollOnce();
+    await ctrl.pollOnce();
+    await ctrl.pollOnce();
+    expect(ctrl.state.offline, isTrue);
+
+    // 恢复的第一拍：必须全量（`fetchQueue(full: needFull)` + `if (needFull)`
+    // 再补一次 = 2 次 /queue）。轻量路径只换当前槽位那一首、靠 total 判断队列
+    // 是否变化，断网期间「换歌又换回来」时 total 不变 → 永远抓不到。
+    reqs = <_Req>[];
+    onCall = null;
+    await ctrl.pollOnce();
+
+    expect(ctrl.state.offline, isFalse);
+    final recoveryQueueReqs =
+        reqs.where((r) => r.path.endsWith('/queue')).toList(growable: false);
+    expect(
+      recoveryQueueReqs.length,
+      2,
+      reason: '断网恢复必须走全量队列拉取，实际请求：'
+          '${recoveryQueueReqs.map((r) => r.query).toList()}',
+    );
+    expect(
+      recoveryQueueReqs.any((r) => r.query == null),
+      isTrue,
+      reason: '全量路径不带 offset/size（query 为 null）',
+    );
   });
 
   test('seek 之后遇到 TRANSITIONING-0 采样时屏蔽、保留乐观进度', () async {

@@ -324,7 +324,7 @@ class DlnaCastNotifier extends Notifier<DlnaCastState> {
       _stopTick();
       _cancelHeartbeat();
       _disableNotificationCast();
-      releaseCastWakeLock();
+      releaseCastKeepAlive();
     };
     return const DlnaCastState();
   }
@@ -356,7 +356,7 @@ class DlnaCastNotifier extends Notifier<DlnaCastState> {
   Future<void> detachOnAppRemoved() async {
     _stopTick();
     _cancelHeartbeat();
-    releaseCastWakeLock();
+    releaseCastKeepAlive();
     _disableNotificationCast();
     ref.read(dlnaManagerProvider).detachClientKeepalive();
   }
@@ -512,7 +512,7 @@ class DlnaCastNotifier extends Notifier<DlnaCastState> {
       );
       // 后台保活（仅 Android）：唤醒锁 + 前台服务双重保障，熄屏/退后台时
       // 进程不被冻结或杀死，2s 轮询持续触发 → 曲毕自动推下一首。
-      acquireCastWakeLock();
+      acquireCastKeepAlive();
       await requestBackgroundCastPerms();
       _mirrorCastToLocal();
       _startTick();
@@ -602,7 +602,7 @@ class DlnaCastNotifier extends Notifier<DlnaCastState> {
         isCasting: true,
         castPath: manager.castPath,
       );
-      acquireCastWakeLock();
+      acquireCastKeepAlive();
       await requestBackgroundCastPerms();
       _mirrorCastToLocal();
       _startTick();

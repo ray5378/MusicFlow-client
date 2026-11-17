@@ -33,11 +33,21 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  test('非 Android 下四个 acquire/release 立即返回且不抛', () async {
+  test('非 Android 下各 acquire/release 立即返回且不抛', () async {
     await acquireMulticastLock();
     await releaseMulticastLock();
     await acquireCastWakeLock();
     await releaseCastWakeLock();
+    await acquireCastWifiLock();
+    await releaseCastWifiLock();
+    expect(calls, isEmpty);
+  });
+
+  test('组合入口 acquireCastKeepAlive 在非 Android 下也是空操作', () async {
+    // 两支锁必须成对：只持唤醒锁 → timer 会触发但请求超时；
+    // 只持 Wi-Fi 锁 → 射频醒着但 CPU 睡下去，timer 根本不跑。
+    await acquireCastKeepAlive();
+    await releaseCastKeepAlive();
     expect(calls, isEmpty);
   });
 

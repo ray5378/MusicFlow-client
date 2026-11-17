@@ -943,7 +943,18 @@ void main() {
       await controller.pollOnce();
 
       expect(controller.state.offline, isTrue);
-      expect(controller.state.status.state, isEmpty);
+      // 断网只许打标记，设备状态必须原样保留。
+      //
+      // 旧实现这里 `status: const PeerStatus()` 整份清零，等于把「这次没请求到」
+      // 当成「设备已经停了」：playing→false 让平滑进度停走、duration→0 让通知栏
+      // 进度条失去刻度、castQueue 不更新让歌名/歌词卡在最后一首 —— 三条读数线
+      // 同源，所以退后台几秒后整块冻死，回前台网络恢复又自动好。
+      expect(controller.state.status.state, 'PLAYING');
+      expect(controller.state.status.playing, isTrue);
+      expect(controller.state.status.durationSeconds, 200);
+      expect(controller.state.status.positionSeconds, 5);
+      expect(controller.state.castIndex, 0);
+      expect(controller.state.castQueue, isNotEmpty);
     });
   });
 

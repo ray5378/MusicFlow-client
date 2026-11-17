@@ -8,6 +8,10 @@ import 'package:musicflow_client/core/dlna/dlna_keepalive.dart';
 ///     重叠加/减不得重复触发原生挂/摘锁，否则会造成重复 acquire 或过早起解除锁
 ///     —— 一旦过早 release 唤醒锁，2s 轮询 timer 在熄屏/Doze 下停摆，曲毕看门狗
 ///     将无法在后台主动推下一首（无声音量时停播）。
+///
+///   - Wi-Fi 高性能锁（v5.17.15 新增）必须**独立计数**：它与唤醒锁保的是两件
+///     不同的东西（CPU / 射频）。共用计数会出现「一方 release 把另一方减穿」，
+///     表现为另一条投屏链路悄悄失去保活 → 退后台几秒后通知栏整块冻住。
 void main() {
   group('唤醒锁引用计数（DLNA 后台续播保活）', () {
     DlnaKeepaliveController c() => DlnaKeepaliveController();
@@ -81,17 +85,61 @@ void main() {
     });
   });
 
+  group('Wi-Fi 高性能锁引用计数（投屏熄屏保活）', () {
+    DlnaKeepaliveController c() => DlnaKeepaliveController();
+
+    test('首次 acquire 才真正挂锁', () {
+      final k = c();
+      expect(k.acquireWifiLock(), isTrue);
+      expect(k.acquireWifiLock(), isFalse);
+      expect(k.wifiLockRefs, 2);
+      expect(k.wifiLockHeld, isTrue);
+    });
+
+    test('引用归零才真正摘锁，未持有 release 幂等', () {
+      final k = c();
+      expect(k.releaseWifiLock(), isFalse, reason: '未持有时不得引入负数');
+      expect(k.wifiLockRefs, 0);
+      k.acquireWifiLock();
+      k.acquireWifiLock();
+      expect(k.releaseWifiLock(), isFalse);
+      expect(k.wifiLockHeld, isTrue);
+      expect(k.releaseWifiLock(), isTrue);
+      expect(k.wifiLockHeld, isFalse);
+    });
+
+    test('与唤醒锁完全独立：一方 release 不会把另一方减穿', () {
+      final k = c();
+      k.acquireWakeLock();
+      k.acquireWifiLock();
+      k.releaseWifiLock();
+      expect(k.wifiLockHeld, isFalse);
+      expect(
+        k.wakeLockHeld,
+        isTrue,
+        reason: 'Wi-Fi 锁归零不应影响唤醒锁（两条链路共用同一个计数器实例）',
+      );
+      k.acquireWifiLock();
+      k.releaseWakeLock();
+      expect(k.wakeLockHeld, isFalse);
+      expect(k.wifiLockHeld, isTrue, reason: '唤醒锁归零不应影响 Wi-Fi 锁');
+    });
+  });
+
   group('reset（App 划掉任务强制回收）', () {
     test('清空所有锁引用', () {
       final k = DlnaKeepaliveController();
       k.acquireWakeLock();
       k.acquireWakeLock();
       k.acquireMulticastLock();
+      k.acquireWifiLock();
       k.reset();
       expect(k.wakeLockRefs, 0);
       expect(k.multicastLockRefs, 0);
+      expect(k.wifiLockRefs, 0);
       expect(k.wakeLockHeld, isFalse);
       expect(k.multicastLockHeld, isFalse);
+      expect(k.wifiLockHeld, isFalse);
     });
   });
 }
