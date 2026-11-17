@@ -31,6 +31,12 @@
  *   R15 后台自持时钟：控制器有 300ms Timer.periodic + listen currentLyricsProvider + 锚点外推
  *   R16 版本分叉阈值：30（三行）/ 33（槽位通路），且都要求 sdkInt > 0
  *   R17 反向探针：读一批必然不存在的符号，命中数必须为 0（证明本守卫不是恒绿）
+ *   R18 远端目标路由：play/pause/上下一首/seek 都必须先看 _remoteSelected
+ *   R19 歌词进度取 effective：控制器不许再读本机 position 二分歌词
+ *   R20 投屏进度贯通：peer 链路每拍喂进度、回本机必须显式关
+ *   R21 处理态兜底：远端选中时 _getProcessingState 恒 ready
+ *   R22 切歌不拽进度：updateMediaItem 不许硬写零进度
+ *   R23 判据是「选择」：isRemoteTarget 只看 activePeer/isCasting，不看 status.playing
  *
  * 用法：node tool/check-notification-guard.mjs   （退出码非 0 即阻断）
  */
@@ -46,6 +52,8 @@ const PATHS = {
   handler: "lib/core/services/audio_handler_service.dart",
   platform: "lib/core/services/android_platform_info.dart",
   lyricsProvider: "lib/providers/media/notification_lyrics_provider.dart",
+  playerProvider: "lib/providers/player/player_provider.dart",
+  peerSession: "lib/providers/cast/cast_peer_session.dart",
 };
 
 const results = [];
@@ -198,6 +206,8 @@ const heartBorderRaw = readText(PATHS.heartBorder);
 const handlerRaw = readText(PATHS.handler);
 const platformRaw = readText(PATHS.platform);
 const lyricsProviderRaw = readText(PATHS.lyricsProvider);
+const playerProviderRaw = readText(PATHS.playerProvider);
+const peerSessionRaw = readText(PATHS.peerSession);
 
 for (const [label, raw] of [
   ["实心心形", heartFullRaw],
@@ -205,6 +215,8 @@ for (const [label, raw] of [
   ["音频 handler", handlerRaw],
   ["平台信息", platformRaw],
   ["歌词控制器", lyricsProviderRaw],
+  ["播放器 notifier", playerProviderRaw],
+  ["投屏会话段", peerSessionRaw],
 ]) {
   assertTrue(
     `${label}文件可读`,
@@ -214,7 +226,15 @@ for (const [label, raw] of [
     "读不到文件时后面的断言会全部空转，必须单独拦一次",
   );
 }
-if (!heartFullRaw || !heartBorderRaw || !handlerRaw || !platformRaw || !lyricsProviderRaw) {
+if (
+  !heartFullRaw ||
+  !heartBorderRaw ||
+  !handlerRaw ||
+  !platformRaw ||
+  !lyricsProviderRaw ||
+  !playerProviderRaw ||
+  !peerSessionRaw
+) {
   for (const r of results) {
     if (!r.ok) console.log(`[FAIL] ${r.name}\n       期望: ${r.expected}\n       实际: ${r.actual}`);
   }
@@ -227,6 +247,8 @@ const heartBorder = stripXmlComments(heartBorderRaw);
 const handler = stripDartComments(handlerRaw);
 const platform = stripDartComments(platformRaw);
 const lyricsProvider = stripDartComments(lyricsProviderRaw);
+const playerProvider = stripDartComments(playerProviderRaw);
+const peerSession = stripDartComments(peerSessionRaw);
 
 // ── R1 图标资源 ────────────────────────────────────────────
 assertTrue(
@@ -443,6 +465,114 @@ assertTrue(
   "两个判据都要求 _sdkInt > 0（0 = 未知 → 新布局）",
   "判据里缺 `_sdkInt > 0` 时，未知版本会掉进老布局分支",
   "桌面/读取失败时 _sdkInt 是 0，按老布局会把歌词写进没人读的位置",
+);
+
+// ── R18 远端目标路由（通知栏跟首页一致：选中谁就控制谁）────────
+for (const fn of ["play", "pause", "skipToNext", "skipToPrevious", "seek"]) {
+  assertContains(
+    `R18 ${fn} 先判远端目标`,
+    functionBody(handler, fn) ?? "",
+    "_remoteSelected",
+    "通知栏必须控制「用户选中的设备」；漏一条就会在投屏中把命令打回本机（双声道 / 进度与设备对不上）",
+  );
+}
+
+// ── R19 歌词进度取 effective ─────────────────────────────
+assertContains(
+  "R19a 歌词位置取 effectivePositionProvider",
+  lyricsProvider,
+  "effectivePositionProvider",
+  "投屏时本机 position 被队列镜像重置为 0 且不再自增，读它歌词永远停在第一句",
+);
+assertContains(
+  "R19b 歌词播放态取 effectiveIsPlayingProvider",
+  lyricsProvider,
+  "effectiveIsPlayingProvider",
+  "设备暂停时本机可能仍报 playing，歌词会继续往下滚",
+);
+assertAbsent(
+  "R19c 不许再用本机 position 二分",
+  lyricsProvider,
+  "state.position",
+  "回退到 state.position 等于把「跟随选中设备」这条语义拆掉",
+);
+
+// ── R20 投屏进度贯通 ─────────────────────────────────────
+assertContains(
+  "R20a peer 链路喂通知栏进度",
+  peerSession,
+  "updateNotificationCastProgress",
+  "链路 A 没有这条，通知栏进度会定在流转那一刻",
+);
+assertContains(
+  "R20b 平滑进度每拍都喂",
+  functionBody(peerSession, "_advanceSmooth") ?? "",
+  "_syncNotificationCast()",
+  "只在 2s 轮询时喂，暂停/缓冲的播放态变化要等两秒才上屏",
+);
+assertContains(
+  "R20c 回本机显式关掉投屏进度",
+  functionBody(peerSession, "backToLocal") ?? "",
+  "active: false",
+  "不显式关，handler 会一直以为还在投屏，通知栏停在远端态不回本机",
+);
+
+// ── R21 处理态兜底 ───────────────────────────────────────
+assertTrue(
+  "R21 远端选中时 processingState 恒 ready",
+  /AudioProcessingState _getProcessingState\(\)\s*\{[\s\S]{0,160}?AudioProcessingState\.ready/.test(handler),
+  "_getProcessingState 开头返回 AudioProcessingState.ready",
+  "handler 里没有远端兜底",
+  "本机 idle 原样上报，SystemUI 判定「播放结束」直接拆掉通知与前台服务，而远端还在播",
+);
+
+// ── R22 切歌不拽进度 ─────────────────────────────────────
+assertAbsent(
+  "R22 切歌不硬写零进度",
+  functionBody(handler, "updateMediaItem") ?? "",
+  "updatePosition: Duration.zero",
+  "投屏切歌会把系统进度条拽回开头（设备其实在 3 分钟处）",
+);
+
+// ── R23 判据是「选择」不是「谁在放」──────────────────────
+assertContains(
+  "R23a 注册远端目标回调",
+  playerProvider,
+  "isRemoteTarget = _isRemoteControlTarget",
+  "不注册的话 handler 永远按本机处理，通知栏与首页会各控一个设备",
+);
+for (const field of [
+  "onRemotePlay",
+  "onRemotePause",
+  "onRemoteSkipToNext",
+  "onRemoteSkipToPrevious",
+  "onRemoteSeek",
+]) {
+  assertContains(
+    `R23b 注册 ${field}`,
+    playerProvider,
+    `${field} = `,
+    "少注册一个，对应那颗按钮就会在投屏中打回本机",
+  );
+}
+const notificationTargetBody = functionBody(playerProvider, "_isRemoteControlTarget") ?? "";
+assertContains(
+  "R23c 判据看「选择」：activePeer",
+  notificationTargetBody,
+  "activePeer != null",
+  "设备缓冲/暂停/离线都还属于「选中」，判据必须是选择本身",
+);
+assertContains(
+  "R23d 判据看「选择」：isCasting",
+  notificationTargetBody,
+  "isCasting",
+  "链路 B 直投没有 activePeer，只看链路 A 会把直投当本机",
+);
+assertAbsent(
+  "R23e 判据不许用「谁在放」",
+  notificationTargetBody,
+  "status.playing",
+  "status.playing 随设备状态抖动，同一次点击会打到不同设备上（用户口径：按选择，不按谁在放）",
 );
 
 // ── R17 反向探针（本守卫必须能失败）────────────────────────

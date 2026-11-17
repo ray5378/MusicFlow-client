@@ -29,6 +29,7 @@ import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/data/models/structured_lyrics.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
 import 'package:musicflow_client/providers/media/notification_lyrics_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 
 import '../features/player/test_player_notifier.dart';
@@ -178,5 +179,57 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 500));
 
     expect(recorder.pushes.length, before);
+  });
+
+  // ==================== 远端（投屏 / 直投）接入 ====================
+  //
+  // 语义：通知栏的控制目标 = 首页选择的目标。歌词必须按「选中的设备」的进度
+  // 二分 —— 投屏时本机 position 被队列镜像重置为 0 且不再自增（见
+  // syncQueueForCast），继续读本机会永远停在第一句。
+
+  test('远端选中时歌词按 effective 进度走（本机 position 冻结在 0）', () async {
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        playerProvider.overrideWith(() => player),
+        currentLyricsProvider.overrideWith((ref) async => _lyrics()),
+        // 设备已经播到 1s（第二句起于 900ms），本机仍停在 0。
+        effectivePositionProvider.overrideWithValue(
+          const Duration(milliseconds: 1000),
+        ),
+        effectiveIsPlayingProvider.overrideWithValue(true),
+      ],
+    );
+    player.emit(_state(position: Duration.zero));
+
+    container.read(notificationLyricsControllerProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+
+    expect(
+      recorder.last,
+      '第二句',
+      reason: '读本机 position 会停在第一句 —— 这正是投屏时歌词不走的原因',
+    );
+  });
+
+  test('远端暂停时歌词冻结在当前行', () async {
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        playerProvider.overrideWith(() => player),
+        currentLyricsProvider.overrideWith((ref) async => _lyrics()),
+        effectivePositionProvider.overrideWithValue(
+          const Duration(milliseconds: 1000),
+        ),
+        effectiveIsPlayingProvider.overrideWithValue(false),
+      ],
+    );
+    // 本机仍报 playing：控制器的播放态必须取 effective，不能被它带跑。
+    player.emit(_state(position: Duration.zero, playing: true));
+
+    container.read(notificationLyricsControllerProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+    expect(recorder.last, '第二句', reason: '设备暂停，歌词不能自己往下滚');
   });
 }

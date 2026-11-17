@@ -31,6 +31,10 @@ import 'package:musicflow_client/core/services/smtc_service.dart';
 import 'package:musicflow_client/providers/api/music_provider.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
+// 通知栏与首页共用「当前选中的控制目标」判定（链路 B 直投优先于链路 A 投屏）。
+// 与 cast_peer_provider 之间是双向 import —— Dart 允许，且两边都只在方法体内
+// 使用对方符号，不存在顶层初始化顺序依赖。
+import 'package:musicflow_client/providers/cast/dlna_provider.dart';
 import 'package:musicflow_client/providers/player/audio_quality_provider.dart';
 import 'package:musicflow_client/providers/player/crossfade_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
@@ -671,6 +675,15 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
         if (currentSong == null) return Future<bool?>.value(null);
         return toggleSongFavorite(currentSong);
       };
+      // 通知栏 = 首页的第二个渲染面：显示并控制**用户当前选中的设备**。
+      // 判据与 effective 层完全一致（链路 B 直投选中 > 链路 A 投屏选中 > 本机），
+      // 只看「选择」不看「谁在出声」—— 设备缓冲/暂停/离线都不改变控制目标。
+      _audioHandler?.isRemoteTarget = _isRemoteControlTarget;
+      _audioHandler?.onRemotePlay = _remoteResume;
+      _audioHandler?.onRemotePause = _remotePause;
+      _audioHandler?.onRemoteSkipToNext = _remoteNext;
+      _audioHandler?.onRemoteSkipToPrevious = _remotePrevious;
+      _audioHandler?.onRemoteSeek = _remoteSeek;
     } catch (e) {
       Logger.warn('AudioService not available: $e');
       // 缓冲标定取全 App 单一常量源（原两份复制粘贴，2026-10-13 合并，防漂移）。
@@ -1826,6 +1839,75 @@ abstract class PlayerNotifier extends Notifier<PlayerState>
       position: position,
       duration: state.duration,
     );
+  }
+
+  // ==================== 通知栏的远端控制路由 ====================
+  //
+  // 通知栏和首页是同一套语义：用户选了哪个设备，通知栏就显示那个设备的状态、
+  // 按下去就控制那个设备。判据直接复用首页那套「选择」判定（链路 B 直投选中
+  // 优先于链路 A 投屏选中），而不是「谁正在出声」—— 后者会随设备缓冲/暂停/
+  // 离线抖动，导致同一次点击在不同时刻打到不同设备上。
+
+  /// 通知栏当前控制目标是不是远端设备。
+  ///
+  /// 桌面/web 没有 audio_service 通知，恒 false，保持既有行为。
+  bool _isRemoteControlTarget() {
+    if (kIsWeb || _isDesktopPlatform) return false;
+    try {
+      if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) return true;
+      return ref.read(castPeerControllerProvider).activePeer != null;
+    } catch (_) {
+      // 拆卸中 / provider 未就绪：按本机处理，绝不把命令丢给不存在的远端。
+      return false;
+    }
+  }
+
+  /// 通知栏播放键：确保「当前选中的设备」在播。
+  Future<void> _remoteResume() async {
+    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
+      await ref.read(dlnaCastProvider.notifier).resume();
+      return;
+    }
+    final cast = ref.read(castPeerControllerProvider);
+    // peer 没有独立 resume：已在播就什么都不用做，否则 toggle 会把它按停。
+    if (cast.activePeer == null || cast.status.playing) return;
+    await ref.read(castPeerControllerProvider.notifier).toggle();
+  }
+
+  /// 通知栏暂停键：确保「当前选中的设备」暂停（两条链路都幂等）。
+  Future<void> _remotePause() async {
+    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
+      await ref.read(dlnaCastProvider.notifier).pause();
+      return;
+    }
+    await ref.read(castPeerControllerProvider.notifier).pause();
+  }
+
+  /// 通知栏下一首：命令当前选中的设备换歌（绝不在本机开播）。
+  Future<void> _remoteNext() async {
+    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
+      await ref.read(dlnaCastProvider.notifier).next();
+      return;
+    }
+    await ref.read(castPeerControllerProvider.notifier).next();
+  }
+
+  /// 通知栏上一首：同 [_remoteNext]。
+  Future<void> _remotePrevious() async {
+    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
+      await ref.read(dlnaCastProvider.notifier).previous();
+      return;
+    }
+    await ref.read(castPeerControllerProvider.notifier).previous();
+  }
+
+  /// 通知栏进度跳转：设备进度条上的 seek 必须下发给设备本身。
+  Future<void> _remoteSeek(Duration position) async {
+    if (ref.read(dlnaCastProvider.select((s) => s.isCasting))) {
+      await ref.read(dlnaCastProvider.notifier).seek(position.inSeconds);
+      return;
+    }
+    await ref.read(castPeerControllerProvider.notifier).seek(position);
   }
 
 

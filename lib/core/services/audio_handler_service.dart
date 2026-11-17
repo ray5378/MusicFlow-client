@@ -142,6 +142,26 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   /// 的 starred（失败返回 null，图标保持原样）。未注册时按钮点击静默无操作。
   Future<bool?> Function()? onToggleFavorite;
 
+  /// 「当前选中的控制目标是不是远端设备」——由上层（PlayerNotifier）注册。
+  ///
+  /// 通知栏不是独立播放器：它必须和 App 首页一样，显示并控制**用户当前选中的
+  /// 设备**。选中判定（本机 / 链路 A 投屏 / 链路 B 直投）的唯一真源在
+  /// Riverpod 里，handler 拿不到，只能回调问一句。未注册时一律按本机处理。
+  ///
+  /// 判据只看「选择」不看「谁在出声」：设备缓冲、暂停、离线都不改变控制目标，
+  /// 否则同一次点击会因设备状态抖动打到不同设备上（首页的 effective 层同理）。
+  bool Function()? isRemoteTarget;
+
+  /// 远端控制委托（播放 / 暂停 / 上下一首 / 跳转）。
+  ///
+  /// 只有 [isRemoteTarget] 为真时才会被调用。委托为 null 时命令被**丢弃**，
+  /// 绝不回落到本机播放器——投屏中让本机出声就是双声道。
+  Future<void> Function()? onRemotePlay;
+  Future<void> Function()? onRemotePause;
+  Future<void> Function()? onRemoteSkipToNext;
+  Future<void> Function()? onRemoteSkipToPrevious;
+  Future<void> Function(Duration position)? onRemoteSeek;
+
   /// 当前歌是否已收藏：决定通知栏心形是实心还是空心。
   ///
   /// 唯一真源是播放状态里的 `Song.starred`，本 handler 只缓存一份用于画图标；
@@ -155,6 +175,16 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   bool _castActive = false;
   bool _castPlaying = true;
   Duration _castPosition = Duration.zero;
+
+  /// 上一次真正推给原生的投屏位置（节流用，见 [setCastProgress]）。
+  Duration _lastBroadcastCastPosition = Duration.zero;
+
+  /// 远端选中（含「已选中但投屏进度还没喂过来」的一瞬）。
+  ///
+  /// 本机 just_audio 的 idle/暂停态在远端选中时**不得**上报：SystemUI 会据此
+  /// 判定播放结束、拆掉通知与前台服务，而远端其实还在播。所有「忽略本机事件」
+  /// 的守卫都走这里，不单看 [_castActive]（后者要等第一拍进度才置位）。
+  bool get _remoteSelected => _castActive || (isRemoteTarget?.call() ?? false);
 
   /// 用户手动从后台任务划掉 App 时的回调（由外部注册，如 DLNA 客户端释放保活）。
   /// 本 handler 本身负责停掉本机播放；回调交上层处理投屏等对外资源。
@@ -180,14 +210,27 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   /// 设置并广播投屏/直投的合成进度。
   /// [active] 处于投屏态时 true（用投屏进度驱动，忽略暂停的本机播放器）；
   /// [playing] 设备是否正在播放；[position] 投屏当前进度。
+  ///
+  /// 节流：投屏侧 250~500ms 一拍、位置每拍都在变，但系统播控中心会按 `speed`
+  /// 自行外推，1s 一次的精度绰绰有余。播放态或开关变化必须**立刻**推（按钮
+  /// 图标、通知去留都看它），位置只按 1s 阈值推，避免每拍重建一次 MediaSession。
   void setCastProgress({
     required bool active,
     required bool playing,
     required Duration position,
   }) {
+    final wasActive = _castActive;
+    final wasPlaying = _castPlaying;
     _castActive = active;
     _castPlaying = playing;
     _castPosition = position;
+    final positionJumped =
+        (position - _lastBroadcastCastPosition).abs() >=
+        const Duration(seconds: 1);
+    if (active == wasActive && playing == wasPlaying && !positionJumped) {
+      return;
+    }
+    _lastBroadcastCastPosition = active ? position : Duration.zero;
     _broadcastState();
   }
 
@@ -195,13 +238,13 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   void _init() {
     // 监听播放状态变化，同步到通知栏
     _audioPlayer.playingStream.listen((playing) {
-      if (_castActive) return; // 投屏中，由投屏进度驱动，忽略本机暂停状态。
+      if (_remoteSelected) return; // 远端选中中，由投屏进度驱动，忽略本机暂停状态。
       _broadcastState();
     });
 
     // 监听播放位置
     _audioPlayer.positionStream.listen((position) {
-      if (_castActive) return; // 投屏中，位置由 setCastProgress 驱动。
+      if (_remoteSelected) return; // 远端选中中，位置由 setCastProgress 驱动。
       playbackState.add(
         playbackState.value.copyWith(
           updatePosition: _logicalPosition(position),
@@ -211,14 +254,14 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 
     // 监听播放完成
     _audioPlayer.processingStateStream.listen((processingState) {
-      if (_castActive) return;
+      if (_remoteSelected) return;
       _broadcastState();
     });
   }
 
   /// 广播当前状态到通知栏
   void _broadcastState() {
-    final castActive = _castActive;
+    final castActive = _remoteSelected;
     final playing = castActive ? _castPlaying : _audioPlayer.playing;
     final position =
         castActive ? _castPosition : _logicalPosition(_audioPlayer.position);
@@ -331,7 +374,12 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   }
 
   /// 获取处理状态
+  ///
+  /// 远端选中时本机 just_audio 通常停在 idle / 暂停：原样上报会让 SystemUI
+  /// 判定「播放结束」，直接拆掉媒体通知与前台服务，而远端还在播。此时统一
+  /// 报 ready（通知栏进度/播放态由 [setCastProgress] 驱动）。
   AudioProcessingState _getProcessingState() {
+    if (_remoteSelected) return AudioProcessingState.ready;
     switch (_audioPlayer.processingState) {
       case ProcessingState.idle:
         return AudioProcessingState.idle;
@@ -387,20 +435,22 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
           item,
     );
 
-    // 立即设置为播放状态，激活 MediaSession
+    // 切歌后第一帧：远端选中时不能硬写成「本机正在播 + 位置 0」—— 那会把通知栏
+    // 进度拽回开头，并在远端暂停/缓冲时错报「播放中」。此时沿用投屏进度与播放态。
+    final castActive = _remoteSelected;
     playbackState.add(
       playbackState.value.copyWith(
-        controls: _getControls(true),
+        controls: _getControls(castActive ? _castPlaying : true),
         androidCompactActionIndices: notificationCompactIndices(
           legacySlotOrder: AndroidPlatformInfo.usesNotificationActionSlots,
         ),
         systemActions: musicFlowPlaybackSystemActions,
         processingState: AudioProcessingState.ready,
-        playing: true, // 关键：标记为正在播放
-        updatePosition: Duration.zero,
-        bufferedPosition: Duration.zero,
+        playing: castActive ? _castPlaying : true, // 本机：关键，标记为正在播放
+        updatePosition: castActive ? _castPosition : Duration.zero,
+        bufferedPosition: castActive ? _castPosition : Duration.zero,
         // 倍速播放时通知栏进度也按同一速率外推(否则首帧按 1x 走,下一拍才纠正)。
-        speed: _audioPlayer.speed,
+        speed: castActive ? (_castPlaying ? 1.0 : 0.0) : _audioPlayer.speed,
       ),
     );
   }
@@ -437,9 +487,30 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 
   // ===== 播放控制 =====
 
+  /// 把一条通知栏命令转给远端目标。
+  ///
+  /// 委托缺失（未注册 / 冷启动竞态）时**丢弃**命令并留一行日志：绝不回落到
+  /// 本机播放器 —— 投屏中让本机出声就是双声道，比「按了没反应」严重得多。
+  Future<void> _forwardRemote(
+    Future<void> Function()? command,
+    String name,
+  ) async {
+    if (command == null) {
+      Logger.info('AudioHandler: $name ignored (remote target, no delegate)');
+      return;
+    }
+    Logger.info('AudioHandler: $name → remote target');
+    await command();
+  }
+
   @override
   Future<void> play() async {
     Logger.info('AudioHandler: play');
+    // 通知栏跟首页一致：选中的是谁就控制谁，不是「谁在放就控制谁」。
+    if (_remoteSelected) {
+      await _forwardRemote(onRemotePlay, 'play');
+      return;
+    }
     // 无当前曲（已清空会话 / 当前曲被移除）时不出声：此时没有「可恢复的播放」，
     // 放行只会让一个已被销毁的会话从系统播控中心复活（见 [canPlay]）。
     if (!(canPlay?.call() ?? true)) {
@@ -455,6 +526,10 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   @override
   Future<void> pause() async {
     Logger.info('AudioHandler: pause');
+    if (_remoteSelected) {
+      await _forwardRemote(onRemotePause, 'pause');
+      return;
+    }
     await _audioPlayer.pause();
   }
 
@@ -468,6 +543,18 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   @override
   Future<void> seek(Duration position) async {
     Logger.info('AudioHandler: seek to $position');
+    // 远端选中时进度条描述的是**设备的**位置：seek 必须下发给设备，
+    // 交给 onSeek（本机重建流）会把本机拖到新位置而设备纹丝不动。
+    if (_remoteSelected) {
+      final remote = onRemoteSeek;
+      if (remote == null) {
+        Logger.info('AudioHandler: seek ignored (remote target, no delegate)');
+      } else {
+        Logger.info('AudioHandler: seek → remote target');
+        await remote(position);
+      }
+      return;
+    }
     final callback = onSeek;
     if (callback != null) {
       await callback(position);
@@ -494,12 +581,20 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
   @override
   Future<void> skipToNext() async {
     Logger.info('AudioHandler: skipToNext');
+    if (_remoteSelected) {
+      await _forwardRemote(onRemoteSkipToNext, 'skipToNext');
+      return;
+    }
     onSkipToNext?.call();
   }
 
   @override
   Future<void> skipToPrevious() async {
     Logger.info('AudioHandler: skipToPrevious');
+    if (_remoteSelected) {
+      await _forwardRemote(onRemoteSkipToPrevious, 'skipToPrevious');
+      return;
+    }
     onSkipToPrevious?.call();
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicflow_client/core/utils/logger.dart';
 import 'package:musicflow_client/data/models/lyrics.dart';
 import 'package:musicflow_client/providers/media/lyrics_cover_provider.dart';
+import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/player/player_provider.dart';
 
 /// Android 通知栏实时歌词控制器。
@@ -129,7 +130,13 @@ class NotificationLyricsController {
         return;
       }
 
-      final position = _resolvePosition(state.position, state.isPlaying, now);
+      // 进度/播放态取「当前选中设备」的有效值（与首页同一来源）：
+      // 投屏/直投时本机 position 被镜像重置为 0 且不再自增，用它二分歌词会
+      // 永远停在第一句。歌曲本身仍取 playerProvider.currentSong —— 投屏队列
+      // 已镜像进本机队列，两边是同一首（见 syncQueueForCast）。
+      final reported = _ref.read(effectivePositionProvider);
+      final playing = _ref.read(effectiveIsPlayingProvider);
+      final position = _resolvePosition(reported, playing, now);
       _emit(lyricLineAt(_ref.read(currentLyricsProvider).valueOrNull, position));
     } catch (e) {
       Logger.warnWithTag('NOTIF_LYRICS', 'tick', e);

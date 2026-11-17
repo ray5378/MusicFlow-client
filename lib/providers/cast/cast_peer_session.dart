@@ -159,6 +159,8 @@ mixin CastPeerSession on CastPeerControllerBase {
     // 通知被遥控方(WS 广播采纳仲裁用):本端进入遥控模式,期间本机队列镜像
     // 已停写,服务端那份本机队列必然陈旧,不带起播起点的广播一律不采纳。
     ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(true);
+    // 一选中就让通知栏切到远端态(播放态/进度随后由 _advanceSmooth 每拍刷新)。
+    _syncNotificationCast();
     _startPolling(peer.peerId);
     // 不等周期 tick:_startPolling 首拍立即 _tick,且此时 castQueue 已被
     // 上面清空 → 首拍必然走 needFull 全量拉取,新目标的真实状态即刻上屏
@@ -190,6 +192,13 @@ mixin CastPeerSession on CastPeerControllerBase {
       offline: false,
     );
     ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(false);
+    // 未选中远端了,播控中心必须交回本机播放器驱动;不显式关会一直停在远端态
+    // (handler 的合成进度标记只由这里/DLNA 侧清除)。
+    ref.read(playerProvider.notifier).updateNotificationCastProgress(
+          active: false,
+          playing: false,
+          position: Duration.zero,
+        );
   }
 
   /// 保存当前本机播放状态为快照(供回本机恢复)。
@@ -589,7 +598,28 @@ mixin CastPeerSession on CastPeerControllerBase {
       status: st.status,
       tickMs: _progressTickMs,
     );
-    if (next == st.smoothPositionSeconds) return;
-    state = st.copyWith(smoothPositionSeconds: next);
+    if (next != st.smoothPositionSeconds) {
+      state = st.copyWith(smoothPositionSeconds: next);
+    }
+    // 无论位置是否推进都喂一次:暂停/缓冲时位置不变,但播放态可能刚变
+    // (按钮图标要立刻跟随);handler 内部对「位置没动 + 状态没变」直接早退。
+    _syncNotificationCast();
+  }
+
+  /// 把「选中远端」的状态喂给系统播控中心(通知栏/锁屏)。
+  ///
+  /// 与 DLNA 链路 B 的同名方法同职责:本机在切换目标时已经暂停,若不让远端
+  /// 进度驱动,通知栏进度会定在流转那一刻、播放态也停在本机暂停上。
+  /// [active] 恒 true —— 本方法只在已选中远端时执行(activePeer 守卫)。
+  void _syncNotificationCast() {
+    final st = state;
+    if (st.activePeer == null) return;
+    ref.read(playerProvider.notifier).updateNotificationCastProgress(
+          active: true,
+          playing: st.status.playing,
+          position: Duration(
+            milliseconds: (st.smoothPositionSeconds * 1000).round(),
+          ),
+        );
   }
 }
