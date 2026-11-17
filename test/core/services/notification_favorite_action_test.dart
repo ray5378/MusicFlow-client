@@ -168,6 +168,22 @@ void main() {
     }
   });
 
+  // v5.17.12：真机反馈心形偏粗。空心 2.6/1.3 → 2.0/1.0，实心描边 1.4 → 1.2，
+  // 对齐 Android 官方 favorite_border 的视觉厚度。这里钉字面量而不是解析
+  // Path 对象：以后想更细就得连测试一起改，防止某次重画图标又把粗细带回去。
+  test('心形线宽停在 A 档，不许回粗', () {
+    String read(String name) =>
+        File('android/app/src/main/res/drawable/$name.xml').readAsStringSync();
+
+    final border = read('ic_notif_favorite_border');
+    // 外层深色 2.0 负责浅色卡片，内层白色 1.0 负责深色卡片。
+    expect(border, contains('android:strokeWidth="2.0"'));
+    expect(border, contains('android:strokeWidth="1.0"'));
+
+    // 实心那颗只有一圈轮廓描边，加粗会让白块看着更胖。
+    expect(read('ic_notif_favorite'), contains('android:strokeWidth="1.2"'));
+  });
+
   group('按钮通路分叉判据（AndroidPlatformInfo）', () {
     tearDown(() => AndroidPlatformInfo.debugSetSdkInt(0));
 
