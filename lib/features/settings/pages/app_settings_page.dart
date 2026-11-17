@@ -223,7 +223,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               label: loc.settings_later,
               onPressed: () => Navigator.of(ctx).pop(),
             ),
-            if (result.releaseUrl != null || _pickPlatformAsset(result) != null)
+            // Android 上即使 releaseUrl 与资产都拿不到也照样给这个按钮：
+            // 内置更新不依赖这两者（它自己补直链），点了最多提示稍后再试，
+            // 不能因为「没有可跳的网页」就把下载入口整个藏掉。
+            if (_useBuiltInUpdate ||
+                result.releaseUrl != null ||
+                _pickPlatformAsset(result) != null)
               MusicFlowButton.primary(
                 label: loc.settings_download,
                 leadingIcon: AppIcons.download,
@@ -268,21 +273,26 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   bool get _useBuiltInUpdate =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
-  /// 这次的资产能不能走内置更新：平台对 + 挑中的**确实是 apk**。
+  /// 这次的资产能不能走内置更新。
   ///
-  /// 第二个条件不能省：发布页可能只发了 zip/exe（例如这一版只有 Linux/Windows
-  /// 包），此时根本没有能装的东西，必须老老实实跳浏览器 —— 否则用户点了
-  /// 「下载」会看到一个挑不出安装包的内部错误，而拿不到本该给他的文件。
+  /// - 平台不是 Android → false（其它平台保持跳浏览器，行为一个字节都不变）。
+  /// - `asset == null`（检查走 atom 兜底时资源列表没补齐）→ **仍然 true**：
+  ///   交给 [AppUpdateInstaller] 统一处理「拿不到安装包」，它会给提示。
+  ///   绝不能在这里放行到下面那条 `result.releaseUrl` 分支 —— 那条就是
+  ///   打开系统浏览器跳 GitHub 发布页，安卓上不该出现（历史 bug）。
+  /// - 挑中的不是 apk（例如用户手点了 Windows 的 setup.exe）→ false，
+  ///   那个文件本来也只能交给浏览器下载。
   bool _canInstallBuiltIn(ReleaseAsset? asset) {
     if (!_useBuiltInUpdate) return false;
-    if (asset == null) return false;
+    if (asset == null) return true;
     return asset.name.toLowerCase().endsWith('.apk');
   }
 
   /// 启动内置更新流程（Android）。
   ///
-  /// 挑不到 apk 资产时 [AppUpdateInstaller] 会自己回退到浏览器，所以这里
-  /// 不需要再判断一次 —— 判断逻辑只留一份，避免两处漂移。
+  /// 挑不到 apk 资产时 [AppUpdateInstaller] 会提示「稍后再试」并中止，
+  /// **不再回退浏览器**，所以这里不需要再判断一次 —— 判断逻辑只留一份，
+  /// 避免两处漂移。
   Future<void> _startBuiltInUpdate(UpdateCheckResult result) async {
     Logger.infoWithTag(
       'UPDATE',

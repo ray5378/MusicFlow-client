@@ -789,6 +789,9 @@ class AppLocalizationsZh extends AppLocalizations {
       '还没有开启「安装未知应用」权限，无法自动安装';
 
   @override
+  String get settings_update_no_package => '暂时获取不到安装包，请稍后重试';
+
+  @override
   String get settings_update_notes => '更新说明';
 
   @override

@@ -848,6 +848,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The \'Install unknown apps\' permission is still off, so the update can\'t be installed automatically';
 
   @override
+  String get settings_update_no_package =>
+      'Could not get the installer package. Please try again later.';
+
+  @override
   String get settings_update_notes => 'Release notes';
 
   @override

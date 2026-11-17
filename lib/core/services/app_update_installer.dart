@@ -21,7 +21,8 @@ const String _logTag = 'APP_UPDATE';
 ///
 /// ## Android 时序
 ///
-/// 1. `pickPlatformUpdateAsset` 挑 `.apk`（挑不到 → 回退发布页链接）；
+/// 1. `pickPlatformUpdateAsset` 挑 `.apk`（挑不到 → 提示稍后重试，
+///    **绝不回退浏览器** —— 安卓上跳浏览器只能落到 GitHub 发布页）；
 /// 2. `canRequestPackageInstalls` —— 没有「安装未知应用」授权就先引导去开，
 ///    回来后**必须再查一次**（用户可能点了返回没开）；
 /// 3. 通知权限（Android 13+）—— 未授权**不阻断**，但要如实告诉用户
@@ -75,8 +76,22 @@ class AppUpdateInstaller {
       platform: TargetPlatform.android,
     );
     if (asset == null) {
-      Logger.infoWithTag(_logTag, 'no apk asset, falling back to browser');
-      await _openInBrowser(browserUrl);
+      // **Android 上绝不回退浏览器**：能跳到的地方只有 GitHub 发布页，
+      // 用户仍要自己找包、自己下、自己点安装，等于把「内置更新」退化回
+      // 「跳网页」，而且会突然把应用切走（历史 bug：检查更新走 atom 兜底
+      // 时 assets 为空，点下载就蹦到 GitHub）。真拿不到包就如实告知。
+      Logger.warnWithTag(
+        _logTag,
+        'no apk asset for ${result.latestVersion}, aborted '
+        '(android never falls back to browser)',
+      );
+      if (context.mounted) {
+        showMusicFlowMessage(
+          context,
+          AppLocalizations.of(context).settings_update_no_package,
+          kind: MusicFlowMessageKind.error,
+        );
+      }
       return;
     }
 

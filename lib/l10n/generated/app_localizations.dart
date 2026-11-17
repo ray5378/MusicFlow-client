@@ -1516,6 +1516,12 @@ abstract class AppLocalizations {
   /// **'还没有开启「安装未知应用」权限，无法自动安装'**
   String get settings_update_need_install_permission_cancelled;
 
+  /// No description provided for @settings_update_no_package.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时获取不到安装包，请稍后重试'**
+  String get settings_update_no_package;
+
   /// No description provided for @settings_update_notes.
   ///
   /// In zh, this message translates to:

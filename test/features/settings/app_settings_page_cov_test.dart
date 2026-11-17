@@ -1425,7 +1425,7 @@ void main() {
       );
     });
 
-    testWidgets('35 无资源 → 用发布页 URL 兜底', (tester) async {
+    testWidgets('35 无资源 → 走内置更新并提示,绝不打开浏览器', (tester) async {
       fakeHttp.body = releaseJson(
         tag: 'v2.0.0',
         htmlUrl: 'https://example.test/release/page',
@@ -1439,10 +1439,11 @@ void main() {
       await tester.tap(find.text(loc!.settings_download));
       await settle(tester, frames: 12);
 
-      expect(
-        launchedUrls,
-        <String>['https://example.test/release/page'],
-      );
+      // v5.17.16: 安卓上「没有资源」不再回退发布页 URL —— 那会打开系统
+      // 浏览器、把用户从 App 里切走送到 GitHub(Windows 才该有的姿势)。
+      // 改为走内置更新,由安装器提示稍后重试。
+      expect(launchedUrls, isEmpty);
+      expect(find.text(loc!.settings_update_no_package), findsOneWidget);
     });
 
     testWidgets('36 Windows 平台走桌面对话框并挑 windows-setup.exe', (tester) async {
@@ -1473,7 +1474,7 @@ void main() {
 
   // =========================================================================
   group('诊断区块：日志与关于', () {
-    testWidgets('39 既无资源也无发布页链接 → 弹窗不出现「前往下载」', (tester) async {
+    testWidgets('39 无资源也无发布页链接 → 安卓仍保留下载入口', (tester) async {
       fakeHttp.body = releaseJson(tag: 'v2.0.0', body: '只有说明');
       await pumpPage(tester);
 
@@ -1481,8 +1482,9 @@ void main() {
 
       expect(find.text(loc!.settings_update_found), findsOneWidget);
       expect(find.text(loc!.settings_update_assets), findsNothing);
-      // 两个条件都为 false → 主按钮整块不渲染。
-      expect(find.text(loc!.settings_download), findsNothing);
+      // v5.17.16: 安卓的内置更新不依赖 assets / releaseUrl(它自己按 tag 补
+      // 直链),所以这里照样给按钮 —— 把下载入口整块藏掉比点了提示更糟。
+      expect(find.text(loc!.settings_download), findsOneWidget);
       expect(find.text(loc!.settings_later), findsOneWidget);
 
       await tester.tap(find.text(loc!.settings_later));

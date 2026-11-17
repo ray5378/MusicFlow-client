@@ -479,6 +479,7 @@
   "settings_update_need_install_permission_body": "Android requires you to allow MusicFlow to install apps before it can install the new version. System settings will open next — turn on 'Allow from this source'.",
   "settings_update_need_install_permission_open": "Turn on",
   "settings_update_need_install_permission_cancelled": "The 'Install unknown apps' permission is still off, so the update can't be installed automatically",
+  "settings_update_no_package": "Could not get the installer package. Please try again later.",
   "settings_update_notes": "Release notes",
   "settings_update_package": "Update package {version}",
   "@settings_update_package": {

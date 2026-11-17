@@ -18,6 +18,14 @@
 //      restoreFromSettlement 收到 completed 但 apkPath 为 null/空串时必须回落
 //      idle(否则 UI 显示「已下载完成」,用户点安装必然失败)。
 //
+//   R5 atom 兜底补齐资源列表(update_checker.dart, 5.17.16):
+//      api.github.com 限流 → 走 releases.atom → atom 没有 assets → 安卓端
+//      没直链可下。必须用 releases/expanded_assets 补回来,且补失败不能
+//      把整次检查判死。
+//   R6 安卓绝不回退浏览器(update_checker 的下游两个消费点):
+//      挑不到 apk 时旧代码 `_openInBrowser` ⇒ 安卓点「下载」蹦去 GitHub
+//      发布页(那是 Windows 的姿势)。安装器改提示、设置页改走内置更新。
+//
 // 零依赖 node 脚本(与 tool/check-home-swr.mjs 同款),退出码非 0 = 违约。
 "use strict";
 import fs from "fs";
@@ -48,8 +56,7 @@ function codeLines(rel) {
 }
 
 /** 提取 `NAME(` 起的大括号函数/方法体(行数组;用于 dispose 之类的局部契约)。 */
-function bodyLines(ls, signatureNeedle) {
-  const start = ls.findIndex((l) => l.includes(signatureNeedle));
+function bodyLines(ls, signatureNeedle) {  const start = ls.findIndex((l) => l.includes(signatureNeedle));
   if (start < 0) return null;
   let depth = 0;
   const out = [];
@@ -63,6 +70,21 @@ function bodyLines(ls, signatureNeedle) {
     if (depth <= 0 && out.length > 1) return out;
   }
   return out;
+}
+
+/**
+ * 取 `startNeedle` 所在行 → `endNeedle` 所在行(不含)之间的行。
+ *
+ * bodyLines() 靠 `{`/`}` 计深度,**多行签名的函数会误判**:签名行与首行参数
+ * 都不含 `{`,于是 depth 一直为 0,第二行就满足「depth<=0 && 长度>1」提前
+ * 返回 —— 抓出来只有两行。命名参数 `{`/`}) async {` 又会让深度从 2 起算,
+ * 一路吃到文件尾。所以跨多行签名的函数一律用本函数按「下一个函数定义」切。
+ */
+function sliceBetween(ls, startNeedle, endNeedle) {
+  const s = ls.findIndex((l) => l.includes(startNeedle));
+  if (s < 0) return null;
+  const e = ls.findIndex((l, i) => i > s && l.includes(endNeedle));
+  return ls.slice(s, e < 0 ? s + 40 : e);
 }
 
 const CLEANUP = "lib/core/services/update_artifacts_cleanup.dart";
@@ -127,6 +149,75 @@ check("R4b completed 分支先判 apkPath 非空(hasApk)",
 check("R4c 空路径回落 idle",
   settle !== null && settle.some((l) => l.includes("if (!hasApk) {")),
   "缺回落分支 ⇒ UI 显示「已下载完成」但无包可装");
+
+// ---------------------------------------------------------------------------
+console.log("R5 atom 兜底必须补齐资源列表(update_checker.dart)");
+// ---------------------------------------------------------------------------
+// 历史 bug(v5.17.15 及之前):api.github.com 被匿名限流 → 走 releases.atom
+// 兜底,而 atom 只有标题和链接、没有 assets ⇒ Android 内置更新挑不到 apk
+// ⇒ 点「下载」直接跳去 GitHub 发布页。补在数据源,不要在消费点各打一次补丁。
+const CHECKER = "lib/core/services/update_checker.dart";
+const INSTALLER = "lib/core/services/app_update_installer.dart";
+const SETTINGS = "lib/features/settings/pages/app_settings_page.dart";
+
+const checkerLines = codeLines(CHECKER);
+check("R5a expanded_assets 接口常量存在",
+  checkerLines.some((l) => l.includes("releases/expanded_assets")),
+  "补资源的入口没了 ⇒ atom 兜底又会退化成「assets 为空」");
+const atomBody = sliceBetween(
+  checkerLines,
+  "Future<UpdateCheckResult> _checkViaAtom(",
+  "static String _tagFromReleaseUrl(",
+);
+check("R5b _checkViaAtom 抓取资源并填进结果",
+  atomBody !== null &&
+    atomBody.some((l) => l.includes("_fetchExpandedAssets(")) &&
+    atomBody.some((l) => l.includes("assets: assets")),
+  "atom 兜底没补 assets ⇒ 安卓端没直链可下");
+check("R5c parseExpandedAssets 从 releases/download 链接解析",
+  checkerLines.some((l) => l.includes("parseExpandedAssets(String html)")) &&
+    checkerLines.some((l) => l.includes("releases/download")),
+  "解析函数被删/改名 ⇒ R5b 拿不到东西");
+const fetchBody = bodyLines(checkerLines, "Future<List<ReleaseAsset>> _fetchExpandedAssets(");
+check("R5d 补资源失败只回空列表,不把整次检查判死",
+  fetchBody !== null &&
+    fetchBody.some((l) => l.includes("catch (e)")) &&
+    fetchBody.some((l) => l.includes("return const <ReleaseAsset>[]")),
+  "这里抛出去会让设置页谎报「检查更新失败」—— 检查本身其实成功了");
+
+// ---------------------------------------------------------------------------
+console.log("R6 Android 绝不回退到打开浏览器(app_update_installer / app_settings_page)");
+// ---------------------------------------------------------------------------
+// 同一个 bug 的另一半:挑不到 apk 时旧代码 `_openInBrowser(browserUrl)`,
+// 安卓上那个 URL 只能是 GitHub 发布页 —— 用户还在 App 里点下载,却被切到浏览器。
+const installerLines = codeLines(INSTALLER);
+const installBody = sliceBetween(
+  installerLines,
+  "static Future<void> install(",
+  "static Future<void> schedulePostInstallRecheck(",
+);
+check("R6a 挑不到安装包时给出提示",
+  installBody !== null &&
+    installBody.some((l) => l.includes("settings_update_no_package")),
+  "静默 return 会让用户以为点空了");
+check("R6b 不再有「回落浏览器」分支",
+  installBody !== null &&
+    !installBody.some((l) => l.includes("no apk asset, falling back to browser")),
+  "旧兜底文案还在 ⇒ 安卓又会蹦到 GitHub");
+check("R6c _openInBrowser 只剩非 Android 那一处",
+  installBody !== null &&
+    installBody.filter((l) => l.includes("_openInBrowser(")).length === 1,
+  "多出来的调用就是把安卓也送去浏览器");
+const settingsLines = codeLines(SETTINGS);
+const canBuiltIn = sliceBetween(
+  settingsLines,
+  "bool _canInstallBuiltIn(",
+  "Future<void> _startBuiltInUpdate(",
+);
+check("R6d asset 为空也走内置更新(不再落到 releaseUrl 分支)",
+  canBuiltIn !== null &&
+    canBuiltIn.some((l) => l.includes("if (asset == null) return true")),
+  "返回 false 就落到下面那条 `result.releaseUrl` ⇒ 打开系统浏览器");
 
 // ---------------------------------------------------------------------------
 if (failures.length > 0) {

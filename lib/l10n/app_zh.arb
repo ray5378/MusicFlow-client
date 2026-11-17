@@ -479,6 +479,7 @@
   "settings_update_need_install_permission_body": "Android 要求先允许 MusicFlow 安装应用，才能自动为你装上新版本。接下来会打开系统设置页，请打开「允许来自此来源的应用」。",
   "settings_update_need_install_permission_open": "去开启",
   "settings_update_need_install_permission_cancelled": "还没有开启「安装未知应用」权限，无法自动安装",
+  "settings_update_no_package": "暂时获取不到安装包，请稍后重试",
   "settings_update_notes": "更新说明",
   "settings_update_package": "更新包 {version}",
   "@settings_update_package": {

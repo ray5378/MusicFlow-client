@@ -100,6 +100,15 @@ class UpdateChecker {
   static const _releasesAtomUrl =
       'https://github.com/$_owner/$_repo/releases.atom';
 
+  /// GitHub 发布页自己用来渲染「资源列表」的 HTML 片段接口。
+  ///
+  /// 关键：它走 `github.com`，**不经过 `api.github.com`**，因而不吃匿名
+  /// API 的 60 次/时/IP 限流。atom 兜底路径用它把 assets 补回来 —— 缺了
+  /// assets，Android 内置更新就挑不到 apk 直链，只能退回浏览器，表现为
+  /// 「点下载却跳去 GitHub 发布页」（这是 v5.17.15 之前的老问题）。
+  static const _expandedAssetsBase =
+      'https://github.com/$_owner/$_repo/releases/expanded_assets';
+
   static final _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 10),
@@ -173,8 +182,13 @@ class UpdateChecker {
   }
 
   /// releases.atom 兜底检查:解析第一条 entry 的 tag(订阅流最新在前)。
-  /// atom 拿不到资源列表 → assets 为空,弹窗自动回退发布页链接;notes 置空
-  /// 避免 atom 里的 HTML 富文本进 UI。atom 不区分 prerelease,兜底路径可接受。
+  /// notes 置空,避免 atom 里的 HTML 富文本进 UI。atom 不区分 prerelease,
+  /// 兜底路径可接受。
+  ///
+  /// **资源列表必须另外补**:atom 只有标题和链接,没有 assets。历史上这里
+  /// 留空,弹窗就「回退发布页链接」—— 在 Windows 上无害(本来就要跳浏览器),
+  /// 但 Android 内置更新因此挑不到 apk,点「下载」直接蹦到 GitHub 页面。
+  /// 现在改走 [parseExpandedAssets] 补齐,让两条链路都拿到直链。
   static Future<UpdateCheckResult> _checkViaAtom(
     String currentVersion,
   ) async {
@@ -186,12 +200,88 @@ class UpdateChecker {
       ),
     );
     final latest = parseAtomLatest(res.data?.toString() ?? '');
+    final assets = await _fetchExpandedAssets(
+      _tagFromReleaseUrl(latest.$2, latest.$1),
+    );
     return UpdateCheckResult(
       hasUpdate: _compareVersions(currentVersion, latest.$1) < 0,
       currentVersion: currentVersion,
       latestVersion: latest.$1,
       releaseUrl: latest.$2,
+      assets: assets,
     );
+  }
+
+  /// 从 release 页 URL 里取回 tag 原文（atom 的 link 形如
+  /// `…/releases/tag/v5.17.15`）。取不到就按 `v<version>` 拼——
+  /// 与 CI 打 tag 的规则一致。
+  static String _tagFromReleaseUrl(String? url, String version) {
+    if (url != null) {
+      final tag = RegExp(r'/releases/tag/([^/?#]+)').firstMatch(url)?.group(1);
+      if (tag != null && tag.isNotEmpty) return tag;
+    }
+    return 'v$version';
+  }
+
+  /// 抓 `releases/expanded_assets/<tag>` 并解析成资源列表。
+  ///
+  /// 任何失败都只回空列表、绝不向上抛:更新检查本身已经成功,不能因为
+  /// 「补资源」这一步失败就把整次检查判死（那样设置页会谎报检查失败）。
+  static Future<List<ReleaseAsset>> _fetchExpandedAssets(String tag) async {
+    if (tag.isEmpty) return const <ReleaseAsset>[];
+    try {
+      final res = await _dio.get(
+        '$_expandedAssetsBase/$tag',
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Accept': 'text/html'},
+        ),
+      );
+      final assets = parseExpandedAssets(res.data?.toString() ?? '');
+      Logger.infoWithTag(
+        _logTag,
+        'expanded_assets $tag → ${assets.length} asset(s)',
+      );
+      return assets;
+    } catch (e) {
+      Logger.warnWithTag(_logTag, 'expanded_assets $tag failed', e);
+      return const <ReleaseAsset>[];
+    }
+  }
+
+  /// 从 `releases/expanded_assets/<tag>` 的 HTML 片段解析资源列表。
+  ///
+  /// 每个资源在页面里是一行
+  /// `<a href="/<owner>/<repo>/releases/download/<tag>/<file>">`，
+  /// 文件名取路径末段（URL 解码），下载地址补 `https://github.com` 前缀。
+  ///
+  /// 体积拿不到 —— HTML 里只有 "46.9 MB" 这种展示串，反解成字节没有意义
+  /// （46.9 MB 到底是 46.9×10^6 还是 ×2^20 说不清）。size 置 0，下载进度
+  /// 有「按实际回调校正」的兜底，不影响功能。
+  ///
+  /// 独立成纯函数供测试；同名资源只保留第一条（GitHub 不会重名，
+  /// 但页面可能因重复渲染出现两次）。
+  static List<ReleaseAsset> parseExpandedAssets(String html) {
+    // 尾部的 `(?:\?[^"]*)?` 是为了吃下 `?download=1` 这类查询串:整段
+    // href 必须一路匹配到闭引号,不显式吃掉 query 就会因为「`.apk` 后面
+    // 不是引号」而整条漏掉(安卓侧表现为又回到「assets 为空」)。
+    final pattern = RegExp(
+      r'href="(/[^"]*?/releases/download/[^"/]+/([^"/?]+))(?:\?[^"]*)?"',
+    );
+    final assets = <ReleaseAsset>[];
+    final seen = <String>{};
+    for (final match in pattern.allMatches(html)) {
+      final name = Uri.decodeComponent(match.group(2)!);
+      if (!seen.add(name)) continue;
+      assets.add(
+        ReleaseAsset(
+          name: name,
+          downloadUrl: 'https://github.com${match.group(1)!}',
+          size: 0,
+        ),
+      );
+    }
+    return assets;
   }
 
   /// 从 releases.atom 内容解析最新 release 的 (version, releaseUrl)。
