@@ -1,0 +1,59 @@
+name: Notification Guard
+
+# 安卓媒体通知链路的**阻塞**守卫（与发版链解耦，失败标红）。
+#
+# 钉住的东西（都是真机上翻过车的）：
+#   · 歌词落点：Android 11+ 只认 DISPLAY_TITLE/TITLE 与 ARTIST，写 displayDescription
+#     是零消费方的静默失效；
+#   · 收藏按钮：自定义 action 进不了老系统的通知 action 列表，必须借标准键做第二条通道；
+#   · 上一首取舍：两条通路的按钮集合与折叠索引必须分开，混用就会掉键或丢收藏；
+#   · 图标本身：空心必须单轮廓，带内孔路径 + stroke 会让线条粗 4 倍。
+#
+# 为什么单开一道而不塞进 Test Suite：
+#   Test Suite 是 continue-on-error 的**观察**流水线，失败只显示黄字，锁不住任何东西；
+#   而上面这些问题**编译得过、纯函数单测全绿**，唯一的拦截点是源码级静态断言
+#   （tool/check-notification-guard.mjs）+ 行为锁（下面那 4 个测试文件）。
+
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-guard:
+    name: notification guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 源码级静态守卫（图标单轮廓 / 按钮排布 / 收藏双通道 / 歌词落点 / 后台时钟 / 版本分叉）
+        run: node tool/check-notification-guard.mjs
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: 'stable'
+          cache: false
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: 通知栏行为锁（纯函数 / 资源 / handler 接线 / 后台时钟 / 版本读取）
+        run: |
+          flutter test \
+            test/core/services/notification_favorite_action_test.dart \
+            test/core/services/notification_handler_test.dart \
+            test/core/services/android_platform_info_test.dart \
+            test/providers/notification_lyrics_test.dart \
+            test/providers/notification_lyrics_controller_test.dart
