@@ -10,6 +10,15 @@ import 'package:musicflow_client/core/utils/logger.dart';
 /// audio_service 自建 MediaStyle 通知，标题 / 歌手 / subText 三行都渲染。
 const int kSystemUiMediaNotificationMinApi = 30;
 
+/// 媒体卡片「按钮来源」的分界 API：Android 13 = API 33。
+///
+/// 33 起 SystemUI 改从 MediaSession 的 PlaybackState 取按钮
+/// （`MediaDataManager.createActionsFromState`），槽位固定
+/// `play/pause A B C D`，`A = previous, else custom`；33 以下仍从通知的
+/// action 列表取按钮，只有 `nativeActions` 里的标准动作会被渲染。
+/// 两条通路的按钮顺序与是否保留上一首完全不同，所以必须分叉。
+const int kPlaybackStateActionSlotsMinApi = 33;
+
 /// Android 平台信息（目前只有 API level）。
 ///
 /// 为什么自建通道：`package_info_plus` 不给 API level，而媒体通知的歌词落点
@@ -37,6 +46,17 @@ class AndroidPlatformInfo {
   /// 30+ 上没人读的 displayDescription。
   static bool get useLegacyThreeLineNotification =>
       _sdkInt > 0 && _sdkInt < kSystemUiMediaNotificationMinApi;
+
+  /// 是否走「通知 action 列表」这条老通路（API < 33）。
+  ///
+  /// true：SystemUI 按控件列表顺序画按钮，折叠态取
+  /// `androidCompactActionIndices` 指定的三格 → 可以把上一首挤到展开态；
+  /// false（33+）：系统按固定槽位重排，上一首一旦存在就会占掉自定义按钮的
+  /// A 槽位，折叠态里就再也放不下收藏。
+  ///
+  /// 未知（0）按新通路处理 —— 宁可少一个上一首，也不要让收藏被挤出折叠态。
+  static bool get usesNotificationActionSlots =>
+      _sdkInt > 0 && _sdkInt < kPlaybackStateActionSlotsMinApi;
 
   /// 读取一次 API level（幂等、失败降级为「未知 → 新布局」）。
   ///

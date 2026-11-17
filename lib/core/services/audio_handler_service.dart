@@ -67,30 +67,51 @@ MediaControl notificationFavoriteBridgeControl({
   );
 }
 
-/// 通知栏按钮列表（纯函数，单测锁定「三个按钮 + 顺序」契约）。
+/// 通知栏按钮列表（纯函数，单测锁定两条通路的按钮与折叠索引契约）。
 ///
-/// Android 13+ 的折叠态只取三格，内容就是：心形 / 播放暂停 / 下一首。
-/// **刻意没有「上一首」**：AOSP 13 `MediaDataManager.createActionsFromState`
-/// 的槽位分配是 `play/pause A B C D`，其中 `A = previous, else custom action`
-/// ——标准「上一首」缺席时，第一个自定义按钮会被直接填进 A 槽。而 audio_service
-/// 的 `AUTO_ENABLED_ACTIONS` 并没有打开 `ACTION_SKIP_TO_PREVIOUS`（只按本列表
-/// 置位），所以只要这里不传 skipToPrevious，收藏就必然出现在折叠态。
+/// 两条通路的按钮集合与顺序**必须分开**，因为系统取按钮的方式不同：
 ///
-/// [favoriteBridge] 必须排最前：旧系统按本列表顺序生成通知的 `nativeActions`，
-/// 再用 `setShowActionsInCompactView([0, 1, 2])` 取前三格；它排第一位才能落在
-/// 折叠态最左，和 Android 13 上 custom 填 A 槽的位置对齐。列表里两个收藏控件
-/// 不会同时出现——旧系统看不见 custom，13+ 不渲染 fastForward。
+/// - [legacySlotOrder] = true（API < 33，通知 action 列表）：SystemUI 按本列表
+///   顺序画，折叠态取 [notificationCompactIndices] 指定的三格。于是可以做
+///   飞牛那种排布 —— 列表 `[上一首, 播放/暂停, 下一首, 心形]`、折叠取 `[1,2,3]`：
+///   收起时「播放 / 下一首 / 心形」，下拉展开才出现上一首。
+/// - [legacySlotOrder] = false（API 33+，PlaybackState 槽位）：槽位固定
+///   `play/pause A B C D`，`A = previous, else custom`。上一首一旦出现就占掉 A，
+///   自定义按钮只能退到 C/D（折叠态只有三格 → 收藏消失）。所以这条通路必须
+///   **不发上一首**，让 custom 填 A 槽。
+///
+/// [favoriteBridge] 只在旧通路有用（自定义 action 进不了 nativeActions，
+/// 见 [notificationFavoriteBridgeControl]）；新通路上它不会被渲染，一起下发
+/// 是为了兜住「API 33+ 但 MediaSession actions 开关关闭、退回通知路径」的机型。
 List<MediaControl> notificationControls({
   required bool playing,
   required MediaControl favorite,
   required MediaControl favoriteBridge,
+  required bool legacySlotOrder,
 }) {
+  final transport = playing ? MediaControl.pause : MediaControl.play;
+  if (legacySlotOrder) {
+    return [
+      MediaControl.skipToPrevious,
+      transport,
+      MediaControl.skipToNext,
+      favoriteBridge,
+    ];
+  }
   return [
     favoriteBridge,
     favorite,
-    if (playing) MediaControl.pause else MediaControl.play,
+    transport,
     MediaControl.skipToNext,
   ];
+}
+
+/// 折叠态取哪三格。
+///
+/// 旧通路靠它把上一首挤到展开态（索引 3），新通路用不到（系统自己排槽位，
+/// 且 API 33+ 不再调用 `setShowActionsInCompactView`）。
+List<int> notificationCompactIndices({required bool legacySlotOrder}) {
+  return legacySlotOrder ? const [1, 2, 3] : const [0, 1, 2];
 }
 
 /// 音频处理器 - 处理后台播放和通知栏控制
@@ -204,7 +225,9 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     playbackState.add(
       playbackState.value.copyWith(
         controls: _getControls(playing),
-        androidCompactActionIndices: const [0, 1, 2],
+        androidCompactActionIndices: notificationCompactIndices(
+          legacySlotOrder: AndroidPlatformInfo.usesNotificationActionSlots,
+        ),
         // Explicitly advertise seeking so OEM MediaStyle implementations do
         // not render the notification progress control as disabled.
         systemActions: musicFlowPlaybackSystemActions,
@@ -220,17 +243,20 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
-  /// 获取控制按钮（顺序与取舍见 [notificationControls]）。
+  /// 获取控制按钮（两条通路的差异见 [notificationControls]）。
   ///
-  /// 上一首已从通知栏移除，位置让给收藏。两条收藏通道同时下发：
-  /// Android 13+ 用 custom action 填 A 槽；Android 12 及以下的自定义 action
-  /// 进不了通知的 nativeActions，只能靠 [notificationFavoriteBridgeControl]
-  /// 借标准「快进」键出现。耳机线控、锁屏物理键、App 内播放页的上一首仍在。
+  /// 收藏的两条通道同时下发：Android 13+ 用 custom action 填「上一首」让出的
+  /// A 槽；Android 12 及以下的自定义 action 进不了 nativeActions，只能靠
+  /// [notificationFavoriteBridgeControl] 借标准「快进」键出现。
+  ///
+  /// 上一首的取舍随通路不同：旧通路（API < 33）把它留在列表末尾、用 compact
+  /// 索引 1~3 挤到展开态；新通路必须彻底不发，否则会占掉 custom 的 A 槽。
   List<MediaControl> _getControls(bool playing) {
     return notificationControls(
       playing: playing,
       favorite: _favoriteControl(),
       favoriteBridge: _favoriteBridgeControl(),
+      legacySlotOrder: AndroidPlatformInfo.usesNotificationActionSlots,
     );
   }
 
@@ -365,7 +391,9 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     playbackState.add(
       playbackState.value.copyWith(
         controls: _getControls(true),
-        androidCompactActionIndices: const [0, 1, 2],
+        androidCompactActionIndices: notificationCompactIndices(
+          legacySlotOrder: AndroidPlatformInfo.usesNotificationActionSlots,
+        ),
         systemActions: musicFlowPlaybackSystemActions,
         processingState: AudioProcessingState.ready,
         playing: true, // 关键：标记为正在播放

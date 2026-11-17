@@ -13,6 +13,8 @@
 //    nativeActions（setState 里 custom 走另一分支），而老 SystemUI 只从通知
 //    action 列表取按钮 → 只能借标准 fastForward 键冒充，图标仍用自己的心形
 //    → 点击走 KEYCODE_MEDIA_FAST_FORWARD → AudioHandler.fastForward()
+//    这条通路还多一个自由度：折叠态取哪三格由 androidCompactActionIndices
+//    指定，所以上一首可以留在列表里、只出现在下拉展开后。
 //
 // 两个 androidIcon 必须是包内真实存在的 drawable：SystemUI 用
 // Icon.createWithResource(packageName, icon) 加载，资源缺失只会画出一个空白
@@ -21,6 +23,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicflow_client/core/services/android_platform_info.dart';
 import 'package:musicflow_client/core/services/audio_handler_service.dart';
 
 void main() {
@@ -56,7 +59,7 @@ void main() {
     MediaControl bridge({bool starred = false, String label = 'Add'}) =>
         notificationFavoriteBridgeControl(starred: starred, label: label);
 
-    test('播放中：列表四项，旧系统过滤掉 custom 后正好三格', () {
+    test('新通路（API 33+）：上一首必须缺席，心形靠 custom 填 A 槽', () {
       final favorite = notificationFavoriteControl(
         starred: false,
         label: 'Add to favorites',
@@ -66,6 +69,7 @@ void main() {
         playing: true,
         favorite: favorite,
         favoriteBridge: bridgeControl,
+        legacySlotOrder: false,
       );
 
       expect(controls, hasLength(4));
@@ -77,39 +81,66 @@ void main() {
       expect(controls[2].action, MediaAction.pause);
       expect(controls[3].action, MediaAction.skipToNext);
 
-      // 旧系统（Android 12 及以下）只把非 custom 控件放进通知的
-      // nativeActions，再用 [0, 1, 2] 取折叠态三格 —— 必须是「心形 / 播放 /
-      // 下一首」。这一条同时证明前几版「只发 custom」为什么在真机上没按钮。
-      final nativeActions = controls
-          .where((c) => c.action != MediaAction.custom)
-          .toList();
-      expect(nativeActions, hasLength(3));
-      expect(nativeActions[0], same(bridgeControl));
-      expect(nativeActions[1].action, MediaAction.pause);
-      expect(nativeActions[2].action, MediaAction.skipToNext);
-
-      // 一旦把 skipToPrevious 加回来，AOSP 的 A 槽会被标准上一首占掉。
+      // 一旦把 skipToPrevious 加回来，AOSP 的 A 槽会被标准上一首占掉，
+      // 自定义心形只能退到 C 槽 —— 折叠态里就没了。
       expect(
         controls.any((c) => c.action == MediaAction.skipToPrevious),
         isFalse,
-        reason: '折叠态只有三格，上一首必须让位给收藏',
+        reason: '33+ 槽位固定，上一首存在就挤掉收藏',
+      );
+      expect(
+        notificationCompactIndices(legacySlotOrder: false),
+        [0, 1, 2],
       );
     });
 
-    test('暂停中：播放键位换成 play，其余不动', () {
+    test('旧通路（API < 33）：折叠「播放 / 下一首 / 心形」，上一首留展开态', () {
+      final favorite = notificationFavoriteControl(starred: false, label: 'x');
+      final bridgeControl = bridge(label: 'x');
+      final controls = notificationControls(
+        playing: true,
+        favorite: favorite,
+        favoriteBridge: bridgeControl,
+        legacySlotOrder: true,
+      );
+
+      // 列表原样：上一首 / 播放 / 下一首 / 心形（= 飞牛展开态那一排）。
+      expect(controls, hasLength(4));
+      expect(controls[0].action, MediaAction.skipToPrevious);
+      expect(controls[1].action, MediaAction.pause);
+      expect(controls[2].action, MediaAction.skipToNext);
+      expect(controls[3], same(bridgeControl));
+
+      // 折叠索引从第 2 个开始取，正好跳过上一首。
+      final compact = notificationCompactIndices(legacySlotOrder: true);
+      expect(compact, [1, 2, 3]);
+      final collapsed = [for (final i in compact) controls[i]];
+      expect(collapsed, hasLength(3));
+      expect(collapsed[0].action, MediaAction.pause);
+      expect(collapsed[1].action, MediaAction.skipToNext);
+      expect(collapsed[2], same(bridgeControl));
+
+      // 折叠态里不允许出现上一首（它只在展开态）。
+      expect(
+        collapsed.any((c) => c.action == MediaAction.skipToPrevious),
+        isFalse,
+      );
+    });
+
+    test('旧通路暂停中：折叠首格换成 play，其余不动', () {
       final favorite = notificationFavoriteControl(starred: true, label: 'x');
       final bridgeControl = bridge(starred: true, label: 'x');
       final controls = notificationControls(
         playing: false,
         favorite: favorite,
         favoriteBridge: bridgeControl,
+        legacySlotOrder: true,
       );
+      final compact = notificationCompactIndices(legacySlotOrder: true);
 
-      expect(controls, hasLength(4));
-      expect(controls[0], same(bridgeControl));
-      expect(controls[1], same(favorite));
-      expect(controls[2].action, MediaAction.play);
-      expect(controls[3].action, MediaAction.skipToNext);
+      expect(controls[compact[0]].action, MediaAction.play);
+      expect(controls[compact[1]].action, MediaAction.skipToNext);
+      expect(controls[compact[2]], same(bridgeControl));
     });
 
     test('两条通道的心形图标与文案必须一致，否则点一下就变样', () {
@@ -135,5 +166,24 @@ void main() {
       );
       expect(file.readAsStringSync(), contains('<vector'));
     }
+  });
+
+  group('按钮通路分叉判据（AndroidPlatformInfo）', () {
+    tearDown(() => AndroidPlatformInfo.debugSetSdkInt(0));
+
+    test('API 32 → 通知 action 列表通路（上一首可留展开态）', () {
+      AndroidPlatformInfo.debugSetSdkInt(32);
+      expect(AndroidPlatformInfo.usesNotificationActionSlots, isTrue);
+    });
+
+    test('API 33 → PlaybackState 槽位通路（上一首必须让位）', () {
+      AndroidPlatformInfo.debugSetSdkInt(33);
+      expect(AndroidPlatformInfo.usesNotificationActionSlots, isFalse);
+    });
+
+    test('未知（0）→ 按新通路，宁可少一个上一首也不挤掉收藏', () {
+      AndroidPlatformInfo.debugSetSdkInt(0);
+      expect(AndroidPlatformInfo.usesNotificationActionSlots, isFalse);
+    });
   });
 }
