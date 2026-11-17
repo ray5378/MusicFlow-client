@@ -38,6 +38,30 @@ MediaControl notificationFavoriteControl({
   );
 }
 
+/// 通知栏按钮列表（纯函数，单测锁定「三个按钮 + 顺序」契约）。
+///
+/// 折叠态只显示前三个，所以这个列表就是折叠态那三格的全部内容：
+/// 收藏 / 播放暂停 / 下一首。**刻意没有「上一首」**：AOSP 13
+/// `MediaDataManager.createActionsFromState` 的槽位分配是
+/// `play/pause A B C D`，其中 `A = previous, else custom action`——标准
+/// 「上一首」缺席时，第一个自定义按钮会被直接填进 A 槽。而 audio_service 的
+/// `AUTO_ENABLED_ACTIONS` 并没有打开 `ACTION_SKIP_TO_PREVIOUS`（只按本列表
+/// 置位），所以只要这里不传 skipToPrevious，收藏就必然出现在折叠态。
+///
+/// 收藏写在最前是为了 Android 10/11/12 的 MediaStyle 路径：那条路径按本列表
+/// 原样从左到右画（`setShowActionsInCompactView([0, 1, 2])`），收藏放第一位
+/// 才能和 Android 13 系统重排后的「心形 / 播放 / 下一首」对得上。
+List<MediaControl> notificationControls({
+  required bool playing,
+  required MediaControl favorite,
+}) {
+  return [
+    favorite,
+    if (playing) MediaControl.pause else MediaControl.play,
+    MediaControl.skipToNext,
+  ];
+}
+
 /// 音频处理器 - 处理后台播放和通知栏控制
 class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer;
@@ -165,19 +189,18 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
     );
   }
 
-  /// 获取控制按钮
+  /// 获取控制按钮（折叠态那三格，顺序与取舍见 [notificationControls]）。
   ///
-  /// 收藏按钮排在最后：Android 13 的 SystemUI 把标准键填进前三个槽
-  /// （play / next / prev），自定义 action 只会落到展开态的第 4、5 个槽
-  /// （AOSP `MediaDataManager.createMediaButton`）。所以它只出现在下拉展开后
-  /// 的一排按钮里，不挤占折叠态那三个常用键。
+  /// 上一首已从通知栏移除，位置让给收藏：折叠态只有三格，而系统不会把
+  /// 自定义按钮排到标准键前面（AOSP `MediaDataManager.createActionsFromState`
+  /// 固定 `play/pause A B C D`），所以「减掉一个标准键」是让收藏进折叠态的
+  /// 唯一办法。耳机线控、锁屏物理键、App 内播放页仍走 [skipToPrevious]，
+  /// 功能本身没有删。
   List<MediaControl> _getControls(bool playing) {
-    return [
-      MediaControl.skipToPrevious,
-      if (playing) MediaControl.pause else MediaControl.play,
-      MediaControl.skipToNext,
-      _favoriteControl(),
-    ];
+    return notificationControls(
+      playing: playing,
+      favorite: _favoriteControl(),
+    );
   }
 
   /// 收藏按钮：文案随语言偏好走 [l10nNowCurrent]（handler 没有 BuildContext；
