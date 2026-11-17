@@ -37,6 +37,7 @@
  *   R21 处理态兜底：远端选中时 _getProcessingState 恒 ready
  *   R22 切歌不拽进度：updateMediaItem 不许硬写零进度
  *   R23 判据是「选择」：isRemoteTarget 只看 activePeer/isCasting，不看 status.playing
+ *   R24 歌词歌源：歌词表按 effectiveCurrentSongProvider 拉，不读本机 currentSong
  *
  * 用法：node tool/check-notification-guard.mjs   （退出码非 0 即阻断）
  */
@@ -52,6 +53,8 @@ const PATHS = {
   handler: "lib/core/services/audio_handler_service.dart",
   platform: "lib/core/services/android_platform_info.dart",
   lyricsProvider: "lib/providers/media/notification_lyrics_provider.dart",
+  lyricsSource: "lib/providers/media/lyrics_cover_provider.dart",
+  effectiveSource: "lib/providers/player/effective_playback_provider.dart",
   playerProvider: "lib/providers/player/player_provider.dart",
   peerSession: "lib/providers/cast/cast_peer_session.dart",
 };
@@ -206,6 +209,8 @@ const heartBorderRaw = readText(PATHS.heartBorder);
 const handlerRaw = readText(PATHS.handler);
 const platformRaw = readText(PATHS.platform);
 const lyricsProviderRaw = readText(PATHS.lyricsProvider);
+const lyricsSourceRaw = readText(PATHS.lyricsSource);
+const effectiveSourceRaw = readText(PATHS.effectiveSource);
 const playerProviderRaw = readText(PATHS.playerProvider);
 const peerSessionRaw = readText(PATHS.peerSession);
 
@@ -215,6 +220,8 @@ for (const [label, raw] of [
   ["音频 handler", handlerRaw],
   ["平台信息", platformRaw],
   ["歌词控制器", lyricsProviderRaw],
+  ["歌词表 provider", lyricsSourceRaw],
+  ["有效播放目标", effectiveSourceRaw],
   ["播放器 notifier", playerProviderRaw],
   ["投屏会话段", peerSessionRaw],
 ]) {
@@ -232,6 +239,8 @@ if (
   !handlerRaw ||
   !platformRaw ||
   !lyricsProviderRaw ||
+  !lyricsSourceRaw ||
+  !effectiveSourceRaw ||
   !playerProviderRaw ||
   !peerSessionRaw
 ) {
@@ -247,6 +256,8 @@ const heartBorder = stripXmlComments(heartBorderRaw);
 const handler = stripDartComments(handlerRaw);
 const platform = stripDartComments(platformRaw);
 const lyricsProvider = stripDartComments(lyricsProviderRaw);
+const lyricsSource = stripDartComments(lyricsSourceRaw);
+const effectiveSource = stripDartComments(effectiveSourceRaw);
 const playerProvider = stripDartComments(playerProviderRaw);
 const peerSession = stripDartComments(peerSessionRaw);
 
@@ -573,6 +584,44 @@ assertAbsent(
   notificationTargetBody,
   "status.playing",
   "status.playing 随设备状态抖动，同一次点击会打到不同设备上（用户口径：按选择，不按谁在放）",
+);
+
+// ── R24 歌词歌源（歌也必须跟着选中的设备）──────────────────
+assertContains(
+  "R24a 歌词表按 effective 歌拉取",
+  lyricsSource,
+  "effectiveCurrentSongProvider",
+  "投屏时本机 currentSong 靠队列镜像对齐，切换目标的那一两拍仍是上一首 —— 会拉到上一首的歌词",
+);
+assertAbsent(
+  "R24b 歌词表不再直接读本机 currentSong",
+  lyricsSource,
+  "playerProvider.select((s) => s.currentSong)",
+  "歌源回退到本机等于把「歌词跟随选中设备」这条语义拆掉",
+);
+assertContains(
+  "R24c 有效歌 provider 存在",
+  effectiveSource,
+  "final effectiveCurrentSongProvider",
+  "它是歌源的唯一真源：链路 B / 链路 A / 本机 三分支",
+);
+assertContains(
+  "R24d 链路 A 歌源取后端投屏队列",
+  effectiveSource,
+  "castQueueItemToSong(",
+  "castQueue[castIndex] 才是设备当前歌，本机镜像只是它的副本",
+);
+assertContains(
+  "R24e 链路 B 歌源取 DLNA 队列",
+  effectiveSource,
+  "dlnaCastProvider",
+  "DLNA 的当前曲真源在自己的队列里，不在本机镜像",
+);
+assertContains(
+  "R24f 通知歌词控制器按 effective 歌换歌",
+  lyricsProvider,
+  "effectiveCurrentSongProvider",
+  "换歌判断沿用本机 currentSong 会把上一首的歌词挂到设备那首歌上",
 );
 
 // ── R17 反向探针（本守卫必须能失败）────────────────────────

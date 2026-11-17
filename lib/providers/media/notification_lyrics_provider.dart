@@ -112,8 +112,10 @@ class NotificationLyricsController {
 
   void _tick() {
     try {
-      final state = _ref.read(playerProvider);
-      final song = state.currentSong;
+      // 歌取「当前选中目标」的真源（与歌词表 currentLyricsProvider 同源）：
+      // 投屏时本机 currentSong 靠队列镜像对齐，切换目标的那一两拍还是上一首，
+      // 用它判断换歌会把上一首的歌词挂到设备那首歌上。
+      final song = _ref.read(effectiveCurrentSongProvider);
       final now = DateTime.now();
 
       if (song == null) {
@@ -132,8 +134,8 @@ class NotificationLyricsController {
 
       // 进度/播放态取「当前选中设备」的有效值（与首页同一来源）：
       // 投屏/直投时本机 position 被镜像重置为 0 且不再自增，用它二分歌词会
-      // 永远停在第一句。歌曲本身仍取 playerProvider.currentSong —— 投屏队列
-      // 已镜像进本机队列，两边是同一首（见 syncQueueForCast）。
+      // 永远停在第一句。歌词表本身也按同一个 effective 歌去拉（见
+      // currentLyricsProvider），歌、进度、播放态三者同源。
       final reported = _ref.read(effectivePositionProvider);
       final playing = _ref.read(effectiveIsPlayingProvider);
       final position = _resolvePosition(reported, playing, now);

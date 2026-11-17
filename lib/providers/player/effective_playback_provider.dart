@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicflow_client/core/utils/logger.dart';
-import 'package:musicflow_client/data/models/peer.dart' show songToQueueItem;
+import 'package:musicflow_client/data/models/peer.dart'
+    show castQueueItemToSong, songToQueueItem;
 import 'package:musicflow_client/data/models/song.dart';
 import 'package:musicflow_client/providers/cast/cast_peer_provider.dart';
 import 'package:musicflow_client/providers/cast/dlna_provider.dart';
@@ -81,10 +82,54 @@ final effectiveIsPlayingProvider = Provider<bool>((ref) {
   return ref.watch(playerProvider.select((state) => state.isPlaying));
 });
 
-/// 当前控制目标名称：本机或设备名（对齐主项目前端 currentPeerName）。
-String currentPlayerName(CastPeerState cast) => cast.targetName;
+/// 当前选中目标正在播放的那首歌。
+///
+/// 「跟着歌走」的消费方（通知栏歌词、桌面歌词、封面）必须用它，而不是
+/// `playerProvider.currentSong`：后者是**本机播放器**的当前歌，投屏时靠队列镜像
+/// 间接对齐，切换目标的那一两拍仍是上一首（镜像尚未落地）—— 表现为「明明是设备
+/// 上的歌，通知栏却挂着本机那首的歌词」。这里直接读目标设备的真源：
+/// - 链路 B：DLNA 自己的投屏队列 + 游标；
+/// - 链路 A：后端权威投屏队列 `castQueue[castIndex]`；
+/// - 都没选：本机 `currentSong`（与原行为完全一致）。
+///
+/// 注意消费方要用 `select((s) => s?.id)` 订阅：投屏轮询每次都会重建 Song 对象，
+/// 直接 watch 整个对象会让歌词每 2s 重拉一次。
+final effectiveCurrentSongProvider = Provider<Song?>((ref) {
+  if (ref.watch(_dlnaCastingProvider)) {
+    final dlna = ref.watch(
+      dlnaCastProvider.select(
+        (s) => (currentIndex: s.currentIndex, queue: s.queue),
+      ),
+    );
+    final index = dlna.currentIndex;
+    if (index >= 0 && index < dlna.queue.length) {
+      final track = dlna.queue[index];
+      return Song(
+        id: track.songId,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+      );
+    }
+  }
+  final cast = ref.watch(
+    castPeerControllerProvider.select(
+      (s) => (
+        active: s.activePeer != null,
+        index: s.castIndex,
+        queue: s.castQueue,
+      ),
+    ),
+  );
+  if (cast.active && cast.index >= 0 && cast.index < cast.queue.length) {
+    return castQueueItemToSong(cast.queue[cast.index]);
+  }
+  return ref.watch(playerProvider.select((s) => s.currentSong));
+});
 
-/// 播放/暂停：链路 B 直投→指挥 DLNA 设备；投屏→命令后端；否则驱动本地播放器。
+/// 当前控制目标名称：本机或设备名（对齐主项目前端 currentPeerName）。
+String currentPlayerName(CastPeerState cast) => cast.targetName;/// 播放/暂停：链路 B 直投→指挥 DLNA 设备；投屏→命令后端；否则驱动本地播放器。
 Future<void> toggleEffectivePlayback(WidgetRef ref) async {
   if (ref.read(_dlnaCastingProvider)) {
     await ref.read(dlnaCastProvider.notifier).toggle();

@@ -23,7 +23,6 @@ import 'package:musicflow_client/core/utils/lrc_parser.dart';
 import 'package:musicflow_client/core/offline/offline_cache_manager.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
-import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/api/gd_music_provider.dart';
 import 'package:musicflow_client/providers/player/effective_playback_provider.dart';
 import 'package:musicflow_client/providers/offline/offline_provider.dart';
@@ -132,9 +131,16 @@ final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
 });
 
 final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
-  // 只监听当前歌曲变化，不监听播放位置等其他状态
-  // 避免每次 position 更新（~200ms）都重新拉取歌词
-  final song = ref.watch(playerProvider.select((s) => s.currentSong));
+  // 只监听「当前歌 id」变化，不监听播放位置等其他状态
+  // 避免每次 position 更新（~200ms）都重新拉取歌词。
+  //
+  // 歌取 [effectiveCurrentSongProvider]：投屏/直投时就是**目标设备正在播的那首**，
+  // 不依赖本机队列镜像的落地时机（镜像晚一两拍时，用本机 currentSong 会把上一首
+  // 的歌词挂到设备那首歌上）。本机播放时它与 playerProvider.currentSong 等价。
+  // 订阅只取 id：投屏轮询每 2s 重建一次 Song 对象，watch 整个对象会反复重拉歌词。
+  final songId = ref.watch(effectiveCurrentSongProvider.select((s) => s?.id));
+  if (songId == null) return null;
+  final song = ref.read(effectiveCurrentSongProvider);
   if (song == null) return null;
 
   // 离线回退：优先读本地缓存。歌词键带 libraryId 隔离多库（同 id 不串库）。
