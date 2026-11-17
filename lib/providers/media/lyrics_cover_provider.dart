@@ -305,13 +305,14 @@ Future<void> updateCoverProviderConfig(
   );
 }
 
-/// 当前播放进度的「滚动歌词」单行文本，对齐主项目前端的
-/// `playerStore.currentLyricLine`（迷你播放器副标题处展示当前歌词）。
-/// 无同步歌词 / 未加载完成时返回 null，调用方应回退到歌手名。
-final currentLyricLineProvider = Provider<String?>((ref) {
-  final lyricsAsync = ref.watch(currentLyricsProvider);
-  final position = ref.watch(effectivePositionProvider);
-  final lyrics = lyricsAsync.valueOrNull;
+/// 按播放进度在同步歌词里二分出当前行（纯函数）。
+///
+/// 三个消费方共用同一判据，避免各写一份二分导致「通知栏与 App 内歌词不同步」：
+/// [currentLyricLineProvider]（迷你条 / 桌面歌词窗）、通知栏歌词控制器
+/// （后台自持时钟推进，见 notification_lyrics_provider）。
+///
+/// 无歌词 / 无同步歌词 / 该行文本为空 → null，调用方自行决定回落行为。
+String? lyricLineAt(Lyrics? lyrics, Duration position) {
   if (lyrics == null) return null;
 
   final best = lyrics.getBest();
@@ -335,4 +336,14 @@ final currentLyricLineProvider = Provider<String?>((ref) {
   }
   final value = lines[result].value.trim();
   return value.isEmpty ? null : value;
+}
+
+/// 当前播放进度的「滚动歌词」单行文本，对齐主项目前端的
+/// `playerStore.currentLyricLine`（迷你播放器副标题处展示当前歌词）。
+/// 无同步歌词 / 未加载完成时返回 null，调用方应回退到歌手名。
+final currentLyricLineProvider = Provider<String?>((ref) {
+  return lyricLineAt(
+    ref.watch(currentLyricsProvider).valueOrNull,
+    ref.watch(effectivePositionProvider),
+  );
 });

@@ -407,6 +407,26 @@ class MusicFlowAudioHandler extends BaseAudioHandler with QueueHandler, SeekHand
 /// 归零，视觉上不占位）。给歌手名反而是在「没有歌词」时给出错误信息。
 const String kNotificationEmptyLyric = '';
 
+/// player_provider 侧歌手缺失时的占位符（不参与标题拼接）。
+const String _unknownArtist = 'Unknown Artist';
+
+/// 通知栏主标题：把歌名与歌手合并成「歌名 - 歌手」（仅两行布局使用）。
+///
+/// - 歌手缺失或为 `Unknown Artist` 占位符时只用歌名，不拼出
+///   「歌名 - Unknown Artist」这种噪声；
+/// - 底稿已是合并形态时原样返回，避免重复拼接（幂等）；
+/// - [base] 必须是**原始** MediaItem：拿已改写的项当输入会把后缀越接越长。
+///
+/// 公开给单测锁定；handler 内部只经 [applyNotificationLyric] 使用。
+String notificationTitleFor(MediaItem base) {
+  final artist = (base.artist ?? '').trim();
+  if (artist.isEmpty || artist == _unknownArtist) return base.title;
+  final title = base.title.trim();
+  if (title.isEmpty) return base.title;
+  if (title.endsWith(' - $artist')) return base.title;
+  return '$title - $artist';
+}
+
 /// 换曲 / 同曲重推 mediaItem 时，决定副标题沿用的歌词行。
 ///
 /// - 同曲（[previousSongId] == [nextSongId]）：返回 [lastLyric]。
@@ -430,15 +450,17 @@ String? resolvePreservedLyric({
 ///
 /// | API | 标题 | 副标题 | 第三行 subText |
 /// |-----|------|--------|----------------|
-/// | >= 30（SystemUI 媒体卡片） | 歌名 | 歌词（无歌词留空） | 不渲染 |
+/// | >= 30（SystemUI 媒体卡片） | 歌名 - 歌手 | 歌词（无歌词留空） | 不渲染 |
 /// | < 30（自建 MediaStyle 通知） | 歌名 | 歌手 | 歌词（无歌词回落专辑） |
 ///
 /// - [base] 是切歌时的原始 MediaItem（title = 纯歌名），**必须**用它派生，
-///   不能拿已改写过的当前项当底稿；
+///   不能拿已改写过的当前项当底稿（歌手名会丢、歌名会被反复拼接）；
+/// - 两行布局把歌手并进主标题（[notificationTitleFor]）：系统只给两行，
+///   想同时显示歌手与歌词只能这样分工——**用户 2026-11-17 明确要求**；
 /// - [lyric] 为空时：30+ 副标题留 [kNotificationEmptyLyric]（绝不回落歌手，
 ///   否则会被误认为「歌词没加载」）；< 30 第三行回落专辑名；
-/// - [current] 用于去重：同曲同 id 同歌词就不重推（每次 metadata 更新在原生侧
-///   都会重新解析封面位图并重建通知）。
+/// - [current] 用于去重：同曲同 id 同 title 同副标题就不重推（每次 metadata
+///   更新在原生侧都会重新解析封面位图并重建通知）。
 MediaItem? applyNotificationLyric({
   required MediaItem base,
   required String? lyric,
@@ -450,14 +472,15 @@ MediaItem? applyNotificationLyric({
 
   final MediaItem target;
   if (threeLineLayout) {
-    // Android 10 及以下：MediaStyle 标题/歌手/subText 三行都在。
+    // Android 10 及以下：MediaStyle 标题/歌手/subText 三行都在，各司其职。
     target = base.copyWith(
       artist: base.artist ?? kNotificationEmptyLyric,
       displayDescription: hasLine ? line : base.album,
     );
   } else {
-    // Android 11+：只有两行，副标题整行让给歌词。
+    // Android 11+：只有两行 → 主标题「歌名 - 歌手」，副标题整行让给歌词。
     target = base.copyWith(
+      title: notificationTitleFor(base),
       artist: hasLine ? line : kNotificationEmptyLyric,
     );
   }
