@@ -168,20 +168,47 @@ void main() {
     }
   });
 
-  // v5.17.12：真机反馈心形偏粗。空心 2.6/1.3 → 2.0/1.0，实心描边 1.4 → 1.2，
-  // 对齐 Android 官方 favorite_border 的视觉厚度。这里钉字面量而不是解析
-  // Path 对象：以后想更细就得连测试一起改，防止某次重画图标又把粗细带回去。
-  test('心形线宽停在 A 档，不许回粗', () {
+  // v5.17.13：真机仍是飞牛（3.5px）的 4 倍粗。根因不是 strokeWidth 数值，而是
+  // 空心那颗用了 Material 官方**带内孔**的路径——外轮廓 + 内轮廓两个子路径，
+  // stroke 会把内外各描一遍，视觉厚度 = 内孔间距 2 + strokeWidth。下面两条断言
+  // 一起钉死「单轮廓 + 线宽数值」，缺一条都可能让图标重新变粗。
+  group('心形图标资源守卫', () {
     String read(String name) =>
         File('android/app/src/main/res/drawable/$name.xml').readAsStringSync();
 
-    final border = read('ic_notif_favorite_border');
-    // 外层深色 2.0 负责浅色卡片，内层白色 1.0 负责深色卡片。
-    expect(border, contains('android:strokeWidth="2.0"'));
-    expect(border, contains('android:strokeWidth="1.0"'));
+    test('空心只用单条外轮廓，不许再出现内孔子路径', () {
+      final border = read('ic_notif_favorite_border');
 
-    // 实心那颗只有一圈轮廓描边，加粗会让白块看着更胖。
-    expect(read('ic_notif_favorite'), contains('android:strokeWidth="1.2"'));
+      // 带内孔的 pathData 里必然有 "zM"（第一条子路径闭合后紧跟第二条）。
+      expect(
+        border,
+        isNot(contains('zM')),
+        reason: '双轮廓路径 + stroke = 视觉厚度 4.6 单位，比参考实现粗 4 倍',
+      );
+
+      final paths = RegExp(r'android:pathData="([^"]+)"')
+          .allMatches(border)
+          .map((m) => m[1])
+          .toList();
+      expect(paths, hasLength(2));
+      expect(paths[0], paths[1], reason: '白层与深色层必须描同一条轮廓');
+
+      // 白色在下层先画、深色在上层后画：浅色卡片上白线只从两侧露出 0.15 单位。
+      final colors = RegExp(r'android:strokeColor="([^"]+)"')
+          .allMatches(border)
+          .map((m) => m[1])
+          .toList();
+      expect(colors, ['#FFFFFFFF', '#FF1A1A1A']);
+    });
+
+    test('线宽停在细档，不许回粗', () {
+      final border = read('ic_notif_favorite_border');
+      expect(border, contains('android:strokeWidth="1.6"'));
+      expect(border, contains('android:strokeWidth="1.3"'));
+
+      // 实心那颗单轮廓 + 白填充，描边 1.0 与空心的视觉重量对齐。
+      expect(read('ic_notif_favorite'), contains('android:strokeWidth="1.0"'));
+    });
   });
 
   group('按钮通路分叉判据（AndroidPlatformInfo）', () {
