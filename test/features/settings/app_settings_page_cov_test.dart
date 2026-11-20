@@ -72,6 +72,7 @@ import 'package:musicflow_client/features/settings/pages/offline_cache_page.dart
 import 'package:musicflow_client/features/settings/pages/theme_settings_page.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
 import 'package:musicflow_client/providers/api/api_provider.dart';
+import 'package:musicflow_client/providers/system/server_restart_provider.dart';
 import 'package:musicflow_client/providers/auth/auth_provider.dart';
 import 'package:musicflow_client/providers/library/library_provider.dart';
 import 'package:musicflow_client/providers/media/lyrics_dwell_provider.dart';
@@ -631,6 +632,9 @@ Future<ProviderContainer> pumpPage(WidgetTester tester) async {
       addressPoolProvider.overrideWithValue(pool!),
       statusLyricsEnabledProvider.overrideWith((ref) => statusLyrics),
       statusLyricsControllerProvider.overrideWithValue(lyricsCtrl!),
+      // 维护模块的能力探测依赖真实网络栈（会起 HealthChecker 30s 周期定时器），
+      // 单测里固定为 false（非管理员 ⇒ 不渲染），避免 fake_async 报 pending timer。
+      serverRestartCapabilityProvider.overrideWith((ref) => false),
     ],
   );
   container = c;
@@ -670,6 +674,9 @@ Future<ProviderContainer> pumpPageWithRouter(WidgetTester tester) async {
       addressPoolProvider.overrideWithValue(pool!),
       statusLyricsEnabledProvider.overrideWith((ref) => statusLyrics),
       statusLyricsControllerProvider.overrideWithValue(lyricsCtrl!),
+      // 维护模块的能力探测依赖真实网络栈（会起 HealthChecker 30s 周期定时器），
+      // 单测里固定为 false（非管理员 ⇒ 不渲染），避免 fake_async 报 pending timer。
+      serverRestartCapabilityProvider.overrideWith((ref) => false),
     ],
   );
   container = c;

@@ -3692,4 +3692,39 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get study_dir_no_audio => 'No study content in this folder';
+
+  @override
+  String get settings_maintenance_section => 'Maintenance';
+
+  @override
+  String get settings_maintenance_section_desc =>
+      'Visible to administrators only. Restarts the server after new code is deployed.';
+
+  @override
+  String get settings_restart_server => 'Restart server';
+
+  @override
+  String get settings_restart_server_desc =>
+      'The API is unavailable for about 3 seconds; playback resumes automatically.';
+
+  @override
+  String get settings_restart_server_running =>
+      'Restarting, waiting for the server…';
+
+  @override
+  String get settings_restart_server_confirm_title => 'Restart server?';
+
+  @override
+  String get settings_restart_server_confirm_body =>
+      'The server goes offline briefly (about 3 seconds) and resumes the current track afterwards.';
+
+  @override
+  String get settings_restart_server_action => 'Restart';
+
+  @override
+  String get settings_restart_server_done => 'Server restarted';
+
+  @override
+  String get settings_restart_server_failed =>
+      'Could not reach the server after the restart. Please check it.';
 }

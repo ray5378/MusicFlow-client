@@ -24,6 +24,7 @@ import 'package:musicflow_client/providers/player/player_provider.dart';
 import 'package:musicflow_client/providers/library/playlist_provider.dart';
 import 'package:musicflow_client/providers/media/status_lyrics_provider.dart';
 import 'package:musicflow_client/providers/settings/update_download_provider.dart';
+import 'package:musicflow_client/providers/system/server_restart_provider.dart';
 import 'package:musicflow_client/providers/ui/theme_provider.dart';
 import 'package:musicflow_client/providers/ui/locale_provider.dart';
 import 'package:musicflow_client/l10n/generated/app_localizations.dart';
@@ -743,6 +744,10 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ),
                 ],
               ),
+              // 维护（仅管理员）：服务端自我重启。
+              // 是否渲染由服务端判据决定 —— GET /rest/api/v1/system/restart 对管理员 200、
+              // 其它 403。所以"看不见"和"点不到"是同一个判据，客户端不另存一份身份判断。
+              const _MaintenanceSection(),
             ],
           ),
         ),
@@ -1005,6 +1010,100 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         .padLeft(8, '0')
         .toUpperCase();
     return '#${value.substring(2)}';
+  }
+}
+
+/// 维护（仅管理员）：服务端自我重启。
+///
+/// 用途：换完 dist 后让服务端重新加载代码。240 实测重启时间线 ——
+/// 约 3 秒接口不可用，10 秒内自动续播刚才那首（gracefulShutdown 保住活跃队列）。
+class _MaintenanceSection extends ConsumerWidget {
+  const _MaintenanceSection();
+
+  Future<void> _confirmRestart(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
+    final confirmed = await showMusicFlowBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => MusicFlowBottomSheet(
+        title: loc.settings_restart_server_confirm_title,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              loc.settings_restart_server_confirm_body,
+              style: sheetContext.musicFlowTypography.body.copyWith(
+                color: sheetContext.musicFlowColors.muted,
+              ),
+            ),
+            SizedBox(height: sheetContext.musicFlowSpacing.lg),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: MusicFlowButton.secondary(
+                    label: loc.settings_cancel,
+                    onPressed: () => Navigator.of(sheetContext).pop(false),
+                  ),
+                ),
+                SizedBox(width: sheetContext.musicFlowSpacing.sm),
+                Expanded(
+                  child: MusicFlowButton.destructive(
+                    label: loc.settings_restart_server_action,
+                    onPressed: () => Navigator.of(sheetContext).pop(true),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+
+    final ok = await ref.read(serverRestartControllerProvider.notifier).restart();
+    if (!context.mounted) return;
+    showMusicFlowMessage(
+      context,
+      ok ? loc.settings_restart_server_done : loc.settings_restart_server_failed,
+      kind: ok ? MusicFlowMessageKind.success : MusicFlowMessageKind.error,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allowed = ref
+        .watch(serverRestartCapabilityProvider)
+        .maybeWhen(data: (v) => v, orElse: () => false);
+    if (!allowed) return const SizedBox.shrink();
+
+    final loc = AppLocalizations.of(context);
+    final running = ref.watch(serverRestartControllerProvider).isRunning;
+    return Padding(
+      padding: EdgeInsets.only(top: context.musicFlowSpacing.xl),
+      child: MusicFlowSettingsSection(
+        title: loc.settings_maintenance_section,
+        description: loc.settings_maintenance_section_desc,
+        children: <Widget>[
+          MusicFlowSettingRow(
+            icon: AppIcons.refresh,
+            title: loc.settings_restart_server,
+            description: running
+                ? loc.settings_restart_server_running
+                : loc.settings_restart_server_desc,
+            trailing: running
+                ? const MusicFlowSkeleton.circle(size: 20)
+                : Icon(
+                    AppIcons.chevronRight,
+                    size: 20,
+                    color: context.musicFlowColors.muted,
+                  ),
+            onPressed: running ? null : () => _confirmRestart(context, ref),
+          ),
+        ],
+      ),
+    );
   }
 }
 

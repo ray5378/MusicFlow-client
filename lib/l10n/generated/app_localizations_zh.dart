@@ -3510,4 +3510,35 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get study_dir_no_audio => '该目录下没有学习内容';
+
+  @override
+  String get settings_maintenance_section => '维护';
+
+  @override
+  String get settings_maintenance_section_desc => '仅管理员可见。部署新代码后用它让服务端重新启动。';
+
+  @override
+  String get settings_restart_server => '重启服务';
+
+  @override
+  String get settings_restart_server_desc => '接口约 3 秒不可用，正在播放会自动续播。';
+
+  @override
+  String get settings_restart_server_running => '正在重启，等待服务恢复…';
+
+  @override
+  String get settings_restart_server_confirm_title => '重启服务？';
+
+  @override
+  String get settings_restart_server_confirm_body =>
+      '服务端会短暂离线（约 3 秒），恢复后自动续播当前歌曲。';
+
+  @override
+  String get settings_restart_server_action => '重启';
+
+  @override
+  String get settings_restart_server_done => '服务已重启';
+
+  @override
+  String get settings_restart_server_failed => '重启后未能连接服务，请检查服务端';
 }

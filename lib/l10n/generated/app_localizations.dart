@@ -6331,6 +6331,66 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'该目录下没有学习内容'**
   String get study_dir_no_audio;
+
+  /// No description provided for @settings_maintenance_section.
+  ///
+  /// In zh, this message translates to:
+  /// **'维护'**
+  String get settings_maintenance_section;
+
+  /// No description provided for @settings_maintenance_section_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅管理员可见。部署新代码后用它让服务端重新启动。'**
+  String get settings_maintenance_section_desc;
+
+  /// No description provided for @settings_restart_server.
+  ///
+  /// In zh, this message translates to:
+  /// **'重启服务'**
+  String get settings_restart_server;
+
+  /// No description provided for @settings_restart_server_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'接口约 3 秒不可用，正在播放会自动续播。'**
+  String get settings_restart_server_desc;
+
+  /// No description provided for @settings_restart_server_running.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在重启，等待服务恢复…'**
+  String get settings_restart_server_running;
+
+  /// No description provided for @settings_restart_server_confirm_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'重启服务？'**
+  String get settings_restart_server_confirm_title;
+
+  /// No description provided for @settings_restart_server_confirm_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端会短暂离线（约 3 秒），恢复后自动续播当前歌曲。'**
+  String get settings_restart_server_confirm_body;
+
+  /// No description provided for @settings_restart_server_action.
+  ///
+  /// In zh, this message translates to:
+  /// **'重启'**
+  String get settings_restart_server_action;
+
+  /// No description provided for @settings_restart_server_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务已重启'**
+  String get settings_restart_server_done;
+
+  /// No description provided for @settings_restart_server_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'重启后未能连接服务，请检查服务端'**
+  String get settings_restart_server_failed;
 }
 
 class _AppLocalizationsDelegate
