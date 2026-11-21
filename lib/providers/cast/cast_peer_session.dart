@@ -190,6 +190,11 @@ mixin CastPeerSession on CastPeerControllerBase {
     // 通知被遥控方(WS 广播采纳仲裁用):本端进入遥控模式,期间本机队列镜像
     // 已停写,服务端那份本机队列必然陈旧,不带起播起点的广播一律不采纳。
     ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(true);
+    // 设备族状态推送（player_state_changed）：命中当前目标就立刻刷一次，
+    // 不必等 2s 轮询（切歌瞬间的 position=0 就是靠这条赶上的）。
+    ref.read(peerRemoteControlProvider.notifier)
+      ..noteActiveDeviceId(peer.peerId)
+      ..noteDeviceStatePoller(pollOnce);
     // 一选中就让通知栏切到远端态(播放态/进度随后由 _advanceSmooth 每拍刷新)。
     _syncNotificationCast();
     _startPolling(peer.peerId);
@@ -227,7 +232,9 @@ mixin CastPeerSession on CastPeerControllerBase {
       castIndex: -1,
       offline: false,
     );
-    ref.read(peerRemoteControlProvider.notifier).noteSelfRemoteControlling(false);
+    ref.read(peerRemoteControlProvider.notifier)
+      ..noteSelfRemoteControlling(false)
+      ..noteActiveDeviceId(null);
     // 未选中远端了,播控中心必须交回本机播放器驱动;不显式关会一直停在远端态
     // (handler 的合成进度标记只由这里/DLNA 侧清除)。
     ref.read(playerProvider.notifier).updateNotificationCastProgress(

@@ -80,6 +80,33 @@ class PeerRemoteControlNotifier extends Notifier<PeerRemoteControlState> {
   /// true 期间本机队列镜像已停写,服务端那份本机队列必然陈旧。
   bool _selfRemoteControlling = false;
 
+  /// 当前遥控目标的**裸设备 id**（去掉 group:/ug: 前缀）—— 用来匹配服务端
+  /// `player_state_changed` 的 `device_id`（那个字段永远是裸 id）。
+  String? _activeDeviceId;
+
+  /// 命中当前目标时触发一次即时刷新：由 cast 控制器注入（那边反向 import 本文件，
+  /// 这里 import 回去会成环，沿用 noteSelfPeerId 的注入惯例）。
+  Future<void> Function()? _deviceStatePoller;
+
+  /// 推送节流：服务端每次采样都会广播，避免把 2s 轮询变成高频轮询。
+  int _lastDeviceStateAtMs = 0;
+
+  /// 记录当前遥控目标（切换目标 / 回本机时由 cast 控制器调用）。
+  void noteActiveDeviceId(String? peerId) {
+    final bare = _bareDeviceId(peerId);
+    if (bare == _activeDeviceId) return;
+    _activeDeviceId = bare;
+    _lastDeviceStateAtMs = 0;
+  }
+
+  /// 注入「立刻刷新一次」的动作（对应 CastPeerController.pollOnce）。
+  void noteDeviceStatePoller(Future<void> Function() fn) {
+    _deviceStatePoller = fn;
+  }
+
+  static String _bareDeviceId(String? id) =>
+      (id ?? '').replaceFirst(RegExp(r'^(ug|group):'), '');
+
   /// 见 [_selfRemoteControlling]。
   void noteSelfRemoteControlling(bool value) {
     if (value == _selfRemoteControlling) return;
@@ -94,9 +121,29 @@ class PeerRemoteControlNotifier extends Notifier<PeerRemoteControlState> {
         await _handleCommand(msg);
       case 'peer_queue_changed':
         await _handleQueueChanged(msg);
+      case 'player_state_changed':
+        await _handleDeviceState(msg);
       default:
         return;
     }
+  }
+
+  /// 设备族状态推送（服务端每次采样 + **新曲出声那一刻**都会广播）。
+  ///
+  /// 只做一件事：命中当前遥控目标就立刻刷新一次。为什么必须它 ——
+  /// 远端进度原本只靠 2s 轮询，切歌瞬间服务端已经是 position=0，但最坏要等
+  /// 两秒才被拉到，界面第一眼就成了「02 秒」（用户报「新曲不是从 00 秒开始」）。
+  Future<void> _handleDeviceState(Map<String, dynamic> msg) async {
+    final deviceId = (msg['device_id'] as String?) ?? '';
+    final active = _activeDeviceId;
+    if (deviceId.isEmpty || active == null || active.isEmpty) return;
+    if (_bareDeviceId(deviceId) != active) return;
+    final poller = _deviceStatePoller;
+    if (poller == null) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastDeviceStateAtMs != 0 && now - _lastDeviceStateAtMs < 300) return;
+    _lastDeviceStateAtMs = now;
+    await poller();
   }
 
   // ==================== 传输指令 ====================
