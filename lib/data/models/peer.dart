@@ -99,6 +99,7 @@ class PeerStatus {
     this.muted = false,
     this.active = false,
     this.reportedAtMs,
+    this.updatedAtMs,
     this.speed = 1,
   });
 
@@ -118,6 +119,11 @@ class PeerStatus {
         // 注意:不能用 `updatedAt` 代替 —— 对 local 而言那是「队列行写入时刻」,
         // 实测与真实采样时刻能差几十秒(2026-09-16 实测相差 53s)。
         reportedAtMs: (j['reportedAt'] as num?)?.toInt(),
+        // 服务端**采样时刻**(= 处理这次 /status 的 Date.now(),设备型 peer 恒带)。
+        // 设备型链路没有 reportedAt(它不是周期上报),但 position 同样是"查询那一刻
+        // 的快照" ⇒ 消费端必须按「采样 + 距现在的时间」外推,否则每次轮询都把本地
+        // 已推进的时钟拽回快照值(进度条/歌词"前进一段又回退")。
+        updatedAtMs: (j['updatedAt'] as num?)?.toInt(),
         // 服务端 4.13.0 起 /status 回传当前出流倍速(0.75~2,缺省 1)。
         // 只对**设备型**目标有意义:本机实例(local:)不支持远端改速率。
         speed: (j['speed'] as num?)?.toDouble() ?? 1,
@@ -137,6 +143,10 @@ class PeerStatus {
   /// `positionSeconds` 的**采样时刻**(服务端时钟,毫秒)。仅客户端实例有,设备型为 null。
   final int? reportedAtMs;
 
+  /// 服务端处理该 `/status` 的时刻(服务端时钟,毫秒)。设备型 peer 用它做外推基准;
+  /// 客户端实例优先用 [reportedAtMs](真实采样时刻,updatedAt 对 local 是队列行写入时刻)。
+  final int? updatedAtMs;
+
   bool get playing => state == 'PLAYING';
 
   PeerStatus copyWith({
@@ -147,6 +157,7 @@ class PeerStatus {
     bool? muted,
     bool? active,
     int? reportedAtMs,
+    int? updatedAtMs,
     double? speed,
   }) {
     return PeerStatus(
@@ -157,6 +168,7 @@ class PeerStatus {
       muted: muted ?? this.muted,
       active: active ?? this.active,
       reportedAtMs: reportedAtMs ?? this.reportedAtMs,
+      updatedAtMs: updatedAtMs ?? this.updatedAtMs,
       speed: speed ?? this.speed,
     );
   }

@@ -30,16 +30,23 @@ const int kCommandShadowWindowMs = 8000;
 ///
 /// 规则（与宿主内联实现逐字等价）:
 ///   1. 非播放态 → 原样返回（暂停时保持上报值,避免暂停态漂移）;
-///   2. 无 `reportedAt`(设备型 peer 走实时查询)→ 原样返回,设备链路行为不变;
+///   2. 采样时刻优先 `reportedAt`(客户端实例的周期上报时刻),缺失则退到
+///      `updatedAt`(设备型 peer 由服务端在 `/status` 出口写入的**采样时刻**,
+///      见后端 getAirPlayPeerStatus / getPlayerState 的 `updatedAt: Date.now()`);
+///      两者都没有 → 原样返回;
 ///   3. `age ≤ 0`(本端时钟落后) 或 `age > 30s`(上报过旧,见服务端 local-status TTL)
 ///      → 原样返回,不做外推;
 ///   4. 其余 → `采样值 + age`,有 duration 时夹紧到 `[0, duration]`。
+///
+/// 为什么设备型也必须外推(2026-11-27 240 实测):设备型 `/status` 是**实时查询**,
+/// 但客户端仍每 2s 轮询一次;不外推则每拍把本地已推进的时钟拽回快照值,表现为
+/// 进度条/歌词「走一段 → 停一下 → 跳回去」。此前因设备型无 `reportedAt` 而漏掉此路径。
 double projectPolledPosition({
   required PeerStatus status,
   required int nowMs,
 }) {
   if (!status.playing) return status.positionSeconds;
-  final at = status.reportedAtMs;
+  final at = status.reportedAtMs ?? status.updatedAtMs;
   if (at == null || at <= 0) return status.positionSeconds;
   final ageSec = (nowMs - at) / 1000.0;
   if (ageSec <= 0 || ageSec > 30) return status.positionSeconds;
@@ -94,6 +101,10 @@ PeerStatus applyVolumeShadow({
     muted: current.muted,
     active: incoming.active,
     reportedAtMs: incoming.reportedAtMs,
+    // 重建时**必须**带过来:漏了这一步,影子窗口内设备型 peer 的外推基准
+    // (updatedAt)会被清空,进度又开始每拍回退(2026-11-27)。
+    updatedAtMs: incoming.updatedAtMs,
+    speed: incoming.speed,
   );
 }
 
@@ -125,6 +136,9 @@ PeerStatus applyTransportShadow({
     muted: incoming.muted,
     active: current.active,
     reportedAtMs: incoming.reportedAtMs,
+    // 同上:影子重建不得丢采样时刻,否则设备型进度外推失效。
+    updatedAtMs: incoming.updatedAtMs,
+    speed: incoming.speed,
   );
 }
 

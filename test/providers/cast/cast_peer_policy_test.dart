@@ -25,6 +25,8 @@ PeerStatus _status({
   bool muted = false,
   bool active = false,
   int? reportedAtMs,
+  int? updatedAtMs,
+  double speed = 1,
 }) =>
     PeerStatus(
       state: state,
@@ -34,6 +36,8 @@ PeerStatus _status({
       muted: muted,
       active: active,
       reportedAtMs: reportedAtMs,
+      updatedAtMs: updatedAtMs,
+      speed: speed,
     );
 
 PeerInfo _peer({
@@ -70,13 +74,75 @@ void main() {
       );
     });
 
-    test('无 reportedAt（设备型 peer）→ 原样返回', () {
+    test('reportedAt / updatedAt 都没有 → 原样返回（无从外推）', () {
       expect(
         projectPolledPosition(
           status: _status(position: 12, duration: 200),
           nowMs: 5000,
         ),
         12.0,
+      );
+    });
+
+    // 2026-11-27:设备型 peer(AirPlay/DLNA/Sendspin)的 /status 是实时查询,
+    // 没有 reportedAt,只有服务端在出口写入的 updatedAt(= 采样时刻)。
+    // 客户端每 2s 轮询一次,不外推就会每拍把进度拽回快照值 —— 这是「暂停/跳回」的根因。
+    test('设备型 peer:只有 updatedAt → 以 updatedAt 为锚点外推', () {
+      expect(
+        projectPolledPosition(
+          status: _status(position: 10, duration: 200, updatedAtMs: 1000),
+          nowMs: 5000,
+        ),
+        closeTo(14.0, 1e-9),
+      );
+    });
+
+    test('设备型 peer:updatedAt 为 0 或负数 → 原样返回', () {
+      for (final bad in [0, -1]) {
+        expect(
+          projectPolledPosition(
+            status: _status(position: 12, duration: 200, updatedAtMs: bad),
+            nowMs: 5000,
+          ),
+          12.0,
+        );
+      }
+    });
+
+    test('设备型 peer:updatedAt 过旧(>30s) → 原样返回', () {
+      expect(
+        projectPolledPosition(
+          status: _status(position: 12, duration: 200, updatedAtMs: 1000),
+          nowMs: 32000,
+        ),
+        12.0,
+      );
+    });
+
+    test('设备型 peer:外推结果按 duration 夹紧', () {
+      // age=10s（窗口内）→ 199+10=209 超过 duration 200 ⇒ 夹紧到 200。
+      expect(
+        projectPolledPosition(
+          status: _status(position: 199, duration: 200, updatedAtMs: 1000),
+          nowMs: 11000,
+        ),
+        200.0,
+      );
+    });
+
+    test('reportedAt 与 updatedAt 同时存在 → reportedAt 优先(真实采样时刻更准)', () {
+      // reportedAt=1000(age 4s) 优先于 updatedAt=3000(age 2s) ⇒ 14 而不是 12。
+      expect(
+        projectPolledPosition(
+          status: _status(
+            position: 10,
+            duration: 200,
+            reportedAtMs: 1000,
+            updatedAtMs: 3000,
+          ),
+          nowMs: 5000,
+        ),
+        closeTo(14.0, 1e-9),
       );
     });
 
@@ -267,6 +333,28 @@ void main() {
       expect(out.volume, 50);
       expect(out.muted, isTrue);
     });
+
+    // 2026-11-27:影子重建曾经丢掉 updatedAtMs / speed,导致设备型 peer 在
+    // 命令后 8s 窗口内外推基准被清空,进度又开始每拍回退。
+    test('影子重建必须保留 updatedAtMs 与 speed（设备型外推基准不能丢）', () {
+      final incoming = _status(
+        position: 3,
+        duration: 100,
+        volume: 50,
+        reportedAtMs: 4000,
+        updatedAtMs: 4200,
+        speed: 1.5,
+      );
+      final current = _status(volume: 30);
+      final out = applyVolumeShadow(
+        incoming: incoming,
+        current: current,
+        commandAtMs: 5000,
+        nowMs: 6000,
+      );
+      expect(out.updatedAtMs, 4200);
+      expect(out.speed, 1.5);
+    });
   });
 
   group('applyTransportShadow：传输类命令的滞后采样影子', () {
@@ -307,6 +395,25 @@ void main() {
       );
       expect(out.state, 'PLAYING');
       expect(out.active, isTrue);
+    });
+
+    test('影子重建必须保留 updatedAtMs 与 speed（同 volume 影子）', () {
+      final incoming = _status(
+        state: 'PLAYING',
+        active: true,
+        reportedAtMs: 4000,
+        updatedAtMs: 4200,
+        speed: 0.75,
+      );
+      final current = _status(state: 'PAUSED_PLAYBACK', active: false);
+      final out = applyTransportShadow(
+        incoming: incoming,
+        current: current,
+        commandAtMs: 5000,
+        nowMs: 6000,
+      );
+      expect(out.updatedAtMs, 4200);
+      expect(out.speed, 0.75);
     });
   });
 
