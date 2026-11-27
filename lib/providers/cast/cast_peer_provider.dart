@@ -1164,7 +1164,12 @@ abstract class CastPeerControllerBase extends Notifier<CastPeerState> {
         // 直接写采样值会让进度条/歌词每两轮回退一次(详见 _projectPolledPosition)。
         smoothPositionSeconds: keepOptimistic
             ? state.smoothPositionSeconds
-            : _projectPolledPosition(mergedStatus),
+            : adoptPolledPosition(
+                projected: _projectPolledPosition(mergedStatus),
+                local: state.smoothPositionSeconds,
+                // 换歌那一拍不走防抖:新曲起点必须原样采纳(见纯函数同曲判据)。
+                sameSong: idx == state.castIndex,
+              ),
         castIndex: idx,
         playMode: mode,
         castQueue: items,

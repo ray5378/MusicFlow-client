@@ -2,9 +2,9 @@
 //
 // 覆盖范围（零成本可测，不需要宿主 controller / fake 平台）：
 //   · lib/providers/cast/cast_peer_policy.dart
-//       projectPolledPosition / isStaleSample / applyVolumeShadow /
-//       applyTransportShadow / nextSmoothPosition / resolveProgressTickMs /
-//       visiblePeers / selectAutoSelectCandidates
+//       projectPolledPosition / adoptPolledPosition / isStaleSample /
+//       applyVolumeShadow / applyTransportShadow / nextSmoothPosition /
+//       resolveProgressTickMs / visiblePeers / selectAutoSelectCandidates
 //
 // 这些判定原先内联在 `cast_peer_provider.dart` 的 `CastPeerController`（StateNotifier）
 // 里，属**库私有**成员、单测只能经整条控制器链路间接触达；阶段 2a 逐字搬运为顶层
@@ -214,6 +214,48 @@ void main() {
         ),
         closeTo(8.0, 1e-9),
       );
+    });
+  });
+
+  group('adoptPolledPosition：轮询回写单向防抖', () {
+    test('同曲内小回退（≤0.5s）→ 保留本地值，吞掉 0.1s 精度抖动', () {
+      expect(adoptPolledPosition(projected: 10.0, local: 10.3), closeTo(10.3, 1e-9));
+      expect(adoptPolledPosition(projected: 10.2, local: 10.5), closeTo(10.5, 1e-9));
+      // 恰好 0.5s 也在容差内
+      expect(adoptPolledPosition(projected: 10.0, local: 10.5), closeTo(10.5, 1e-9));
+    });
+
+    test('前进（projected ≥ local）→ 采纳服务端值，不影响真前进', () {
+      expect(adoptPolledPosition(projected: 10.5, local: 10.0), closeTo(10.5, 1e-9));
+      expect(adoptPolledPosition(projected: 10.0, local: 10.0), closeTo(10.0, 1e-9));
+    });
+
+    test('大回退（>0.5s）→ 采纳服务端值，真 seek 不被吞', () {
+      expect(adoptPolledPosition(projected: 9.0, local: 10.0), closeTo(9.0, 1e-9));
+      expect(adoptPolledPosition(projected: 0.0, local: 10.0), closeTo(0.0, 1e-9));
+    });
+
+    test('非同一首歌 → 一律采纳，换歌起点不被吞', () {
+      expect(
+        adoptPolledPosition(projected: 0.0, local: 0.3, sameSong: false),
+        closeTo(0.0, 1e-9),
+      );
+      expect(
+        adoptPolledPosition(projected: 2.0, local: 200.0, sameSong: false),
+        closeTo(2.0, 1e-9),
+      );
+    });
+
+    test('容差可调：0.5s 之外的小回退按自定义容差判定', () {
+      expect(
+        adoptPolledPosition(projected: 10.0, local: 10.4, toleranceSec: 0.3),
+        closeTo(10.0, 1e-9),
+      );
+    });
+
+    test('刚超出容差（0.6s）→ 采纳，防抖不是无界吞并', () {
+      // 容差是硬上界:回退一旦超过 0.5s 就必须纠正,否则本地时钟会持续领先
+      expect(adoptPolledPosition(projected: 10.0, local: 10.6), closeTo(10.0, 1e-9));
     });
   });
 

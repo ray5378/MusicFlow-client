@@ -56,6 +56,33 @@ double projectPolledPosition({
       : projected;
 }
 
+/// 轮询回写的**单向防抖**（纯函数）：吞掉「往前走时被 0.1s 上报精度往回拽一小格」。
+///
+/// 背景：服务端把 position 报到 0.1s 精度，外推值 `采样 + (now − reportedAt)` 每 2s
+/// 重新对齐一次。截断误差 + 网络往返让外推值有时比本地 tick 已推进的平滑值**小
+/// 0.1~0.3s**，写回即表现为进度条「往前走时轻微后跳」。
+///
+/// 规则（只拦往回小跳，其余一律采纳）：
+///   - `projected < local` 且差距 ≤ [toleranceSec]（默认 0.5s）→ 保留 [local]，不采纳；
+///   - 前进（`projected >= local`）→ 采纳 [projected]（真前进、真纠偏不受影响）；
+///   - 大回退（差距 > 容差）→ 采纳 [projected]（真 seek / 换歌不能被吞）；
+///   - 非同一首歌（[sameSong] = false）→ 一律采纳 [projected]。
+///
+/// **单向 + 同曲**是安全线：只挡「同曲内的小回退」，绝不挡前进、大回退或换歌。
+/// 换歌时新曲 position 从 0 开始：既靠大回退穿透，也靠 [sameSong] 兜底（防切歌极快、
+/// 旧歌进度尚 <0.5s 时误吞新曲起点）；seek 由调用方 keepOptimistic 守卫在前挡住。
+/// 容差取 0.5s：覆盖 0.1s 精度 + 网络抖动，又不至于掩盖真实跑偏。
+double adoptPolledPosition({
+  required double projected,
+  required double local,
+  bool sameSong = true,
+  double toleranceSec = 0.5,
+}) {
+  if (!sameSong) return projected;
+  final back = local - projected;
+  return back > 0 && back <= toleranceSec ? local : projected;
+}
+
 /// 该上报是不是「命令下发**之前**采的样」——即尚未包含本次命令结果（纯函数）。
 ///
 /// 判据:采样时刻(`reportedAt`)早于命令下发时刻,且仍在保护窗口内。
